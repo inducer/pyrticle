@@ -1,0 +1,15 @@
+build
+*.dat
+test/*.lua
+MANIFEST
+*.vtk
+*.ele
+*.face
+*.poly
+*.node
+.*.swp
+test/ParaViewTrace*.pvs
+dist
+*~
+*.pyc
+*.lua
