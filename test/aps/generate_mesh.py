@@ -25,7 +25,7 @@ def main():
 
     build_kwargs = {}
 
-    generate_inverse = False
+    generate_inverse = True
     if generate_inverse:
         # chop off points with zero radius
         while rz[0][0] == 0:
@@ -43,7 +43,7 @@ def main():
                 ])
         closure=EXT_CLOSED_IN_RZ
 
-    generate_fine_tube = True
+    generate_fine_tube = False
     if generate_fine_tube:
         # chop off points with zero radius
         while rz[0][0] == 0:
@@ -80,12 +80,11 @@ def main():
         points, facets = generate_surface_of_revolution(rz,
                 closure=closure)
 
-
     mesh_info.set_points(points)
     mesh_info.set_facets(facets, [0 for i in range(len(facets))])
-    mesh_info.save_poly("gun")
-    mesh_info.save_nodes("gun")
-    mesh = build(mesh_info, **build_kwargs)
+    #mesh_info.save_poly("gun")
+    #mesh_info.save_nodes("gun")
+    mesh = build(mesh_info, verbose=True, **build_kwargs)
     print "%d elements" % len(mesh.elements)
     mesh.write_vtk("gun.vtk")
 
