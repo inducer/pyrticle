@@ -1,14 +1,15 @@
 import pylinear.array as num
 from pytools.arithmetic_container import work_with_arithmetic_containers
+from pytools.arithmetic_container import ArithmeticList
 
 
 
 
 def find_containing_element(discr, point):
     for el in discr.mesh.elements:
-        unit_coords = el.contains_point(point)
-        if unit_coors:
-            return el, unit_coords
+        if el.contains_point(point):
+            return el
+    return None
 
 
 
@@ -72,10 +73,11 @@ class PointCloud:
         except:
             masses = masses*num.ones((new_count,))
 
-        self.charges = num.vstack((self.charges, num.array(charges)))
-        self.masses = num.vstack((self.masses, num.array(masses)))
+        self.charges = num.vstack((self.charges, charges))
+        self.masses = num.vstack((self.masses, masses))
         self.containing_elements.extend(
-                find_containing_element(p) for p in positions)
+                find_containing_element(self.discretization, p) for p in positions)
+        print self.positions
 
     def upkeep(self):
         """Perform any operations must fall in between timesteps,
@@ -89,10 +91,12 @@ class PointCloud:
           ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
         of the densities in each direction.
         """
-        pass
 
-    def rhs(self, e, h):
-        from pytools.arithmetic_container import ArithmeticList
+        return (self.discretization.volume_zeros(),
+                ArithmeticList([self.discretization.volume_zeros() 
+                    for i in range(self.discretization.dimensions)]))
+
+    def rhs(self, t, e, h):
 
         accelerations = num.zeros(self.velocities.shape)
 
@@ -117,7 +121,8 @@ class PointCloud:
         self.positions += dx
         self.velocities += dv
         self.containing_elements = [
-                find_containing_element(p) for p in self.positions]
+                find_containing_element(self.discretization, p) for p in self.positions]
+        return self
 
     def add_to_silo_db(self, db):
         d = self.dimensions

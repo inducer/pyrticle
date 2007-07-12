@@ -45,7 +45,7 @@ def main():
     #mesh = make_cylinder_mesh(radius=1, height=2, max_volume=0.01)
     mesh = make_box_mesh(max_volume=0.01)
 
-    discr = Discretization(mesh, TetrahedralElement(order))
+    discr = Discretization(mesh, TetrahedralElement(3))
     vis = SiloVisualizer(discr)
 
     print "%d elements" % len(discr.mesh.elements)
@@ -65,8 +65,8 @@ def main():
 
     maxwell = MaxwellOperator(discr, epsilon, mu, upwind_alpha=0)
 
-    nparticles = 1
-    cloud = PointCloud(discr)
+    nparticles = 5
+    cloud = PointCloud(discr, epsilon, mu)
     zero = num.zeros((discr.dimensions,))
     cloud.add_points(
             gaussian_vectors(nparticles, discr.dimensions, zero, 0.1),

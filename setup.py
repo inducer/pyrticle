@@ -84,8 +84,8 @@ setup(name="pyrticle",
       author_email="inform@tiker.net",
       license = "Proprietary",
       #url="http://news.tiker.net/software/hedge",
-      packages=["hedge"],
-      package_dir={"hedge": "src/python"},
-      ext_package="hedge",
+      packages=["pyrticle"],
+      package_dir={"pyrticle": "src/python"},
+      ext_package="pyrticle",
       ext_modules=ext_modules
      )
