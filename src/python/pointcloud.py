@@ -1,15 +1,26 @@
 import pylinear.array as num
+import pylinear.computation as comp
 from pytools.arithmetic_container import work_with_arithmetic_containers
 from pytools.arithmetic_container import ArithmeticList
+from math import sqrt
 
 
 
 
-def find_containing_element(discr, point):
+def find_containing_element(discr, point, prev_element=None):
+    if prev_element and prev_element.contains_point(point):
+        return prev_element
     for el in discr.mesh.elements:
         if el.contains_point(point):
             return el
     return None
+
+
+
+
+def enum_subvectors(x, subdim):
+    for i in range(len(x)//subdim):
+        yield x[i*subdim:(i+1)*subdim]
 
 
 
@@ -25,7 +36,7 @@ class Interpolator:
 
     @work_with_arithmetic_containers
     def __call__(self, field):
-            return self.interp_coeff * field[el_start:el_end]
+            return self.interp_coeff * field[self.el_start:self.el_end]
 
 
 
@@ -40,28 +51,44 @@ class PointCloud:
       [x0,y0,z0,x1,y1,z1,...]
     - charges, masses
       single scalar per particle
+    - containing_elements
+      a reference to a hedge.mesh.Element containing the particle
+      (or None, indicating this particle index is dead--
+      remember, it's called particle-*in*-cell :-)
      """
     def __init__(self, discr, epsilon, mu):
         self.discretization = discr
         self.dimensions = discr.dimensions
+
+        self.containing_elements = []
         self.positions = num.zeros((0,))
         self.velocities = num.zeros((0,))
         self.charges = num.zeros((0,))
         self.masses = num.zeros((0,))
-        self.containing_elements = []
+
+        self.deadlist = []
 
         self.epsilon = epsilon
         self.mu = mu
+        self.c = 1/sqrt(epsilon*mu)
+
+        self.vis_info = {}
 
     def __len__(self):
-        return len(self.charges)
+        return len(self.charges) - len(self.deadlist)
 
     def add_points(self, positions, velocities, charges, masses):
         """Adds the points with the given data to the cloud."""
 
-        new_count = len(self.positions)
-        self.positions = num.vstack((self.positions, num.vstack(positions)))
-        self.velocities = num.vstack((self.velocities, num.vstack(velocities)))
+        dim = self.dimensions
+
+        new_count = len(positions)
+
+        for v in velocities:
+            assert comp.norm_2(v) < self.c
+
+        containing_elements = [find_containing_element(self.discretization, p) 
+                for p in positions]
 
         try:
             len(charges)
@@ -71,13 +98,48 @@ class PointCloud:
         try:
             len(masses)
         except:
-            masses = masses*num.ones((new_count,))
+            masses = new_count * [masses]
 
-        self.charges = num.vstack((self.charges, charges))
-        self.masses = num.vstack((self.masses, masses))
+        deathflags = [ce is None for ce in containing_elements]
+        containing_elements = [ce for ce in containing_elements 
+                if ce is not None]
+        positions = [p for p, dead in zip(positions, deathflags) 
+                if not dead]
+        velocities = [v for v, dead in zip(velocities, deathflags) 
+                if not dead]
+        charges = num.array([c for c, dead in zip(charges, deathflags) 
+            if not dead])
+        masses = num.array([m for m, dead in zip(masses, deathflags) 
+            if not dead])
+
+        # first, fill up the spots of formerly dead particles
+        already_placed = 0
+        while len(self.deadlist):
+            i = self.deadlist.pop()
+            pstart = i*dim
+            pend = (i+1)*dim
+
+            self.containing_elements[i] = containing_elements[alreay_placed]
+            self.positions[pstart:pend] = positions[already_placed]
+            self.velocities[pstart:pend] = velocities[already_placed]
+            self.charges[i] = charges[already_placed]
+            self.masses[i] = masses[already_placed]
+
+            already_placed += 1
+
+        # next, append
         self.containing_elements.extend(
-                find_containing_element(self.discretization, p) for p in positions)
-        print self.positions
+                containing_elements[already_placed:])
+
+        self.positions = num.vstack((self.positions, 
+            num.vstack(positions[already_placed:])))
+        self.velocities = num.vstack((self.velocities, 
+            num.vstack(velocities[already_placed:])))
+
+        self.charges = num.vstack((self.charges, 
+            charges[already_placed:]))
+        self.masses = num.vstack((self.masses, 
+            masses[already_placed:]))
 
     def upkeep(self):
         """Perform any operations must fall in between timesteps,
@@ -97,21 +159,41 @@ class PointCloud:
                     for i in range(self.discretization.dimensions)]))
 
     def rhs(self, t, e, h):
-
         accelerations = num.zeros(self.velocities.shape)
 
-        d = self.dimensions
+        dim = self.dimensions
 
-        for i in range(len(self)):
+        self.vis_info = {}
+
+        for i in range(len(self.charges)):
+            if self.containing_elements[i] is None:
+                continue
+
+            pstart = dim*i
+            pend = dim*(i+1)
+           
             interp = Interpolator(self.discretization,
-                    self.containing_element[i],
-                    self.positions[d*i:d*i+3])
+                    self.containing_elements[i],
+                    self.positions[pstart:pend])
             e_at_pt = num.array(interp(e))
             h_at_pt = num.array(interp(h))
-            v = self.velocities[d*i:d*i+3]
+
+            v = self.velocities[pstart:pend]
+            v_scalar = comp.norm_2(v)
             q = self.charges[i]
-            force = q*(e_at_pt + v <<num.cross>> (self.mu*h_at_pt))
-            accelerations[d*i:d*i+3] = force/self.masses[i]
+
+            el_force = q*e_at_pt
+            lorentz_force = q*(v <<num.cross>> (self.mu*h_at_pt))
+            force = el_force + lorentz_force
+
+            rel_mass = self.masses[i] / sqrt(1-(v_scalar/self.c)**2)
+
+            self.vis_info[i, "pt_e"] = e_at_pt
+            self.vis_info[i, "pt_h"] = h_at_pt
+            self.vis_info[i, "el_force"] = el_force
+            self.vis_info[i, "lorentz_force"] = lorentz_force
+
+            accelerations[pstart:pend] = force/rel_mass
 
         return ArithmeticList([self.velocities, accelerations])
 
@@ -121,14 +203,58 @@ class PointCloud:
         self.positions += dx
         self.velocities += dv
         self.containing_elements = [
-                find_containing_element(self.discretization, p) for p in self.positions]
+                find_containing_element(self.discretization, 
+                    p, prev_el) for p, prev_el in zip(
+                        enum_subvectors(self.positions, self.dimensions),
+                        self.containing_elements)]
+
         return self
 
-    def add_to_silo_db(self, db):
-        d = self.dimensions
-        coords = num.vstack([self.positions[i::d] for i in range(self.dimensions)])
-        velocities = [self.velocities[i::d] for i in range(self.dimensions)]
+    def add_to_silo_db(self, db, e, h):
+        dim = self.dimensions
 
-        db.put_pointmesh("particles", d, coords)
-        db.put_pointvar("velocities", "particles", velocities)
+        def make_empty_vis_field():
+            return [[] for d in range(dim)]
 
+        coords = make_empty_vis_field()
+        pt_v = make_empty_vis_field()
+
+        def add_vector_field(name, var):
+            db.put_pointvar(name, "particles", 
+                    [num.array(vi) for vi in var])
+
+        for i, ce in enumerate(self.containing_elements):
+            if ce is None:
+                continue
+
+            pstart = dim*i
+            pend = dim*(i+1)
+           
+            for d in range(dim):
+                coords[d].append(self.positions[pstart + d])
+                pt_v[d].append(self.velocities[pstart + d])
+
+        from operator import add
+        db.put_pointmesh("particles", dim, reduce(add, coords))
+        add_vector_field("velocities", pt_v)
+
+        def add_vis_info_vector(name):
+            vf = make_empty_vis_field()
+
+            try:
+                for i, ce in enumerate(self.containing_elements):
+                    if ce is None:
+                        continue
+
+                    for d in range(dim):
+                        vf[d].append(self.vis_info[i, name][d])
+            except KeyError:
+                vf = [num.zeros((len(self),)) for d in range(dim)]
+
+            db.put_pointvar(name, "particles", 
+                    [num.array(vfi) for vfi in vf])
+
+        add_vis_info_vector("pt_e")
+        add_vis_info_vector("pt_h")
+        add_vis_info_vector("el_force")
+        add_vis_info_vector("lorentz_force")

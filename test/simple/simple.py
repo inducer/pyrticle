@@ -5,11 +5,36 @@ import pylinear.computation as comp
 
 
 
-def gaussian_vectors(count, dim, center, sigma):
+def cutoff_gaussian_vectors(count, dim, center, sigma):
     from random import normalvariate
-    return [num.array([ci + normalvariate(0, sigma) for ci in center])
-            for i in range(count)]
 
+    def generate_vector():
+        accept = False
+        while not accept:
+            result = num.array([
+                ci + normalvariate(0, sigma) for ci in center])
+            accept = comp.norm_2(result-center) < 2*sigma
+        return result
+
+
+    return [generate_vector() for i in range(count)]
+
+
+
+
+class UniformCompactlySupportedField:
+    def __init__(self, vector, box_dims):
+        self.vector = vector
+        self.box_dims = box_dims
+
+    def __len__(self):
+        return 6
+    
+    def __call__(self, x):
+        from math import cos, pi
+        from operator import mul
+        return self.vector * reduce(mul, (1-cos(xi/bdi*2*pi) 
+            for xi, bdi in zip(x, self.box_dims)))
 
 
 
@@ -40,10 +65,11 @@ def main():
     c = 1/sqrt(epsilon*mu)
 
     el_mass = 9.10938215e-31 # kg
-    el_charge = -1.602176487e-19 # C
+    el_charge = 1.602176487e-19 # C
 
     #mesh = make_cylinder_mesh(radius=1, height=2, max_volume=0.01)
-    mesh = make_box_mesh(max_volume=0.01)
+    box_dimensions = num.array([1,1,2])
+    mesh = make_box_mesh(box_dimensions, max_volume=0.01)
 
     discr = Discretization(mesh, TetrahedralElement(3))
     vis = SiloVisualizer(discr)
@@ -51,7 +77,7 @@ def main():
     print "%d elements" % len(discr.mesh.elements)
 
     dt = discr.dt_factor(1/sqrt(mu*epsilon))
-    final_time = dt*60
+    final_time = 2/c 
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -65,17 +91,24 @@ def main():
 
     maxwell = MaxwellOperator(discr, epsilon, mu, upwind_alpha=0)
 
-    nparticles = 5
+    for v in cutoff_gaussian_vectors(2000, discr.dimensions, 
+            num.array([0,0,0.3*c]), 0.3*c):
+        assert comp.norm_2(v)/c < 1
+
+    nparticles = 1
     cloud = PointCloud(discr, epsilon, mu)
-    zero = num.zeros((discr.dimensions,))
     cloud.add_points(
-            gaussian_vectors(nparticles, discr.dimensions, zero, 0.1),
-            gaussian_vectors(nparticles, discr.dimensions, zero, 0.5*c),
+            cutoff_gaussian_vectors(nparticles, discr.dimensions, 
+                box_dimensions/2, 0.1),
+            cutoff_gaussian_vectors(nparticles, discr.dimensions, 
+                num.array([0,0,0.7*c]), 0.1*c),
             el_charge, el_mass)
 
-
     fields = concatenate_fields(
-            [discr.volume_zeros() for i in range(2*discr.dimensions)],
+            discr.interpolate_volume_function(UniformCompactlySupportedField(
+                num.array([0,0,1,0,0,0]), 
+                box_dimensions)),
+            #[discr.volume_zeros() for i in range(2*discr.dimensions)],
             [cloud])
 
     def rhs(t, y):
@@ -84,7 +117,11 @@ def main():
         
         rho, j = cloud.reconstruct_densities()
 
-        maxwell_rhs = maxwell.rhs(t, y[0:6])
+        if False:
+            maxwell_rhs = maxwell.rhs(t, y[0:6])
+        else:
+            maxwell_rhs = ArithmeticList(6*[discr.volume_zeros()])
+
         rhs_e = maxwell_rhs[:3]
         rhs_h = maxwell_rhs[3:6]
         return concatenate_fields(
@@ -99,9 +136,9 @@ def main():
     t = 0
 
     for step in range(nsteps):
-        print "timestep %d, t=%f l2[e]=%g l2[h]=%g secs=%f" % (
+        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
                 step, t, l2_norm(fields[0:3]), l2_norm(fields[3:6]),
-                time()-last_tstep)
+                time()-last_tstep, len(cloud))
         last_tstep = time()
 
         db = vis("pic-%04d.silo" % step,
@@ -112,7 +149,7 @@ def main():
                 write_coarse_mesh=True,
                 time=t, step=step
                 )
-        cloud.add_to_silo_db(db)
+        cloud.add_to_silo_db(db, e=fields[0:3], h=fields[3:6])
         del db
 
         fields = stepper(fields, t, dt, rhs)
