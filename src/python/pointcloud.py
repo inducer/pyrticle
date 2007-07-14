@@ -7,9 +7,7 @@ from math import sqrt
 
 
 
-def find_containing_element(discr, point, prev_element=None):
-    if prev_element and prev_element.contains_point(point):
-        return prev_element
+def find_containing_element(discr, point):
     for el in discr.mesh.elements:
         if el.contains_point(point):
             return el
@@ -73,6 +71,21 @@ class PointCloud:
         self.c = 1/sqrt(epsilon*mu)
 
         self.vis_info = {}
+
+        self._build_vertex_to_element_map()
+        self._build_neighbor_map()
+
+    def _build_vertex_to_element_map(self):
+        self.vertex_to_element_map = {}
+        for el in self.discretization.mesh.elements:
+            for vi in el.vertex_indices:
+                self.vertex_to_element_map \
+                        .setdefault(vi, []).append(el)
+
+    def _build_neighbor_map(self):
+        self.neighbor_map = {}
+        for face, (e2, f2) in self.discretization.mesh.both_interfaces():
+            self.neighbor_map[face] = e2
 
     def __len__(self):
         return len(self.charges) - len(self.deadlist)
@@ -198,15 +211,52 @@ class PointCloud:
         return ArithmeticList([self.velocities, accelerations])
 
     def __iadd__(self, rhs):
+        from pytools import argmin, argmax
+
         assert isinstance(rhs, ArithmeticList)
+
         dx, dv = rhs
         self.positions += dx
         self.velocities += dv
+
+        discr = self.discretization
+
+        def find_new_containing_element(i, p, v, prev_el):
+            if prev_el:
+                if prev_el.contains_point(p):
+                    return prev_el
+                else:
+                    # look via normal -----------------------------------------
+                    best_normal_fi = argmax(v*n for n in prev_el.face_normals)
+                    el_candidate = self.neighbor_map[prev_el, best_normal_fi]
+                    if el_candidate.contains_point(p):
+                        return el_candidate
+                   
+                    # look via closest vertex ---------------------------------
+                    closest_vi = argmin(comp.norm_2(discr.mesh.points[vi]-p)
+                            for vi in prev_el.vertex_indices)
+
+                    el_candidates = self.vertex_to_element_map[
+                            prev_el.vertex_indices[closest_vi]]
+
+                    for el in el_candidates:
+                        if el.contains_point(p):
+                            return el
+
+                    # look globally -------------------------------------------
+                    result = find_containing_element(discr, p)
+                    if not result:
+                        self.deadlist.append(i)
+                    return result
+            else:
+                return None
+
         self.containing_elements = [
-                find_containing_element(self.discretization, 
-                    p, prev_el) for p, prev_el in zip(
+                find_new_containing_element(i, p, v, prev_el) 
+                for i, (p, v, prev_el) in enumerate(zip(
                         enum_subvectors(self.positions, self.dimensions),
-                        self.containing_elements)]
+                        enum_subvectors(self.velocities, self.dimensions),
+                        self.containing_elements))]
 
         return self
 
