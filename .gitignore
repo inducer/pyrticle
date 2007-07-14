@@ -16,3 +16,4 @@ dist
 *.silo
 siteconf.py
 Makefile
+*.prof

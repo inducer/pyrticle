@@ -1,0 +1,6 @@
+Generate helper data structures for particle finding
+Profile the whole thing
+Implement Monomials for interpolation
+Implement Akil's shape function thing
+Characteristic BCs in Maxwell
+PML
