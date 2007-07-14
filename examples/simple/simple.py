@@ -96,7 +96,7 @@ def main():
             num.array([0,0,0.3*c]), 0.3*c):
         assert comp.norm_2(v)/c < 1
 
-    nparticles = 1
+    nparticles = 20
     cloud = PointCloud(discr, epsilon, mu)
     cloud.add_points(
             cutoff_gaussian_vectors(nparticles, discr.dimensions, 
@@ -160,5 +160,5 @@ def main():
 
 if __name__ == "__main__":
     #import cProfile as profile
-    #profile.run("main()", "wave2d.prof")
+    #profile.run("main()", "pic.prof")
     main()

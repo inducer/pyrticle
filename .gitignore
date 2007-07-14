@@ -15,3 +15,4 @@ dist
 *.lua
 *.silo
 siteconf.py
+Makefile
