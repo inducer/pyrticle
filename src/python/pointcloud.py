@@ -210,7 +210,15 @@ class PointCloud:
 
         return self
 
-    def add_to_silo_db(self, db, e, h):
+    def add_to_silo_fast(self, db, e, h):
+        d = self.dimensions
+        coords = num.vstack([self.positions[i::d] for i in range(self.dimensions)])
+        velocities = [self.velocities[i::d] for i in range(self.dimensions)]
+        
+        db.put_pointmesh("particles", d, coords)
+        db.put_pointvar("velocities", "particles", velocities)
+
+    def add_to_silo(self, db, e, h):
         dim = self.dimensions
 
         def make_empty_vis_field():

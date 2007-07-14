@@ -50,6 +50,7 @@ def main():
             bind_inverse_mass_matrix, \
             pair_with_boundary
     from hedge.visualization import SiloVisualizer
+    from hedge.silo import SiloFile
     from hedge.silo import DB_VARTYPE_VECTOR
     from hedge.tools import dot, cross
     from math import sqrt, pi
@@ -141,16 +142,16 @@ def main():
                 time()-last_tstep, len(cloud))
         last_tstep = time()
 
-        db = vis("pic-%04d.silo" % step,
-                vectors=[("e", fields[0:3]), 
-                    ("h", fields[3:6]), ],
-                expressions=[
-                    ],
-                write_coarse_mesh=True,
-                time=t, step=step
-                )
-        cloud.add_to_silo_db(db, e=fields[0:3], h=fields[3:6])
-        del db
+        silo = SiloFile("pic-%04d.silo" % step)
+        vis.add_to_silo(silo,
+            vectors=[("e", fields[0:3]), 
+                ("h", fields[3:6]), ],
+            expressions=[
+                ],
+            write_coarse_mesh=True,
+            time=t, step=step)
+        cloud.add_to_silo(silo, e=fields[0:3], h=fields[3:6])
+        silo.close()
 
         fields = stepper(fields, t, dt, rhs)
         cloud.upkeep()
