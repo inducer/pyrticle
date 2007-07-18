@@ -17,16 +17,27 @@ def bounding_box(tuples):
     
 def main():
     from superfish import parse_superfish_format
+    from optparse import OptionParser
+
+    description = "generate a vtk mesh from a superfish input file"
+    parser = OptionParser(description=description)
+    parser.add_option(
+	    "--point-dist", dest="point_dist", default="0.3",
+	    help="Spacing of intermediate points in circular arcs")
+    parser.add_option(
+	    "--inverse", dest="generate_inverse", action="store_true",
+	    help="Whether to mesh the inverse of the gun (useless, but fun)")
+
+    options, args = parser.parse_args()
 
     mesh_info = MeshInfo()
-    rz = parse_superfish_format("gun.am", 0.3)
+    rz = parse_superfish_format(args[0], float(options.point_dist))
 
     closure = EXT_OPEN
 
     build_kwargs = {}
 
-    generate_inverse = True
-    if generate_inverse:
+    if options.generate_inverse:
         # chop off points with zero radius
         while rz[0][0] == 0:
             rz.pop(0)
@@ -38,8 +49,8 @@ def main():
         first_z = rz[0][1]
         last_z = rz[-1][1]
         rz.extend([
-                (max_r+2, last_z),
-                (max_r+2, first_z),
+                (max_r+2, min_z),
+                (max_r+2, max_z),
                 ])
         closure=EXT_CLOSED_IN_RZ
 
@@ -75,7 +86,7 @@ def main():
         mesh_info.regions.resize(1)
         mesh_info.regions[0] = [0, 0,(max_z+min_z)/2, 0, 1e-4]
 
-        build_kwargs["varvolume"] = True
+        build_kwargs["volume_constraints"] = True
     else:
         points, facets = generate_surface_of_revolution(rz,
                 closure=closure)
