@@ -17,3 +17,4 @@ dist
 siteconf.py
 Makefile
 *.prof
+*.session
