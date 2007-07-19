@@ -58,9 +58,9 @@ def add_mesh_info_methods():
 
             mon_basis = [_internal.MonomialBasisFunction(*idx)
                     for idx in ldis.node_tuples()]
-            mon_vdm = generic_vandermonde( ldis.unit_nodes(), mon_basis)
+            mon_vdm = generic_vandermonde(ldis.unit_nodes(), mon_basis).T
 
-            l_vdm, u_vdm, perm, sign = comp.lu(mon_vdm.T)
+            l_vdm, u_vdm, perm, sign = comp.lu(mon_vdm)
             p_vdm = num.permutation_matrix(from_indices=perm)
 
             self.add_local_discretization(
@@ -127,13 +127,14 @@ class ParticleCloud(_internal.ParticleCloud):
       (or None, indicating this particle index is dead--
       remember, it's called particle-*in*-cell :-)
      """
-    def __init__(self, discr, epsilon, mu):
+    def __init__(self, discr, epsilon, mu, verbose_vis=False):
         _internal.ParticleCloud.__init__(self, 
                 discr.dimensions,
                 len(discr.mesh.points),
                 len(discr.mesh.elements),
                 len(discr.element_groups))
 
+        self.verbose_vis = verbose_vis
         self.discretization = discr
 
         self.mesh_info.add_elements(discr)
@@ -229,6 +230,16 @@ class ParticleCloud(_internal.ParticleCloud):
                     for i in range(self.discretization.dimensions)]))
 
     def rhs(self, t, e, h):
+        return ArithmeticList([
+            self.velocities, 
+            self.accelerations(
+                e[0], e[1], e[2], 
+                h[0], h[1], h[2], 
+                self.c, self.mu,
+                self.verbose_vis)
+            ])
+
+    def rhs_2(self, t, e, h):
         accelerations = num.zeros(self.velocities.shape)
 
         dim = self.mesh_info.dimensions
@@ -280,64 +291,26 @@ class ParticleCloud(_internal.ParticleCloud):
 
         return self
 
-    def add_to_silo_fast(self, db, e, h):
-        d = self.dimensions
-        coords = num.vstack([self.positions[i::d] for i in range(self.dimensions)])
-        velocities = [self.velocities[i::d] for i in range(self.dimensions)]
-        
-        db.put_pointmesh("particles", d, coords)
-        db.put_pointvar("velocities", "particles", velocities)
-
-    def add_to_silo(self, db, e, h):
+    def add_to_silo(self, db):
         dim = self.mesh_info.dimensions
 
-        def make_empty_vis_field():
-            return [[] for d in range(dim)]
-
-        coords = make_empty_vis_field()
-        pt_v = make_empty_vis_field()
-
-        def add_vector_field(name, var):
-            db.put_pointvar(name, "particles", 
-                    [num.array(vi) for vi in var])
-
-        for i, ce in enumerate(self.containing_elements):
-            if ce == MeshInfo.INVALID_ELEMENT:
-                continue
-
-            pstart = dim*i
-            pend = dim*(i+1)
-           
-            for d in range(dim):
-                coords[d].append(self.positions[pstart + d])
-                pt_v[d].append(self.velocities[pstart + d])
-
-        from operator import add
-        coords = reduce(add, coords)
-
-        if not coords:
-            return
-
+        coords = num.vstack([self.positions[i::dim] for i in range(dim)])
         db.put_pointmesh("particles", dim, coords)
-        add_vector_field("velocities", pt_v)
 
-        def add_vis_info_vector(name):
-            vf = make_empty_vis_field()
+        db.put_pointvar("velocity", "particles", 
+                [self.velocities[i::dim] for i in range(dim)])
 
-            try:
-                for i, ce in enumerate(self.containing_elements):
-                    if ce is None:
-                        continue
+        pcount = len(self.containing_elements)
+        def add_vis_vector(name):
+            if name in self.vis_info:
+                db.put_pointvar(name, "particles", 
+                        [self.vis_info[name][i::dim] for i in range(dim)])
+            else:
+                db.put_pointvar(name, "particles", 
+                        [num.zeros((pcount,)) for i in range(dim)])
 
-                    for d in range(dim):
-                        vf[d].append(self.vis_info[i, name][d])
-            except KeyError:
-                vf = [num.zeros((len(self),)) for d in range(dim)]
-
-            db.put_pointvar(name, "particles", 
-                    [num.array(vfi) for vfi in vf])
-
-        #add_vis_info_vector("pt_e")
-        #add_vis_info_vector("pt_h")
-        #add_vis_info_vector("el_force")
-        #add_vis_info_vector("lorentz_force")
+        if self.verbose_vis:
+            add_vis_vector("pt_e")
+            add_vis_vector("pt_h")
+            add_vis_vector("el_acc")
+            add_vis_vector("lorentz_acc")

@@ -6,13 +6,13 @@ import pylinear.computation as comp
 
 
 def cutoff_gaussian_vectors(count, dim, center, sigma):
-    from random import normalvariate
+    from random import gauss
 
     def generate_vector():
         accept = False
         while not accept:
             result = num.array([
-                ci + normalvariate(0, sigma) for ci in center])
+                ci + gauss(0, sigma) for ci in center])
             accept = comp.norm_2(result-center) < 2*sigma
         return result
 
@@ -58,6 +58,8 @@ def main():
             ArithmeticList, concatenate_fields
     from hedge.operators import MaxwellOperator
     from pyrticle.cloud import ParticleCloud
+    from random import seed
+    seed(0)
 
     epsilon0 = 8.8541878176e-12 # C**2 / (N m**2)
     mu0 = 4*pi*1e-7 # N/A**2.
@@ -96,8 +98,8 @@ def main():
             num.array([0,0,0.3*c]), 0.3*c):
         assert comp.norm_2(v)/c < 1
 
-    nparticles = 20
-    cloud = ParticleCloud(discr, epsilon, mu)
+    nparticles = 2000
+    cloud = ParticleCloud(discr, epsilon, mu, verbose_vis=True)
     cloud.add_particles(
             cutoff_gaussian_vectors(nparticles, discr.dimensions, 
                 box_dimensions/2, 0.1),
@@ -142,21 +144,25 @@ def main():
                 time()-last_tstep, len(cloud))
         last_tstep = time()
 
-        silo = SiloFile("pic-%04d.silo" % step)
-        vis.add_to_silo(silo,
-            vectors=[("e", fields[0:3]), 
-                ("h", fields[3:6]), ],
-            expressions=[
-                ],
-            write_coarse_mesh=True,
-            time=t, step=step)
-        cloud.add_to_silo(silo, e=fields[0:3], h=fields[3:6])
-        silo.close()
+        if True:
+            silo = SiloFile("pic-%04d.silo" % step)
+            vis.add_to_silo(silo,
+                vectors=[("e", fields[0:3]), 
+                    ("h", fields[3:6]), ],
+                expressions=[
+                    ],
+                write_coarse_mesh=True,
+                time=t, step=step)
+            cloud.add_to_silo(silo)
+            silo.close()
 
         fields = stepper(fields, t, dt, rhs)
         cloud.upkeep()
 
         t += dt
+
+
+
 
 if __name__ == "__main__":
     #import cProfile as profile

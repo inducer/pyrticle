@@ -3,7 +3,7 @@
 #include <list>
 #include <climits>
 #include <numeric>
-#include <algorithm>
+#include <iomanip>
 #include <boost/python.hpp>
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 #include <boost/numeric/ublas/matrix_sparse.hpp>
@@ -45,6 +45,46 @@ namespace {
     double, ublas::column_major, 0, 
     ublas::unbounded_array<int> >
       csr_matrix;
+  typedef ublas::zero_vector<
+    hedge::vector::value_type>
+    zero_vector;
+
+
+
+
+  template <class T>
+  PyObject *manage_new_object(T *obj)
+  {
+    typename python::manage_new_object::apply<T *>::type 
+      result_converter;
+    return result_converter(obj);
+  }
+
+
+
+
+
+  template <class T>
+  inline const T square(T x)
+  {
+    return x*x;
+  }
+
+
+
+
+
+  inline
+  const hedge::vector cross(
+      const hedge::vector &a, 
+      const hedge::vector &b)
+  {
+    hedge::vector result(3);
+    result[0] = a[1]*b[2] - a[2]*b[1];
+    result[1] = a[2]*b[0] - a[0]*b[2];
+    result[2] = a[0]*b[1] - a[1]*b[0];
+    return result;
+  }
 
 
 
@@ -78,20 +118,17 @@ namespace {
 
 
 
-  bool is_in_unit_simplex(const hedge::vector &unit_coords)
+  const bool is_in_unit_simplex(const hedge::vector &unit_coords)
   {
+    const double eps = 1e-10;
+
     BOOST_FOREACH(hedge::vector::value_type ri, unit_coords)
-      if (ri < -1)
+      if (ri < -1-eps)
         return false;
 
     return std::accumulate(unit_coords.begin(), unit_coords.end(), 
-        (double) 0) <= -(signed(unit_coords.size())-2);
+        (double) 0) <= -(signed(unit_coords.size())-2)+eps;
   }
-
-
-
-
-  class zero_vector { };
 
 
 
@@ -257,8 +294,10 @@ namespace {
         unsigned basis_length = el_inf.m_end-el_inf.m_start;
         hedge::vector mon_basis_values_at_pt(basis_length);
 
+        hedge::vector unit_pt = el_inf.m_inverse_map(pt);
+
         for (unsigned i = 0; i < basis_length; i++)
-          mon_basis_values_at_pt[i] = ldis.m_basis[i](pt);
+          mon_basis_values_at_pt[i] = ldis.m_basis[i](unit_pt);
 
         hedge::vector permuted_basis_values = prod(
                   ldis.m_p_mon_vandermonde_t,
@@ -320,10 +359,12 @@ namespace {
       // operation ------------------------------------------------------------
       void update_containing_elements()
       {
+        const unsigned dim = m_mesh_info.m_dimensions;
+
         for (unsigned i = 0; i < m_containing_elements.size(); i++)
         {
-          unsigned pstart = i*m_mesh_info.m_dimensions;
-          unsigned pend = (i+1)*m_mesh_info.m_dimensions;
+          unsigned pstart = i*dim;
+          unsigned pend = (i+1)*dim;
 
           mesh_info::element_number prev = m_containing_elements[i];
           if (prev == mesh_info::INVALID_ELEMENT)
@@ -413,13 +454,31 @@ namespace {
           }
 
           // last resort: global search ---------------------------------------
-          m_containing_elements[i] = m_mesh_info.find_containing_element(pt);
+          {
+            mesh_info::element_number new_el = 
+              m_mesh_info.find_containing_element(pt);
+            if (new_el != mesh_info::INVALID_ELEMENT)
+            {
+              m_containing_elements[i] = new_el;
+              continue;
+            }
+          }
 
           // no element found? kill the particle ------------------------------
           m_containing_elements[i] = mesh_info::INVALID_ELEMENT;
           m_deadlist.push_back(i);
 
-          std::cout << "KILL" << i << std::endl;
+          /*
+          std::cout 
+            << "KILL" << i 
+            << " near " << std::setprecision(18) 
+            << subrange(m_positions, pstart, pend)
+            << std::endl;
+            */
+
+          subrange(m_positions, pstart, pend) = zero_vector(dim);
+          subrange(m_velocities, pstart, pend) = zero_vector(dim);
+
           continue;
         }
       }
@@ -433,10 +492,88 @@ namespace {
       hedge::vector accelerations(
           const EX &ex, const EY &ey, const EZ &ez,
           const HX &hx, const HY &hy, const HZ &hz,
+          double c, double mu,
           bool update_vis_info
           )
       {
+        const unsigned dim = m_mesh_info.m_dimensions;
+
         hedge::vector result(m_positions.size());
+        std::auto_ptr<hedge::vector> 
+          vis_e, vis_h, vis_el_acc, vis_lorentz_acc;
+
+        if (update_vis_info)
+        {
+          vis_e = std::auto_ptr<hedge::vector>(
+              new hedge::vector(m_positions.size()));
+          vis_h = std::auto_ptr<hedge::vector>(
+              new hedge::vector(m_positions.size()));
+          vis_el_acc = std::auto_ptr<hedge::vector>(
+              new hedge::vector(m_positions.size()));
+          vis_lorentz_acc = std::auto_ptr<hedge::vector>(
+              new hedge::vector(m_positions.size()));
+        }
+
+        for (unsigned i = 0; i < m_containing_elements.size(); i++)
+        {
+          unsigned pstart = dim*i;
+          unsigned pend = dim*(i+1);
+
+          mesh_info::element_number in_el = m_containing_elements[i];
+          if (in_el == mesh_info::INVALID_ELEMENT)
+          {
+            subrange(result, pstart, pend) = zero_vector(dim);
+            continue;
+          }
+
+          interpolator interp = m_mesh_info.make_interpolator(
+              subrange(m_positions, pstart, pend), in_el);
+
+          hedge::vector v = subrange(m_velocities, pstart, pend);
+          double v_scalar = norm_2(v);
+          if (v_scalar>=c)
+            throw std::runtime_error("cool! particle going faster than light");
+
+          double charge_over_mass = 
+            m_charges[i]/m_masses[i] 
+            *sqrt(1-square(v_scalar/c));
+
+          hedge::vector el_acc(3);
+          el_acc[0] = charge_over_mass*interp(ex);
+          el_acc[1] = charge_over_mass*interp(ey);
+          el_acc[2] = charge_over_mass*interp(ez);
+
+          hedge::vector e(3);
+          e[0] = interp(ex);
+          e[1] = interp(ey);
+          e[2] = interp(ez);
+
+          hedge::vector h(3);
+          h[0] = interp(hx);
+          h[1] = interp(hy);
+          h[2] = interp(hz);
+
+          hedge::vector lorentz_acc = cross(v, charge_over_mass*mu*h);
+
+          subrange(result, pstart, pend) = el_acc + lorentz_acc;
+
+          if (update_vis_info)
+          {
+            subrange(*vis_e, pstart, pend) = e;
+            subrange(*vis_h, pstart, pend) = h;
+            subrange(*vis_el_acc, pstart, pend) = el_acc;
+            subrange(*vis_lorentz_acc, pstart, pend) = lorentz_acc;
+          }
+        }
+
+        if (update_vis_info)
+        {
+          m_vis_info["pt_e"] = python::object(*vis_e);
+          m_vis_info["pt_h"] = python::object(*vis_h);
+          m_vis_info["el_acc"] = python::object(*vis_el_acc);
+          m_vis_info["lorentz_acc"] = python::object(*vis_lorentz_acc);
+        }
+
         return result;
       }
   };
@@ -501,7 +638,7 @@ BOOST_PYTHON_MODULE(_internal)
 
       .def_readonly("deadlist", &cl::m_deadlist)
 
-      .def_readonly("vis_info", &cl::m_deadlist)
+      .def_readonly("vis_info", &cl::m_vis_info)
 
       .DEF_SIMPLE_METHOD(update_containing_elements)
       .def("accelerations", &cl::accelerations<
