@@ -17,29 +17,6 @@ def find_containing_element(discr, point):
 
 
 
-def enum_subvectors(x, subdim):
-    for i in range(len(x)//subdim):
-        yield x[i*subdim:(i+1)*subdim]
-
-
-
-
-class Interpolator:
-    def __init__(self, discr, el_id, x):
-        unit_coords = discr.mesh.elements[el_id].inverse_map(x)
-
-        (self.el_start, self.el_end), ldis = discr.find_el_data(el_id)
-
-        point_vdm = num.array([f(unit_coords) for f in ldis.basis_functions()])
-        self.interp_coeff = ldis.vandermonde() <<num.leftsolve>> point_vdm
-
-    @work_with_arithmetic_containers
-    def __call__(self, field):
-            return self.interp_coeff * field[self.el_start:self.el_end]
-
-
-
-
 class MeshInfo(_internal.MeshInfo):
     pass
 
@@ -238,45 +215,6 @@ class ParticleCloud(_internal.ParticleCloud):
                 self.c, self.mu,
                 self.verbose_vis)
             ])
-
-    def rhs_2(self, t, e, h):
-        accelerations = num.zeros(self.velocities.shape)
-
-        dim = self.mesh_info.dimensions
-
-        #self.vis_info = {}
-
-        for i in range(len(self.charges)):
-            if self.containing_elements[i] == MeshInfo.INVALID_ELEMENT:
-                continue
-
-            pstart = dim*i
-            pend = dim*(i+1)
-           
-            interp = Interpolator(self.discretization,
-                    self.containing_elements[i],
-                    self.positions[pstart:pend])
-            e_at_pt = num.array(interp(e))
-            h_at_pt = num.array(interp(h))
-
-            v = self.velocities[pstart:pend]
-            v_scalar = comp.norm_2(v)
-            q = self.charges[i]
-
-            el_force = q*e_at_pt
-            lorentz_force = q*(v <<num.cross>> (self.mu*h_at_pt))
-            force = el_force + lorentz_force
-
-            rel_mass = self.masses[i] / sqrt(1-(v_scalar/self.c)**2)
-
-            #self.vis_info[i, "pt_e"] = e_at_pt
-            #self.vis_info[i, "pt_h"] = h_at_pt
-            #self.vis_info[i, "el_force"] = el_force
-            #self.vis_info[i, "lorentz_force"] = lorentz_force
-
-            accelerations[pstart:pend] = force/rel_mass
-
-        return ArithmeticList([self.velocities, accelerations])
 
     def __iadd__(self, rhs):
         from pytools import argmin, argmax
