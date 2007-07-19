@@ -3,6 +3,7 @@ import pylinear.computation as comp
 from pytools.arithmetic_container import work_with_arithmetic_containers
 from pytools.arithmetic_container import ArithmeticList
 from math import sqrt
+import pyrticle._internal as _internal
 
 
 
@@ -24,10 +25,10 @@ def enum_subvectors(x, subdim):
 
 
 class Interpolator:
-    def __init__(self, discr, el, x):
-        unit_coords = el.inverse_map(x)
+    def __init__(self, discr, el_id, x):
+        unit_coords = discr.mesh.elements[el_id].inverse_map(x)
 
-        (self.el_start, self.el_end), ldis = discr.find_el_data(el.id)
+        (self.el_start, self.el_end), ldis = discr.find_el_data(el_id)
 
         point_vdm = num.array([f(unit_coords) for f in ldis.basis_functions()])
         self.interp_coeff = ldis.vandermonde() <<num.leftsolve>> point_vdm
@@ -39,7 +40,79 @@ class Interpolator:
 
 
 
-class PointCloud:
+class MeshInfo(_internal.MeshInfo):
+    pass
+
+
+
+
+def add_mesh_info_methods():
+    def add_local_discretizations(self, discr):
+        from hedge.polynomial import generic_vandermonde
+
+        ldis_indices = {}
+        
+        for i, eg in enumerate(discr.element_groups):
+            ldis = eg.local_discretization
+            ldis_indices[ldis] = i
+
+            mon_basis = [_internal.MonomialBasisFunction(*idx)
+                    for idx in ldis.node_tuples()]
+            mon_vdm = generic_vandermonde( ldis.unit_nodes(), mon_basis)
+
+            l_vdm, u_vdm, perm, sign = comp.lu(mon_vdm.T)
+            p_vdm = num.permutation_matrix(from_indices=perm)
+
+            self.add_local_discretization(
+                    mon_basis, l_vdm, u_vdm, p_vdm)
+
+        return ldis_indices
+
+    def add_elements(self, discr):
+        ldis_indices = self.add_local_discretizations(discr)
+
+        mesh = discr.mesh
+
+        neighbor_map = {}
+        for face, (e2, f2) in discr.mesh.both_interfaces():
+            neighbor_map[face] = e2.id
+        for face in discr.mesh.tag_to_boundary[None]:
+            neighbor_map[face] = MeshInfo.INVALID_ELEMENT
+
+        for el in mesh.elements:
+            (estart, eend), ldis = discr.find_el_data(el.id)
+
+            self.add_element(
+                    el.inverse_map,
+                    ldis_indices[ldis],
+                    estart, eend,
+                    [vi for vi in el.vertex_indices],
+                    el.face_normals,
+                    [neighbor_map[el,fi] for fi in range(len(el.faces))]
+                    )
+
+    def add_vertices(self, discr):
+        mesh = discr.mesh
+
+        vertex_to_element_map = {}
+        for el in mesh.elements:
+            for vi in el.vertex_indices:
+                vertex_to_element_map.setdefault(vi, []).append(el.id)
+
+        for vi in range(len(mesh.points)):
+            self.add_vertex(vi, 
+                    mesh.points[vi],
+                    vertex_to_element_map[vi])
+
+    _internal.MeshInfo.add_local_discretizations = add_local_discretizations
+    _internal.MeshInfo.add_elements = add_elements
+    _internal.MeshInfo.add_vertices = add_vertices
+add_mesh_info_methods()
+
+
+
+
+class ParticleCloud(_internal.ParticleCloud):
     """State container for a cloud of particles. Supports particle
     problems of any dimension, examples below are given for three
     dimensions for simplicity.
@@ -55,52 +128,35 @@ class PointCloud:
       remember, it's called particle-*in*-cell :-)
      """
     def __init__(self, discr, epsilon, mu):
+        _internal.ParticleCloud.__init__(self, 
+                discr.dimensions,
+                len(discr.mesh.points),
+                len(discr.mesh.elements),
+                len(discr.element_groups))
+
         self.discretization = discr
-        self.dimensions = discr.dimensions
 
-        self.containing_elements = []
-        self.positions = num.zeros((0,))
-        self.velocities = num.zeros((0,))
-        self.charges = num.zeros((0,))
-        self.masses = num.zeros((0,))
-
-        self.deadlist = []
-
+        self.mesh_info.add_elements(discr)
+        self.mesh_info.add_vertices(discr)
+               
         self.epsilon = epsilon
         self.mu = mu
         self.c = 1/sqrt(epsilon*mu)
 
-        self.vis_info = {}
-
-        self._build_vertex_to_element_map()
-        self._build_neighbor_map()
-
-    def _build_vertex_to_element_map(self):
-        self.vertex_to_element_map = {}
-        for el in self.discretization.mesh.elements:
-            for vi in el.vertex_indices:
-                self.vertex_to_element_map \
-                        .setdefault(vi, []).append(el)
-
-    def _build_neighbor_map(self):
-        self.neighbor_map = {}
-        for face, (e2, f2) in self.discretization.mesh.both_interfaces():
-            self.neighbor_map[face] = e2
-
     def __len__(self):
-        return len(self.charges) - len(self.deadlist)
+        return len(self.containing_elements) - len(self.deadlist)
 
-    def add_points(self, positions, velocities, charges, masses):
-        """Adds the points with the given data to the cloud."""
+    def add_particles(self, positions, velocities, charges, masses):
+        """Add the particles with the given data to the cloud."""
 
-        dim = self.dimensions
+        dim = self.mesh_info.dimensions
 
         new_count = len(positions)
 
         for v in velocities:
             assert comp.norm_2(v) < self.c
 
-        containing_elements = [find_containing_element(self.discretization, p) 
+        containing_elements = [self.mesh_info.find_containing_element(p) 
                 for p in positions]
 
         try:
@@ -113,9 +169,10 @@ class PointCloud:
         except:
             masses = new_count * [masses]
 
-        deathflags = [ce is None for ce in containing_elements]
+        deathflags = [ce == MeshInfo.INVALID_ELEMENT 
+                for ce in containing_elements]
         containing_elements = [ce for ce in containing_elements 
-                if ce is not None]
+                if ce != MeshInfo.INVALID_ELEMENT]
         positions = [p for p, dead in zip(positions, deathflags) 
                 if not dead]
         velocities = [v for v, dead in zip(velocities, deathflags) 
@@ -141,8 +198,8 @@ class PointCloud:
             already_placed += 1
 
         # next, append
-        self.containing_elements.extend(
-                containing_elements[already_placed:])
+        self.containing_elements[-1:] = \
+                containing_elements[already_placed:]
 
         self.positions = num.vstack((self.positions, 
             num.vstack(positions[already_placed:])))
@@ -174,12 +231,12 @@ class PointCloud:
     def rhs(self, t, e, h):
         accelerations = num.zeros(self.velocities.shape)
 
-        dim = self.dimensions
+        dim = self.mesh_info.dimensions
 
-        self.vis_info = {}
+        #self.vis_info = {}
 
         for i in range(len(self.charges)):
-            if self.containing_elements[i] is None:
+            if self.containing_elements[i] == MeshInfo.INVALID_ELEMENT:
                 continue
 
             pstart = dim*i
@@ -201,10 +258,10 @@ class PointCloud:
 
             rel_mass = self.masses[i] / sqrt(1-(v_scalar/self.c)**2)
 
-            self.vis_info[i, "pt_e"] = e_at_pt
-            self.vis_info[i, "pt_h"] = h_at_pt
-            self.vis_info[i, "el_force"] = el_force
-            self.vis_info[i, "lorentz_force"] = lorentz_force
+            #self.vis_info[i, "pt_e"] = e_at_pt
+            #self.vis_info[i, "pt_h"] = h_at_pt
+            #self.vis_info[i, "el_force"] = el_force
+            #self.vis_info[i, "lorentz_force"] = lorentz_force
 
             accelerations[pstart:pend] = force/rel_mass
 
@@ -219,44 +276,7 @@ class PointCloud:
         self.positions += dx
         self.velocities += dv
 
-        discr = self.discretization
-
-        def find_new_containing_element(i, p, v, prev_el):
-            if prev_el:
-                if prev_el.contains_point(p):
-                    return prev_el
-                else:
-                    # look via normal -----------------------------------------
-                    best_normal_fi = argmax(v*n for n in prev_el.face_normals)
-                    el_candidate = self.neighbor_map[prev_el, best_normal_fi]
-                    if el_candidate.contains_point(p):
-                        return el_candidate
-                   
-                    # look via closest vertex ---------------------------------
-                    closest_vi = argmin(comp.norm_2(discr.mesh.points[vi]-p)
-                            for vi in prev_el.vertex_indices)
-
-                    el_candidates = self.vertex_to_element_map[
-                            prev_el.vertex_indices[closest_vi]]
-
-                    for el in el_candidates:
-                        if el.contains_point(p):
-                            return el
-
-                    # look globally -------------------------------------------
-                    result = find_containing_element(discr, p)
-                    if not result:
-                        self.deadlist.append(i)
-                    return result
-            else:
-                return None
-
-        self.containing_elements = [
-                find_new_containing_element(i, p, v, prev_el) 
-                for i, (p, v, prev_el) in enumerate(zip(
-                        enum_subvectors(self.positions, self.dimensions),
-                        enum_subvectors(self.velocities, self.dimensions),
-                        self.containing_elements))]
+        self.update_containing_elements()
 
         return self
 
@@ -269,7 +289,7 @@ class PointCloud:
         db.put_pointvar("velocities", "particles", velocities)
 
     def add_to_silo(self, db, e, h):
-        dim = self.dimensions
+        dim = self.mesh_info.dimensions
 
         def make_empty_vis_field():
             return [[] for d in range(dim)]
@@ -282,7 +302,7 @@ class PointCloud:
                     [num.array(vi) for vi in var])
 
         for i, ce in enumerate(self.containing_elements):
-            if ce is None:
+            if ce == MeshInfo.INVALID_ELEMENT:
                 continue
 
             pstart = dim*i
@@ -293,7 +313,12 @@ class PointCloud:
                 pt_v[d].append(self.velocities[pstart + d])
 
         from operator import add
-        db.put_pointmesh("particles", dim, reduce(add, coords))
+        coords = reduce(add, coords)
+
+        if not coords:
+            return
+
+        db.put_pointmesh("particles", dim, coords)
         add_vector_field("velocities", pt_v)
 
         def add_vis_info_vector(name):
@@ -312,7 +337,7 @@ class PointCloud:
             db.put_pointvar(name, "particles", 
                     [num.array(vfi) for vfi in vf])
 
-        add_vis_info_vector("pt_e")
-        add_vis_info_vector("pt_h")
-        add_vis_info_vector("el_force")
-        add_vis_info_vector("lorentz_force")
+        #add_vis_info_vector("pt_e")
+        #add_vis_info_vector("pt_h")
+        #add_vis_info_vector("el_force")
+        #add_vis_info_vector("lorentz_force")

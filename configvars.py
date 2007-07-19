@@ -7,7 +7,7 @@ vars = [
         "The name of the Boost Python library binary (without lib and .so)"),
     ("BOOST_BINDINGS_INC_DIR", None,
         "The include directory for the Boost bindings library"),
-    ("CXXFLAGS", None,
+    ("CXXFLAGS", "-Wno-sign-compare",
         "Any extra C++ compiler options to include"),
     ]
 

@@ -4,3 +4,11 @@ Implement Monomials for interpolation
 Implement Akil's shape function thing
 Characteristic BCs in Maxwell
 PML
+
+Shape function (l-(r/l)**2)**alpha
+element too small->split particles?
+Interpolation: use monomials
+divergence cleaning? 
+characteristic BCs?
+
+"Smooth particle hydrodynamics" (Ala et al?) (SPH methods)

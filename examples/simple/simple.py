@@ -57,7 +57,7 @@ def main():
     from pytools.arithmetic_container import \
             ArithmeticList, concatenate_fields
     from hedge.operators import MaxwellOperator
-    from pyrticle.pointcloud import PointCloud
+    from pyrticle.cloud import ParticleCloud
 
     epsilon0 = 8.8541878176e-12 # C**2 / (N m**2)
     mu0 = 4*pi*1e-7 # N/A**2.
@@ -97,8 +97,8 @@ def main():
         assert comp.norm_2(v)/c < 1
 
     nparticles = 20
-    cloud = PointCloud(discr, epsilon, mu)
-    cloud.add_points(
+    cloud = ParticleCloud(discr, epsilon, mu)
+    cloud.add_particles(
             cutoff_gaussian_vectors(nparticles, discr.dimensions, 
                 box_dimensions/2, 0.1),
             cutoff_gaussian_vectors(nparticles, discr.dimensions, 
