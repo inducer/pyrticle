@@ -1,4 +1,3 @@
-Generate helper data structures for particle finding
 Profile the whole thing
 Implement Monomials for interpolation
 Implement Akil's shape function thing
@@ -7,7 +6,6 @@ PML
 
 Shape function (l-(r/l)**2)**alpha
 element too small->split particles?
-Interpolation: use monomials
 divergence cleaning? 
 characteristic BCs?
 

@@ -74,7 +74,7 @@ def main():
     box_dimensions = num.array([1,1,2])
     mesh = make_box_mesh(box_dimensions, max_volume=0.01)
 
-    discr = Discretization(mesh, TetrahedralElement(3))
+    discr = Discretization(mesh, TetrahedralElement(7))
     vis = SiloVisualizer(discr)
 
     print "%d elements" % len(discr.mesh.elements)
@@ -93,10 +93,6 @@ def main():
         return sqrt(dot(field, mass*field))
 
     maxwell = MaxwellOperator(discr, epsilon, mu, upwind_alpha=0)
-
-    for v in cutoff_gaussian_vectors(2000, discr.dimensions, 
-            num.array([0,0,0.3*c]), 0.3*c):
-        assert comp.norm_2(v)/c < 1
 
     nparticles = 2000
     cloud = ParticleCloud(discr, epsilon, mu, verbose_vis=True)
@@ -144,15 +140,19 @@ def main():
                 time()-last_tstep, len(cloud))
         last_tstep = time()
 
-        if True:
+        if False:
             silo = SiloFile("pic-%04d.silo" % step)
+
+            rho, j = cloud.reconstruct_densities()
+
             vis.add_to_silo(silo,
-                vectors=[("e", fields[0:3]), 
-                    ("h", fields[3:6]), ],
-                expressions=[
-                    ],
-                write_coarse_mesh=True,
-                time=t, step=step)
+                    scalars=[("rho", rho)],
+                    vectors=[("e", fields[0:3]), 
+                        ("h", fields[3:6]), ],
+                    expressions=[
+                        ],
+                    write_coarse_mesh=True,
+                    time=t, step=step)
             cloud.add_to_silo(silo)
             silo.close()
 

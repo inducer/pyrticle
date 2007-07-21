@@ -18,3 +18,4 @@ siteconf.py
 Makefile
 *.prof
 *.session
+tags

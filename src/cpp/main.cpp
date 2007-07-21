@@ -4,13 +4,19 @@
 #include <climits>
 #include <numeric>
 #include <iomanip>
+#include <algorithm>
 #include <boost/python.hpp>
+#include <boost/python/stl_iterator.hpp>
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 #include <boost/numeric/ublas/matrix_sparse.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/numeric/ublas/operation.hpp>
 #include <boost/numeric/ublas/triangular.hpp>
+#include <boost/math/tools/config.hpp>
+#include <boost/math/special_functions/log1p.hpp>
+#include <boost/math/special_functions/gamma.hpp>
+#include <boost/math/special_functions/beta.hpp>
 #include <hedge/base.hpp>
 #include <boost/assign/list_of.hpp> 
 #include <boost/foreach.hpp> 
@@ -118,6 +124,46 @@ namespace {
 
 
 
+  class shape_function
+  {
+    public:
+      shape_function(
+          double radius,
+          unsigned dimensions=3,
+          double alpha=2)
+        : m_alpha(alpha), m_l(radius), 
+        m_l_squared(square(radius))
+      {
+        using boost::math::tgamma;
+        using boost::math::beta;
+
+        double n = dimensions;
+
+        // see doc/notes.tm
+        double sphere_area = 2*pow(M_PI, n/2) / tgamma(n/2);
+        m_normalizer = sphere_area *
+          pow(m_l, n+alpha)*beta(n/2, alpha+1)
+          /2;
+      }
+
+      const double operator()(const hedge::vector &r) const
+      {
+        double r_squared = inner_prod(r, r);
+        if (r_squared > m_l_squared)
+          return 0;
+        else
+          return m_normalizer * pow(m_l-r_squared/m_l, m_alpha);
+      }
+
+    private:
+      double m_normalizer;
+      double m_alpha;
+      double m_l, m_l_squared;
+  };
+
+
+
+
   const bool is_in_unit_simplex(const hedge::vector &unit_coords)
   {
     const double eps = 1e-10;
@@ -198,6 +244,17 @@ namespace {
         csr_matrix m_p_mon_vandermonde_t;
       };
 
+      // data members ---------------------------------------------------------
+      unsigned m_dimensions;
+
+      std::vector<local_discretization> m_local_discretizations;
+      std::vector<element_info> m_element_info;
+      std::vector<hedge::vector> m_vertices, m_nodes;
+      boost::ptr_vector<el_id_vector> m_vertex_adj_elements;
+
+
+
+
       // setup ----------------------------------------------------------------
       mesh_info(
           unsigned dimensions,
@@ -210,6 +267,9 @@ namespace {
         m_element_info.reserve(elements_sizehint);
         m_local_discretizations.reserve(discretizations_sizehint);
       }
+
+
+
 
       void add_local_discretization(python::list basis,
           const hedge::matrix &l_vdmt, 
@@ -225,6 +285,9 @@ namespace {
         ldis.m_p_mon_vandermonde_t = p_vdmt;
         m_local_discretizations.push_back(ldis);
       }
+
+
+
 
       void add_element(const hedge::affine_map &inverse_map, 
           unsigned ldis_index, unsigned start, unsigned end,
@@ -248,6 +311,9 @@ namespace {
         m_element_info.push_back(ei);
       }
 
+
+
+
       void add_vertex(
           vertex_number vn, 
           const hedge::vector &pos,
@@ -267,6 +333,18 @@ namespace {
 
 
 
+      void add_nodes(unsigned sizehint, python::object iterable)
+      {
+        m_nodes.reserve(sizehint);
+        python::stl_input_iterator<const hedge::vector &> 
+          first(iterable), last;
+        std::copy(first, last, std::back_inserter(m_nodes));
+      }
+
+
+
+
+
       // operations -----------------------------------------------------------
       const bool is_in_element(element_number en, const hedge::vector &pt) const
       {
@@ -275,6 +353,9 @@ namespace {
         return is_in_unit_simplex(uc);
       }
 
+
+
+
       const element_number find_containing_element(const hedge::vector &pt) const
       {
         BOOST_FOREACH(const element_info &el, m_element_info)
@@ -282,6 +363,9 @@ namespace {
             return el.m_id;
         return INVALID_ELEMENT;
       }
+
+
+
 
       const interpolator make_interpolator(
           const hedge::vector &pt, 
@@ -314,15 +398,6 @@ namespace {
 
         return interpolator(el_inf.m_start, el_inf.m_end, coeff);
       }
-
-      // data members ---------------------------------------------------------
-      unsigned m_dimensions;
-
-      hedge::vector m_nodes;
-      std::vector<local_discretization> m_local_discretizations;
-      std::vector<element_info> m_element_info;
-      std::vector<hedge::vector> m_vertices;
-      boost::ptr_vector<el_id_vector> m_vertex_adj_elements;
   };
 
 
@@ -332,6 +407,8 @@ namespace {
   {
     public:
       // member data ----------------------------------------------------------
+      typedef unsigned                  particle_number;
+
       mesh_info                         m_mesh_info;
 
       mesh_info::el_id_vector           m_containing_elements;
@@ -340,7 +417,7 @@ namespace {
       hedge::vector                     m_charges;
       hedge::vector                     m_masses;
 
-      std::vector<unsigned>             m_deadlist;
+      std::vector<particle_number>      m_deadlist;
       python::dict                      m_vis_info;
 
       // setup ----------------------------------------------------------------
@@ -356,12 +433,15 @@ namespace {
       {
       }
 
+
+
+
       // operation ------------------------------------------------------------
       void update_containing_elements()
       {
         const unsigned dim = m_mesh_info.m_dimensions;
 
-        for (unsigned i = 0; i < m_containing_elements.size(); i++)
+        for (particle_number i = 0; i < m_containing_elements.size(); i++)
         {
           unsigned pstart = i*dim;
           unsigned pend = (i+1)*dim;
@@ -483,6 +563,9 @@ namespace {
         }
       }
 
+
+
+
       // why all these template arguments? In 2D and 1D,
       // instead of passing a hedge::vector, you may simply
       // pass a zero_vector, and interpolation will know to
@@ -514,7 +597,7 @@ namespace {
               new hedge::vector(m_positions.size()));
         }
 
-        for (unsigned i = 0; i < m_containing_elements.size(); i++)
+        for (particle_number i = 0; i < m_containing_elements.size(); i++)
         {
           unsigned pstart = dim*i;
           unsigned pend = dim*(i+1);
@@ -576,7 +659,110 @@ namespace {
 
         return result;
       }
+
+
+
+
+      template <class ShapeFunction>
+      void add_shape_to_field_on_element(
+          hedge::vector &field, 
+          const hedge::vector &center,
+          mesh_info::element_number en,
+          const ShapeFunction &sf,
+          double scale) const
+      {
+        const mesh_info::element_info &el = 
+          m_mesh_info.m_element_info[en];
+
+        for (unsigned i = el.m_start; i < el.m_end; i++)
+          field[i] += scale*sf(m_mesh_info.m_nodes[i]-center);
+      }
+
+
+
+
+      template <class ShapeFunction>
+      void add_particle_shape_to_field(
+          hedge::vector &field, 
+          const ShapeFunction &sf,
+          double scale,
+          particle_number pi) const
+      {
+        const unsigned dim = m_mesh_info.m_dimensions;
+        const hedge::vector pos = subrange(
+            m_positions, pi*dim, (pi+1)*dim);
+        const mesh_info::element_info &el(
+            m_mesh_info.m_element_info[m_containing_elements[pi]]);
+
+        add_shape_to_field_on_element(
+            field, pos, m_containing_elements[pi], sf, scale);
+        BOOST_FOREACH(mesh_info::element_number en, el.m_neighbors)
+          if (en != mesh_info::INVALID_ELEMENT)
+            add_shape_to_field_on_element(field, pos, en, sf, scale);
+      }
+
+
+
+
+      template <class ShapeFunction>
+      void add_particle_shape_to_field_by_closest_vertex(
+          hedge::vector &field, 
+          const ShapeFunction &sf,
+          double scale,
+          particle_number pi) const
+      {
+        const unsigned dim = m_mesh_info.m_dimensions;
+        const hedge::vector pos = subrange(
+            m_positions, pi*dim, (pi+1)*dim);
+        const mesh_info::element_info &el(
+            m_mesh_info.m_element_info[m_containing_elements[pi]]);
+
+        // find closest vertex
+        mesh_info::vertex_number closest_vertex = 
+          mesh_info::INVALID_VERTEX;
+
+        {
+          double min_dist = std::numeric_limits<double>::infinity();
+
+          BOOST_FOREACH(mesh_info::vertex_number vi, el.m_vertices)
+          {
+            double dist = norm_2(m_mesh_info.m_vertices[vi] - pos);
+            if (dist < min_dist)
+            {
+              closest_vertex = vi;
+              min_dist = dist;
+            }
+          }
+        }
+
+        // found closest vertex, go through adjacent elements
+        BOOST_FOREACH(mesh_info::element_number en, 
+            m_mesh_info.m_vertex_adj_elements[closest_vertex])
+          add_shape_to_field_on_element(field, pos, en, sf, scale);
+      }
+
+
+
+
+      void reconstruct_charge_density(
+          hedge::vector &field,
+          double radius) const
+      {
+        particle_number i = 0;
+
+        shape_function sf(radius, m_mesh_info.m_dimensions);
+
+        BOOST_FOREACH(mesh_info::element_number en,
+            m_containing_elements)
+        {
+          if (en != mesh_info::INVALID_ELEMENT)
+            add_particle_shape_to_field(
+                field, sf, m_charges[i], i);
+          ++i;
+        }
+      }
   };
+
 
 
 
@@ -618,6 +804,7 @@ BOOST_PYTHON_MODULE(_internal)
       .DEF_SIMPLE_METHOD(add_local_discretization)
       .DEF_SIMPLE_METHOD(add_element)
       .DEF_SIMPLE_METHOD(add_vertex)
+      .DEF_SIMPLE_METHOD(add_nodes)
 
       .DEF_SIMPLE_METHOD(is_in_element)
       .DEF_SIMPLE_METHOD(find_containing_element)
@@ -644,6 +831,7 @@ BOOST_PYTHON_MODULE(_internal)
       .def("accelerations", &cl::accelerations<
           hedge::vector, hedge::vector, hedge::vector,
           hedge::vector, hedge::vector, hedge::vector>)
+      .DEF_SIMPLE_METHOD(reconstruct_charge_density)
       ;
   }
 

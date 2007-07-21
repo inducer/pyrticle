@@ -116,10 +116,17 @@ class ParticleCloud(_internal.ParticleCloud):
 
         self.mesh_info.add_elements(discr)
         self.mesh_info.add_vertices(discr)
+        self.mesh_info.add_nodes(len(discr.nodes), discr.nodes)
                
         self.epsilon = epsilon
         self.mu = mu
         self.c = 1/sqrt(epsilon*mu)
+
+        self.char_length = 2*min(
+                min(eg.local_discretization.dt_geometric_factor(
+                    [discr.mesh.points[i] for i in el.vertex_indices], el)
+                    for el in eg.members)
+                for eg in discr.element_groups)
 
     def __len__(self):
         return len(self.containing_elements) - len(self.deadlist)
@@ -202,7 +209,10 @@ class ParticleCloud(_internal.ParticleCloud):
         of the densities in each direction.
         """
 
-        return (self.discretization.volume_zeros(),
+        rho = self.discretization.volume_zeros()
+        self.reconstruct_charge_density(rho, self.char_length)
+
+        return (rho,
                 ArithmeticList([self.discretization.volume_zeros() 
                     for i in range(self.discretization.dimensions)]))
 
@@ -252,3 +262,4 @@ class ParticleCloud(_internal.ParticleCloud):
             add_vis_vector("pt_h")
             add_vis_vector("el_acc")
             add_vis_vector("lorentz_acc")
+
