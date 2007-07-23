@@ -14,7 +14,6 @@
 #include <boost/numeric/ublas/operation.hpp>
 #include <boost/numeric/ublas/triangular.hpp>
 #include <boost/math/tools/config.hpp>
-#include <boost/math/special_functions/log1p.hpp>
 #include <boost/math/special_functions/gamma.hpp>
 #include <boost/math/special_functions/beta.hpp>
 #include <hedge/base.hpp>
@@ -545,23 +544,16 @@ namespace {
           }
 
           // no element found? kill the particle ------------------------------
-          m_containing_elements[i] = mesh_info::INVALID_ELEMENT;
-          m_deadlist.push_back(i);
-
-          /*
-          std::cout 
-            << "KILL" << i 
-            << " near " << std::setprecision(18) 
-            << subrange(m_positions, pstart, pend)
-            << std::endl;
-            */
-
-          subrange(m_positions, pstart, pend) = zero_vector(dim);
-          subrange(m_velocities, pstart, pend) = zero_vector(dim);
+          kill_particle(i);
 
           continue;
         }
       }
+
+
+
+
+      virtual void kill_particle(particle_number i) = 0;
 
 
 
@@ -682,7 +674,7 @@ namespace {
 
 
       template <class ShapeFunction>
-      void add_particle_shape_to_field(
+      void add_particle_shape_to_field_by_neighbors(
           hedge::vector &field, 
           const ShapeFunction &sf,
           double scale,
@@ -705,10 +697,10 @@ namespace {
 
 
       template <class ShapeFunction>
-      void add_particle_shape_to_field_by_closest_vertex(
+      void add_particle_shape_to_field(
           hedge::vector &field, 
           const ShapeFunction &sf,
-          double scale,
+          double scale, double radius,
           particle_number pi) const
       {
         const unsigned dim = m_mesh_info.m_dimensions;
@@ -720,25 +712,31 @@ namespace {
         // find closest vertex
         mesh_info::vertex_number closest_vertex = 
           mesh_info::INVALID_VERTEX;
+        double min_dist = std::numeric_limits<double>::infinity();
 
+        BOOST_FOREACH(mesh_info::vertex_number vi, el.m_vertices)
         {
-          double min_dist = std::numeric_limits<double>::infinity();
-
-          BOOST_FOREACH(mesh_info::vertex_number vi, el.m_vertices)
+          double dist = norm_2(m_mesh_info.m_vertices[vi] - pos);
+          if (dist < min_dist)
           {
-            double dist = norm_2(m_mesh_info.m_vertices[vi] - pos);
-            if (dist < min_dist)
-            {
-              closest_vertex = vi;
-              min_dist = dist;
-            }
+            closest_vertex = vi;
+            min_dist = dist;
           }
         }
 
-        // found closest vertex, go through adjacent elements
-        BOOST_FOREACH(mesh_info::element_number en, 
-            m_mesh_info.m_vertex_adj_elements[closest_vertex])
-          add_shape_to_field_on_element(field, pos, en, sf, scale);
+        if (min_dist > 0.5*radius)
+        {
+          // we're far enough away from vertices, just use neighbors
+          add_particle_shape_to_field_by_neighbors(field, sf, scale, pi);
+        }
+        else
+        {
+          // found a close vertex, go through adjacent elements
+          BOOST_FOREACH(mesh_info::element_number en, 
+              m_mesh_info.m_vertex_adj_elements[closest_vertex])
+            add_shape_to_field_on_element(field, pos, en, sf, scale);
+
+        }
       }
 
 
@@ -757,16 +755,46 @@ namespace {
         {
           if (en != mesh_info::INVALID_ELEMENT)
             add_particle_shape_to_field(
-                field, sf, m_charges[i], i);
+                field, sf, m_charges[i], radius, i);
           ++i;
         }
       }
+
+
   };
 
 
 
 
   // Python wrap helpers ------------------------------------------------------
+  class particle_cloud_wrap : 
+    public particle_cloud, public python::wrapper<particle_cloud>
+  {
+    private:
+      typedef particle_cloud super;
+
+    public:
+      particle_cloud_wrap(
+          unsigned dimensions,
+          unsigned vertices_sizehint,
+          unsigned elements_sizehint, 
+          unsigned discretizations_sizehint)
+        : super(dimensions, 
+            vertices_sizehint,
+            elements_sizehint, 
+            discretizations_sizehint)
+      {
+      }
+
+      void kill_particle(particle_number i)
+      {
+        this->get_override("kill_particle")(i);
+      }
+  };
+
+
+
+
   template <class Vec>
   void vector_extend(Vec &dest, const Vec &src)
   {
@@ -812,8 +840,9 @@ BOOST_PYTHON_MODULE(_internal)
   }
   {
     typedef particle_cloud cl;
-    python::class_<cl, boost::noncopyable>("ParticleCloud", 
-        python::init<unsigned, unsigned, unsigned, unsigned>())
+    python::class_<particle_cloud_wrap, boost::noncopyable>
+      ("ParticleCloud", 
+       python::init<unsigned, unsigned, unsigned, unsigned>())
       .def_readonly("mesh_info", &cl::m_mesh_info)
 
       .def_readonly("containing_elements", &cl::m_containing_elements)
@@ -832,6 +861,8 @@ BOOST_PYTHON_MODULE(_internal)
           hedge::vector, hedge::vector, hedge::vector,
           hedge::vector, hedge::vector, hedge::vector>)
       .DEF_SIMPLE_METHOD(reconstruct_charge_density)
+
+      .def("kill_particle", python::pure_virtual(&cl::kill_particle))
       ;
   }
 

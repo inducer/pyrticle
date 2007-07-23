@@ -1,12 +1,15 @@
 Profile the whole thing
-Implement Monomials for interpolation
 Implement Akil's shape function thing
 Characteristic BCs in Maxwell
 PML
+Periodic BCs in Hedge.
+
+Diagnose pusher with KV distribution.
+Add KV-distributed charges slowly to reach steadystate distribution.
+Add KV initial condition backed by Poisson solve.
 
 Shape function (l-(r/l)**2)**alpha
 element too small->split particles?
 divergence cleaning? 
-characteristic BCs?
 
 "Smooth particle hydrodynamics" (Ala et al?) (SPH methods)

@@ -65,7 +65,7 @@ def add_mesh_info_methods():
                     estart, eend,
                     [vi for vi in el.vertex_indices],
                     el.face_normals,
-                    [neighbor_map[el,fi] for fi in range(len(el.faces))]
+                    [neighbor_map[el,fi] for fi in xrange(len(el.faces))]
                     )
 
     def add_vertices(self, discr):
@@ -76,7 +76,7 @@ def add_mesh_info_methods():
             for vi in el.vertex_indices:
                 vertex_to_element_map.setdefault(vi, []).append(el.id)
 
-        for vi in range(len(mesh.points)):
+        for vi in xrange(len(mesh.points)):
             self.add_vertex(vi, 
                     mesh.points[vi],
                     vertex_to_element_map[vi])
@@ -122,11 +122,17 @@ class ParticleCloud(_internal.ParticleCloud):
         self.mu = mu
         self.c = 1/sqrt(epsilon*mu)
 
-        self.char_length = 2*min(
-                min(eg.local_discretization.dt_geometric_factor(
-                    [discr.mesh.points[i] for i in el.vertex_indices], el)
-                    for el in eg.members)
-                for eg in discr.element_groups)
+        def min_vertex_distance(el):
+            vertices = [discr.mesh.points[vi] 
+                    for vi in el.vertex_indices]
+
+            return min(min(comp.norm_2(vi-vj)
+                    for i, vi in enumerate(vertices)
+                    if i != j)
+                    for j, vj in enumerate(vertices))
+
+        self.particle_radius = 0.5*min(min_vertex_distance(el) 
+                for el in discr.mesh.elements)
 
     def __len__(self):
         return len(self.containing_elements) - len(self.deadlist)
@@ -167,6 +173,11 @@ class ParticleCloud(_internal.ParticleCloud):
         masses = num.array([m for m, dead in zip(masses, deathflags) 
             if not dead])
 
+        for p in positions:
+            assert len(p) == dim
+        for v in velocities:
+            assert len(v) == dim
+
         # first, fill up the spots of formerly dead particles
         already_placed = 0
         while len(self.deadlist):
@@ -196,6 +207,20 @@ class ParticleCloud(_internal.ParticleCloud):
         self.masses = num.vstack((self.masses, 
             masses[already_placed:]))
 
+    def kill_particle(self, i):
+        dim = self.mesh_info.dimensions
+
+        #print "KILL %d" % i
+        
+        self.containing_elements[i] = MeshInfo.INVALID_ELEMENT
+        self.deadlist.append(i)
+
+        pstart = i*dim
+        pend = (i+1)*dim
+
+        self.positions[pstart:pend] = num.zeros((dim,))
+        self.velocities[pstart:pend] = num.zeros((dim,))
+
     def upkeep(self):
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
@@ -210,11 +235,16 @@ class ParticleCloud(_internal.ParticleCloud):
         """
 
         rho = self.discretization.volume_zeros()
-        self.reconstruct_charge_density(rho, self.char_length)
+        self.reconstruct_charge_density(rho, self.particle_radius)
 
-        return (rho,
-                ArithmeticList([self.discretization.volume_zeros() 
-                    for i in range(self.discretization.dimensions)]))
+        j = ArithmeticList([self.discretization.volume_zeros() 
+            for i in range(self.discretization.dimensions)])
+
+        if self.verbose_vis:
+            self.vis_info["rho"] = rho
+            self.vis_info["j"] = j
+
+        return rho, j
 
     def rhs(self, t, e, h):
         return ArithmeticList([
@@ -239,11 +269,13 @@ class ParticleCloud(_internal.ParticleCloud):
 
         return self
 
-    def add_to_silo(self, db):
+    def add_to_silo(self, db, time, step):
+        from hedge.silo import DBOPT_DTIME, DBOPT_CYCLE
         dim = self.mesh_info.dimensions
 
         coords = num.vstack([self.positions[i::dim] for i in range(dim)])
-        db.put_pointmesh("particles", dim, coords)
+        db.put_pointmesh("particles", dim, coords, 
+                {DBOPT_DTIME: time, DBOPT_CYCLE:step})
 
         db.put_pointvar("velocity", "particles", 
                 [self.velocities[i::dim] for i in range(dim)])
@@ -257,9 +289,16 @@ class ParticleCloud(_internal.ParticleCloud):
                 db.put_pointvar(name, "particles", 
                         [num.zeros((pcount,)) for i in range(dim)])
 
+        mesh_scalars = []
+        mesh_vectors = []
+
         if self.verbose_vis:
             add_vis_vector("pt_e")
             add_vis_vector("pt_h")
             add_vis_vector("el_acc")
             add_vis_vector("lorentz_acc")
 
+            mesh_scalars.append(("rho", self.vis_info["rho"]))
+            mesh_vectors.append(("j", self.vis_info["j"]))
+
+        return mesh_scalars, mesh_vectors
