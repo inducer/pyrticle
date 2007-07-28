@@ -120,7 +120,7 @@ class ParticleCloud(_internal.ParticleCloud):
                
         self.epsilon = epsilon
         self.mu = mu
-        self.c = 1/sqrt(epsilon*mu)
+        self.c = 1/(epsilon*mu)**0.5
 
         def min_vertex_distance(el):
             vertices = [discr.mesh.points[vi] 
@@ -133,6 +133,14 @@ class ParticleCloud(_internal.ParticleCloud):
 
         self.particle_radius = 0.5*min(min_vertex_distance(el) 
                 for el in discr.mesh.elements)
+
+        self.periodicity = []
+        for axis_interval, periodicity_tags in zip(
+                zip(*discr.mesh.bounding_box), discr.mesh.periodicity):
+            if periodicity_tags is None:
+                self.periodicity.append(None)
+            else:
+                self.periodicity.append(axis_interval)
 
     def __len__(self):
         return len(self.containing_elements) - len(self.deadlist)
@@ -207,16 +215,35 @@ class ParticleCloud(_internal.ParticleCloud):
         self.masses = num.vstack((self.masses, 
             masses[already_placed:]))
 
-    def kill_particle(self, i):
+    def kill_particle(self, pn):
         dim = self.mesh_info.dimensions
 
-        #print "KILL %d" % i
-        
-        self.containing_elements[i] = MeshInfo.INVALID_ELEMENT
-        self.deadlist.append(i)
+        pstart = pn*dim
+        pend = (pn+1)*dim
 
-        pstart = i*dim
-        pend = (i+1)*dim
+        periodicity_trip = False
+
+        pt = self.positions[pstart:pend]
+        for i, (axis_interval, xi) in enumerate(zip(self.periodicity, pt)):
+            if axis_interval is not None:
+                xmin, xmax = axis_interval
+                if not (xmin <= xi <= xmax):
+                    pt[i] = (xi-xmin) % (xmax-xmin) + xmin;
+                    periodicity_trip = True
+
+        if periodicity_trip:
+            self.positions[pstart:pend] = pt
+            ce = self.find_new_containing_element(
+                    pn, self.containing_elements[pn])
+            if ce != MeshInfo.INVALID_ELEMENT:
+                self.containing_elements[pn] = ce
+                self.periodic_hits.tick()
+                return
+
+        print "KILL %d" % pn
+        
+        self.containing_elements[pn] = MeshInfo.INVALID_ELEMENT
+        self.deadlist.append(pn)
 
         self.positions[pstart:pend] = num.zeros((dim,))
         self.velocities[pstart:pend] = num.zeros((dim,))
@@ -235,10 +262,10 @@ class ParticleCloud(_internal.ParticleCloud):
         """
 
         rho = self.discretization.volume_zeros()
-        self.reconstruct_charge_density(rho, self.particle_radius)
+        j = ArithmeticList([self.discretization.volume_zeros()
+            for axis in range(self.discretization.dimensions)])
 
-        j = ArithmeticList([self.discretization.volume_zeros() 
-            for i in range(self.discretization.dimensions)])
+        self._reconstruct_densities(rho, j[0], j[1], j[2], self.particle_radius)
 
         if self.verbose_vis:
             self.vis_info["rho"] = rho

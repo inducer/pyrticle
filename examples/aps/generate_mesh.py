@@ -92,7 +92,7 @@ def main():
                 closure=closure)
 
     mesh_info.set_points(points)
-    mesh_info.set_faces(facets, [0 for i in range(len(facets))])
+    mesh_info.set_facets(facets, [0 for i in range(len(facets))])
     #mesh_info.save_poly("gun")
     #mesh_info.save_nodes("gun")
     mesh = build(mesh_info, verbose=True, **build_kwargs)

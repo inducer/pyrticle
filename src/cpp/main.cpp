@@ -41,6 +41,10 @@ namespace ublas = boost::numeric::ublas;
   def(#NAME, &cl::NAME)
 #define DEF_SIMPLE_FUNCTION(NAME) \
   def(#NAME, &NAME)
+#define DEF_RO_MEMBER(NAME) \
+  def_readonly(#NAME, &cl::m_##NAME)
+#define DEF_RW_MEMBER(NAME) \
+  def_readwrite(#NAME, &cl::m_##NAME)
 
 
 
@@ -159,6 +163,58 @@ namespace {
       double m_alpha;
       double m_l, m_l_squared;
   };
+
+
+
+
+  class reconstruction_target
+  {
+    private:
+      hedge::vector &m_target_vector;
+      const double m_scale_factor;
+
+    public:
+      reconstruction_target(hedge::vector &vec, double scale_factor=1)
+        : m_target_vector(vec), m_scale_factor(scale_factor)
+      { }
+
+      void operator()(unsigned i, double shape_factor) const
+      {
+        m_target_vector[i] += shape_factor * m_scale_factor;
+      }
+  };
+
+
+
+
+  template <class T1, class T2>
+  class chained_reconstruction_target
+  {
+    private:
+      T1 m_target1;
+      T2 m_target2;
+
+    public:
+      chained_reconstruction_target(T1 target1, T2 target2)
+        : m_target1(target1), m_target2(target2)
+      { }
+
+      void operator()(unsigned i, double shape_factor) const
+      {
+        m_target1(i, shape_factor);
+        m_target2(i, shape_factor);
+      }
+  };
+
+
+
+  template <class T1, class T2>
+  inline
+  chained_reconstruction_target<T1, T2> 
+  make_chained_reconstruction_target(T1 target1, T2 target2)
+  {
+    return chained_reconstruction_target<T1, T2>(target1, target2);
+  }
 
 
 
@@ -402,6 +458,33 @@ namespace {
 
 
 
+  class event_counter
+  {
+    private:
+      unsigned          m_count;
+
+    public:
+      event_counter()
+        : m_count(0)
+        { }
+
+      unsigned get()
+      { return m_count; }
+
+      unsigned pop()
+      { 
+        unsigned result = m_count; 
+        m_count = 0;
+        return result;
+      }
+
+      void tick()
+      { ++m_count; }
+  };
+
+
+
+
   class particle_cloud : boost::noncopyable
   {
     public:
@@ -418,6 +501,17 @@ namespace {
 
       std::vector<particle_number>      m_deadlist;
       python::dict                      m_vis_info;
+
+      mutable event_counter             m_same_searches,
+                                        m_normal_searches,
+                                        m_vertex_searches,
+                                        m_global_searches,
+                                        m_vertex_shape_adds,
+                                        m_neighbor_shape_adds,
+                                        m_periodic_hits;
+
+
+
 
       // setup ----------------------------------------------------------------
       particle_cloud(
@@ -436,25 +530,26 @@ namespace {
 
 
       // operation ------------------------------------------------------------
-      void update_containing_elements()
+      mesh_info::element_number find_new_containing_element(particle_number i,
+          mesh_info::element_number prev) const
       {
         const unsigned dim = m_mesh_info.m_dimensions;
 
-        for (particle_number i = 0; i < m_containing_elements.size(); i++)
+        const unsigned pstart = i*dim;
+        const unsigned pend = (i+1)*dim;
+        
+        const hedge::vector pt = subrange(m_positions, pstart, pend);
+
+        if (prev != mesh_info::INVALID_ELEMENT)
         {
-          unsigned pstart = i*dim;
-          unsigned pend = (i+1)*dim;
-
-          mesh_info::element_number prev = m_containing_elements[i];
-          if (prev == mesh_info::INVALID_ELEMENT)
-            continue;
-
-          mesh_info::element_info &prev_el = m_mesh_info.m_element_info[prev];
-          hedge::vector pt = subrange(m_positions, pstart, pend);
+          const mesh_info::element_info &prev_el = m_mesh_info.m_element_info[prev];
 
           // check if we're still in the same element -------------------------
           if (is_in_unit_simplex(prev_el.m_inverse_map(pt)))
-            continue;
+          {
+            m_same_searches.tick();
+            return prev;
+          }
 
           // we're not: lookup via normal -------------------------------------
           {
@@ -462,7 +557,7 @@ namespace {
             double max_ip = 0;
             unsigned normal_idx = 0;
 
-            BOOST_FOREACH(hedge::vector &n, prev_el.m_normals)
+            BOOST_FOREACH(const hedge::vector &n, prev_el.m_normals)
             {
               double ip = inner_prod(n, subrange(m_velocities, pstart, pend));
               if (ip > max_ip)
@@ -481,13 +576,13 @@ namespace {
 
             if (possible_idx != mesh_info::INVALID_ELEMENT)
             {
-              mesh_info::element_info &possible = 
+              const mesh_info::element_info &possible = 
                 m_mesh_info.m_element_info[possible_idx];
 
               if (is_in_unit_simplex(possible.m_inverse_map(pt)))
               {
-                m_containing_elements[i] = possible.m_id;
-                continue;
+                m_normal_searches.tick();
+                return possible.m_id;
               }
             }
           }
@@ -512,41 +607,54 @@ namespace {
             }
 
             // found closest vertex, go through adjacent elements
-            bool found = false;
-
             BOOST_FOREACH(mesh_info::element_number possible_idx, 
                 m_mesh_info.m_vertex_adj_elements[closest_vertex])
             {
-              mesh_info::element_info &possible = 
+              const mesh_info::element_info &possible = 
                 m_mesh_info.m_element_info[possible_idx];
 
               if (is_in_unit_simplex(possible.m_inverse_map(pt)))
               {
-                m_containing_elements[i] = possible.m_id;
-                found = true;
-                break;
+                m_vertex_searches.tick();
+                return possible.m_id;
               }
             }
-
-            if (found)
-              continue;
           }
 
-          // last resort: global search ---------------------------------------
-          {
-            mesh_info::element_number new_el = 
-              m_mesh_info.find_containing_element(pt);
-            if (new_el != mesh_info::INVALID_ELEMENT)
-            {
-              m_containing_elements[i] = new_el;
-              continue;
-            }
-          }
+        }
+
+        // last resort: global search ---------------------------------------
+        {
+          m_global_searches.tick();
+
+          mesh_info::element_number new_el = 
+            m_mesh_info.find_containing_element(pt);
+          if (new_el != mesh_info::INVALID_ELEMENT)
+            return new_el;
+        }
+
+        return mesh_info::INVALID_ELEMENT;
+      }
+
+
+
+
+      void update_containing_elements()
+      {
+        for (particle_number i = 0; i < m_containing_elements.size(); i++)
+        {
+          mesh_info::element_number prev = m_containing_elements[i];
+          if (prev == mesh_info::INVALID_ELEMENT)
+            continue;
+
+          mesh_info::element_number new_el = 
+            find_new_containing_element(i, prev);
 
           // no element found? kill the particle ------------------------------
-          kill_particle(i);
-
-          continue;
+          if (new_el == mesh_info::INVALID_ELEMENT)
+            kill_particle(i);
+          else
+            m_containing_elements[i] = new_el;
         }
       }
 
@@ -655,29 +763,27 @@ namespace {
 
 
 
-      template <class ShapeFunction>
-      void add_shape_to_field_on_element(
-          hedge::vector &field, 
+      template <class Target, class ShapeFunction>
+      void add_shape_on_element(
+          const Target &t, 
           const hedge::vector &center,
           mesh_info::element_number en,
-          const ShapeFunction &sf,
-          double scale) const
+          const ShapeFunction &sf) const
       {
         const mesh_info::element_info &el = 
           m_mesh_info.m_element_info[en];
 
         for (unsigned i = el.m_start; i < el.m_end; i++)
-          field[i] += scale*sf(m_mesh_info.m_nodes[i]-center);
+          t(i, sf(m_mesh_info.m_nodes[i]-center));
       }
 
 
 
 
-      template <class ShapeFunction>
-      void add_particle_shape_to_field_by_neighbors(
-          hedge::vector &field, 
+      template <class Target, class ShapeFunction>
+      void add_shape_by_neighbors(
+          const Target &target,
           const ShapeFunction &sf,
-          double scale,
           particle_number pi) const
       {
         const unsigned dim = m_mesh_info.m_dimensions;
@@ -686,22 +792,21 @@ namespace {
         const mesh_info::element_info &el(
             m_mesh_info.m_element_info[m_containing_elements[pi]]);
 
-        add_shape_to_field_on_element(
-            field, pos, m_containing_elements[pi], sf, scale);
+        add_shape_on_element(
+            target, pos, m_containing_elements[pi], sf);
         BOOST_FOREACH(mesh_info::element_number en, el.m_neighbors)
           if (en != mesh_info::INVALID_ELEMENT)
-            add_shape_to_field_on_element(field, pos, en, sf, scale);
+            add_shape_on_element(target, pos, en, sf);
       }
 
 
 
 
-      template <class ShapeFunction>
-      void add_particle_shape_to_field(
-          hedge::vector &field, 
+      template <class Target, class ShapeFunction>
+      void add_shape(
+          const Target &target, 
           const ShapeFunction &sf,
-          double scale, double radius,
-          particle_number pi) const
+          double radius, particle_number pi) const
       {
         const unsigned dim = m_mesh_info.m_dimensions;
         const hedge::vector pos = subrange(
@@ -727,40 +832,56 @@ namespace {
         if (min_dist > 0.5*radius)
         {
           // we're far enough away from vertices, just use neighbors
-          add_particle_shape_to_field_by_neighbors(field, sf, scale, pi);
+          m_neighbor_shape_adds.tick();
+
+          add_shape_by_neighbors(target, sf, pi);
         }
         else
         {
           // found a close vertex, go through adjacent elements
+          m_vertex_shape_adds.tick();
+
           BOOST_FOREACH(mesh_info::element_number en, 
               m_mesh_info.m_vertex_adj_elements[closest_vertex])
-            add_shape_to_field_on_element(field, pos, en, sf, scale);
-
+            add_shape_on_element(target, pos, en, sf);
         }
       }
 
 
 
 
-      void reconstruct_charge_density(
-          hedge::vector &field,
+      void _reconstruct_densities(
+          hedge::vector &rho, 
+          hedge::vector &jx, 
+          hedge::vector &jy,
+          hedge::vector &jz,
           double radius) const
       {
-        particle_number i = 0;
+        const shape_function sf(radius, m_mesh_info.m_dimensions);
+        const unsigned dim = m_mesh_info.m_dimensions;
 
-        shape_function sf(radius, m_mesh_info.m_dimensions);
+        particle_number i = 0;
 
         BOOST_FOREACH(mesh_info::element_number en,
             m_containing_elements)
         {
           if (en != mesh_info::INVALID_ELEMENT)
-            add_particle_shape_to_field(
-                field, sf, m_charges[i], radius, i);
+          {
+            double charge = m_charges[i];
+            add_shape(
+                make_chained_reconstruction_target(
+                  make_chained_reconstruction_target(
+                    make_chained_reconstruction_target(
+                      reconstruction_target(rho, charge),
+                      reconstruction_target(jx, charge*m_velocities[i*dim+0])),
+                    reconstruction_target(jy, charge*m_velocities[i*dim+1])),
+                  reconstruction_target(jz, charge*m_velocities[i*dim+2])),
+                sf, radius, i);
+          }
+
           ++i;
         }
       }
-
-
   };
 
 
@@ -847,24 +968,45 @@ BOOST_PYTHON_MODULE(_internal)
 
       .def_readonly("containing_elements", &cl::m_containing_elements)
 
-      .def_readwrite("positions", &cl::m_positions)
-      .def_readwrite("velocities", &cl::m_velocities)
-      .def_readwrite("charges", &cl::m_charges)
-      .def_readwrite("masses", &cl::m_masses)
+      .DEF_RW_MEMBER(positions)
+      .DEF_RW_MEMBER(velocities)
+      .DEF_RW_MEMBER(charges)
+      .DEF_RW_MEMBER(masses)
 
-      .def_readonly("deadlist", &cl::m_deadlist)
+      .DEF_RO_MEMBER(deadlist)
 
-      .def_readonly("vis_info", &cl::m_vis_info)
+      .DEF_RO_MEMBER(vis_info)
 
+      .DEF_RO_MEMBER(same_searches)
+      .DEF_RO_MEMBER(normal_searches)
+      .DEF_RO_MEMBER(vertex_searches)
+      .DEF_RO_MEMBER(global_searches)
+      .DEF_RO_MEMBER(vertex_shape_adds)
+      .DEF_RO_MEMBER(neighbor_shape_adds)
+      .DEF_RO_MEMBER(periodic_hits)
+
+      .DEF_SIMPLE_METHOD(find_new_containing_element)
       .DEF_SIMPLE_METHOD(update_containing_elements)
       .def("accelerations", &cl::accelerations<
           hedge::vector, hedge::vector, hedge::vector,
           hedge::vector, hedge::vector, hedge::vector>)
-      .DEF_SIMPLE_METHOD(reconstruct_charge_density)
+      .DEF_SIMPLE_METHOD(_reconstruct_densities)
 
       .def("kill_particle", python::pure_virtual(&cl::kill_particle))
       ;
   }
+
+  {
+    typedef event_counter cl;
+    python::class_<cl>("EventCounter")
+      .DEF_SIMPLE_METHOD(get)
+      .DEF_SIMPLE_METHOD(pop)
+      .DEF_SIMPLE_METHOD(tick)
+      ;
+  }
+
+
+
 
   {
     typedef std::vector<unsigned> cl;

@@ -1,31 +1,31 @@
 from __future__ import division
 import pylinear.array as num
 import pylinear.computation as comp
+import pyrticle.units as units
+import cProfile as profile
 
 
 
 
 def uniform_on_unit_sphere(dim):
-    from random import uniform
+    from random import gauss
+
+    # cf.
+    # http://www-alg.ist.hokudai.ac.jp/~jan/randsphere.pdf
+    # Algorith due to Knuth
 
     while True:
-        pt = num.array([uniform(-1,1) for i in range(dim)])
+        pt = num.array([gauss(0,1) for i in range(dim)])
         n2 = comp.norm_2(pt)
-
-        if n2 <= 1:
-            break
-
-    return pt/n2
+        return pt/n2
 
 
 
 
-def make_kv_distributed_particle(radii, emittances, vz, c, embed_dim=None):
+def make_kv_distributed_particle(radii, emittances, vz, embed_dim=None):
     """Return (position, velocity) for a random particle
     according to a Kapchinskij-Vladimirskij distribution.
     """
-    from math import sqrt
-
     assert len(radii) == len(emittances)
 
     x = uniform_on_unit_sphere(len(radii) + len(emittances))
@@ -43,19 +43,21 @@ def make_kv_distributed_particle(radii, emittances, vz, c, embed_dim=None):
         assert embed_dim == int(embed_dim)
 
         while len(pos) < embed_dim:
-            pos.append(0)
+            pos.append(0*units.M)
         while len(momenta) < embed_dim:
             momenta.append(0)
 
-    beta = vz/c
-    gamma = 1/sqrt(1-beta**2)
+    beta = vz/units.C0
+    gamma = 1/(1-beta**2)**0.5
 
-    return num.array(pos), num.array(momenta)*c/gamma
+    return (num.array([float(pi/units.M) for pi in pos]),
+            num.array([float(mi*units.C0/gamma/(units.M/units.S))
+                for mi in momenta]))
 
     
 
 def add_kv_xy_particles(nparticles, cloud, discr, 
-        charge, mass, emittances, vz, c):
+        charge, mass, radii, emittances, vz, z_length, z_pos):
     from random import uniform
 
     positions = []
@@ -63,37 +65,38 @@ def add_kv_xy_particles(nparticles, cloud, discr,
 
     bbox_min, bbox_max = discr.mesh.bounding_box
     center = (bbox_min+bbox_max)/2
+    center[2] = 0
     size = bbox_max-bbox_min
 
     z = num.array([0,0,1])
 
     for i in range(nparticles):
         pos, v = make_kv_distributed_particle(
-                size[:2]/3, emittances, vz, c,
+                radii, emittances, vz,
                 embed_dim=cloud.mesh_info.dimensions)
 
-        positions.append(center+pos+z*uniform(-size[2]/2, size[2]/2))
+        positions.append(center+pos+z*(z_pos+uniform(-z_length, z_length)/2))
         velocities.append(v+z*vz)
 
-    cloud.add_particles(positions, velocities, charge, mass)
+    cloud.add_particles(positions, velocities, 
+            float(charge/units.C), 
+            float(mass/units.KG))
 
 
 
 
 
 class RTLogger:
-    def __init__(self, dimensions):
+    def __init__(self, dimensions, axis=0):
         self.outf = open("particle-r-t.dat", "w")
         self.dimensions = dimensions
+        self.axis = axis
 
     def __call__(self, t, positions):
         dim = self.dimensions
         nparticles = len(positions) // dim
-        for i in xrange(nparticles):
-            pstart = i*dim
-            pend = (i+1)*dim
-            r = comp.norm_2(positions[pstart:pend])
-            self.outf.write("%g\t%g\n" % (t,r))
+        r = max(positions[self.axis+i*dim]for i in xrange(nparticles))
+        self.outf.write("%g\t%g\n" % (t,r))
         self.outf.flush()
 
             
@@ -124,27 +127,19 @@ def main():
     from random import seed
     seed(0)
 
-    epsilon0 = 8.8541878176e-12 # C**2 / (N m**2)
-    mu0 = 4*pi*1e-7 # N/A**2.
-    epsilon = 1*epsilon0
-    mu = 1*mu0
-    c = 1/sqrt(epsilon*mu)
-
-    el_mass = 9.10938215e-31 # kg
-    el_charge = 1.602176487e-19 # C
-
-    mesh = make_cylinder_mesh(radius=1, height=2)
+    # discretization setup ----------------------------------------------------
+    mesh = make_cylinder_mesh(radius=0.25, height=0.25, periodic=True)
     #mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
-    discr = Discretization(mesh, TetrahedralElement(7))
+    discr = Discretization(mesh, TetrahedralElement(6))
     vis = SiloVisualizer(discr)
 
-    dt = discr.dt_factor(1/sqrt(mu*epsilon))
-    final_time = 2/c 
+    dt = discr.dt_factor(units.C0) / 2
+    final_time = 2*units.M/units.C0
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
-    print "#elements=%d, dt=%g, #steps=%d" % (
+    print "#elements=%d, dt=%s, #steps=%d" % (
             len(discr.mesh.elements), dt, nsteps)
 
     mass = bind_mass_matrix(discr)
@@ -152,15 +147,43 @@ def main():
     def l2_norm(field):
         return sqrt(dot(field, mass*field))
 
-    maxwell = MaxwellOperator(discr, epsilon, mu, upwind_alpha=0)
+    maxwell = MaxwellOperator(discr, 
+            epsilon=units.EPSILON0, 
+            mu=units.MU0, 
+            upwind_alpha=1)
 
+    # particles setup ---------------------------------------------------------
     nparticles = 2000
-    cloud = ParticleCloud(discr, epsilon, mu, verbose_vis=False)
+
+    cloud = ParticleCloud(discr, 
+            epsilon=units.EPSILON0, 
+            mu=units.MU0, 
+            verbose_vis=False)
+
+    cloud_charge = 1e-9 * units.C
+    particle_charge = cloud_charge/nparticles
+    electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
+    print "e-/particle = ", electrons_per_particle 
+
+    emittance = 5*pi * units.MM * units.MRAD
+
+    el_energy = 5.11e6 * units.EV
+    el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
+    vz = (1-1/el_lorentz_gamma)**0.5 * units.C0
+    print "v_z = %g%% c" % (vz/units.C0*100)
 
     add_kv_xy_particles(nparticles, cloud, discr, 
-            charge=el_charge, mass=el_mass,
-            emittances=[0.5,0.5], vz=0.5*c, c=c)
+            charge=0, 
+            mass=electrons_per_particle*units.EL_MASS,
+            radii=[2.5*units.MM, 25*units.MM],
+            z_length=5*units.MM,
+            z_pos=10*units.MM,
+            emittances=[emittance, emittance], 
+            vz=vz)
 
+    full_charge_at_time = final_time*0.2
+
+    # timestepping ------------------------------------------------------------
     fields = concatenate_fields(
             [discr.volume_zeros() for i in range(2*discr.dimensions)],
             [cloud])
@@ -169,7 +192,7 @@ def main():
         e = y[:3]
         h = y[3:6]
 
-        if False:
+        if True:
             maxwell_rhs = maxwell.rhs(t, y[0:6])
             rho, j = cloud.reconstruct_densities()
         else:
@@ -180,7 +203,7 @@ def main():
         rhs_e = maxwell_rhs[:3]
         rhs_h = maxwell_rhs[3:6]
         return concatenate_fields(
-                rhs_e + 1/epsilon*j,
+                rhs_e + 1/units.EPSILON0*j,
                 rhs_h,
                 [cloud.rhs(t, e, h)]
                 )
@@ -193,11 +216,6 @@ def main():
     rt_logger = RTLogger(cloud.mesh_info.dimensions)
 
     for step in xrange(nsteps):
-        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
-                step, t, l2_norm(fields[0:3]), l2_norm(fields[3:6]),
-                time()-last_tstep, len(cloud))
-        last_tstep = time()
-
         if True:
             silo = SiloFile("pic-%04d.silo" % step)
 
@@ -217,16 +235,46 @@ def main():
 
             rt_logger(t, cloud.positions)
 
-        fields = stepper(fields, t, dt, rhs)
+        if False:
+            myfields = [fields]
+            fields = profile.runctx("myfields[0] = stepper(fields, t, dt, rhs)", 
+                    globals(), locals(), "pic-%04d.prof" % step)
+            fields = myfields[0]
+        else:
+            fields = stepper(fields, t, dt, rhs)
+
         cloud.upkeep()
 
+        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
+                step, t, l2_norm(fields[0:3]), l2_norm(fields[3:6]),
+                time()-last_tstep, len(cloud))
+        if True:
+            print "searches: same=%d, normal=%d, vertex=%d, global=%d, periodic=%d" % (
+                    cloud.same_searches.pop(),
+                    cloud.normal_searches.pop(),
+                    cloud.vertex_searches.pop(),
+                    cloud.global_searches.pop(),
+                    cloud.periodic_hits.pop(),
+                    )
+            print "shape-adds: neighbor=%d vertex=%d" % (
+                    cloud.neighbor_shape_adds.pop(),
+                    cloud.vertex_shape_adds.pop(),
+                    )
+
+        last_tstep = time()
 
         t += dt
+
+        if t < full_charge_at_time:
+            charge_now = t/full_charge_at_time*particle_charge
+            cloud.charges = charge_now * \
+                    num.ones((len(cloud.containing_elements),))
+            print charge_now/particle_charge*100
+             
 
 
 
 
 if __name__ == "__main__":
-    #import cProfile as profile
     #profile.run("main()", "pic.prof")
     main()
