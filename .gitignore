@@ -19,3 +19,4 @@ Makefile
 *.prof
 *.session
 tags
+*.eps

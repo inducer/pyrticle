@@ -27,6 +27,9 @@ def main():
     parser.add_option(
 	    "--inverse", dest="generate_inverse", action="store_true",
 	    help="Whether to mesh the inverse of the gun (useless, but fun)")
+    parser.add_option(
+	    "--fine-tube", dest="generate_fine_tube", action="store_true",
+	    help="Whether to generate a fine inner tube")
 
     options, args = parser.parse_args()
 
@@ -54,8 +57,7 @@ def main():
                 ])
         closure=EXT_CLOSED_IN_RZ
 
-    generate_fine_tube = False
-    if generate_fine_tube:
+    if options.generate_fine_tube:
         # chop off points with zero radius
         while rz[0][0] == 0:
             rz.pop(0)
