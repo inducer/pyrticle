@@ -22,7 +22,7 @@ def uniform_on_unit_sphere(dim):
 
 
 
-def make_kv_distributed_particle(radii, emittances, gamma, embed_dim=None):
+def make_kv_distributed_particle(radii, emittances, vz, embed_dim=None):
     """Return (position, velocity) for a random particle
     according to a Kapchinskij-Vladimirskij distribution.
     """
@@ -47,8 +47,10 @@ def make_kv_distributed_particle(radii, emittances, gamma, embed_dim=None):
         while len(momenta) < embed_dim:
             momenta.append(0)
 
+    z = num.array([0,0,1])
+
     return (num.array([x_i for x_i in pos]),
-            num.array([p_i*units.C0/gamma for p_i in momenta]))
+            z*vz + num.array([p_i*vz for p_i in momenta]))
 
     
 
@@ -65,20 +67,16 @@ def add_kv_xy_particles(nparticles, cloud, discr,
     center[2] = 0
     size = bbox_max-bbox_min
 
+    vz = beta*units.C0
     z = num.array([0,0,1])
-
-    gamma = (1-beta**2)**-0.5
 
     for i in range(nparticles):
         pos, v = make_kv_distributed_particle(
-                radii, emittances, gamma=gamma,
+                radii, emittances, vz=beta*units.C0,
                 embed_dim=cloud.mesh_info.dimensions)
 
-        vz = sqrt(beta**2*units.C0**2 - comp.norm_2_squared(v))
-        v += z*vz
-
         my_beta = comp.norm_2(v)/units.C0
-        assert abs(beta - my_beta)/beta < 1e-15
+        assert abs(beta - my_beta)/beta < 1e-4
 
         positions.append(center+pos+z*(z_pos+uniform(-z_length, z_length)/2))
         velocities.append(v)
@@ -127,14 +125,8 @@ def main():
             make_cylinder_mesh
     from hedge.discretization import \
             Discretization, \
-            bind_flux, \
-            bind_nabla, \
-            bind_mass_matrix, \
-            bind_inverse_mass_matrix, \
             pair_with_boundary
-    from hedge.visualization import SiloVisualizer
-    from hedge.silo import SiloFile
-    from hedge.silo import DB_VARTYPE_VECTOR
+    from hedge.visualization import VtkVisualizer, SiloVisualizer
     from hedge.tools import dot, cross
     from math import sqrt, pi
     from pytools.arithmetic_container import \
@@ -150,21 +142,20 @@ def main():
 
     discr = Discretization(mesh, TetrahedralElement(3))
     vis = SiloVisualizer(discr)
+    #vis = VtkVisualizer(discr, "pic")
 
     dt = discr.dt_factor(units.C0) / 2
-    final_time = 0.2*units.M/units.C0
+    final_time = 1*units.M/units.C0
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
     print "#elements=%d, dt=%s, #steps=%d" % (
             len(discr.mesh.elements), dt, nsteps)
 
-    mass = bind_mass_matrix(discr)
-
     def l2_norm(field):
-        return sqrt(dot(field, mass*field))
+        return sqrt(dot(field, discr.mass_operator*field))
 
-    maxwell = MaxwellOperator(discr, 
+    op = MaxwellOperator(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
@@ -182,13 +173,13 @@ def main():
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
-    emittance = 5*pi * units.MM * units.MRAD
+    emittance = 5 * units.MM * units.MRAD
     initial_radius = 2.5*units.MM
 
-    #el_energy = 1e6 * units.EV
+    el_energy = 5.2e6 * units.EV
     #el_energy = units.EL_REST_ENERGY*1.00001
-    #el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
-    el_lorentz_gamma = 100000
+    el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
+    #el_lorentz_gamma = 100000
     beta = (1-1/el_lorentz_gamma**2)**0.5
     print "v = %g%% c" % (beta*100)
 
@@ -212,8 +203,8 @@ def main():
         e = y[:3]
         h = y[3:6]
 
-        if False:
-            maxwell_rhs = maxwell.rhs(t, y[0:6])
+        if True:
+            maxwell_rhs = op.rhs(t, y[0:6])
             rho, j = cloud.reconstruct_densities()
             cloud_rhs = [cloud.rhs(t, e, h)]
         else:
@@ -242,22 +233,20 @@ def main():
             initial_radius, emittance)
 
     for step in xrange(nsteps):
-        if False:
-            silo = SiloFile("pic-%04d.silo" % step)
+        if True:
+            visf = vis.make_file("pic-%04d" % step)
 
             mesh_scalars, mesh_vectors = \
-                    cloud.add_to_silo(silo, time=t, step=step)
-            vis.add_to_silo(silo,
+                    cloud.add_to_vis(vis, visf, time=t, step=step)
+            vis.add_data(visf,
                     scalars=mesh_scalars,
                     vectors=[("e", fields[0:3]), 
                         ("h", fields[3:6]), ]
                     + mesh_vectors
                     ,
-                    expressions=[
-                        ],
                     write_coarse_mesh=True,
                     time=t, step=step)
-            silo.close()
+            visf.close()
 
         rt_logger(t, cloud.positions, cloud.velocities)
 
@@ -295,6 +284,8 @@ def main():
             charge_now = t/full_charge_at_time*particle_charge
             cloud.charges = charge_now * \
                     num.ones((len(cloud.containing_elements),))
+
+    vis.close()
              
 
 

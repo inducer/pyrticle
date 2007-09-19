@@ -5,7 +5,7 @@
 
 
 def var_to_option(caps_name):
-    return "--" + caps_name.lower().replace("_", "-")
+    return caps_name.lower().replace("_", "-")
 
 
 
@@ -29,13 +29,22 @@ if __name__ == "__main__":
 	    help="Which Python interpreter to use", metavar="PATH")
 
     for var, default, help in vars:
-        option = var_to_option
+        option = var_to_option(var)
 
         if default:
           help += " (default: %s)" % default
+        extra_kwargs = {}
+
+        if isinstance(default, bool):
+            if default:
+                extra_kwargs["action"] = "store_false"
+                option = "no-"+option
+            else:
+                extra_kwargs["action"] = "store_true"
+            
         parser.add_option(
-            var_to_option(var), dest=var.lower(), default=default,
-            metavar=var_kind(var), help=help)
+            "--" + option, dest=var.lower(), default=default,
+            metavar=var_kind(var), help=help, **extra_kwargs)
 
     parser.add_option("--prefix", default=None,
 	    help="Ignored")
@@ -64,7 +73,7 @@ if __name__ == "__main__":
                 match = var_re.search(l)
                 if match:
                     varname = match.group(1)
-                    l = l[:match.start()] + substitutions[varname] + l[match.end():]
+                    l = l[:match.start()] + str(substitutions[varname]) + l[match.end():]
                     made_change = True
 
                 match = string_var_re.search(l)

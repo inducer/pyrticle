@@ -22,69 +22,99 @@ import os
 import os.path
 import sys
 
-try:
-    execfile("siteconf.py")
-except IOError:
-    print "*** Please run configure first."
-    sys.exit(1)
+def main():
+    try:
+        conf = {}
+        execfile("siteconf.py", conf)
+    except IOError:
+        print "*** Please run configure first."
+        sys.exit(1)
 
-from distutils.core import setup,Extension
+    from distutils.core import setup,Extension
 
-def non_matching_config():
-    print "*** The version of your configuration template does not match"
-    print "*** the version of the setup script. Please re-run configure."
-    sys.exit(1)
+    def non_matching_config():
+        print "*** The version of your configuration template does not match"
+        print "*** the version of the setup script. Please re-run configure."
+        sys.exit(1)
 
-try:
-    PYRTICLE_CONF_TEMPLATE_VERSION
-except NameError:
-    non_matching_config()
+    if "PYRTICLE_CONF_TEMPLATE_VERSION" not in conf:
+        non_matching_config()
 
-if PYRTICLE_CONF_TEMPLATE_VERSION != 1:
-    non_matching_config()
+    if conf["PYRTICLE_CONF_TEMPLATE_VERSION"] != 1:
+        non_matching_config()
 
-INCLUDE_DIRS = ["src/cpp"] \
-        + BOOST_MATH_TOOLKIT_INCLUDE_DIRS \
-        + BOOST_BINDINGS_INCLUDE_DIRS \
-        + BOOST_INCLUDE_DIRS
+    INCLUDE_DIRS = ["src/cpp"] \
+            + conf["BOOST_MATH_TOOLKIT_INCLUDE_DIRS"] \
+            + conf["BOOST_BINDINGS_INCLUDE_DIRS"] \
+            + conf["BOOST_INCLUDE_DIRS"]
 
-LIBRARY_DIRS = BOOST_LIBRARY_DIRS
-LIBRARIES = BPL_LIBRARIES
+    LIBRARY_DIRS = conf["BOOST_LIBRARY_DIRS"]
+    LIBRARIES = conf["BPL_LIBRARIES"]
 
-EXTRA_DEFINES = {}
-EXTRA_INCLUDE_DIRS = []
-EXTRA_LIBRARY_DIRS = []
-EXTRA_LIBRARIES = []
+    EXTRA_DEFINES = {}
+    EXTRA_INCLUDE_DIRS = []
+    EXTRA_LIBRARY_DIRS = []
+    EXTRA_LIBRARIES = []
 
-def handle_component(comp):
-    if globals()["USE_"+comp]:
-        globals()["EXTRA_DEFINES"]["USE_"+comp] = 1
-        globals()["EXTRA_INCLUDE_DIRS"] += globals()[comp+"_INCLUDE_DIRS"]
-        globals()["EXTRA_LIBRARY_DIRS"] += globals()[comp+"_LIBRARY_DIRS"]
-        globals()["EXTRA_LIBRARIES"] += globals()[comp+"_LIBRARIES"]
+    if conf["HAVE_MPI"]:
+        EXTRA_DEFINES["USE_MPI"] = 1
+        EXTRA_DEFINES["OMPI_SKIP_MPICXX"] = 1
+        LIBRARIES.extend(conf["BOOST_MPI_LIBRARIES"])
 
-ext_modules=[
-        Extension("_internal", 
-            ["src/cpp/main.cpp", ],
-            include_dirs=INCLUDE_DIRS + EXTRA_INCLUDE_DIRS,
-            library_dirs=LIBRARY_DIRS + EXTRA_LIBRARY_DIRS,
-            libraries=LIBRARIES + EXTRA_LIBRARIES,
-            extra_compile_args=EXTRA_COMPILE_ARGS,
-            define_macros=list(EXTRA_DEFINES.iteritems()),
-            )]
+        cvars = sysconfig.get_config_vars()
+        cvars["CC"] = conf["MPICC"]
+        cvars["CXX"] = conf["MPICXX"]
+
+    def handle_component(comp):
+        if conf["USE_"+comp]:
+            EXTRA_DEFINES["USE_"+comp] = 1
+            EXTRA_INCLUDE_DIRS.extend(conf[comp+"_INCLUDE_DIRS"])
+            EXTRA_LIBRARY_DIRS.extend(conf[comp+"_LIBRARY_DIRS"])
+            EXTRA_LIBRARIES.extend(conf[comp+"_LIBRARIES"])
+
+    setup(name="pyrticle",
+          version="0.90",
+          description="A high-order PIC code using Hedge",
+          author=u"Andreas Kloeckner",
+          author_email="inform@tiker.net",
+          license = "Proprietary",
+          #url="http://news.tiker.net/software/hedge",
+          packages=["pyrticle"],
+          package_dir={"pyrticle": "src/python"},
+          ext_package="pyrticle",
+          ext_modules=[
+            Extension("_internal", 
+                ["src/cpp/main.cpp", ],
+                include_dirs=INCLUDE_DIRS + EXTRA_INCLUDE_DIRS,
+                library_dirs=LIBRARY_DIRS + EXTRA_LIBRARY_DIRS,
+                libraries=LIBRARIES + EXTRA_LIBRARIES,
+                extra_compile_args=conf["EXTRA_COMPILE_ARGS"],
+                define_macros=list(EXTRA_DEFINES.iteritems()),
+                )]
+         )
 
 
 
+if __name__ == '__main__':
+    # hack distutils.sysconfig to eliminate debug flags
+    # stolen from mpi4py
+    import sys
+    if not sys.platform.lower().startswith("win"):
+        from distutils import sysconfig
 
-setup(name="pyrticle",
-      version="0.90",
-      description="A high-order PIC code using Hedge",
-      author=u"Andreas Kloeckner",
-      author_email="inform@tiker.net",
-      license = "Proprietary",
-      #url="http://news.tiker.net/software/hedge",
-      packages=["pyrticle"],
-      package_dir={"pyrticle": "src/python"},
-      ext_package="pyrticle",
-      ext_modules=ext_modules
-     )
+        cvars = sysconfig.get_config_vars()
+        cflags = cvars.get('OPT')
+        if cflags:
+            cflags = cflags.split()
+            for bad_prefix in ('-g', '-O', '-Wstrict-prototypes'):
+                for i, flag in enumerate(cflags):
+                    if flag.startswith(bad_prefix):
+                        cflags.pop(i)
+                        break
+                if flag in cflags:
+                    cflags.remove(flag)
+            cflags.append("-O3")
+            cvars['OPT'] = str.join(' ', cflags)
+            cvars["CFLAGS"] = cvars["BASECFLAGS"] + " " + cvars["OPT"]
+    # and now call main
+    main()

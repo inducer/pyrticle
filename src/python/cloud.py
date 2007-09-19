@@ -296,8 +296,80 @@ class ParticleCloud(_internal.ParticleCloud):
 
         return self
 
+    def add_to_vis(self, visualizer, vis_file, time, step):
+        from hedge.visualization import VtkVisualizer, SiloVisualizer
+        if isinstance(visualizer, VtkVisualizer):
+            return self.add_to_vtk(visualizer, vis_file, time, step)
+        elif isinstance(visualizer, SiloVisualizer):
+            return self.add_to_silo(vis_file, time, step)
+        else:
+            raise ValueError, "unknown visualizer type `%s'" % type(visualizer)
+
+    def add_to_vtk(self, visualizer, vis_file, time, step):
+        from hedge.vtk import \
+                VTK_VERTEX, VF_INTERLEAVED, \
+                DataArray, \
+                UnstructuredGrid, \
+                AppendedDataXMLGenerator
+
+        dim = self.mesh_info.dimensions
+
+        points = (len(self.containing_elements),
+                DataArray("points", self.positions,
+                    vector_format=VF_INTERLEAVED,
+                    components=dim))
+        grid = UnstructuredGrid(
+                points, 
+                cells=[[i] for i in range(points[0])],
+                cell_types=[VTK_VERTEX] * points[0],
+                )
+
+        grid.add_pointdata(
+                DataArray("velocity", 
+                    self.velocities,
+                    vector_format=VF_INTERLEAVED,
+                    components=dim)
+                )
+
+        def add_vis_vector(name):
+            if name in self.vis_info:
+                vec = self.vis_info[name]
+            else:
+                vec = num.zeros((len(self.containing_elements) * dim,))
+
+            grid.add_pointdata(
+                    DataArray("velocity", 
+                        vec, vector_format=VF_INTERLEAVED,
+                        components=dim)
+                    )
+
+        mesh_scalars = []
+        mesh_vectors = []
+
+        if self.verbose_vis:
+            add_vis_vector("pt_e")
+            add_vis_vector("pt_h")
+            add_vis_vector("el_acc")
+            add_vis_vector("lorentz_acc")
+
+            mesh_scalars.append(("rho", self.vis_info["rho"]))
+            mesh_vectors.append(("j", self.vis_info["j"]))
+
+        from os.path import splitext
+        pathname = splitext(vis_file.pathname)[0] + "-particles.vtu"
+        from pytools import assert_not_a_file
+        assert_not_a_file(pathname)
+
+        outf = open(pathname, "w")
+        AppendedDataXMLGenerator()(grid).write(outf)
+        outf.close()
+
+        visualizer.register_pathname(time, pathname)
+
+        return mesh_scalars, mesh_vectors
+
     def add_to_silo(self, db, time, step):
-        from hedge.silo import DBOPT_DTIME, DBOPT_CYCLE
+        from pylo import DBOPT_DTIME, DBOPT_CYCLE
         dim = self.mesh_info.dimensions
 
         coords = num.vstack([self.positions[i::dim] for i in range(dim)])
