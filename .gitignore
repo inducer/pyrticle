@@ -21,3 +21,5 @@ Makefile
 tags
 *.eps
 *.png
+*.pdf
+dump.py
