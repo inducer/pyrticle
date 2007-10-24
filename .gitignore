@@ -20,3 +20,4 @@ Makefile
 *.session
 tags
 *.eps
+*.png
