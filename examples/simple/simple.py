@@ -7,86 +7,6 @@ import cProfile as profile
 
 
 
-def uniform_on_unit_sphere(dim):
-    from random import gauss
-
-    # cf.
-    # http://www-alg.ist.hokudai.ac.jp/~jan/randsphere.pdf
-    # Algorith due to Knuth
-
-    while True:
-        pt = num.array([gauss(0,1) for i in range(dim)])
-        n2 = comp.norm_2(pt)
-        return pt/n2
-
-
-
-
-def make_kv_distributed_particle(radii, emittances, vz, embed_dim=None):
-    """Return (position, velocity) for a random particle
-    according to a Kapchinskij-Vladimirskij distribution.
-    """
-    assert len(radii) == len(emittances)
-
-    x = uniform_on_unit_sphere(len(radii) + len(emittances))
-    pos = [xi*ri for xi, ri in zip(x[:len(radii)], radii)]
-    momenta = [x_i/r_i*eps_i 
-            for x_i, r_i, eps_i in 
-            zip(x[len(radii):], radii, emittances)]
-
-    one = sum(x_i**2/r_i**2 for x_i, r_i in zip(pos, radii)) + \
-            sum(p_i**2*r_i**2/eps_i**2 
-            for p_i, r_i, epsi in zip(momenta, radii, emittances))
-    assert abs(one-1) < 1e-15
-
-    if embed_dim is not None:
-        assert embed_dim == int(embed_dim)
-
-        while len(pos) < embed_dim:
-            pos.append(0*units.M)
-        while len(momenta) < embed_dim:
-            momenta.append(0)
-
-    z = num.array([0,0,1])
-
-    return (num.array([x_i for x_i in pos]),
-            z*vz + num.array([p_i*vz for p_i in momenta]))
-
-    
-
-def add_kv_xy_particles(nparticles, cloud, discr, 
-        charge, mass, radii, emittances, beta, z_length, z_pos):
-    from random import uniform
-    from math import sqrt
-
-    positions = []
-    velocities = []
-
-    bbox_min, bbox_max = discr.mesh.bounding_box
-    center = (bbox_min+bbox_max)/2
-    center[2] = 0
-    size = bbox_max-bbox_min
-
-    vz = beta*units.C0
-    z = num.array([0,0,1])
-
-    for i in range(nparticles):
-        pos, v = make_kv_distributed_particle(
-                radii, emittances, vz=beta*units.C0,
-                embed_dim=cloud.mesh_info.dimensions)
-
-        my_beta = comp.norm_2(v)/units.C0
-        assert abs(beta - my_beta)/beta < 1e-4
-
-        positions.append(center+pos+z*(z_pos+uniform(-z_length, z_length)/2))
-        velocities.append(v)
-
-    cloud.add_particles(positions, velocities, charge, mass)
-
-
-
-
-
 class RTLogger:
     def __init__(self, dimensions, a0, eps):
         self.outf = open("particle-r-t.dat", "w")
@@ -133,6 +53,7 @@ def main():
             ArithmeticList, concatenate_fields
     from hedge.operators import MaxwellOperator
     from pyrticle.cloud import ParticleCloud
+    from pyrticle.distribution import add_kv_xy_particles
     from random import seed
     seed(0)
 

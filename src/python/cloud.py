@@ -53,7 +53,8 @@ def add_mesh_info_methods():
         neighbor_map = {}
         for face, (e2, f2) in discr.mesh.both_interfaces():
             neighbor_map[face] = e2.id
-        for face in discr.mesh.tag_to_boundary[None]:
+        from hedge.mesh import TAG_ALL
+        for face in discr.mesh.tag_to_boundary[TAG_ALL]:
             neighbor_map[face] = MeshInfo.INVALID_ELEMENT
 
         for el in mesh.elements:
