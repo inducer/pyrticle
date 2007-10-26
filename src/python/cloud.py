@@ -416,7 +416,9 @@ class ParticleCloud(_internal.ParticleCloud):
             add_vis_vector("el_acc")
             add_vis_vector("lorentz_acc")
 
-            mesh_scalars.append(("rho", self.vis_info["rho"]))
-            mesh_vectors.append(("j", self.vis_info["j"]))
+            if "rho" in self.vis_info:
+                mesh_scalars.append(("rho", self.vis_info["rho"]))
+            if "j" in self.vis_info:
+                mesh_vectors.append(("j", self.vis_info["j"]))
 
         return mesh_scalars, mesh_vectors

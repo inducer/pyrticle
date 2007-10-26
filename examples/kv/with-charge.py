@@ -135,11 +135,12 @@ def main():
         h = (1/max_op.mu)*gamma/units.VACUUM_LIGHT_SPEED * cross(beta_vec, etilde)
         ez_corr = - gamma**2/(gamma+1)*beta**2*etilde[2]
 
-        if False:
+        if True:
             visf = vis.make_file("ic")
             vis.add_data(visf,
                     scalars=[ 
                         ("rho", rho), 
+                        ("divD", max_op.epsilon*div_op(e)),
                         ("ez_corr", ez_corr), 
                         ("phi", phi)
                         ],
@@ -155,6 +156,7 @@ def main():
         return join_fields(e, h, [cloud])
 
     fields = compute_initial_condition()
+    return
     # timestepping ------------------------------------------------------------
 
     zero_cloud_rhs = 0*cloud.rhs(0,fields[:3],fields[3:6])
@@ -170,7 +172,7 @@ def main():
         rhs_e = maxwell_rhs[:3]
         rhs_h = maxwell_rhs[3:6]
         return join_fields(
-                rhs_e + 1/units.EPSILON0*j,
+                rhs_e + 1/max_op.epsilon*j,
                 #rhs_e,
                 rhs_h,
                 ).plus([cloud_rhs])
