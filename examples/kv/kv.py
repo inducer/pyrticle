@@ -65,15 +65,15 @@ def add_kv_xy_particles(nparticles, cloud, discr,
     center[2] = 0
     size = bbox_max-bbox_min
 
-    vz = beta*units.C0
+    vz = beta*units.VACUUM_LIGHT_SPEED
     z = num.array([0,0,1])
 
     for i in range(nparticles):
         pos, v = make_kv_distributed_particle(
-                radii, emittances, vz=beta*units.C0,
+                radii, emittances, vz=beta*units.VACUUM_LIGHT_SPEED,
                 embed_dim=cloud.mesh_info.dimensions)
 
-        my_beta = comp.norm_2(v)/units.C0
+        my_beta = comp.norm_2(v)/units.VACUUM_LIGHT_SPEED
         assert abs(beta - my_beta)/beta < 1e-4
 
         positions.append(center+pos+z*(z_pos+uniform(-z_length, z_length)/2))

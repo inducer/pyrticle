@@ -16,8 +16,7 @@ def main():
     from hedge.discretization import Discretization
     from hedge.visualization import VtkVisualizer, SiloVisualizer
     from hedge.tools import dot, cross
-    from pytools.arithmetic_container import \
-            ArithmeticList, join_fields
+    from pytools.arithmetic_container import ArithmeticList
     from pyrticle.cloud import ParticleCloud
     from kv import \
             add_kv_xy_particles, \

@@ -57,6 +57,8 @@ namespace {
   typedef ublas::zero_vector<
     hedge::vector::value_type>
     zero_vector;
+  typedef unsigned particle_number;
+
 
 
 
@@ -167,20 +169,87 @@ namespace {
 
 
 
-  class reconstruction_target
+  /** The ReconstructionTarget protocol:
+   *
+   * template <class Scaler>
+   * class reconstruction_target
+   * {
+   *   void begin_particle(particle_number pn);
+   *   void add_shape_at_point(unsigned i, double shape_factor)
+   * };
+   *
+   * Note: this is a stateful protocol.
+   */
+
+  class rho_reconstruction_target
   {
     private:
-      hedge::vector &m_target_vector;
-      const double m_scale_factor;
+      hedge::vector m_target_vector;
+      const hedge::vector &m_charges;
+      double m_scale_factor;
 
     public:
-      reconstruction_target(hedge::vector &vec, double scale_factor=1)
-        : m_target_vector(vec), m_scale_factor(scale_factor)
-      { }
+      rho_reconstruction_target(unsigned points, const hedge::vector &charges)
+        : m_target_vector(points), m_charges(charges)
+      { 
+        m_target_vector.clear();
+      }
 
-      void operator()(unsigned i, double shape_factor) const
+      void begin_particle(particle_number pn)
+      {
+        m_scale_factor = m_charges[pn];
+      }
+
+      void add_shape_at_point(unsigned i, double shape_factor)
       {
         m_target_vector[i] += shape_factor * m_scale_factor;
+      }
+
+      const hedge::vector &result() const
+      {
+        return m_target_vector;
+      }
+  };
+
+
+
+
+  /** Reconstruction Target for the current density.
+   */
+  template<unsigned velocity_dimensions>
+  class j_reconstruction_target
+  {
+    private:
+      hedge::vector m_target_vector;
+      const hedge::vector &m_charges;
+      const hedge::vector &m_velocities;
+      double m_scale_factors[velocity_dimensions];
+
+    public:
+      j_reconstruction_target(unsigned points, const hedge::vector &charges,
+          const hedge::vector &velocities)
+        : m_target_vector(3*points), m_charges(charges), m_velocities(velocities)
+      { 
+        m_target_vector.clear();
+      }
+
+      void begin_particle(particle_number pn)
+      {
+        const double charge = m_charges[pn];
+        for (unsigned axis = 0; axis < velocity_dimensions; axis++)
+          m_scale_factors[axis] = charge + m_velocities[pn*velocity_dimensions+axis];
+      }
+
+      void add_shape_at_point(unsigned i, double shape_factor)
+      {
+        const unsigned base = i*velocity_dimensions;
+        for (unsigned axis = 0; axis < velocity_dimensions; axis++)
+          m_target_vector[base+axis] += shape_factor * m_scale_factors[axis];
+      }
+
+      const hedge::vector &result() const
+      {
+        return m_target_vector;
       }
   };
 
@@ -191,18 +260,24 @@ namespace {
   class chained_reconstruction_target
   {
     private:
-      T1 m_target1;
-      T2 m_target2;
+      T1 &m_target1;
+      T2 &m_target2;
 
     public:
-      chained_reconstruction_target(T1 target1, T2 target2)
+      chained_reconstruction_target(T1 &target1, T2 &target2)
         : m_target1(target1), m_target2(target2)
       { }
 
-      void operator()(unsigned i, double shape_factor) const
+      void begin_particle(particle_number pn)
       {
-        m_target1(i, shape_factor);
-        m_target2(i, shape_factor);
+        m_target1.begin_particle(pn);
+        m_target2.begin_particle(pn);
+      }
+
+      void add_shape_at_point(unsigned i, double shape_factor)
+      {
+        m_target1.add_shape_at_point(i, shape_factor);
+        m_target2.add_shape_at_point(i, shape_factor);
       }
   };
 
@@ -489,8 +564,6 @@ namespace {
   {
     public:
       // member data ----------------------------------------------------------
-      typedef unsigned                  particle_number;
-
       mesh_info                         m_mesh_info;
 
       mesh_info::el_id_vector           m_containing_elements;
@@ -765,7 +838,7 @@ namespace {
 
       template <class Target, class ShapeFunction>
       void add_shape_on_element(
-          const Target &t, 
+          Target &tgt, 
           const hedge::vector &center,
           mesh_info::element_number en,
           const ShapeFunction &sf) const
@@ -774,7 +847,7 @@ namespace {
           m_mesh_info.m_element_info[en];
 
         for (unsigned i = el.m_start; i < el.m_end; i++)
-          t(i, sf(m_mesh_info.m_nodes[i]-center));
+          tgt.add_shape_at_point(i, sf(m_mesh_info.m_nodes[i]-center));
       }
 
 
@@ -782,7 +855,7 @@ namespace {
 
       template <class Target, class ShapeFunction>
       void add_shape_by_neighbors(
-          const Target &target,
+          Target &target,
           const ShapeFunction &sf,
           particle_number pi) const
       {
@@ -804,7 +877,7 @@ namespace {
 
       template <class Target, class ShapeFunction>
       void add_shape(
-          const Target &target, 
+          Target &target, 
           const ShapeFunction &sf,
           double radius, particle_number pi) const
       {
@@ -850,6 +923,26 @@ namespace {
 
 
 
+      template<class Target>
+      void reconstruct_densities_on_target(Target &tgt, double radius) const
+      {
+        const shape_function sf(radius, m_mesh_info.m_dimensions);
+
+        particle_number pn = 0;
+
+        BOOST_FOREACH(mesh_info::element_number en,
+            m_containing_elements)
+        {
+          tgt.begin_particle(pn);
+          if (en != mesh_info::INVALID_ELEMENT)
+            add_shape(tgt, sf, radius, pn);
+          ++pn;
+        }
+      }
+
+
+
+
       void _reconstruct_densities(
           hedge::vector &rho, 
           hedge::vector &jx, 
@@ -860,27 +953,33 @@ namespace {
         const shape_function sf(radius, m_mesh_info.m_dimensions);
         const unsigned dim = m_mesh_info.m_dimensions;
 
-        particle_number i = 0;
+        rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
+        j_reconstruction_target<3> j_tgt(m_mesh_info.m_nodes.size(), 
+            m_charges, m_velocities);
 
-        BOOST_FOREACH(mesh_info::element_number en,
-            m_containing_elements)
-        {
-          if (en != mesh_info::INVALID_ELEMENT)
-          {
-            double charge = m_charges[i];
-            add_shape(
-                make_chained_reconstruction_target(
-                  make_chained_reconstruction_target(
-                    make_chained_reconstruction_target(
-                      reconstruction_target(rho, charge),
-                      reconstruction_target(jx, charge*m_velocities[i*dim+0])),
-                    reconstruction_target(jy, charge*m_velocities[i*dim+1])),
-                  reconstruction_target(jz, charge*m_velocities[i*dim+2])),
-                sf, radius, i);
-          }
+        chained_reconstruction_target
+          <rho_reconstruction_target, j_reconstruction_target<3> >
+          tgt(rho_tgt, j_tgt);
+        reconstruct_densities_on_target(tgt, radius);
 
-          ++i;
-        }
+        rho = rho_tgt.result();
+        jx = subslice(j_tgt.result(), 0, dim, m_mesh_info.m_nodes.size());
+        jy = subslice(j_tgt.result(), 1, dim, m_mesh_info.m_nodes.size());
+        jz = subslice(j_tgt.result(), 2, dim, m_mesh_info.m_nodes.size());
+      }
+
+
+
+
+      void _reconstruct_rho(hedge::vector &rho, double radius) const
+      {
+        const shape_function sf(radius, m_mesh_info.m_dimensions);
+
+        rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
+
+        reconstruct_densities_on_target(rho_tgt, radius);
+
+        rho = rho_tgt.result();
       }
   };
 
@@ -991,6 +1090,7 @@ BOOST_PYTHON_MODULE(_internal)
           hedge::vector, hedge::vector, hedge::vector,
           hedge::vector, hedge::vector, hedge::vector>)
       .DEF_SIMPLE_METHOD(_reconstruct_densities)
+      .DEF_SIMPLE_METHOD(_reconstruct_rho)
 
       .def("kill_particle", python::pure_virtual(&cl::kill_particle))
       ;
@@ -1016,4 +1116,8 @@ BOOST_PYTHON_MODULE(_internal)
       .def("append", &cl::push_back)
       ;
   }
+
+
+
+
 }

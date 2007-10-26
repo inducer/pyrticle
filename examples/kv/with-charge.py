@@ -1,40 +1,11 @@
 from __future__ import division
 import pylinear.array as num
 import pylinear.computation as comp
+import pylinear.operator as op
 import pyrticle.units as units
 import cProfile as profile
 
 
-
-
-class RTLogger:
-    def __init__(self, dimensions, a0, eps):
-        self.outf = open("particle-r-t.dat", "w")
-        self.outf_theory = open("particle-r-t-theory.dat", "w")
-        self.dimensions = dimensions
-
-        self.a0 = a0
-        self.eps = eps
-
-    def __call__(self, t, positions, velocities):
-        from math import sqrt,pi
-        from pytools import argmax
-
-        dim = self.dimensions
-        nparticles = len(positions) // dim
-        pn = argmax(positions[i*dim+0]**2 +positions[i*dim+1]**2
-                for i in xrange(nparticles))
-        r = comp.norm_2(positions[pn*dim+0:pn*dim+2])
-        vz = velocities[pn*dim+2]
-        s = t*vz
-        self.outf.write("%g\t%g\n" % (s,r))
-        self.outf.flush()
-
-        a = sqrt(self.a0**2+(self.eps/self.a0)**2 * s**2)
-        self.outf_theory.write("%g\t%g\n" % (s,a))
-        self.outf_theory.flush()
-
-            
 
 
 def main():
@@ -47,26 +18,39 @@ def main():
             Discretization, \
             pair_with_boundary
     from hedge.visualization import VtkVisualizer, SiloVisualizer
-    from hedge.tools import dot, cross
+    from hedge.tools import dot
     from math import sqrt, pi
     from pytools.arithmetic_container import \
-            ArithmeticList, concatenate_fields
-    from hedge.operators import MaxwellOperator
+            ArithmeticList, join_fields
+    from hedge.operators import MaxwellOperator, DivergenceOperator
     from pyrticle.cloud import ParticleCloud
-    from pyrticle.distribution import add_kv_xy_particles
+    from kv import \
+            add_kv_xy_particles, \
+            KVRadiusPredictor, \
+            BeamRadiusLogger
     from random import seed
     seed(0)
 
     # discretization setup ----------------------------------------------------
-    mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True)
-    #mesh = make_box_mesh([1,1,2], max_volume=0.01)
+    full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
+            max_volume=100*units.MM**3, radial_subdivisions=10)
+    #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
-    discr = Discretization(mesh, TetrahedralElement(3))
+    from hedge.parallel import guess_parallelization_context
+
+    pcon = guess_parallelization_context()
+
+    if pcon.is_head_rank:
+        mesh = pcon.distribute_mesh(full_mesh)
+    else:
+        mesh = pcon.receive_mesh()
+
+    discr = pcon.make_discretization(mesh, TetrahedralElement(2))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    dt = discr.dt_factor(units.C0) / 2
-    final_time = 1*units.M/units.C0
+    dt = discr.dt_factor(units.VACUUM_LIGHT_SPEED) / 2
+    final_time = 1*units.M/units.VACUUM_LIGHT_SPEED
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -76,10 +60,11 @@ def main():
     def l2_norm(field):
         return sqrt(dot(field, discr.mass_operator*field))
 
-    op = MaxwellOperator(discr, 
+    max_op = MaxwellOperator(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
+    div_op = DivergenceOperator(discr)
 
     # particles setup ---------------------------------------------------------
     nparticles = 1000
@@ -87,7 +72,7 @@ def main():
     cloud = ParticleCloud(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
-            verbose_vis=False)
+            verbose_vis=True)
 
     cloud_charge = 1e-9 * units.C
     particle_charge = cloud_charge/nparticles
@@ -102,10 +87,11 @@ def main():
     el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
     #el_lorentz_gamma = 100000
     beta = (1-1/el_lorentz_gamma**2)**0.5
-    print "v = %g%% c" % (beta*100)
+    gamma = 1/sqrt(1-beta**2)
+    print "beta = %g, gamma = %g" % (beta, gamma)
 
     add_kv_xy_particles(nparticles, cloud, discr, 
-            charge=0, 
+            charge=units.EL_CHARGE, 
             mass=electrons_per_particle*units.EL_MASS,
             radii=[2.5*units.MM, 2.5*units.MM],
             z_length=5*units.MM,
@@ -113,63 +99,94 @@ def main():
             emittances=[emittance, emittance], 
             beta=beta)
 
-    full_charge_at_time = final_time*0.2
+    # intial condition --------------------------------------------------------
+    def compute_initial_condition():
+        from hedge.operators import WeakPoissonOperator
+        from hedge.mesh import TAG_ALL, TAG_NONE
+        from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
+        from hedge.tools import cross
 
+        # see doc/notes.tm for derivation of IC
+
+        beta_vec = num.array([0,0,beta])
+
+        diff_tensor = num.identity(discr.dimensions)
+        diff_tensor[2,2] = 1/gamma**2
+
+        poisson_op = WeakPoissonOperator(discr, 
+                diffusion_tensor=ConstantGivenFunction(diff_tensor),
+                dirichlet_tag=TAG_ALL,
+                neumann_tag=TAG_NONE,
+                )
+
+        rho = cloud.reconstruct_rho() 
+
+        from hedge.tools import parallel_cg
+        phi = -parallel_cg(pcon, -poisson_op, 
+                poisson_op.prepare_rhs(
+                    GivenVolumeInterpolant(discr, rho/max_op.epsilon)), 
+                debug=True, tol=1e-10)
+
+        etilde = poisson_op.grad(phi)
+        etilde[2] /= -gamma
+
+        e = gamma*etilde
+        e[2] -= gamma**2/(gamma+1)*beta**2*etilde[2]
+        h = (1/max_op.mu)*gamma/units.VACUUM_LIGHT_SPEED * cross(beta_vec, etilde)
+        ez_corr = - gamma**2/(gamma+1)*beta**2*etilde[2]
+
+        if False:
+            visf = vis.make_file("ic")
+            vis.add_data(visf,
+                    scalars=[ 
+                        ("rho", rho), 
+                        ("ez_corr", ez_corr), 
+                        ("phi", phi)
+                        ],
+                    vectors=[
+                        ("e", e), 
+                        ("h", h), 
+                        ],
+                    write_coarse_mesh=True
+                    )
+            cloud.add_to_vis(vis, visf)
+            visf.close()
+
+        return join_fields(e, h, [cloud])
+
+    fields = compute_initial_condition()
     # timestepping ------------------------------------------------------------
-    fields = concatenate_fields(
-            [discr.volume_zeros() for i in range(2*discr.dimensions)],
-            [cloud])
+
+    zero_cloud_rhs = 0*cloud.rhs(0,fields[:3],fields[3:6])
 
     def rhs(t, y):
         e = y[:3]
         h = y[3:6]
 
-        if True:
-            maxwell_rhs = op.rhs(t, y[0:6])
-            rho, j = cloud.reconstruct_densities()
-            cloud_rhs = [cloud.rhs(t, e, h)]
-        else:
-            maxwell_rhs = ArithmeticList(6*[discr.volume_zeros()])
-            rho = discr.volume_zeros()
-            j = ArithmeticList(3*[discr.volume_zeros()])
-            cloud_rhs = [ArithmeticList([
-                cloud.velocities, 
-                0*cloud.velocities, 
-                ])]
+        maxwell_rhs = max_op.rhs(t, y[0:6])
+        rho, j = cloud.reconstruct_densities()
+        cloud_rhs = cloud.rhs(t, e, h)
 
         rhs_e = maxwell_rhs[:3]
         rhs_h = maxwell_rhs[3:6]
-        return concatenate_fields(
+        return join_fields(
                 rhs_e + 1/units.EPSILON0*j,
+                #rhs_e,
                 rhs_h,
-                cloud_rhs,
-                )
+                ).plus([cloud_rhs])
+                #).plus([zero_cloud_rhs])
 
     stepper = RK4TimeStepper()
     from time import time
     last_tstep = time()
     t = 0
 
-    rt_logger = RTLogger(cloud.mesh_info.dimensions,
+    r_logger = BeamRadiusLogger(cloud.mesh_info.dimensions,
             initial_radius, emittance)
 
     for step in xrange(nsteps):
-        if True:
-            visf = vis.make_file("pic-%04d" % step)
 
-            mesh_scalars, mesh_vectors = \
-                    cloud.add_to_vis(vis, visf, time=t, step=step)
-            vis.add_data(visf,
-                    scalars=mesh_scalars,
-                    vectors=[("e", fields[0:3]), 
-                        ("h", fields[3:6]), ]
-                    + mesh_vectors
-                    ,
-                    write_coarse_mesh=True,
-                    time=t, step=step)
-            visf.close()
-
-        rt_logger(t, cloud.positions, cloud.velocities)
+        r_logger.update(t, cloud.positions, cloud.velocities)
 
         if False:
             myfields = [fields]
@@ -199,15 +216,31 @@ def main():
 
         last_tstep = time()
 
+        if True:
+            visf = vis.make_file("pic-%04d" % step)
+
+            mesh_scalars, mesh_vectors = \
+                    cloud.add_to_vis(vis, visf, time=t, step=step)
+            vis.add_data(visf,
+                    scalars=[
+                        ("divD", max_op.epsilon*div_op(fields[0:3]))
+                        ]
+                    + mesh_scalars,
+                    vectors=[
+                        ("e", fields[0:3]), 
+                        ("h", fields[3:6]), 
+                        ]
+                    + mesh_vectors,
+                    write_coarse_mesh=True,
+                    time=t, step=step)
+            visf.close()
+
         t += dt
 
-        if t < full_charge_at_time:
-            charge_now = t/full_charge_at_time*particle_charge
-            cloud.charges = charge_now * \
-                    num.ones((len(cloud.containing_elements),))
-
     vis.close()
-             
+
+    r_logger.generate_plot("Kapchinskij-Vladimirskij Beam Evolution, "
+            "with space charge")
 
 
 

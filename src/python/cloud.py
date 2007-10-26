@@ -274,6 +274,19 @@ class ParticleCloud(_internal.ParticleCloud):
 
         return rho, j
 
+    def reconstruct_rho(self):
+        """Return a the charge_density as a volume vector.
+        """
+
+        rho = self.discretization.volume_zeros()
+
+        self._reconstruct_rho(rho, self.particle_radius)
+
+        if self.verbose_vis:
+            self.vis_info["rho"] = rho
+
+        return rho
+
     def rhs(self, t, e, h):
         return ArithmeticList([
             self.velocities, 
@@ -297,16 +310,16 @@ class ParticleCloud(_internal.ParticleCloud):
 
         return self
 
-    def add_to_vis(self, visualizer, vis_file, time, step):
+    def add_to_vis(self, visualizer, vis_file, time=None, step=None):
         from hedge.visualization import VtkVisualizer, SiloVisualizer
         if isinstance(visualizer, VtkVisualizer):
-            return self.add_to_vtk(visualizer, vis_file, time, step)
+            return self._add_to_vtk(visualizer, vis_file, time, step)
         elif isinstance(visualizer, SiloVisualizer):
-            return self.add_to_silo(vis_file, time, step)
+            return self._add_to_silo(vis_file, time, step)
         else:
             raise ValueError, "unknown visualizer type `%s'" % type(visualizer)
 
-    def add_to_vtk(self, visualizer, vis_file, time, step):
+    def _add_to_vtk(self, visualizer, vis_file, time, step):
         from hedge.vtk import \
                 VTK_VERTEX, VF_INTERLEAVED, \
                 DataArray, \
@@ -369,13 +382,18 @@ class ParticleCloud(_internal.ParticleCloud):
 
         return mesh_scalars, mesh_vectors
 
-    def add_to_silo(self, db, time, step):
+    def _add_to_silo(self, db, time, step):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
         dim = self.mesh_info.dimensions
 
+        optlist = {}
+        if time is not None:
+            optlist[DBOPT_DTIME] = time
+        if step is not None:
+            optlist[DBOPT_CYCLE] = step
+
         coords = num.vstack([self.positions[i::dim] for i in range(dim)])
-        db.put_pointmesh("particles", dim, coords, 
-                {DBOPT_DTIME: time, DBOPT_CYCLE:step})
+        db.put_pointmesh("particles", dim, coords, optlist)
 
         db.put_pointvar("velocity", "particles", 
                 [self.velocities[i::dim] for i in range(dim)])
