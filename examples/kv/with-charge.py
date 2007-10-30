@@ -32,8 +32,10 @@ def main():
     seed(0)
 
     # discretization setup ----------------------------------------------------
-    full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
-            max_volume=100*units.MM**3, radial_subdivisions=10)
+    #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
+            #max_volume=100*units.MM**3, radial_subdivisions=10)
+    full_mesh = make_cylinder_mesh(radius=15*units.MM, height=30*units.MM, periodic=True,
+            max_volume=10*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
     from hedge.parallel import guess_parallelization_context
@@ -45,12 +47,18 @@ def main():
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TetrahedralElement(2))
+    discr = pcon.make_discretization(mesh, TetrahedralElement(3))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    dt = discr.dt_factor(units.VACUUM_LIGHT_SPEED) / 2
-    final_time = 1*units.M/units.VACUUM_LIGHT_SPEED
+    max_op = MaxwellOperator(discr, 
+            epsilon=units.EPSILON0, 
+            mu=units.MU0, 
+            upwind_alpha=1)
+    div_op = DivergenceOperator(discr)
+
+    dt = discr.dt_factor(max_op.c) / 2
+    final_time = 1*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -60,18 +68,12 @@ def main():
     def l2_norm(field):
         return sqrt(dot(field, discr.mass_operator*field))
 
-    max_op = MaxwellOperator(discr, 
-            epsilon=units.EPSILON0, 
-            mu=units.MU0, 
-            upwind_alpha=1)
-    div_op = DivergenceOperator(discr)
-
     # particles setup ---------------------------------------------------------
     nparticles = 1000
 
     cloud = ParticleCloud(discr, 
-            epsilon=units.EPSILON0, 
-            mu=units.MU0, 
+            epsilon=max_op.epsilon, 
+            mu=max_op.mu, 
             verbose_vis=True)
 
     cloud_charge = 1e-9 * units.C
@@ -127,21 +129,19 @@ def main():
                     GivenVolumeInterpolant(discr, rho/max_op.epsilon)), 
                 debug=True, tol=1e-10)
 
-        etilde = poisson_op.grad(phi)
-        etilde[2] /= -gamma
+        etilde = ArithmeticList([1,1,1/gamma])*poisson_op.grad(phi)
 
-        e = gamma*etilde
-        e[2] -= gamma**2/(gamma+1)*beta**2*etilde[2]
-        h = (1/max_op.mu)*gamma/units.VACUUM_LIGHT_SPEED * cross(beta_vec, etilde)
-        ez_corr = - gamma**2/(gamma+1)*beta**2*etilde[2]
+        e = ArithmeticList([gamma,gamma,1])*etilde
+
+        h = (1/max_op.mu)*gamma/max_op.c * cross(beta_vec, etilde)
 
         if True:
             visf = vis.make_file("ic")
             vis.add_data(visf,
                     scalars=[ 
-                        ("rho", rho), 
-                        ("divD", max_op.epsilon*div_op(e)),
-                        ("ez_corr", ez_corr), 
+                        ("rho", gamma*rho), 
+                        ("divDldg", max_op.epsilon*poisson_op.div(e)),
+                        ("divDcentral", max_op.epsilon*div_op(e)),
                         ("phi", phi)
                         ],
                     vectors=[
