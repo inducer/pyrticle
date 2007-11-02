@@ -1,4 +1,4 @@
-<TeXmacs|1.0.6.11>
+<TeXmacs|1.0.6>
 
 <style|<tuple|article|axiom|maxima>>
 
@@ -235,6 +235,10 @@
     <\eqnarray*>
       <tformat|<table|<row|<cell|div<rsub|\<b-x\><rprime|'>>\<b-E\><rprime|'>(\<b-x\><rprime|'>)>|<cell|=>|<cell|div<rsub|\<b-x\><rprime|'>><left|[>\<gamma\><wide|\<b-E\>|~><rsub|\<perp\>\<b-beta\>>(\<b-x\><rprime|'>)+<wide|\<b-E\>|~><rsub|\<\|\|\>\<b-beta\>>(\<b-x\><rprime|'>)<right|]>>>|<row|<cell|>|<cell|=>|<cell|div<rsub|\<b-x\><rprime|'>><left|[>\<gamma\>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>)+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>|\<gamma\>><wide|\<Phi\>|~>(\<b-x\><rprime|'>)<right|]>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))|\<gamma\>>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\><left|[>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))|\<gamma\><rsup|2>><right|]>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\><left|[><frac|<wide|\<rho\>|~>(\<b-x\><rprime|'>)|\<varepsilon\>><right|]>=<frac|\<rho\><rprime|'>(\<b-x\><rprime|'>)|\<varepsilon\>>.>>>>
     </eqnarray*>
+
+    \;
+
+    \;
   <|show-part>
     <section|Initial Conditions by Lorentz Transform>
   </show-part>

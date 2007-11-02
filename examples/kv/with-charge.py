@@ -35,7 +35,7 @@ def main():
     #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
             #max_volume=100*units.MM**3, radial_subdivisions=10)
     full_mesh = make_cylinder_mesh(radius=15*units.MM, height=30*units.MM, periodic=True,
-            max_volume=10*units.MM**3, radial_subdivisions=10)
+            max_volume=5*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
     from hedge.parallel import guess_parallelization_context
@@ -47,7 +47,7 @@ def main():
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TetrahedralElement(3))
+    discr = pcon.make_discretization(mesh, TetrahedralElement(4))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
@@ -148,7 +148,8 @@ def main():
                         ("e", e), 
                         ("h", h), 
                         ],
-                    write_coarse_mesh=True
+                    write_coarse_mesh=True,
+                    scale_factor=1e30
                     )
             cloud.add_to_vis(vis, visf)
             visf.close()

@@ -206,14 +206,14 @@ class ParticleCloud(_internal.ParticleCloud):
         self.containing_elements[-1:] = \
                 containing_elements[already_placed:]
 
-        self.positions = num.vstack((self.positions, 
-            num.vstack(positions[already_placed:])))
-        self.velocities = num.vstack((self.velocities, 
-            num.vstack(velocities[already_placed:])))
+        self.positions = num.hstack((self.positions, 
+            num.hstack(positions[already_placed:])))
+        self.velocities = num.hstack((self.velocities, 
+            num.hstack(velocities[already_placed:])))
 
-        self.charges = num.vstack((self.charges, 
+        self.charges = num.hstack((self.charges, 
             charges[already_placed:]))
-        self.masses = num.vstack((self.masses, 
+        self.masses = num.hstack((self.masses, 
             masses[already_placed:]))
 
     def kill_particle(self, pn):
@@ -392,7 +392,7 @@ class ParticleCloud(_internal.ParticleCloud):
         if step is not None:
             optlist[DBOPT_CYCLE] = step
 
-        coords = num.vstack([self.positions[i::dim] for i in range(dim)])
+        coords = num.hstack([self.positions[i::dim] for i in range(dim)])
         db.put_pointmesh("particles", dim, coords, optlist)
 
         db.put_pointvar("velocity", "particles", 
