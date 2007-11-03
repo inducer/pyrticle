@@ -16,6 +16,8 @@
 #include <boost/math/tools/config.hpp>
 #include <boost/math/special_functions/gamma.hpp>
 #include <boost/math/special_functions/beta.hpp>
+#include <boost/math/special_functions/asinh.hpp>
+#include <boost/math/special_functions/acosh.hpp>
 #include <hedge/base.hpp>
 #include <boost/assign/list_of.hpp> 
 #include <boost/foreach.hpp> 
@@ -1117,7 +1119,6 @@ BOOST_PYTHON_MODULE(_internal)
       ;
   }
 
-
-
-
+  python::def("asinh", (double (*)(double)) boost::math::asinh);
+  python::def("acosh", (double (*)(double)) boost::math::acosh);
 }
