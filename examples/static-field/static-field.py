@@ -47,6 +47,8 @@ class StaticFieldSetup:
 class LarmorScrew(StaticFieldSetup):
     """Implements Section 12.2 in the third edition of Jackson."""
     def __init__(self, mass, charge, c, vpar, vperp, bz, nparticles):
+        from math import pi 
+
         StaticFieldSetup.__init__(self, mass, charge, c)
         self.vpar = vpar
         self.vperp = vperp
@@ -57,8 +59,7 @@ class LarmorScrew(StaticFieldSetup):
         self.omega_b = charge*bz/(gamma*mass) # (12.39) -> SI
         self.gyration_rad = vperp/abs(self.omega_b)
 
-        from math import pi 
-        print self.gyration_rad, self.omega_b, 2*pi/self.omega_b
+        #print self.gyration_rad, self.omega_b, 2*pi/self.omega_b
 
         # self-check
         for v in self.velocities(0):
@@ -260,61 +261,18 @@ class EBParallel(StaticFieldSetup):
 
 
 
-def main():
-    from hedge.element import TetrahedralElement
+def run_setup(casename, setup, discr):
     from hedge.timestep import RK4TimeStepper
-    from hedge.mesh import \
-            make_box_mesh, \
-            make_cylinder_mesh
-    from hedge.discretization import \
-            Discretization, \
-            pair_with_boundary
-    from hedge.visualization import VtkVisualizer, SiloVisualizer
-    from hedge.tools import dot
-    from pytools.arithmetic_container import \
-            ArithmeticList, join_fields
     from pyrticle.cloud import ParticleCloud
-    from math import sqrt, sin, cos, pi
+    from hedge.visualization import VtkVisualizer, SiloVisualizer
 
-
-    # discretization setup ----------------------------------------------------
-    radius = 1*units.M
-    full_mesh = make_cylinder_mesh(radius=radius, height=2*radius, periodic=True,
-            radial_subdivisions=30)
-
-    from hedge.parallel import guess_parallelization_context
-
-    pcon = guess_parallelization_context()
-
-    if pcon.is_head_rank:
-        mesh = pcon.distribute_mesh(full_mesh)
-    else:
-        mesh = pcon.receive_mesh()
-
-    discr = pcon.make_discretization(mesh, TetrahedralElement(1))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-
-    # particles setup ---------------------------------------------------------
     cloud = ParticleCloud(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             verbose_vis=True)
-
-    c = units.VACUUM_LIGHT_SPEED
-
-    case = "screw"
-
-    if case == "screw":
-        setup = LarmorScrew(mass=units.EL_MASS, charge=units.EL_CHARGE, c=cloud.c,
-                vpar=c*0.8, vperp=c*0.1, bz=1e-3, 
-                nparticles=4)
-    elif case == "epb":
-        setup = EBParallel(mass=units.EL_MASS, charge=units.EL_CHARGE, c=cloud.c,
-                ez=1e+5, bz=1e-3, radius=0.5*radius, nparticles=1)
-    else:
-        raise ValueError, "invalid test case"
 
     e, h = setup.fields(discr)
 
@@ -408,7 +366,7 @@ def main():
 
             last_tstep = time()
             if True:
-                visf = vis.make_file("pic-%04d" % step)
+                visf = vis.make_file("%s-%04d" % (casename, step))
 
                 mesh_scalars, mesh_vectors = \
                         cloud.add_to_vis(vis, visf, time=t, step=step)
@@ -437,6 +395,52 @@ def main():
     print "l_inf errors (pos,vel,acc):", errors
 
     vis.close()
+
+
+
+
+def main():
+    from hedge.element import TetrahedralElement
+    from hedge.mesh import \
+            make_box_mesh, \
+            make_cylinder_mesh
+    from hedge.discretization import Discretization
+
+    # discretization setup ----------------------------------------------------
+    radius = 1*units.M
+    full_mesh = make_cylinder_mesh(radius=radius, height=2*radius, periodic=True,
+            radial_subdivisions=30)
+
+    from hedge.parallel import guess_parallelization_context
+
+    pcon = guess_parallelization_context()
+
+    if pcon.is_head_rank:
+        mesh = pcon.distribute_mesh(full_mesh)
+    else:
+        mesh = pcon.receive_mesh()
+
+    discr = pcon.make_discretization(mesh, TetrahedralElement(1))
+
+    # particles setup ---------------------------------------------------------
+    def get_setup(case):
+        c = units.VACUUM_LIGHT_SPEED
+        if case == "screw":
+            return LarmorScrew(mass=units.EL_MASS, charge=units.EL_CHARGE, c=c,
+                    vpar=c*0.8, vperp=c*0.1, bz=1e-3, 
+                    nparticles=4)
+        elif case == "epb":
+            return EBParallel(mass=units.EL_MASS, charge=units.EL_CHARGE, c=c,
+                    ez=1e+5, bz=1e-3, radius=0.5*radius, nparticles=1)
+        else:
+            raise ValueError, "invalid test case"
+
+    for case in ["screw", "epb"]:
+        print "----------------------------------------------"
+        print case.upper()
+        print "----------------------------------------------"
+        run_setup(case, get_setup(case), discr)
+
 
 
 
