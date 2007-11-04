@@ -293,12 +293,18 @@ def main():
 
     c = units.VACUUM_LIGHT_SPEED
 
-    #setup = LarmorScrew(c*0.8, c*0.1, bz=1e-3, 
-            #charge=-units.EL_CHARGE, mass=units.EL_MASS, nparticles=4)
-    setup = EBParallel(ez=1e+5, bz=1e-3,
-            charge=units.EL_CHARGE, mass=units.EL_MASS,
-            radius=0.5*radius,
-            nparticles=1)
+    case = "epb"
+
+    if case == "screw":
+        setup = LarmorScrew(c*0.8, c*0.1, bz=1e-3, 
+                charge=-units.EL_CHARGE, mass=units.EL_MASS, nparticles=4)
+    elif case == "epb":
+        setup = EBParallel(ez=1e+5, bz=1e-3,
+                charge=units.EL_CHARGE, mass=units.EL_MASS,
+                radius=0.5*radius,
+                nparticles=1)
+    else:
+        raise ValueError, "invalid test case"
 
     e, h = setup.fields(discr)
 
@@ -369,9 +375,9 @@ def main():
             #print "vel%d:..." % i, v, sim_v
 
             #print "acc%d:" % i, comp.norm_2(a-sim_a)
-            #u = num.vstack((v, a, sim_a, real_a))
-            #print "acc%d:\n%s" % (i, u)
-            #raw_input()
+            u = num.vstack((v, a, sim_a, real_a))
+            print "acc%d:\n%s" % (i, u)
+            raw_input()
 
             x_err = max(x_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
             v_err = max(v_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
@@ -385,7 +391,7 @@ def main():
     errors = (0, 0, 0)
 
     for step in xrange(nsteps):
-        if step % 1000 == 0:
+        if step % (setup.nsteps()/100) == 0:
             print "timestep %d, t=%g secs=%f particles=%d" % (
                     step, t, time()-last_tstep, len(cloud))
 
