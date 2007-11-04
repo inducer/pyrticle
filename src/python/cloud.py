@@ -96,13 +96,12 @@ class ParticleCloud(_internal.ParticleCloud):
     dimensions for simplicity.
 
     It contains the following data elements:
-    - positions and velocities, layout as
-      [x0,y0,z0,x1,y1,z1,...]
-    - charges, masses
-      single scalar per particle
-    - containing_elements
-      a reference to a hedge.mesh.Element containing the particle
-      (or None, indicating this particle index is dead--
+    @ivar positions: layout as [x0,y0,z0,x1,y1,z1,...]
+    @ivar momenta: layout as [x0,y0,z0,x1,y1,z1,...]
+    @ivar charges: single scalar per particle
+    @ivar masses: single scalar per particle
+    @ivar containing_elements: a number of a mesh element
+      (or MeshInfo.INVALID_ELEMENT, indicating this particle index is dead--
       remember, it's called particle-*in*-cell :-)
      """
     def __init__(self, discr, epsilon, mu, verbose_vis=False):
@@ -110,7 +109,9 @@ class ParticleCloud(_internal.ParticleCloud):
                 discr.dimensions,
                 len(discr.mesh.points),
                 len(discr.mesh.elements),
-                len(discr.element_groups))
+                len(discr.element_groups),
+                epsilon,
+                mu)
 
         self.verbose_vis = verbose_vis
         self.discretization = discr
@@ -119,10 +120,6 @@ class ParticleCloud(_internal.ParticleCloud):
         self.mesh_info.add_vertices(discr)
         self.mesh_info.add_nodes(len(discr.nodes), discr.nodes)
                
-        self.epsilon = epsilon
-        self.mu = mu
-        self.c = 1/(epsilon*mu)**0.5
-
         def min_vertex_distance(el):
             vertices = [discr.mesh.points[vi] 
                     for vi in el.vertex_indices]
@@ -146,6 +143,12 @@ class ParticleCloud(_internal.ParticleCloud):
     def __len__(self):
         return len(self.containing_elements) - len(self.deadlist)
 
+    def gamma(self, v):
+        value = (1-comp.norm_2_squared(v)/self.c**2)**(-0.5)
+        if value < 0:
+            raise RuntimeError, "particle velocity > speed of light"
+        return value
+
     def add_particles(self, positions, velocities, charges, masses):
         """Add the particles with the given data to the cloud."""
 
@@ -153,12 +156,7 @@ class ParticleCloud(_internal.ParticleCloud):
 
         new_count = len(positions)
 
-        for v in velocities:
-            assert comp.norm_2(v) < self.c
-
-        containing_elements = [self.mesh_info.find_containing_element(p) 
-                for p in positions]
-
+        # expand scalar masses and charges
         try:
             len(charges)
         except:
@@ -169,23 +167,32 @@ class ParticleCloud(_internal.ParticleCloud):
         except:
             masses = new_count * [masses]
 
+        # convert velocities to momenta
+        momenta = [m*self.gamma(v)*v for m, v in zip(masses, velocities)]
+
+        # find containing elements
+        containing_elements = [self.mesh_info.find_containing_element(p) 
+                for p in positions]
+
+        # weed out uncontained particles
         deathflags = [ce == MeshInfo.INVALID_ELEMENT 
                 for ce in containing_elements]
         containing_elements = [ce for ce in containing_elements 
                 if ce != MeshInfo.INVALID_ELEMENT]
         positions = [p for p, dead in zip(positions, deathflags) 
                 if not dead]
-        velocities = [v for v, dead in zip(velocities, deathflags) 
+        momenta = [v for v, dead in zip(momenta, deathflags) 
                 if not dead]
         charges = num.array([c for c, dead in zip(charges, deathflags) 
             if not dead])
         masses = num.array([m for m, dead in zip(masses, deathflags) 
             if not dead])
 
+        # check vector dimensionalities
         for p in positions:
             assert len(p) == dim
-        for v in velocities:
-            assert len(v) == dim
+        for p in momenta:
+            assert len(p) == dim
 
         # first, fill up the spots of formerly dead particles
         already_placed = 0
@@ -196,7 +203,7 @@ class ParticleCloud(_internal.ParticleCloud):
 
             self.containing_elements[i] = containing_elements[alreay_placed]
             self.positions[pstart:pend] = positions[already_placed]
-            self.velocities[pstart:pend] = velocities[already_placed]
+            self.momenta[pstart:pend] = momenta[already_placed]
             self.charges[i] = charges[already_placed]
             self.masses[i] = masses[already_placed]
 
@@ -208,8 +215,8 @@ class ParticleCloud(_internal.ParticleCloud):
 
         self.positions = num.hstack((self.positions, 
             num.hstack(positions[already_placed:])))
-        self.velocities = num.hstack((self.velocities, 
-            num.hstack(velocities[already_placed:])))
+        self.momenta = num.hstack((self.momenta, 
+            num.hstack(momenta[already_placed:])))
 
         self.charges = num.hstack((self.charges, 
             charges[already_placed:]))
@@ -247,7 +254,7 @@ class ParticleCloud(_internal.ParticleCloud):
         self.deadlist.append(pn)
 
         self.positions[pstart:pend] = num.zeros((dim,))
-        self.velocities[pstart:pend] = num.zeros((dim,))
+        self.momenta[pstart:pend] = num.zeros((dim,))
 
     def upkeep(self):
         """Perform any operations must fall in between timesteps,
@@ -288,12 +295,13 @@ class ParticleCloud(_internal.ParticleCloud):
         return rho
 
     def rhs(self, t, e, h):
+        velocities = self.velocities()
         return ArithmeticList([
-            self.velocities, 
-            self.accelerations(
+            velocities, 
+            self.forces(
                 e[0], e[1], e[2], 
                 h[0], h[1], h[2], 
-                self.c, self.mu,
+                velocities,
                 self.verbose_vis)
             ])
 
@@ -302,9 +310,9 @@ class ParticleCloud(_internal.ParticleCloud):
 
         assert isinstance(rhs, ArithmeticList)
 
-        dx, dv = rhs
+        dx, dp = rhs
         self.positions += dx
-        self.velocities += dv
+        self.momenta += dp
 
         self.update_containing_elements()
 
@@ -340,7 +348,7 @@ class ParticleCloud(_internal.ParticleCloud):
 
         grid.add_pointdata(
                 DataArray("velocity", 
-                    self.velocities,
+                    self.velocities(),
                     vector_format=VF_INTERLEAVED,
                     components=dim)
                 )
@@ -352,7 +360,7 @@ class ParticleCloud(_internal.ParticleCloud):
                 vec = num.zeros((len(self.containing_elements) * dim,))
 
             grid.add_pointdata(
-                    DataArray("velocity", 
+                    DataArray(name, 
                         vec, vector_format=VF_INTERLEAVED,
                         components=dim)
                     )
@@ -363,8 +371,8 @@ class ParticleCloud(_internal.ParticleCloud):
         if self.verbose_vis:
             add_vis_vector("pt_e")
             add_vis_vector("pt_h")
-            add_vis_vector("el_acc")
-            add_vis_vector("lorentz_acc")
+            add_vis_vector("el_force")
+            add_vis_vector("lorentz_force")
 
             mesh_scalars.append(("rho", self.vis_info["rho"]))
             mesh_vectors.append(("j", self.vis_info["j"]))
@@ -395,8 +403,11 @@ class ParticleCloud(_internal.ParticleCloud):
         coords = num.hstack([self.positions[i::dim] for i in range(dim)])
         db.put_pointmesh("particles", dim, coords, optlist)
 
+        db.put_pointvar("momenta", "particles", 
+                [self.momenta[i::dim] for i in range(dim)])
+        velocities = self.velocities()
         db.put_pointvar("velocity", "particles", 
-                [self.velocities[i::dim] for i in range(dim)])
+                [velocities[i::dim] for i in range(dim)])
 
         pcount = len(self.containing_elements)
         def add_vis_vector(name):
@@ -413,8 +424,8 @@ class ParticleCloud(_internal.ParticleCloud):
         if self.verbose_vis:
             add_vis_vector("pt_e")
             add_vis_vector("pt_h")
-            add_vis_vector("el_acc")
-            add_vis_vector("lorentz_acc")
+            add_vis_vector("el_force")
+            add_vis_vector("lorentz_force")
 
             if "rho" in self.vis_info:
                 mesh_scalars.append(("rho", self.vis_info["rho"]))

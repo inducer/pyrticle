@@ -9,6 +9,20 @@ import cProfile as profile
 
 
 class StaticFieldSetup:
+    def __init__(self, mass, charge, c):
+        self.mass = mass
+        self.charge = charge
+        self.c = c
+
+    def gamma(self, v):
+        value = (1-comp.norm_2_squared(v)/self.c**2)**(-0.5)
+        if value < 0:
+            raise RuntimeError, "particle velocity > speed of light"
+        return value
+
+    def momenta(self, t):
+        return [self.mass*self.gamma(v)*v for v in self.velocities(t)]
+
     def _check_velocities(self, deriv_dt=1e-12, final_time=1, check_steps=17,
             threshold=1e-4):
         """Check whether computed derivatives and velocities fit together."""
@@ -32,15 +46,13 @@ class StaticFieldSetup:
 
 class LarmorScrew(StaticFieldSetup):
     """Implements Section 12.2 in the third edition of Jackson."""
-    def __init__(self, vpar, vperp, bz, mass, charge, nparticles):
+    def __init__(self, mass, charge, c, vpar, vperp, bz, nparticles):
+        StaticFieldSetup.__init__(self, mass, charge, c)
         self.vpar = vpar
         self.vperp = vperp
         self.bz = bz
         self.nparticles = nparticles
-        self.mass = mass
-        self.charge = charge
 
-        c = units.VACUUM_LIGHT_SPEED
         gamma = (1-(vpar**2+vperp**2)/c**2)**(-1/2)
         self.omega_b = charge*bz/(gamma*mass) # (12.39) -> SI
         self.gyration_rad = vperp/abs(self.omega_b)
@@ -109,11 +121,10 @@ class LarmorScrew(StaticFieldSetup):
 
 class EBParallel(StaticFieldSetup):
     """Implements Problem 12.6b) in the third edition of Jackson."""
-    def __init__(self, ez, bz, mass, charge, radius, nparticles):
+    def __init__(self, mass, charge, c, ez, bz, radius, nparticles):
         self.ez = ez
         self.bz = bz
-        self.mass = mass
-        self.charge = charge
+        StaticFieldSetup.__init__(self, mass, charge, c)
 
         if nparticles == 1:
             self.particle_offsets = [num.zeros((3,))]
@@ -296,13 +307,12 @@ def main():
     case = "epb"
 
     if case == "screw":
-        setup = LarmorScrew(c*0.8, c*0.1, bz=1e-3, 
-                charge=-units.EL_CHARGE, mass=units.EL_MASS, nparticles=4)
+        setup = LarmorScrew(mass=units.EL_MASS, charge=units.EL_CHARGE, c=cloud.c,
+                vpar=c*0.8, vperp=c*0.1, bz=1e-3, 
+                nparticles=4)
     elif case == "epb":
-        setup = EBParallel(ez=1e+5, bz=1e-3,
-                charge=units.EL_CHARGE, mass=units.EL_MASS,
-                radius=0.5*radius,
-                nparticles=1)
+        setup = EBParallel(mass=units.EL_MASS, charge=units.EL_CHARGE, c=cloud.c,
+                ez=1e+5, bz=1e-3, radius=0.5*radius, nparticles=1)
     else:
         raise ValueError, "invalid test case"
 
@@ -343,31 +353,28 @@ def main():
         dim = discr.dimensions
         all_x = setup.positions(t)
         all_v = setup.velocities(t)
-        all_sim_v = cloud.velocities
-        all_a = [(v2-v1)/(2*deriv_dt)
-                for v1, v2 in zip(setup.velocities(t-deriv_dt), setup.velocities(t+deriv_dt))]
-        all_sim_a = cloud.vis_info["lorentz_acc"] + cloud.vis_info["el_acc"]
+        all_sim_v = cloud.velocities()
+        all_f = [(p2-p1)/(2*deriv_dt)
+                for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
+
+        all_sim_f = cloud.vis_info["lorentz_force"] + cloud.vis_info["el_force"]
 
         e = setup.e()
         h = setup.h()
 
         x_err = 0
         v_err = 0
-        a_err = 0
+        f_err = 0
 
         for i in range(len(cloud)):
             x = all_x[i]
             sim_x = cloud.positions[i*dim:(i+1)*dim]
             v = all_v[i]
-            sim_v = cloud.velocities[i*dim:(i+1)*dim]
-            a = all_a[i]
-            sim_a = all_sim_a[i*dim:(i+1)*dim]
+            sim_v = cloud.velocities()[i*dim:(i+1)*dim]
+            f = all_f[i]
+            sim_f = all_sim_f[i*dim:(i+1)*dim]
 
-            charge_over_mass = (setup.charge/setup.mass
-                *sqrt(1-(comp.norm_2(v)/units.VACUUM_LIGHT_SPEED)**2))
-
-            real_a = num.array(cross(v, charge_over_mass*units.MU0*h)) + \
-                    charge_over_mass*e
+            real_f = num.array(cross(v, setup.charge*cloud.mu*h)) + setup.charge*e
 
             #print "pos%d:" % i, comp.norm_2(x-sim_x)
 
@@ -375,15 +382,15 @@ def main():
             #print "vel%d:..." % i, v, sim_v
 
             #print "acc%d:" % i, comp.norm_2(a-sim_a)
-            u = num.vstack((v, a, sim_a, real_a))
+            u = num.vstack((v, f, sim_f, real_f))
             print "acc%d:\n%s" % (i, u)
             raw_input()
 
             x_err = max(x_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
             v_err = max(v_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
-            a_err = max(a_err, comp.norm_2(a-sim_a)/comp.norm_2(a))
+            f_err = max(f_err, comp.norm_2(f-sim_f)/comp.norm_2(f))
 
-        return x_err, v_err, a_err
+        return x_err, v_err, f_err
 
     # make sure verbose-vis fields are filled
     rhs(t, cloud)

@@ -570,7 +570,7 @@ namespace {
 
       mesh_info::el_id_vector           m_containing_elements;
       hedge::vector                     m_positions;
-      hedge::vector                     m_velocities;
+      hedge::vector                     m_momenta;
       hedge::vector                     m_charges;
       hedge::vector                     m_masses;
 
@@ -585,6 +585,8 @@ namespace {
                                         m_neighbor_shape_adds,
                                         m_periodic_hits;
 
+      const double                      m_epsilon, m_mu, m_c;
+
 
 
 
@@ -593,11 +595,14 @@ namespace {
           unsigned dimensions,
           unsigned vertices_sizehint,
           unsigned elements_sizehint, 
-          unsigned discretizations_sizehint)
+          unsigned discretizations_sizehint,
+          double epsilon, 
+          double mu)
         : m_mesh_info(dimensions, 
             vertices_sizehint,
             elements_sizehint, 
-            discretizations_sizehint)
+            discretizations_sizehint),
+        m_epsilon(epsilon), m_mu(mu), m_c(1/sqrt(mu*epsilon))
       {
       }
 
@@ -605,6 +610,32 @@ namespace {
 
 
       // operation ------------------------------------------------------------
+      const hedge::vector velocities() const
+      {
+        const unsigned dim = m_mesh_info.m_dimensions;
+
+        hedge::vector result(m_momenta.size());
+
+        for (particle_number pn = 0; pn < m_containing_elements.size(); pn++)
+        {
+          unsigned pstart = dim*pn;
+          unsigned pend = dim*(pn+1);
+
+          mesh_info::element_number in_el = m_containing_elements[pn];
+          if (in_el == mesh_info::INVALID_ELEMENT)
+          {
+            const double m = m_masses[pn];
+            double p = norm_2(subrange(m_momenta, pstart, pend));
+            double v = p*m_c/sqrt(m*m*m_c*m_c + p*p);
+            subrange(result, pstart, pend) = v/p*subrange(m_momenta, pstart, pend);
+          }
+        }
+        return result;
+      }
+
+
+      
+
       mesh_info::element_number find_new_containing_element(particle_number i,
           mesh_info::element_number prev) const
       {
@@ -634,7 +665,7 @@ namespace {
 
             BOOST_FOREACH(const hedge::vector &n, prev_el.m_normals)
             {
-              double ip = inner_prod(n, subrange(m_velocities, pstart, pend));
+              double ip = inner_prod(n, subrange(m_momenta, pstart, pend));
               if (ip > max_ip)
               {
                 closest_normal_idx = normal_idx;
@@ -747,10 +778,10 @@ namespace {
       // not even compute anything, but just return zero.
       template <class EX, class EY, class EZ, 
                class HX, class HY, class HZ>
-      hedge::vector accelerations(
+      hedge::vector forces(
           const EX &ex, const EY &ey, const EZ &ez,
           const HX &hx, const HY &hy, const HZ &hz,
-          double c, double mu,
+          const hedge::vector &velocities,
           bool update_vis_info
           )
       {
@@ -758,7 +789,7 @@ namespace {
 
         hedge::vector result(m_positions.size());
         std::auto_ptr<hedge::vector> 
-          vis_e, vis_h, vis_el_acc, vis_lorentz_acc;
+          vis_e, vis_h, vis_el_force, vis_lorentz_force;
 
         if (update_vis_info)
         {
@@ -766,9 +797,9 @@ namespace {
               new hedge::vector(m_positions.size()));
           vis_h = std::auto_ptr<hedge::vector>(
               new hedge::vector(m_positions.size()));
-          vis_el_acc = std::auto_ptr<hedge::vector>(
+          vis_el_force = std::auto_ptr<hedge::vector>(
               new hedge::vector(m_positions.size()));
-          vis_lorentz_acc = std::auto_ptr<hedge::vector>(
+          vis_lorentz_force = std::auto_ptr<hedge::vector>(
               new hedge::vector(m_positions.size()));
         }
 
@@ -787,20 +818,6 @@ namespace {
           interpolator interp = m_mesh_info.make_interpolator(
               subrange(m_positions, pstart, pend), in_el);
 
-          hedge::vector v = subrange(m_velocities, pstart, pend);
-          double v_scalar = norm_2(v);
-          if (v_scalar>=c)
-            throw std::runtime_error("cool! particle going faster than light");
-
-          double charge_over_mass = 
-            m_charges[i]/m_masses[i] 
-            *sqrt(1-square(v_scalar/c));
-
-          hedge::vector el_acc(3);
-          el_acc[0] = charge_over_mass*interp(ex);
-          el_acc[1] = charge_over_mass*interp(ey);
-          el_acc[2] = charge_over_mass*interp(ez);
-
           hedge::vector e(3);
           e[0] = interp(ex);
           e[1] = interp(ey);
@@ -811,16 +828,24 @@ namespace {
           h[1] = interp(hy);
           h[2] = interp(hz);
 
-          hedge::vector lorentz_acc = cross(v, charge_over_mass*mu*h);
+          const double charge = m_charges[i];
 
-          subrange(result, pstart, pend) = el_acc + lorentz_acc;
+          hedge::vector el_force(3);
+          el_force[0] = charge*e[0];
+          el_force[1] = charge*e[1];
+          el_force[2] = charge*e[2];
+
+          const hedge::vector v = subrange(velocities, pstart, pend);
+          hedge::vector lorentz_force = cross(v, charge*m_mu*h);
+
+          subrange(result, pstart, pend) = el_force + lorentz_force;
 
           if (update_vis_info)
           {
             subrange(*vis_e, pstart, pend) = e;
             subrange(*vis_h, pstart, pend) = h;
-            subrange(*vis_el_acc, pstart, pend) = el_acc;
-            subrange(*vis_lorentz_acc, pstart, pend) = lorentz_acc;
+            subrange(*vis_el_force, pstart, pend) = el_force;
+            subrange(*vis_lorentz_force, pstart, pend) = lorentz_force;
           }
         }
 
@@ -828,8 +853,8 @@ namespace {
         {
           m_vis_info["pt_e"] = python::object(*vis_e);
           m_vis_info["pt_h"] = python::object(*vis_h);
-          m_vis_info["el_acc"] = python::object(*vis_el_acc);
-          m_vis_info["lorentz_acc"] = python::object(*vis_lorentz_acc);
+          m_vis_info["el_force"] = python::object(*vis_el_force);
+          m_vis_info["lorentz_force"] = python::object(*vis_lorentz_force);
         }
 
         return result;
@@ -954,10 +979,11 @@ namespace {
       {
         const shape_function sf(radius, m_mesh_info.m_dimensions);
         const unsigned dim = m_mesh_info.m_dimensions;
+        const hedge::vector velocities(velocities);
 
         rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
         j_reconstruction_target<3> j_tgt(m_mesh_info.m_nodes.size(), 
-            m_charges, m_velocities);
+            m_charges, velocities);
 
         chained_reconstruction_target
           <rho_reconstruction_target, j_reconstruction_target<3> >
@@ -1000,11 +1026,14 @@ namespace {
           unsigned dimensions,
           unsigned vertices_sizehint,
           unsigned elements_sizehint, 
-          unsigned discretizations_sizehint)
+          unsigned discretizations_sizehint,
+          double epsilon, 
+          double mu)
         : super(dimensions, 
             vertices_sizehint,
             elements_sizehint, 
-            discretizations_sizehint)
+            discretizations_sizehint,
+            epsilon, mu)
       {
       }
 
@@ -1064,13 +1093,13 @@ BOOST_PYTHON_MODULE(_internal)
     typedef particle_cloud cl;
     python::class_<particle_cloud_wrap, boost::noncopyable>
       ("ParticleCloud", 
-       python::init<unsigned, unsigned, unsigned, unsigned>())
+       python::init<unsigned, unsigned, unsigned, unsigned, double, double>())
       .def_readonly("mesh_info", &cl::m_mesh_info)
 
       .def_readonly("containing_elements", &cl::m_containing_elements)
 
       .DEF_RW_MEMBER(positions)
-      .DEF_RW_MEMBER(velocities)
+      .DEF_RW_MEMBER(momenta)
       .DEF_RW_MEMBER(charges)
       .DEF_RW_MEMBER(masses)
 
@@ -1086,9 +1115,14 @@ BOOST_PYTHON_MODULE(_internal)
       .DEF_RO_MEMBER(neighbor_shape_adds)
       .DEF_RO_MEMBER(periodic_hits)
 
+      .DEF_RO_MEMBER(epsilon)
+      .DEF_RO_MEMBER(mu)
+      .DEF_RO_MEMBER(c)
+
+      .DEF_SIMPLE_METHOD(velocities)
       .DEF_SIMPLE_METHOD(find_new_containing_element)
       .DEF_SIMPLE_METHOD(update_containing_elements)
-      .def("accelerations", &cl::accelerations<
+      .def("forces", &cl::forces<
           hedge::vector, hedge::vector, hedge::vector,
           hedge::vector, hedge::vector, hedge::vector>)
       .DEF_SIMPLE_METHOD(_reconstruct_densities)
