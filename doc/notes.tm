@@ -1,4 +1,4 @@
-<TeXmacs|1.0.6>
+<TeXmacs|1.0.6.11>
 
 <style|<tuple|article|axiom|maxima>>
 
@@ -238,7 +238,33 @@
 
     \;
 
-    \;
+    <section|Relativistic Momentum>
+
+    <with|prog-language|axiom|prog-session|default|<\session>
+      <\input|<with|color|red|<with|mode|math|\<rightarrow\>> >>
+        gamma:=1/sqrt(1-v^2/c^2)
+      </input>
+
+      <\output>
+        <with|mode|math|<frac|<with|math-display|true|1>|<sqrt|<frac|-v<rsup|2>+c<rsup|2>|c<rsup|2>>>><leqno>(1)>
+
+        <axiomtype|Expression Integer >
+      </output>
+
+      <\input|<with|color|red|<with|mode|math|\<rightarrow\>> >>
+        solve(m*gamma*v=p,v)
+      </input>
+
+      <\output>
+        <with|mode|math|math-display|true|<left|[>v=<frac|c*p|<sqrt|p<rsup|2>+c<rsup|2>m<rsup|2>>>,<space|0.5spc>v=-<frac|c*p|<sqrt|p<rsup|2>+c<rsup|2>m<rsup|2>>><right|]><leqno>(2)>
+
+        <axiomtype|List Equation Expression Integer >
+      </output>
+
+      <\input|<with|color|red|<with|mode|math|\<rightarrow\>> >>
+        \;
+      </input>
+    </session>>
   <|show-part>
     <section|Initial Conditions by Lorentz Transform>
   </show-part>
@@ -256,6 +282,7 @@
     <associate|auto-2|<tuple|2|1>>
     <associate|auto.2-1|<tuple|1|?|#2>>
     <associate|auto.3-1|<tuple|2|?|#3>>
+    <associate|auto.3-2|<tuple|3|?|#3>>
   </collection>
 </references>
 

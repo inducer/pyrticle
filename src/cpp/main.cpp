@@ -622,11 +622,11 @@ namespace {
           unsigned pend = dim*(pn+1);
 
           mesh_info::element_number in_el = m_containing_elements[pn];
-          if (in_el == mesh_info::INVALID_ELEMENT)
+          if (in_el != mesh_info::INVALID_ELEMENT)
           {
             const double m = m_masses[pn];
             double p = norm_2(subrange(m_momenta, pstart, pend));
-            double v = p*m_c/sqrt(m*m*m_c*m_c + p*p);
+            double v = m_c*p/sqrt(m*m*m_c*m_c + p*p);
             subrange(result, pstart, pend) = v/p*subrange(m_momenta, pstart, pend);
           }
         }

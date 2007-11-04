@@ -304,7 +304,7 @@ def main():
 
     c = units.VACUUM_LIGHT_SPEED
 
-    case = "epb"
+    case = "screw"
 
     if case == "screw":
         setup = LarmorScrew(mass=units.EL_MASS, charge=units.EL_CHARGE, c=cloud.c,
@@ -322,7 +322,7 @@ def main():
     init_velocities = setup.velocities(0)
 
     #print "x", init_positions
-    print "v", init_velocities
+    #print "v", init_velocities
 
     cloud.add_particles(
             positions=init_positions,
@@ -374,7 +374,7 @@ def main():
             f = all_f[i]
             sim_f = all_sim_f[i*dim:(i+1)*dim]
 
-            real_f = num.array(cross(v, setup.charge*cloud.mu*h)) + setup.charge*e
+            real_f = num.array(cross(sim_v, setup.charge*cloud.mu*h)) + setup.charge*e
 
             #print "pos%d:" % i, comp.norm_2(x-sim_x)
 
@@ -382,9 +382,9 @@ def main():
             #print "vel%d:..." % i, v, sim_v
 
             #print "acc%d:" % i, comp.norm_2(a-sim_a)
-            u = num.vstack((v, f, sim_f, real_f))
-            print "acc%d:\n%s" % (i, u)
-            raw_input()
+            #u = num.vstack((v, sim_v, f, sim_f, real_f))
+            #print "acc%d:\n%s" % (i, u)
+            #raw_input()
 
             x_err = max(x_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
             v_err = max(v_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
