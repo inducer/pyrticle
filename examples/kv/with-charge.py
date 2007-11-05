@@ -35,7 +35,7 @@ def main():
     #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
             #max_volume=100*units.MM**3, radial_subdivisions=10)
     full_mesh = make_cylinder_mesh(radius=15*units.MM, height=30*units.MM, periodic=True,
-            max_volume=5*units.MM**3, radial_subdivisions=10)
+            max_volume=100*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
     from hedge.parallel import guess_parallelization_context
@@ -47,7 +47,7 @@ def main():
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TetrahedralElement(4))
+    discr = pcon.make_discretization(mesh, TetrahedralElement(2))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
@@ -67,6 +67,8 @@ def main():
 
     def l2_norm(field):
         return sqrt(dot(field, discr.mass_operator*field))
+    def l2_error(field, true):
+        return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
     nparticles = 1000
@@ -131,22 +133,40 @@ def main():
 
         etilde = ArithmeticList([1,1,1/gamma])*poisson_op.grad(phi)
 
-        e = ArithmeticList([gamma,gamma,1])*etilde
+        eprime = ArithmeticList([gamma,gamma,1])*etilde
 
-        h = (1/max_op.mu)*gamma/max_op.c * cross(beta_vec, etilde)
+        hprime = (1/max_op.mu)*gamma/max_op.c * cross(beta_vec, etilde)
+
+        rhoprime = gamma*rho
+        divDprime_ldg = max_op.epsilon*poisson_op.div(eprime)
+        divDprime_ldg2 = max_op.epsilon*poisson_op.div(eprime, gamma*phi)
+        divDprime_ldg3 = max_op.epsilon*gamma*\
+                (discr.inverse_mass_operator*poisson_op.op(phi))
+        divDprime_central = max_op.epsilon*div_op(eprime)
+
+        print "l2 div error ldg: %g" % \
+                l2_error(divDprime_ldg, rhoprime)
+        print "l2 div error central: %g" % \
+                l2_error(divDprime_central, rhoprime)
+        print "l2 div error ldg with phi: %g" % \
+                l2_error(divDprime_ldg2, rhoprime)
+        print "l2 div error ldg with phi 3: %g" % \
+                l2_error(divDprime_ldg3, rhoprime)
 
         if True:
             visf = vis.make_file("ic")
             vis.add_data(visf,
                     scalars=[ 
-                        ("rho", gamma*rho), 
-                        ("divDldg", max_op.epsilon*poisson_op.div(e)),
-                        ("divDcentral", max_op.epsilon*div_op(e)),
+                        ("rho", rhoprime), 
+                        ("divDldg", divDprime_ldg),
+                        ("divDldg2", divDprime_ldg2),
+                        ("divDldg3", divDprime_ldg3),
+                        ("divDcentral", divDprime_central),
                         ("phi", phi)
                         ],
                     vectors=[
-                        ("e", e), 
-                        ("h", h), 
+                        ("e", eprime), 
+                        ("h", hprime), 
                         ],
                     write_coarse_mesh=True,
                     scale_factor=1e30
@@ -154,7 +174,7 @@ def main():
             cloud.add_to_vis(vis, visf)
             visf.close()
 
-        return join_fields(e, h, [cloud])
+        return join_fields(eprime, hprime, [cloud])
 
     fields = compute_initial_condition()
     return
