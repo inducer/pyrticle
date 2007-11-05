@@ -262,7 +262,7 @@ class ParticleCloud(_internal.ParticleCloud):
         """
         pass
 
-    def reconstruct_densities(self):
+    def reconstruct_densities(self, velocities=None):
         """Return a tuple (charge_density, current_densities), where
         current_densities is an 
           ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
@@ -273,7 +273,12 @@ class ParticleCloud(_internal.ParticleCloud):
         j = ArithmeticList([self.discretization.volume_zeros()
             for axis in range(self.discretization.dimensions)])
 
-        self._reconstruct_densities(rho, j[0], j[1], j[2], self.particle_radius)
+        if velocities is None:
+            velocities = self.velocities()
+
+        self._reconstruct_densities(
+                rho, j[0], j[1], j[2], 
+                self.particle_radius, velocities)
 
         if self.verbose_vis:
             self.vis_info["rho"] = rho
@@ -294,8 +299,10 @@ class ParticleCloud(_internal.ParticleCloud):
 
         return rho
 
-    def rhs(self, t, e, h):
-        velocities = self.velocities()
+    def rhs(self, t, e, h, velocities=None):
+        if velocities is None:
+            velocities = self.velocities()
+
         return ArithmeticList([
             velocities, 
             self.forces(

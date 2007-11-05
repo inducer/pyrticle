@@ -975,11 +975,11 @@ namespace {
           hedge::vector &jx, 
           hedge::vector &jy,
           hedge::vector &jz,
-          double radius) const
+          double radius,
+          const hedge::vector &velocities) const
       {
         const shape_function sf(radius, m_mesh_info.m_dimensions);
         const unsigned dim = m_mesh_info.m_dimensions;
-        const hedge::vector velocities(velocities);
 
         rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
         j_reconstruction_target<3> j_tgt(m_mesh_info.m_nodes.size(), 

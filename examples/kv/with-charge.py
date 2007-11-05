@@ -177,27 +177,23 @@ def main():
         return join_fields(eprime, hprime, [cloud])
 
     fields = compute_initial_condition()
-    return
     # timestepping ------------------------------------------------------------
-
-    zero_cloud_rhs = 0*cloud.rhs(0,fields[:3],fields[3:6])
 
     def rhs(t, y):
         e = y[:3]
         h = y[3:6]
 
+        velocities = cloud.velocities()
         maxwell_rhs = max_op.rhs(t, y[0:6])
-        rho, j = cloud.reconstruct_densities()
-        cloud_rhs = cloud.rhs(t, e, h)
+        rho, j = cloud.reconstruct_densities(velocities)
+        cloud_rhs = cloud.rhs(t, e, h, velocities)
 
         rhs_e = maxwell_rhs[:3]
         rhs_h = maxwell_rhs[3:6]
         return join_fields(
                 rhs_e + 1/max_op.epsilon*j,
-                #rhs_e,
                 rhs_h,
                 ).plus([cloud_rhs])
-                #).plus([zero_cloud_rhs])
 
     stepper = RK4TimeStepper()
     from time import time
@@ -208,8 +204,7 @@ def main():
             initial_radius, emittance)
 
     for step in xrange(nsteps):
-
-        r_logger.update(t, cloud.positions, cloud.velocities)
+        r_logger.update(t, cloud.positions, cloud.velocities())
 
         if False:
             myfields = [fields]
