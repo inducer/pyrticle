@@ -96,7 +96,7 @@ class KVRadiusPredictor:
 
 
 
-class BeamRadiusLogger:
+class BeamRadiusLoggerBase:
     def __init__(self, dimensions, a0, eps):
         self.dimensions = dimensions
 
@@ -104,22 +104,6 @@ class BeamRadiusLogger:
         self.r_collector = []
 
         self.nparticles = 0
-
-    def update(self, t, positions, velocities):
-        from math import sqrt,pi
-        from pytools import argmax
-
-        dim = self.dimensions
-        nparticles = len(positions) // dim
-        self.nparticles = max(nparticles, self.nparticles)
-        pn = argmax(positions[i*dim+0]**2 +positions[i*dim+1]**2
-                for i in xrange(nparticles))
-        r = comp.norm_2(positions[pn*dim+0:pn*dim+2])
-        vz = velocities[pn*dim+2]
-        s = t*vz
-
-        self.s_collector.append(s)
-        self.r_collector.append(r)
 
     def generate_plot(self, title, theory=None, outfile="beam-rad.eps"):
         from Gnuplot import Gnuplot, Data
@@ -149,3 +133,43 @@ class BeamRadiusLogger:
     def relative_error(self, theory):
         true_r = [theory(s) for s in self.s_collector]
         return max(abs(r-r0)/r0 for r, r0 in zip(self.r_collector, true_r))
+
+
+
+class MaxBeamRadiusLogger(BeamRadiusLoggerBase):
+    def update(self, t, positions, velocities):
+        from math import sqrt,pi
+        from pytools import argmax
+
+        dim = self.dimensions
+        nparticles = len(positions) // dim
+        self.nparticles = max(nparticles, self.nparticles)
+        pn = argmax(positions[i*dim+0]**2 +positions[i*dim+1]**2
+                for i in xrange(nparticles))
+        r = comp.norm_2(positions[pn*dim+0:pn*dim+2])
+        vz = velocities[pn*dim+2]
+        s = t*vz
+
+        self.s_collector.append(s)
+        self.r_collector.append(r)
+
+
+
+
+class RMSBeamRadiusLogger(BeamRadiusLoggerBase):
+    def update(self, t, positions, velocities):
+        from math import sqrt,pi
+        from pytools import average
+
+        dim = self.dimensions
+        nparticles = len(positions) // dim
+        self.nparticles = max(nparticles, self.nparticles)
+        r = sqrt(
+                average(positions[i*dim+0]**2 +positions[i*dim+1]**2
+                for i in xrange(nparticles))
+                )
+        vz = average(velocities[(dim-1)::dim])
+        s = t*vz
+
+        self.s_collector.append(s)
+        self.r_collector.append(r)

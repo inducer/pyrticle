@@ -103,8 +103,9 @@
       <item><math|\<b-v\><rsub|\<\|\|\>\<b-beta\>>> and
       <math|\<b-v\><rsub|\<perp\>\<b-beta\>>> remain vectors.
 
-      <item><math|\<b-v\><rsub|\<\|\|\>-\<b-beta\>>=\<b-v\><rsub|\<\|\|\>\<b-beta\>>>.
-      Think of the operation as a projection onto <math|span{\<b-beta\>}>.
+      <item><math|\<b-v\><rsub|\<\|\|\>-\<b-beta\>>=\<b-v\><rsub|\<\|\|\>\<b-beta\>>>,
+      i.e. the sign of <math|\<b-beta\>> also plays no role. Think of the
+      operation as a projection onto <math|span{\<b-beta\>}>.
     </enumerate-alpha>
 
     The situation is a charge density <math|\<rho\>> moving with velocity
@@ -235,9 +236,11 @@
     <\eqnarray*>
       <tformat|<table|<row|<cell|div<rsub|\<b-x\><rprime|'>>\<b-E\><rprime|'>(\<b-x\><rprime|'>)>|<cell|=>|<cell|div<rsub|\<b-x\><rprime|'>><left|[>\<gamma\><wide|\<b-E\>|~><rsub|\<perp\>\<b-beta\>>(\<b-x\><rprime|'>)+<wide|\<b-E\>|~><rsub|\<\|\|\>\<b-beta\>>(\<b-x\><rprime|'>)<right|]>>>|<row|<cell|>|<cell|=>|<cell|div<rsub|\<b-x\><rprime|'>><left|[>\<gamma\>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>)+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>|\<gamma\>><wide|\<Phi\>|~>(\<b-x\><rprime|'>)<right|]>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))|\<gamma\>>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\><left|[>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))|\<gamma\><rsup|2>><right|]>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\><left|[><frac|<wide|\<rho\>|~>(\<b-x\><rprime|'>)|\<varepsilon\>><right|]>=<frac|\<rho\><rprime|'>(\<b-x\><rprime|'>)|\<varepsilon\>>.>>>>
     </eqnarray*>
+  <|show-part>
+    <section|Initial Conditions by Lorentz Transform>
+  </show-part>
 
-    \;
-
+  <\hide-part|4>
     <section|Relativistic Momentum>
 
     <with|prog-language|axiom|prog-session|default|<\session>
@@ -265,9 +268,9 @@
         \;
       </input>
     </session>>
-  <|show-part>
-    <section|Initial Conditions by Lorentz Transform>
-  </show-part>
+  <|hide-part>
+    <section|Relativistic Momentum>
+  </hide-part>
 </body>
 
 <\initial>
@@ -280,9 +283,11 @@
   <\collection>
     <associate|auto-1|<tuple|1|1>>
     <associate|auto-2|<tuple|2|1>>
+    <associate|auto-3|<tuple|3|?>>
     <associate|auto.2-1|<tuple|1|?|#2>>
     <associate|auto.3-1|<tuple|2|?|#3>>
     <associate|auto.3-2|<tuple|3|?|#3>>
+    <associate|auto.4-1|<tuple|3|?|#4>>
   </collection>
 </references>
 
@@ -296,6 +301,10 @@
       <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|2<space|2spc>Initial
       Conditions by Lorentz Transform> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
       <no-break><pageref|auto-2><vspace|0.5fn>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|3<space|2spc>Relativistic
+      Momentum> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-3><vspace|0.5fn>
     </associate>
   </collection>
 </auxiliary>

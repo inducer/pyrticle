@@ -8,6 +8,11 @@ import pyrticle._internal as _internal
 
 
 
+def v_from_p(p, m, c):
+    from math import sqrt
+    value =  c*p*(comp.norm_2_squared(p)+c*c*m*m)**(-0.5)
+    return value
+
 def find_containing_element(discr, point):
     for el in discr.mesh.elements:
         if el.contains_point(point):
@@ -104,17 +109,20 @@ class ParticleCloud(_internal.ParticleCloud):
       (or MeshInfo.INVALID_ELEMENT, indicating this particle index is dead--
       remember, it's called particle-*in*-cell :-)
      """
-    def __init__(self, discr, epsilon, mu, verbose_vis=False):
+    def __init__(self, maxwell_op, 
+            dimensions_pos, dimensions_velocity,
+            verbose_vis=False):
+        discr = maxwell_op.discr
+
         _internal.ParticleCloud.__init__(self, 
-                discr.dimensions,
-                len(discr.mesh.points),
-                len(discr.mesh.elements),
+                discr.dimensions, dimensions_pos, dimensions_velocity,
+                len(discr.mesh.points), len(discr.mesh.elements),
                 len(discr.element_groups),
-                epsilon,
-                mu)
+                maxwell_op.epsilon, maxwell_op.mu)
 
         self.verbose_vis = verbose_vis
         self.discretization = discr
+        self.maxwell_op = maxwell_op
 
         self.mesh_info.add_elements(discr)
         self.mesh_info.add_vertices(discr)
@@ -152,8 +160,6 @@ class ParticleCloud(_internal.ParticleCloud):
     def add_particles(self, positions, velocities, charges, masses):
         """Add the particles with the given data to the cloud."""
 
-        dim = self.mesh_info.dimensions
-
         new_count = len(positions)
 
         # expand scalar masses and charges
@@ -189,21 +195,23 @@ class ParticleCloud(_internal.ParticleCloud):
             if not dead])
 
         # check vector dimensionalities
-        for p in positions:
-            assert len(p) == dim
+        for x in positions:
+            assert len(x) == self.dimensions_pos
         for p in momenta:
-            assert len(p) == dim
+            assert len(p) == self.dimensions_velocity
 
         # first, fill up the spots of formerly dead particles
         already_placed = 0
         while len(self.deadlist):
             i = self.deadlist.pop()
-            pstart = i*dim
-            pend = (i+1)*dim
+            x_pstart = i*self.dimensions_pos
+            x_pend = (i+1)*self.dimensions_pos
+            v_pstart = i*self.dimensions_velocity
+            v_pend = (i+1)*self.dimensions_velocity
 
             self.containing_elements[i] = containing_elements[alreay_placed]
-            self.positions[pstart:pend] = positions[already_placed]
-            self.momenta[pstart:pend] = momenta[already_placed]
+            self.positions[x_pstart:x_pend] = positions[already_placed]
+            self.momenta[v_pstart:v_pend] = momenta[already_placed]
             self.charges[i] = charges[already_placed]
             self.masses[i] = masses[already_placed]
 
@@ -226,12 +234,12 @@ class ParticleCloud(_internal.ParticleCloud):
     def kill_particle(self, pn):
         dim = self.mesh_info.dimensions
 
-        pstart = pn*dim
-        pend = (pn+1)*dim
+        x_pstart = pn*self.dimensions_pos
+        x_pend = (pn+1)*self.dimensions_pos
 
         periodicity_trip = False
 
-        pt = self.positions[pstart:pend]
+        pt = self.positions[x_pstart:x_pend]
         for i, (axis_interval, xi) in enumerate(zip(self.periodicity, pt)):
             if axis_interval is not None:
                 xmin, xmax = axis_interval
@@ -240,7 +248,7 @@ class ParticleCloud(_internal.ParticleCloud):
                     periodicity_trip = True
 
         if periodicity_trip:
-            self.positions[pstart:pend] = pt
+            self.positions[x_pstart:x_pend] = pt
             ce = self.find_new_containing_element(
                     pn, self.containing_elements[pn])
             if ce != MeshInfo.INVALID_ELEMENT:
@@ -253,8 +261,11 @@ class ParticleCloud(_internal.ParticleCloud):
         self.containing_elements[pn] = MeshInfo.INVALID_ELEMENT
         self.deadlist.append(pn)
 
-        self.positions[pstart:pend] = num.zeros((dim,))
-        self.momenta[pstart:pend] = num.zeros((dim,))
+        v_pstart = pn*self.dimensions_velocity
+        v_pend = (pn+1)*self.dimensions_velocity
+
+        self.positions[x_pstart:x_pend] = num.zeros((dim,))
+        self.momenta[v_pstart:v_pend] = num.zeros((dim,))
 
     def upkeep(self):
         """Perform any operations must fall in between timesteps,
@@ -271,14 +282,12 @@ class ParticleCloud(_internal.ParticleCloud):
 
         rho = self.discretization.volume_zeros()
         j = ArithmeticList([self.discretization.volume_zeros()
-            for axis in range(self.discretization.dimensions)])
+            for axis in range(self.dimensions_velocity)])
 
         if velocities is None:
             velocities = self.velocities()
 
-        self._reconstruct_densities(
-                rho, j[0], j[1], j[2], 
-                self.particle_radius, velocities)
+        self._reconstruct_densities(rho, j, self.particle_radius, velocities)
 
         if self.verbose_vis:
             self.vis_info["rho"] = rho
@@ -300,16 +309,37 @@ class ParticleCloud(_internal.ParticleCloud):
         return rho
 
     def rhs(self, t, e, h, velocities=None):
+        from pyrticle._internal import ZeroVector
+        
         if velocities is None:
             velocities = self.velocities()
 
+        # assemble field_args of the form [ex,ey,ez,hx,hy,hz],
+        # inserting ZeroVectors where necessary.
+        field_args = []
+        idx = 0
+        for use_component in self.maxwell_op.get_subset()[0:3]:
+            if use_component:
+                field_args.append(e[idx])
+                idx += 1
+            else:
+                field_args.append(ZeroVector())
+        idx = 0
+        for use_component in self.maxwell_op.get_subset()[3:6]:
+            if use_component:
+                field_args.append(h[idx])
+                idx += 1
+            else:
+                field_args.append(ZeroVector())
+
+        # compute forces
         return ArithmeticList([
             velocities, 
             self.forces(
-                e[0], e[1], e[2], 
-                h[0], h[1], h[2], 
-                velocities,
-                self.verbose_vis)
+                velocities=velocities,
+                verbose_vis=self.verbose_vis,
+                *field_args
+                )
             ])
 
     def __iadd__(self, rhs):

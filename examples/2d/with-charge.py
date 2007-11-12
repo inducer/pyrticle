@@ -8,12 +8,30 @@ import cProfile as profile
 
 
 
+def add_gauss_particles(nparticles, cloud, discr, charge, mass, 
+        mean_x, mean_p, sigma_x, sigma_p):
+    from random import gauss
+    from pyrticle.cloud import v_from_p
+
+    cloud.add_particles(
+            positions=[
+                num.array([gauss(m, s) for m, s in zip(mean_x, sigma_x)]) 
+                for i in range(nparticles)
+                ],
+            velocities=[v_from_p(
+                num.array([gauss(m, s) for m, s in zip(mean_p, sigma_p)]),
+                mass, cloud.c) 
+                for i in range(nparticles)
+                ],
+            charges=charge, masses=mass)
+
+
+
 def main():
-    from hedge.element import TetrahedralElement
+    from hedge.element import TriangularElement
     from hedge.timestep import RK4TimeStepper
     from hedge.mesh import \
-            make_box_mesh, \
-            make_cylinder_mesh
+            make_square_mesh
     from hedge.discretization import \
             Discretization, \
             pair_with_boundary
@@ -22,21 +40,18 @@ def main():
     from math import sqrt, pi
     from pytools.arithmetic_container import \
             ArithmeticList, join_fields
-    from hedge.operators import MaxwellOperator, DivergenceOperator
+    from hedge.operators import TEMaxwellOperator, DivergenceOperator
     from pyrticle.cloud import ParticleCloud
-    from kv import \
-            add_kv_xy_particles, \
-            KVRadiusPredictor, \
-            BeamRadiusLogger
     from random import seed
-    seed(0)
+    #seed(0)
 
     # discretization setup ----------------------------------------------------
     #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
             #max_volume=100*units.MM**3, radial_subdivisions=10)
-    full_mesh = make_cylinder_mesh(radius=15*units.MM, height=30*units.MM, periodic=True,
-            max_volume=100*units.MM**3, radial_subdivisions=10)
+    #full_mesh = make_cylinder_mesh(radius=15*units.MM, height=30*units.MM, periodic=True,
+            #max_volume=100*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
+    full_mesh = make_square_mesh(max_area=0.1)
 
     from hedge.parallel import guess_parallelization_context
 
@@ -47,11 +62,11 @@ def main():
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TetrahedralElement(2))
+    discr = pcon.make_discretization(mesh, TriangularElement(5))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    max_op = MaxwellOperator(discr, 
+    max_op = TEMaxwellOperator(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
@@ -71,11 +86,9 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1000
+    nparticles = 10
 
-    cloud = ParticleCloud(discr, 
-            epsilon=max_op.epsilon, 
-            mu=max_op.mu, 
+    cloud = ParticleCloud(max_op, dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
 
     cloud_charge = 1e-9 * units.C
@@ -83,25 +96,21 @@ def main():
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
-    emittance = 5 * units.MM * units.MRAD
-    initial_radius = 2.5*units.MM
+    avg_x_vel = 0.8*cloud.c
+    mean_v = num.array([avg_x_vel, 0])
+    mean_beta = mean_v/cloud.c
+    gamma = cloud.gamma(mean_v)
+    pmass = electrons_per_particle*units.EL_MASS
+    mean_p = gamma*pmass*mean_v
 
-    el_energy = 5.2e6 * units.EV
-    #el_energy = units.EL_REST_ENERGY*1.00001
-    el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
-    #el_lorentz_gamma = 100000
-    beta = (1-1/el_lorentz_gamma**2)**0.5
-    gamma = 1/sqrt(1-beta**2)
-    print "beta = %g, gamma = %g" % (beta, gamma)
-
-    add_kv_xy_particles(nparticles, cloud, discr, 
+    add_gauss_particles(nparticles, cloud, discr, 
             charge=units.EL_CHARGE, 
-            mass=electrons_per_particle*units.EL_MASS,
-            radii=[2.5*units.MM, 2.5*units.MM],
-            z_length=5*units.MM,
-            z_pos=10*units.MM,
-            emittances=[emittance, emittance], 
-            beta=beta)
+            mass=pmass,
+            mean_x=num.zeros((2,)),
+            mean_p=mean_p,
+            sigma_x=0.3*num.ones((2,)),
+            sigma_p=cloud.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.1,
+            )
 
     # intial condition --------------------------------------------------------
     def compute_initial_condition():
@@ -112,10 +121,8 @@ def main():
 
         # see doc/notes.tm for derivation of IC
 
-        beta_vec = num.array([0,0,beta])
-
         diff_tensor = num.identity(discr.dimensions)
-        diff_tensor[2,2] = 1/gamma**2
+        diff_tensor[0,0] = 1/gamma**2
 
         poisson_op = WeakPoissonOperator(discr, 
                 diffusion_tensor=ConstantGivenFunction(diff_tensor),
@@ -131,11 +138,11 @@ def main():
                     GivenVolumeInterpolant(discr, rho/max_op.epsilon)), 
                 debug=True, tol=1e-10)
 
-        etilde = ArithmeticList([1,1,1/gamma])*poisson_op.grad(phi)
+        etilde = ArithmeticList([1/gamma,1])*poisson_op.grad(phi)
 
-        eprime = ArithmeticList([gamma,gamma,1])*etilde
+        eprime = ArithmeticList([1, gamma])*etilde
 
-        hprime = (1/max_op.mu)*gamma/max_op.c * cross(beta_vec, etilde)
+        hprime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, etilde)
 
         rhoprime = gamma*rho
         divDprime_ldg = max_op.epsilon*poisson_op.div(eprime)
@@ -156,19 +163,16 @@ def main():
         if True:
             visf = vis.make_file("ic")
             vis.add_data(visf,
-                    scalars=[ 
+                    [ 
                         ("rho", rhoprime), 
                         ("divDldg", divDprime_ldg),
                         ("divDldg2", divDprime_ldg2),
                         ("divDldg3", divDprime_ldg3),
                         ("divDcentral", divDprime_central),
-                        ("phi", phi)
-                        ],
-                    vectors=[
+                        ("phi", phi),
                         ("e", eprime), 
                         ("h", hprime), 
                         ],
-                    write_coarse_mesh=True,
                     scale_factor=1e30
                     )
             cloud.add_to_vis(vis, visf)
@@ -177,11 +181,11 @@ def main():
         return join_fields(eprime, hprime, [cloud])
 
     fields = compute_initial_condition()
+
     # timestepping ------------------------------------------------------------
 
     def rhs(t, y):
-        e = y[:3]
-        h = y[3:6]
+        e, h = max_op.split_fields(y)
 
         velocities = cloud.velocities()
         maxwell_rhs = max_op.rhs(t, y[0:6])
@@ -200,12 +204,7 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = BeamRadiusLogger(cloud.mesh_info.dimensions,
-            initial_radius, emittance)
-
     for step in xrange(nsteps):
-        r_logger.update(t, cloud.positions, cloud.velocities())
-
         if False:
             myfields = [fields]
             fields = profile.runctx("myfields[0] = stepper(fields, t, dt, rhs)", 
@@ -239,26 +238,17 @@ def main():
 
             mesh_scalars, mesh_vectors = \
                     cloud.add_to_vis(vis, visf, time=t, step=step)
-            vis.add_data(visf,
-                    scalars=[
-                        ("divD", max_op.epsilon*div_op(fields[0:3]))
-                        ]
-                    + mesh_scalars,
-                    vectors=[
+            vis.add_data(visf, [
+                        ("divD", max_op.epsilon*div_op(fields[0:3])),
                         ("e", fields[0:3]), 
                         ("h", fields[3:6]), 
-                        ]
-                    + mesh_vectors,
-                    write_coarse_mesh=True,
+                        ] + mesh_scalars + mesh_vectors,
                     time=t, step=step)
             visf.close()
 
         t += dt
 
     vis.close()
-
-    r_logger.generate_plot("Kapchinskij-Vladimirskij Beam Evolution, "
-            "with space charge")
 
 
 

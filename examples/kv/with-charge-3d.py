@@ -27,7 +27,8 @@ def main():
     from kv import \
             add_kv_xy_particles, \
             KVRadiusPredictor, \
-            BeamRadiusLogger
+            MaxBeamRadiusLogger, \
+            RMSBeamRadiusLogger
     from random import seed
     seed(0)
 
@@ -73,10 +74,7 @@ def main():
     # particles setup ---------------------------------------------------------
     nparticles = 1000
 
-    cloud = ParticleCloud(discr, 
-            epsilon=max_op.epsilon, 
-            mu=max_op.mu, 
-            verbose_vis=True)
+    cloud = ParticleCloud(max_op, 3, 3, verbose_vis=True)
 
     cloud_charge = 1e-9 * units.C
     particle_charge = cloud_charge/nparticles
@@ -155,22 +153,18 @@ def main():
 
         if True:
             visf = vis.make_file("ic")
-            vis.add_data(visf,
-                    scalars=[ 
-                        ("rho", rhoprime), 
-                        ("divDldg", divDprime_ldg),
-                        ("divDldg2", divDprime_ldg2),
-                        ("divDldg3", divDprime_ldg3),
-                        ("divDcentral", divDprime_central),
-                        ("phi", phi)
-                        ],
-                    vectors=[
-                        ("e", eprime), 
-                        ("h", hprime), 
-                        ],
-                    write_coarse_mesh=True,
-                    scale_factor=1e30
-                    )
+            vis.add_data(visf, [ 
+                ("rho", rhoprime), 
+                ("divDldg", divDprime_ldg),
+                ("divDldg2", divDprime_ldg2),
+                ("divDldg3", divDprime_ldg3),
+                ("divDcentral", divDprime_central),
+                ("phi", phi),
+                ("e", eprime), 
+                ("h", hprime), 
+                ],
+                scale_factor=1e30
+                )
             cloud.add_to_vis(vis, visf)
             visf.close()
 
@@ -180,8 +174,7 @@ def main():
     # timestepping ------------------------------------------------------------
 
     def rhs(t, y):
-        e = y[:3]
-        h = y[3:6]
+        e, h = max_op.split_fields(y)
 
         velocities = cloud.velocities()
         maxwell_rhs = max_op.rhs(t, y[0:6])
@@ -200,7 +193,7 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = BeamRadiusLogger(cloud.mesh_info.dimensions,
+    r_logger = MaxBeamRadiusLogger(cloud.mesh_info.dimensions,
             initial_radius, emittance)
 
     for step in xrange(nsteps):
@@ -239,18 +232,14 @@ def main():
 
             mesh_scalars, mesh_vectors = \
                     cloud.add_to_vis(vis, visf, time=t, step=step)
-            vis.add_data(visf,
-                    scalars=[
-                        ("divD", max_op.epsilon*div_op(fields[0:3]))
-                        ]
-                    + mesh_scalars,
-                    vectors=[
-                        ("e", fields[0:3]), 
-                        ("h", fields[3:6]), 
-                        ]
-                    + mesh_vectors,
-                    write_coarse_mesh=True,
-                    time=t, step=step)
+            vis.add_data(visf, [
+                ("divD", max_op.epsilon*div_op(fields[0:3])),
+                ("e", fields[0:3]), 
+                ("h", fields[3:6]), 
+                ]
+                + mesh_vectors
+                + mesh_scalars,
+                time=t, step=step)
             visf.close()
 
         t += dt

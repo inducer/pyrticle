@@ -21,7 +21,8 @@ def main():
     from kv import \
             add_kv_xy_particles, \
             KVRadiusPredictor, \
-            BeamRadiusLogger
+            MaxBeamRadiusLogger, \
+            RMSBeamRadiusLogger
     from random import seed
     seed(0)
 
@@ -33,8 +34,8 @@ def main():
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    dt = discr.dt_factor(units.C0) / 2
-    final_time = 1*units.M/units.C0
+    dt = discr.dt_factor(units.VACUUM_LIGHT_SPEED) / 2
+    final_time = 1*units.M/units.VACUUM_LIGHT_SPEED
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -42,12 +43,14 @@ def main():
             len(discr.mesh.elements), dt, nsteps)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 10000
+    nparticles = 1000
 
-    cloud = ParticleCloud(discr, 
+    from hedge.operators import MaxwellOperator
+    max_op = MaxwellOperator(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
-            verbose_vis=False)
+            upwind_alpha=1)
+    cloud = ParticleCloud(max_op, 3, 3, verbose_vis=False)
 
     cloud_charge = 1e-9 * units.C
     particle_charge = cloud_charge/nparticles
@@ -74,10 +77,11 @@ def main():
             beta=beta)
 
     # timestepping ------------------------------------------------------------
+    vel = cloud.velocities()
     def rhs(t, y):
         return ArithmeticList([
-            cloud.velocities, 
-            0*cloud.velocities, 
+            vel, 
+            0*vel, 
             ])
 
     stepper = RK4TimeStepper()
@@ -85,11 +89,13 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = BeamRadiusLogger(cloud.mesh_info.dimensions,
+    r_logger = MaxBeamRadiusLogger(cloud.mesh_info.dimensions,
             initial_radius, emittance)
 
     for step in xrange(nsteps):
-        r_logger.update(t, cloud.positions, cloud.velocities)
+        if step % 100 == 0:
+            print "timestep %d" % step
+        r_logger.update(t, cloud.positions, cloud.velocities())
         cloud = stepper(cloud, t, dt, rhs)
         cloud.upkeep()
         t += dt
