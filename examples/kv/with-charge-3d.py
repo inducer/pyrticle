@@ -29,15 +29,28 @@ def main():
             KVRadiusPredictor, \
             MaxBeamRadiusLogger, \
             RMSBeamRadiusLogger
+    from tubemesh import make_cylinder_with_fine_core
     from random import seed
+    from pytools.stopwatch import Job
+
     seed(0)
 
+    beam_radius = 2.5*units.MM
     # discretization setup ----------------------------------------------------
     #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
             #max_volume=100*units.MM**3, radial_subdivisions=10)
-    full_mesh = make_cylinder_mesh(radius=15*units.MM, height=30*units.MM, periodic=True,
-            max_volume=100*units.MM**3, radial_subdivisions=10)
+    #full_mesh = make_cylinder_mesh(radius=15*units.MM, height=30*units.MM, periodic=True,
+            #max_volume=100*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
+
+    job = Job("mesh")
+    full_mesh = make_cylinder_with_fine_core(
+            r=10*beam_radius, inner_r=1.5*beam_radius, 
+            min_z=0, max_z=20*beam_radius,
+            max_volume_inner=1*units.MM**3,
+            max_volume_outer=100*units.MM**3,
+            )
+    job.done()
 
     from hedge.parallel import guess_parallelization_context
 
@@ -48,7 +61,10 @@ def main():
     else:
         mesh = pcon.receive_mesh()
 
+    job = Job("discretization")
     discr = pcon.make_discretization(mesh, TetrahedralElement(2))
+    job.done()
+
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
