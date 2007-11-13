@@ -231,14 +231,14 @@ namespace {
 
   /** Reconstruction Target for the current density.
    */
-  template<unsigned velocity_dimensions>
+  template<unsigned dimensions_velocity>
   class j_reconstruction_target
   {
     private:
       hedge::vector m_target_vector;
       const hedge::vector &m_charges;
       const hedge::vector &m_velocities;
-      double m_scale_factors[velocity_dimensions];
+      double m_scale_factors[dimensions_velocity];
 
     public:
       j_reconstruction_target(unsigned points, const hedge::vector &charges,
@@ -251,14 +251,14 @@ namespace {
       void begin_particle(particle_number pn)
       {
         const double charge = m_charges[pn];
-        for (unsigned axis = 0; axis < velocity_dimensions; axis++)
-          m_scale_factors[axis] = charge * m_velocities[pn*velocity_dimensions+axis];
+        for (unsigned axis = 0; axis < dimensions_velocity; axis++)
+          m_scale_factors[axis] = charge * m_velocities[pn*dimensions_velocity+axis];
       }
 
       void add_shape_at_point(unsigned i, double shape_factor)
       {
-        const unsigned base = i*velocity_dimensions;
-        for (unsigned axis = 0; axis < velocity_dimensions; axis++)
+        const unsigned base = i*dimensions_velocity;
+        for (unsigned axis = 0; axis < dimensions_velocity; axis++)
           m_target_vector[base+axis] += shape_factor * m_scale_factors[axis];
       }
 
@@ -575,14 +575,15 @@ namespace {
 
 
 
+  template<unsigned dimensions_pos, unsigned dimensions_velocity>
   class particle_cloud : boost::noncopyable
   {
     public:
       // member data ----------------------------------------------------------
       mesh_info                         m_mesh_info;
 
-      const unsigned                    m_dimensions_pos;
-      const unsigned                    m_dimensions_velocity;
+      static const unsigned             m_dimensions_pos = dimensions_pos;
+      static const unsigned             m_dimensions_velocity = dimensions_velocity;
 
       mesh_info::el_id_vector           m_containing_elements;
       hedge::vector                     m_positions;
@@ -603,25 +604,26 @@ namespace {
 
       const double                      m_epsilon, m_mu, m_c;
 
+      python::object                    m_boundary_hit_cb;
+
 
 
 
       // setup ----------------------------------------------------------------
       particle_cloud(
-          unsigned dimensions,
-          unsigned dimensions_pos,
-          unsigned dimensions_velocity,
+          unsigned dimensions_mesh,
           unsigned vertices_sizehint,
           unsigned elements_sizehint, 
           unsigned discretizations_sizehint,
           double epsilon, 
-          double mu)
-        : m_mesh_info(dimensions, 
+          double mu,
+          python::object boundary_hit_cb)
+        : m_mesh_info(dimensions_mesh, 
             vertices_sizehint,
             elements_sizehint, 
             discretizations_sizehint),
-        m_dimensions_pos(dimensions_pos), m_dimensions_velocity(dimensions_velocity),
-        m_epsilon(epsilon), m_mu(mu), m_c(1/sqrt(mu*epsilon))
+        m_epsilon(epsilon), m_mu(mu), m_c(1/sqrt(mu*epsilon)),
+        m_boundary_hit_cb(boundary_hit_cb)
       {
       }
 
@@ -775,18 +777,13 @@ namespace {
           mesh_info::element_number new_el = 
             find_new_containing_element(i, prev);
 
-          // no element found? kill the particle ------------------------------
+          // no element found? delegate to callback ---------------------------
           if (new_el == mesh_info::INVALID_ELEMENT)
-            kill_particle(i);
+            m_boundary_hit_cb(i);
           else
             m_containing_elements[i] = new_el;
         }
       }
-
-
-
-
-      virtual void kill_particle(particle_number i) = 0;
 
 
 
@@ -991,7 +988,7 @@ namespace {
 
 
 
-      void _reconstruct_densities(
+      void reconstruct_densities(
           hedge::vector &rho, 
           python::object py_j,
           double radius,
@@ -1026,7 +1023,7 @@ namespace {
 
 
 
-      void _reconstruct_rho(hedge::vector &rho, double radius) const
+      void reconstruct_rho(hedge::vector &rho, double radius) const
       {
         rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
 
@@ -1040,37 +1037,85 @@ namespace {
 
 
   // Python wrap helpers ------------------------------------------------------
-  class particle_cloud_wrap : 
-    public particle_cloud, public python::wrapper<particle_cloud>
+  template <class Cloud>
+  void expose_particle_cloud(const std::string &name)
   {
-    private:
-      typedef particle_cloud super;
+    using python::arg;
 
-    public:
-      particle_cloud_wrap(
-          unsigned dimensions, unsigned dimensions_pos, unsigned dimensions_velocity,
-          unsigned vertices_sizehint, unsigned elements_sizehint, 
-          unsigned discretizations_sizehint,
-          double epsilon, double mu)
-        : super(dimensions, dimensions_pos, dimensions_velocity,
-            vertices_sizehint, elements_sizehint, discretizations_sizehint,
-            epsilon, mu)
-      {
-      }
+    typedef Cloud cl;
 
-      void kill_particle(particle_number i)
-      {
-        this->get_override("kill_particle")(i);
-      }
-  };
+    python::class_<cl, boost::noncopyable> 
+      cloud_wrap(name.c_str(), 
+          python::init<
+          unsigned, 
+          unsigned, unsigned, unsigned, 
+          double, double, python::object>());
+    cloud_wrap
+      .DEF_RO_MEMBER(mesh_info)
 
+      .DEF_RO_MEMBER(dimensions_pos)
+      .DEF_RO_MEMBER(dimensions_velocity)
 
+      .DEF_RO_MEMBER(containing_elements)
+      .DEF_RW_MEMBER(positions)
+      .DEF_RW_MEMBER(momenta)
+      .DEF_RW_MEMBER(charges)
+      .DEF_RW_MEMBER(masses)
 
+      .DEF_RO_MEMBER(deadlist)
 
-  template <class Vec>
-  void vector_extend(Vec &dest, const Vec &src)
-  {
-    std::copy(src.begin(), src.end(), back_inserter(dest));
+      .DEF_RO_MEMBER(vis_info)
+
+      .DEF_RO_MEMBER(same_searches)
+      .DEF_RO_MEMBER(normal_searches)
+      .DEF_RO_MEMBER(vertex_searches)
+      .DEF_RO_MEMBER(global_searches)
+      .DEF_RO_MEMBER(vertex_shape_adds)
+      .DEF_RO_MEMBER(neighbor_shape_adds)
+      .DEF_RO_MEMBER(periodic_hits)
+
+      .DEF_RO_MEMBER(epsilon)
+      .DEF_RO_MEMBER(mu)
+      .DEF_RO_MEMBER(c)
+
+      .DEF_SIMPLE_METHOD(velocities)
+      .DEF_SIMPLE_METHOD(find_new_containing_element)
+      .DEF_SIMPLE_METHOD(update_containing_elements)
+      ;
+
+    if (Cloud::m_dimensions_velocity == 3)
+    {
+      cloud_wrap
+        .def("forces", &cl::template forces< // full-field case
+            hedge::vector, hedge::vector, hedge::vector,
+            hedge::vector, hedge::vector, hedge::vector>,
+            (arg("ex"), arg("ey"), arg("ez"), 
+             arg("hx"), arg("hy"), arg("hz"),
+             arg("velocities"), arg("verbose_vis")))
+        ;
+    }
+    else if (Cloud::m_dimensions_velocity == 2)
+    {
+      cloud_wrap
+        .def("forces", &cl::template forces< // TM case
+            zero_vector, zero_vector, hedge::vector,
+            hedge::vector, hedge::vector, zero_vector>,
+            (arg("ex"), arg("ey"), arg("ez"), 
+             arg("hx"), arg("hy"), arg("hz"),
+             arg("velocities"), arg("verbose_vis")))
+        .def("forces", &cl::template forces< // TE case
+            hedge::vector, hedge::vector, zero_vector,
+            zero_vector, zero_vector, hedge::vector>,
+            (arg("ex"), arg("ey"), arg("ez"), 
+             arg("hx"), arg("hy"), arg("hz"),
+             arg("velocities"), arg("verbose_vis")))
+        ;
+    }
+
+    cloud_wrap
+      .DEF_SIMPLE_METHOD(reconstruct_densities)
+      .DEF_SIMPLE_METHOD(reconstruct_rho)
+      ;
   }
 }
 
@@ -1112,69 +1157,11 @@ BOOST_PYTHON_MODULE(_internal)
       .DEF_SIMPLE_METHOD(find_containing_element)
       ;
   }
-  {
-    typedef particle_cloud cl;
-    python::class_<particle_cloud_wrap, boost::noncopyable>
-      ("ParticleCloud", 
-       python::init<
-       unsigned, unsigned, unsigned, 
-       unsigned, unsigned, unsigned, 
-       double, double>())
 
-      .DEF_RO_MEMBER(mesh_info)
-
-      .DEF_RO_MEMBER(dimensions_pos)
-      .DEF_RO_MEMBER(dimensions_velocity)
-
-      .DEF_RO_MEMBER(containing_elements)
-      .DEF_RW_MEMBER(positions)
-      .DEF_RW_MEMBER(momenta)
-      .DEF_RW_MEMBER(charges)
-      .DEF_RW_MEMBER(masses)
-
-      .DEF_RO_MEMBER(deadlist)
-
-      .DEF_RO_MEMBER(vis_info)
-
-      .DEF_RO_MEMBER(same_searches)
-      .DEF_RO_MEMBER(normal_searches)
-      .DEF_RO_MEMBER(vertex_searches)
-      .DEF_RO_MEMBER(global_searches)
-      .DEF_RO_MEMBER(vertex_shape_adds)
-      .DEF_RO_MEMBER(neighbor_shape_adds)
-      .DEF_RO_MEMBER(periodic_hits)
-
-      .DEF_RO_MEMBER(epsilon)
-      .DEF_RO_MEMBER(mu)
-      .DEF_RO_MEMBER(c)
-
-      .DEF_SIMPLE_METHOD(velocities)
-      .DEF_SIMPLE_METHOD(find_new_containing_element)
-      .DEF_SIMPLE_METHOD(update_containing_elements)
-      .def("forces", &cl::forces< // full-field case
-          hedge::vector, hedge::vector, hedge::vector,
-          hedge::vector, hedge::vector, hedge::vector>,
-          (arg("ex"), arg("ey"), arg("ez"), 
-           arg("hx"), arg("hy"), arg("hz"),
-           arg("velocities"), arg("verbose_vis")))
-      .def("forces", &cl::forces< // TM case
-          zero_vector, zero_vector, hedge::vector,
-          hedge::vector, hedge::vector, zero_vector>,
-          (arg("ex"), arg("ey"), arg("ez"), 
-           arg("hx"), arg("hy"), arg("hz"),
-           arg("velocities"), arg("verbose_vis")))
-      .def("forces", &cl::forces< // TE case
-          hedge::vector, hedge::vector, zero_vector,
-          zero_vector, zero_vector, hedge::vector>,
-          (arg("ex"), arg("ey"), arg("ez"), 
-           arg("hx"), arg("hy"), arg("hz"),
-           arg("velocities"), arg("verbose_vis")))
-      .DEF_SIMPLE_METHOD(_reconstruct_densities)
-      .DEF_SIMPLE_METHOD(_reconstruct_rho)
-
-      .def("kill_particle", python::pure_virtual(&cl::kill_particle))
-      ;
-  }
+  expose_particle_cloud<
+    particle_cloud<3,3> >("ParticleCloud33");
+  expose_particle_cloud<
+    particle_cloud<2,2> >("ParticleCloud22");
 
   {
     typedef event_counter cl;
@@ -1184,9 +1171,6 @@ BOOST_PYTHON_MODULE(_internal)
       .DEF_SIMPLE_METHOD(tick)
       ;
   }
-
-
-
 
   {
     typedef std::vector<unsigned> cl;

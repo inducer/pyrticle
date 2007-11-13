@@ -30,3 +30,11 @@ class SI:
     PROTON_MASS = 1.672621637e-27 * KG
 
     EV = EL_CHARGE * V
+
+    def gamma(self, v):
+        import pylinear.computation as comp
+        value = (1-comp.norm_2_squared(v)/self.VACUUM_LIGHT_SPEED**2)**(-0.5)
+        if value < 0:
+            raise RuntimeError, "particle velocity > speed of light"
+        return value
+

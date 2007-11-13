@@ -2,7 +2,6 @@ from __future__ import division
 import pylinear.array as num
 import pylinear.computation as comp
 import pylinear.operator as op
-import pyrticle.units as units
 import cProfile as profile
 
 
@@ -20,7 +19,7 @@ def add_gauss_particles(nparticles, cloud, discr, charge, mass,
                 ],
             velocities=[v_from_p(
                 num.array([gauss(m, s) for m, s in zip(mean_p, sigma_p)]),
-                mass, cloud.c) 
+                mass, cloud.units.VACUUM_LIGHT_SPEED) 
                 for i in range(nparticles)
                 ],
             charges=charge, masses=mass)
@@ -45,11 +44,14 @@ def main():
     from random import seed
     #seed(0)
 
+    from pyrticle.units import SI
+    units = SI()
+
     # discretization setup ----------------------------------------------------
     #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
             #max_volume=100*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
-    #full_mesh = make_square_mesh(max_area=0.1)
+    full_mesh = make_square_mesh(max_area=0.1)
 
     from hedge.parallel import guess_parallelization_context
 
@@ -86,7 +88,7 @@ def main():
     # particles setup ---------------------------------------------------------
     nparticles = 10
 
-    cloud = ParticleCloud(max_op, dimensions_pos=2, dimensions_velocity=2,
+    cloud = ParticleCloud(max_op, units, dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
 
     cloud_charge = 1e-9 * units.C
@@ -94,10 +96,10 @@ def main():
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
-    avg_x_vel = 0.8*cloud.c
+    avg_x_vel = 0.8*units.VACUUM_LIGHT_SPEED
     mean_v = num.array([avg_x_vel, 0])
-    mean_beta = mean_v/cloud.c
-    gamma = cloud.gamma(mean_v)
+    mean_beta = mean_v/units.VACUUM_LIGHT_SPEED
+    gamma = units.gamma(mean_v)
     pmass = electrons_per_particle*units.EL_MASS
     mean_p = gamma*pmass*mean_v
 
@@ -107,7 +109,7 @@ def main():
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
             sigma_x=0.3*num.ones((2,)),
-            sigma_p=cloud.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.1,
+            sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.1,
             )
 
     # intial condition --------------------------------------------------------
@@ -193,7 +195,7 @@ def main():
         rhs_e = maxwell_rhs[:3]
         rhs_h = maxwell_rhs[3:6]
         return join_fields(
-                rhs_e + 1/max_op.epsilon*j,
+                rhs_e - 1/max_op.epsilon*j,
                 rhs_h,
                 ).plus([cloud_rhs])
 

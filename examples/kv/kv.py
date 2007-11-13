@@ -45,7 +45,7 @@ class KVZIntervalBeam:
         self.z_length = z_length
         self.z_pos = z_pos
 
-    def make_particle(self, vz, embed_dim=None):
+    def make_particle(self, vz, dim_x, dim_p):
         """Return (position, velocity) for a random particle
         according to a Kapchinskij-Vladimirskij distribution.
         """
@@ -61,13 +61,10 @@ class KVZIntervalBeam:
                 for p_i, r_i, epsi in zip(momenta, self.radii, self.emittances))
         assert abs(one-1) < 1e-15
 
-        if embed_dim is not None:
-            assert embed_dim == int(embed_dim)
-
-            while len(pos) < embed_dim:
-                pos.append(0)
-            while len(momenta) < embed_dim:
-                momenta.append(0)
+        while len(pos) < dim_x:
+            pos.append(0)
+        while len(momenta) < dim_p:
+            momenta.append(0)
 
         z = num.array([0,0,1])
 
@@ -92,7 +89,7 @@ class KVZIntervalBeam:
         for i in range(self.nparticles):
             pos, v = self.make_particle(
                     vz=self.beta*self.units.VACUUM_LIGHT_SPEED,
-                    embed_dim=cloud.mesh_info.dimensions)
+                    dim_x=cloud.dimensions_pos, dim_p=cloud.dimensions_velocity)
 
             my_beta = comp.norm_2(v)/self.units.VACUUM_LIGHT_SPEED
             assert abs(self.beta - my_beta)/self.beta < 1e-4

@@ -41,7 +41,7 @@ def main():
     # discretization setup ----------------------------------------------------
     job = Job("mesh")
     full_mesh = make_cylinder_mesh(radius=25*units.MM, height=25*units.MM, periodic=True,
-            max_volume=100*units.MM**3, radial_subdivisions=10)
+            max_volume=1000*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
     if False:
@@ -89,7 +89,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    cloud = ParticleCloud(max_op, 3, 3, verbose_vis=True)
+    cloud = ParticleCloud(max_op, units, 3, 3, verbose_vis=True)
 
     nparticles = 1000
     cloud_charge = 1e-9 * units.C
@@ -214,7 +214,7 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = MaxBeamRadiusLogger(cloud.mesh_info.dimensions)
+    r_logger = MaxBeamRadiusLogger(cloud.dimensions_pos)
 
     for step in xrange(nsteps):
         if True:

@@ -53,7 +53,7 @@ def main():
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    cloud = ParticleCloud(max_op, 3, 3, verbose_vis=False)
+    cloud = ParticleCloud(max_op, units, 3, 3, verbose_vis=False)
 
     cloud_charge = 1e-9 * units.C
     particle_charge = cloud_charge/nparticles
@@ -90,7 +90,7 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = MaxBeamRadiusLogger(cloud.mesh_info.dimensions)
+    r_logger = MaxBeamRadiusLogger(cloud.dimensions_pos)
 
     for step in xrange(nsteps):
         if step % 100 == 0:

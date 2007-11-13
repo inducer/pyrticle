@@ -276,7 +276,7 @@ def run_setup(casename, setup, discr):
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    cloud = ParticleCloud(max_op, 3, 3, verbose_vis=True)
+    cloud = ParticleCloud(max_op, units, 3, 3, verbose_vis=True)
 
     e, h = setup.fields(discr)
 
@@ -319,7 +319,7 @@ def run_setup(casename, setup, discr):
         all_f = [(p2-p1)/(2*deriv_dt)
                 for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
 
-        all_sim_f = cloud.vis_info["lorentz_force"] + cloud.vis_info["el_force"]
+        all_sim_f = cloud.icloud.vis_info["lorentz_force"] + cloud.icloud.vis_info["el_force"]
 
         e = setup.e()
         h = setup.h()
@@ -336,7 +336,7 @@ def run_setup(casename, setup, discr):
             f = all_f[i]
             sim_f = all_sim_f[i*dim:(i+1)*dim]
 
-            real_f = num.array(cross(sim_v, setup.charge*cloud.mu*h)) + setup.charge*e
+            real_f = num.array(cross(sim_v, setup.charge*max_op.mu*h)) + setup.charge*e
 
             #print "pos%d:" % i, comp.norm_2(x-sim_x)
 
