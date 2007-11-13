@@ -932,30 +932,62 @@ namespace {
         const mesh_info::element_info &el(
             m_mesh_info.m_element_info[m_containing_elements[pi]]);
 
-        // find closest vertex
-        mesh_info::vertex_number closest_vertex = 
-          mesh_info::INVALID_VERTEX;
-        double min_dist = std::numeric_limits<double>::infinity();
+        // We're deciding between RULE A and RULE B below.
+        // The decision is made by looking at the barycentric coordinates of
+        // the center of the shape function. If that center has all barycentric
+        // coordinates 1/2 or smaller, then use the faster RULE A.
+        //
+        // For this purpose, observe that the unit coordinates are the first
+        // barycentric coordinates, and the remaining one is found by calculating
+        // 1-sum(lambda_i)
+        //
+        // Note also that this is not purely a speed tradeoff. RULE B works fairly
+        // well alone, but falls flat on its face for near the center of the hypotenuse
+        // of a right triangle.
 
-        BOOST_FOREACH(mesh_info::vertex_number vi, el.m_vertices)
+        // FIXME this assumes m_dimension_pos == m_dimension_mesh
+        hedge::vector unit_pt = el.m_inverse_map(pos);
+        
+        bool can_use_rule_a = true;
+
+        double uc_sum = 0;
+        BOOST_FOREACH(double uc, unit_pt)
         {
-          double dist = norm_2(m_mesh_info.m_vertices[vi] - pos);
-          if (dist < min_dist)
+          if (uc > 0)
           {
-            closest_vertex = vi;
-            min_dist = dist;
+            can_use_rule_a = false;
+            break;
           }
+          uc_sum += uc;
         }
 
-        if (min_dist > 0.5*radius)
+        if (can_use_rule_a && (1-0.5*(uc_sum+unit_pt.size()) < 0.5))
         {
-          // we're far enough away from vertices, just use neighbors
+          // RULE A: we're far enough away from vertices, 
+          // weight onto neighboring elements
           m_neighbor_shape_adds.tick();
 
           add_shape_by_neighbors(target, sf, pi);
         }
         else
         {
+          // RULE B: we're close to a vertex, weight onto all elements
+          // adjoining that vertex
+
+          // find closest vertex
+          mesh_info::vertex_number closest_vertex = 
+            mesh_info::INVALID_VERTEX;
+          double min_dist = std::numeric_limits<double>::infinity();
+
+          BOOST_FOREACH(mesh_info::vertex_number vi, el.m_vertices)
+          {
+            double dist = norm_2(m_mesh_info.m_vertices[vi] - pos);
+            if (dist < min_dist)
+            {
+              closest_vertex = vi;
+              min_dist = dist;
+            }
+          }
           // found a close vertex, go through adjacent elements
           m_vertex_shape_adds.tick();
 

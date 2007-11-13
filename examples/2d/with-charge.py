@@ -30,7 +30,8 @@ def main():
     from hedge.element import TriangularElement
     from hedge.timestep import RK4TimeStepper
     from hedge.mesh import \
-            make_square_mesh
+            make_square_mesh, \
+            make_regular_square_mesh
     from hedge.discretization import \
             Discretization, \
             pair_with_boundary
@@ -48,10 +49,7 @@ def main():
     units = SI()
 
     # discretization setup ----------------------------------------------------
-    #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
-            #max_volume=100*units.MM**3, radial_subdivisions=10)
-    #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
-    full_mesh = make_square_mesh(max_area=0.1)
+    full_mesh = make_regular_square_mesh(n=5, periodicity=(True, False))
 
     from hedge.parallel import guess_parallelization_context
 
@@ -86,7 +84,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 10
+    nparticles = 2
 
     cloud = ParticleCloud(max_op, units, dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
@@ -107,7 +105,7 @@ def main():
             mass=pmass,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
-            sigma_x=0.3*num.ones((2,)),
+            sigma_x=0.2*num.ones((2,)),
             sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.1,
             )
 

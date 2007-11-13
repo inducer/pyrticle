@@ -81,6 +81,8 @@ def add_mesh_info_methods():
         for el in mesh.elements:
             for vi in el.vertex_indices:
                 vertex_to_element_map.setdefault(vi, []).append(el.id)
+                for other_vi in mesh.periodic_opposite_vertices.get(vi, []):
+                    vertex_to_element_map.setdefault(other_vi, []).append(el.id)
 
         for vi in xrange(len(mesh.points)):
             self.add_vertex(vi, 
