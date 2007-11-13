@@ -1,7 +1,6 @@
 from __future__ import division
 import pylinear.array as num
 import pylinear.computation as comp
-import pyrticle.units as units
 import cProfile as profile
 
 
@@ -19,12 +18,16 @@ def main():
     from pytools.arithmetic_container import ArithmeticList
     from pyrticle.cloud import ParticleCloud
     from kv import \
-            add_kv_xy_particles, \
+            KVZIntervalBeam, \
+            ChargelessKVRadiusPredictor, \
             KVRadiusPredictor, \
             MaxBeamRadiusLogger, \
             RMSBeamRadiusLogger
     from random import seed
     seed(0)
+
+    from pyrticle.units import SI
+    units = SI()
 
     # discretization setup ----------------------------------------------------
     mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True)
@@ -57,24 +60,23 @@ def main():
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
-    emittance = 5 * units.MM * units.MRAD
-    initial_radius = 2.5*units.MM
-
-    el_energy = 5.2e6 * units.EV
+    #el_energy = 5.2e6 * units.EV
+    el_energy = 1.01 * units.EL_REST_ENERGY
     #el_energy = units.EL_REST_ENERGY*1.00001
-    el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
-    #el_lorentz_gamma = 100000
-    beta = (1-1/el_lorentz_gamma**2)**0.5
+    gamma = el_energy/units.EL_REST_ENERGY
+    #gamma = 100000
+    beta = (1-1/gamma**2)**0.5
     print "v = %g%% c" % (beta*100)
 
-    add_kv_xy_particles(nparticles, cloud, discr, 
-            charge=0, 
-            mass=electrons_per_particle*units.EL_MASS,
-            radii=[2.5*units.MM, 2.5*units.MM],
+    beam = KVZIntervalBeam(units, nparticles, 
+            p_charge=0, 
+            p_mass=electrons_per_particle*units.EL_MASS,
+            radii=2*[2.5*units.MM],
+            emittances=2*[5 * units.MM * units.MRAD], 
             z_length=5*units.MM,
             z_pos=10*units.MM,
-            emittances=[emittance, emittance], 
             beta=beta)
+    beam.add_to(cloud, discr)
 
     # timestepping ------------------------------------------------------------
     vel = cloud.velocities()
@@ -89,8 +91,7 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = MaxBeamRadiusLogger(cloud.mesh_info.dimensions,
-            initial_radius, emittance)
+    r_logger = MaxBeamRadiusLogger(cloud.mesh_info.dimensions)
 
     for step in xrange(nsteps):
         if step % 100 == 0:
@@ -102,11 +103,21 @@ def main():
 
     vis.close()
 
-    theory = KVRadiusPredictor(initial_radius, emittance)
+    theory_no_charge = ChargelessKVRadiusPredictor(
+            beam.radii[0], beam.emittances[0]
+            )
+    theory_with_charge = KVRadiusPredictor(
+            beam.radii[0], beam.emittances[0],
+            xi=beam.get_space_charge_parameter())
+
     r_logger.generate_plot("Kapchinskij-Vladimirskij Beam Evolution, "
-            "no space charge", theory=theory)
+            "no space charge", 
+            theories=[
+                ("theoretical, no space charge", theory_no_charge), 
+                ("theoretical, with space charge", theory_with_charge)
+                ])
     
-    print "Relative error: %g" % r_logger.relative_error(theory)
+    print "Relative error: %g" % r_logger.relative_error(theory_no_charge)
              
 
 

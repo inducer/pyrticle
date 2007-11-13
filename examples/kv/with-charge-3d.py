@@ -2,7 +2,6 @@ from __future__ import division
 import pylinear.array as num
 import pylinear.computation as comp
 import pylinear.operator as op
-import pyrticle.units as units
 import cProfile as profile
 
 
@@ -32,6 +31,9 @@ def main():
     from tubemesh import make_cylinder_with_fine_core
     from random import seed
     from pytools.stopwatch import Job
+
+    from pyrticle.units import SIUnits
+    units = SIUnits()
 
     seed(0)
 

@@ -1,5 +1,4 @@
 from __future__ import division
-import pyrticle.units as units
 import pylinear.array as num
 import pylinear.computation as comp
 
@@ -21,66 +20,110 @@ def uniform_on_unit_sphere(dim):
 
 
 
-def make_kv_distributed_particle(radii, emittances, vz, embed_dim=None):
-    """Return (position, velocity) for a random particle
-    according to a Kapchinskij-Vladimirskij distribution.
-    """
-    assert len(radii) == len(emittances)
-
-    x = uniform_on_unit_sphere(len(radii) + len(emittances))
-    pos = [xi*ri for xi, ri in zip(x[:len(radii)], radii)]
-    momenta = [x_i/r_i*eps_i 
-            for x_i, r_i, eps_i in 
-            zip(x[len(radii):], radii, emittances)]
-
-    one = sum(x_i**2/r_i**2 for x_i, r_i in zip(pos, radii)) + \
-            sum(p_i**2*r_i**2/eps_i**2 
-            for p_i, r_i, epsi in zip(momenta, radii, emittances))
-    assert abs(one-1) < 1e-15
-
-    if embed_dim is not None:
-        assert embed_dim == int(embed_dim)
-
-        while len(pos) < embed_dim:
-            pos.append(0*units.M)
-        while len(momenta) < embed_dim:
-            momenta.append(0)
-
-    z = num.array([0,0,1])
-
-    return (num.array([x_i for x_i in pos]),
-            z*vz + num.array([p_i*vz for p_i in momenta]))
 
     
 
-def add_kv_xy_particles(nparticles, cloud, discr, 
-        charge, mass, radii, emittances, beta, z_length, z_pos):
-    from random import uniform
-    from math import sqrt
+class KVZIntervalBeam:
+    def __init__(self, units, nparticles, p_charge, p_mass,
+            radii, emittances, beta, z_length, z_pos):
 
-    positions = []
-    velocities = []
+        assert len(radii) == len(emittances)
 
-    bbox_min, bbox_max = discr.mesh.bounding_box
-    center = (bbox_min+bbox_max)/2
-    center[2] = 0
-    size = bbox_max-bbox_min
+        self.units = units
 
-    vz = beta*units.VACUUM_LIGHT_SPEED
-    z = num.array([0,0,1])
+        self.nparticles = nparticles
 
-    for i in range(nparticles):
-        pos, v = make_kv_distributed_particle(
-                radii, emittances, vz=beta*units.VACUUM_LIGHT_SPEED,
-                embed_dim=cloud.mesh_info.dimensions)
+        self.p_charge = p_charge
+        self.p_mass = p_mass
 
-        my_beta = comp.norm_2(v)/units.VACUUM_LIGHT_SPEED
-        assert abs(beta - my_beta)/beta < 1e-4
+        self.radii = radii
+        self.emittances = emittances
 
-        positions.append(center+pos+z*(z_pos+uniform(-z_length, z_length)/2))
-        velocities.append(v)
+        self.beta = beta
+        self.gamma = (1-beta)**(-0.5)
 
-    cloud.add_particles(positions, velocities, charge, mass)
+        self.z_length = z_length
+        self.z_pos = z_pos
+
+    def make_particle(self, vz, embed_dim=None):
+        """Return (position, velocity) for a random particle
+        according to a Kapchinskij-Vladimirskij distribution.
+        """
+
+        x = uniform_on_unit_sphere(len(self.radii) + len(self.emittances))
+        pos = [xi*ri for xi, ri in zip(x[:len(self.radii)], self.radii)]
+        momenta = [x_i/r_i*eps_i 
+                for x_i, r_i, eps_i in 
+                zip(x[len(self.radii):], self.radii, self.emittances)]
+
+        one = sum(x_i**2/r_i**2 for x_i, r_i in zip(pos, self.radii)) + \
+                sum(p_i**2*r_i**2/eps_i**2 
+                for p_i, r_i, epsi in zip(momenta, self.radii, self.emittances))
+        assert abs(one-1) < 1e-15
+
+        if embed_dim is not None:
+            assert embed_dim == int(embed_dim)
+
+            while len(pos) < embed_dim:
+                pos.append(0)
+            while len(momenta) < embed_dim:
+                momenta.append(0)
+
+        z = num.array([0,0,1])
+
+        return (num.array([x_i for x_i in pos]),
+                z*vz + num.array([p_i*vz for p_i in momenta]))
+
+    def add_to(self, cloud, discr):
+        from random import uniform
+        from math import sqrt
+
+        positions = []
+        velocities = []
+
+        bbox_min, bbox_max = discr.mesh.bounding_box
+        center = (bbox_min+bbox_max)/2
+        center[2] = 0
+        size = bbox_max-bbox_min
+
+        vz = self.beta*self.units.VACUUM_LIGHT_SPEED
+        z = num.array([0,0,1])
+
+        for i in range(self.nparticles):
+            pos, v = self.make_particle(
+                    vz=self.beta*self.units.VACUUM_LIGHT_SPEED,
+                    embed_dim=cloud.mesh_info.dimensions)
+
+            my_beta = comp.norm_2(v)/self.units.VACUUM_LIGHT_SPEED
+            assert abs(self.beta - my_beta)/self.beta < 1e-4
+
+            positions.append(center
+                    +pos
+                    +z*(self.z_pos+uniform(-self.z_length, self.z_length)/2))
+            velocities.append(v)
+
+        cloud.add_particles(positions, velocities, 
+                self.p_charge, self.p_mass)
+
+    def get_space_charge_parameter(self):
+        from math import pi
+
+        Q = self.p_charge / self.units.EL_CHARGE
+
+        # see (1.3) in Alex Wu Chao and 
+        # http://en.wikipedia.org/wiki/Classical_electron_radius
+        r0 = 1/(4*pi*self.units.EPSILON0)*( 
+                (self.units.EL_CHARGE**2)
+                /
+                (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED**2))
+
+        lambda_ = self.nparticles/self.z_length
+        A = self.p_mass / self.units.EL_MASS
+
+        xi = ((4 * Q**2 * r0 * lambda_)
+                /
+                (A * self.beta**2 * self.gamma**2))
+        return xi
 
 
 
@@ -146,6 +189,7 @@ class ODEDefinedFunction:
 
 
 
+
 class ChargelessKVRadiusPredictor:
     def __init__(self, a0, eps):
         self.a0 = a0
@@ -161,11 +205,12 @@ class ChargelessKVRadiusPredictor:
 class KVRadiusPredictor(ODEDefinedFunction):
     """Implement equation (1.74) in Alex Chao's book.
 
-    See equation (1.65) for the definition of xi.
+    See equation (1.65) for the definition of M{xi}.
+    M{Q} is the number of electrons in the beam
     """
     def __init__(self, a0, eps, eB_2E=0, xi=0):
         ODEDefinedFunction.__init__(self, 0, num.array([a0, 0]), 
-                dt=1e-3*(a0**3/eps**2)**2)
+                dt=1e-3*(a0**4/eps**2)**2)
         self.eps = eps
         self.xi = xi
         self.eB_2E = eB_2E
@@ -195,7 +240,7 @@ class BeamRadiusLoggerBase:
 
         self.nparticles = 0
 
-    def generate_plot(self, title, theory=None, outfile="beam-rad.eps"):
+    def generate_plot(self, title, theories, outfile="beam-rad.eps"):
         from Gnuplot import Gnuplot, Data
 
         gp = Gnuplot()
@@ -211,11 +256,11 @@ class BeamRadiusLoggerBase:
             title="simulation: %d particles" % self.nparticles,
             with_="lines")]
 
-        if theory is not None:
+        for name, theory in theories:
             data.append(
                     Data(self.s_collector, 
                         [theory(s) for s in self.s_collector],
-                        title="theoretical value",
+                        title=name,
                         with_="lines"))
 
         gp.plot(*data)
@@ -290,15 +335,13 @@ if __name__ == "__main__":
     assert abs(s(pi)) < 2e-3
     assert abs(s(-pi/2)+1) < 2e-3
 
-    kv_env_exact = ChargelessKVRadiusPredictor(1, 1)
-    kv_env_num = KVRadiusPredictor(1, 1)
+    kv_env_exact = ChargelessKVRadiusPredictor(2.5e-3, 5e-6)
+    kv_env_num = KVRadiusPredictor(2.5e-3, 5e-6)
 
     from hedge.tools import plot_1d
-    steps = 20
-    final_s = 4
-    ds = final_s/steps
+    steps = 50
     for i in range(steps):
-        s = ds*i
+        s = kv_env_num.dt/7*i
         
         a_exact = kv_env_exact(s)
         a_num = kv_env_num(s)
