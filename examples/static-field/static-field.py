@@ -2,8 +2,10 @@ from __future__ import division
 import pylinear.array as num
 import pylinear.computation as comp
 import pylinear.operator as op
-import pyrticle.units as units
 import cProfile as profile
+from pyrticle.units import SI
+
+units = SI()
 
 
 
@@ -265,14 +267,16 @@ def run_setup(casename, setup, discr):
     from hedge.timestep import RK4TimeStepper
     from pyrticle.cloud import ParticleCloud
     from hedge.visualization import VtkVisualizer, SiloVisualizer
+    from hedge.operators import MaxwellOperator
 
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    cloud = ParticleCloud(discr, 
+    max_op = MaxwellOperator(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
-            verbose_vis=True)
+            upwind_alpha=1)
+    cloud = ParticleCloud(max_op, 3, 3, verbose_vis=True)
 
     e, h = setup.fields(discr)
 
@@ -372,18 +376,13 @@ def run_setup(casename, setup, discr):
                         cloud.add_to_vis(vis, visf, time=t, step=step)
 
                 if False:
-                    vis.add_data(visf,
-                            scalars=mesh_scalars,
-                            vectors=[
-                                ("e", e), 
-                                ("h", h), 
-                                ]
-                            + mesh_vectors,
+                    vis.add_data(visf, [ ("e", e), ("h", h), ]
+                            + mesh_scalars + mesh_vectors,
                             write_coarse_mesh=True,
 
                             time=t, step=step)
                 else:
-                    vis.add_data(visf, write_coarse_mesh=True, time=t, step=step)
+                    vis.add_data(visf, [], time=t, step=step)
                 visf.close()
 
         cloud = stepper(cloud, t, dt, rhs)
