@@ -137,7 +137,12 @@ def main():
                 neumann_tag=TAG_NONE,
                 )
 
+        from hedge.discretization import ones_on_volume
         rho = cloud.reconstruct_rho() 
+        print "charge: supposed=%g reconstructed=%g" % (
+                cloud_charge,
+                ones_on_volume(discr)*(discr.mass_operator*rho),
+                )
 
         from hedge.tools import parallel_cg
         phi = -parallel_cg(pcon, -poisson_op, 
@@ -270,6 +275,7 @@ def main():
             theories=[
                 ("theoretical, with space charge", theory_with_charge)
                 ])
+    r_logger.write_data("beam-radius.dat")
     
     print "Relative error: %g" % r_logger.relative_error(theory_with_charge)
 

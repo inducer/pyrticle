@@ -159,9 +159,9 @@ namespace {
 
         // see doc/notes.tm
         double sphere_area = 2*pow(M_PI, n/2) / tgamma(n/2);
-        m_normalizer = sphere_area *
+        m_normalizer = 2 / (sphere_area *
           pow(m_l, n+alpha)*beta(n/2, alpha+1)
-          /2;
+          );
       }
 
       const double operator()(const hedge::vector &r) const

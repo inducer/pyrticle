@@ -7,7 +7,7 @@
     <doc-data|<doc-title|Notes on PIC>>
   </hide-part|>
 
-  <\hide-part|2>
+  <\show-part|2>
     <section|Shape function Integrals>
 
     <with|prog-language|axiom|prog-session|default|<\session>
@@ -78,11 +78,11 @@
         \;
       </input>
     </session>>
-  <|hide-part>
+  <|show-part>
     <section|Shape function Integrals>
-  </hide-part>
+  </show-part>
 
-  <\show-part|3>
+  <\hide-part|3>
     <section|Initial Conditions by Lorentz Transform>
 
     Before we start, a brief remark on notation: If we let <math|\<b-v\>> be
@@ -236,9 +236,9 @@
     <\eqnarray*>
       <tformat|<table|<row|<cell|div<rsub|\<b-x\><rprime|'>>\<b-E\><rprime|'>(\<b-x\><rprime|'>)>|<cell|=>|<cell|div<rsub|\<b-x\><rprime|'>><left|[>\<gamma\><wide|\<b-E\>|~><rsub|\<perp\>\<b-beta\>>(\<b-x\><rprime|'>)+<wide|\<b-E\>|~><rsub|\<\|\|\>\<b-beta\>>(\<b-x\><rprime|'>)<right|]>>>|<row|<cell|>|<cell|=>|<cell|div<rsub|\<b-x\><rprime|'>><left|[>\<gamma\>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>)+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>|\<gamma\>><wide|\<Phi\>|~>(\<b-x\><rprime|'>)<right|]>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))|\<gamma\>>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\><left|[>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))|\<gamma\><rsup|2>><right|]>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\><left|[><frac|<wide|\<rho\>|~>(\<b-x\><rprime|'>)|\<varepsilon\>><right|]>=<frac|\<rho\><rprime|'>(\<b-x\><rprime|'>)|\<varepsilon\>>.>>>>
     </eqnarray*>
-  <|show-part>
+  <|hide-part>
     <section|Initial Conditions by Lorentz Transform>
-  </show-part>
+  </hide-part>
 
   <\hide-part|4>
     <section|Relativistic Momentum>
