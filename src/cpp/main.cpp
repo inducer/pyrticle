@@ -87,7 +87,8 @@ namespace {
 
 
 
-  inline hedge::vector::value_type entry_or_zero(const hedge::vector &v, int i)
+  template <class VecType>
+  inline hedge::vector::value_type entry_or_zero(const VecType &v, int i)
   {
     if (i >= v.size())
       return 0;
@@ -98,10 +99,11 @@ namespace {
 
 
 
+  template <class VecType1, class VecType2>
   inline
   const hedge::vector cross(
-      const hedge::vector &a, 
-      const hedge::vector &b)
+      const VecType1 &a, 
+      const VecType2 &b)
   {
     hedge::vector result(3);
     result[0] = entry_or_zero(a,1)*entry_or_zero(b,2) - entry_or_zero(a,2)*entry_or_zero(b,1);
@@ -250,7 +252,7 @@ namespace {
       {
         const double charge = m_charges[pn];
         for (unsigned axis = 0; axis < velocity_dimensions; axis++)
-          m_scale_factors[axis] = charge + m_velocities[pn*velocity_dimensions+axis];
+          m_scale_factors[axis] = charge * m_velocities[pn*velocity_dimensions+axis];
       }
 
       void add_shape_at_point(unsigned i, double shape_factor)
@@ -855,7 +857,7 @@ namespace {
           const hedge::vector v = subrange(velocities, v_pstart, v_pend);
           hedge::vector lorentz_force = cross(v, charge*m_mu*h);
 
-          // truncate forces to m_dimensions_pos entries
+          // truncate forces to m_dimensions_velocity entries
           subrange(result, v_pstart, v_pend) = subrange(
               el_force + lorentz_force, 0, m_dimensions_velocity);
 

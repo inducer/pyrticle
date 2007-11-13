@@ -205,7 +205,7 @@ def main():
         rhs_e = maxwell_rhs[:3]
         rhs_h = maxwell_rhs[3:6]
         return join_fields(
-                rhs_e + 1/max_op.epsilon*j,
+                rhs_e - 1/max_op.epsilon*j,
                 rhs_h,
                 ).plus([cloud_rhs])
 
