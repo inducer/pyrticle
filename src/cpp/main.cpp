@@ -149,7 +149,7 @@ namespace {
     public:
       shape_function(
           double radius,
-          unsigned dimensions=3,
+          unsigned dimensions,
           double alpha=2)
         : m_alpha(alpha), m_l(radius), 
         m_l_squared(square(radius))
@@ -995,11 +995,11 @@ namespace {
           const hedge::vector &velocities) const
       {
         rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
-        j_reconstruction_target<3> j_tgt(m_mesh_info.m_nodes.size(), 
+        j_reconstruction_target<m_dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
             m_charges, velocities);
 
         chained_reconstruction_target
-          <rho_reconstruction_target, j_reconstruction_target<3> >
+          <rho_reconstruction_target, j_reconstruction_target<m_dimensions_velocity> >
           tgt(rho_tgt, j_tgt);
         reconstruct_densities_on_target(tgt, radius);
 

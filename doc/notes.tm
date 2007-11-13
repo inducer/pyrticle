@@ -33,23 +33,23 @@
       </input>
 
       <\output>
-        <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o7>)
+        <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o1>)
         <with|color|black|>>\<omega\><left|(>n<right|)>:=<frac|2*\<pi\><rsup|<frac|n|2>>|\<Gamma\><left|(><frac|n|2><right|)>>>
       </output>
 
-      <\input|<with|color|red|(<with|math-font-family|rm|%i>8)
+      <\input|<with|color|red|(<with|math-font-family|rm|%i>2)
       <with|color|black|>>>
-        omega(3)
+        omega(10)
       </input>
 
       <\output>
-        <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o13>)
-        <with|color|black|>>4*\<pi\>>
+        <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o11>)
+        <with|color|black|>><frac|\<pi\><rsup|5>|12>>
       </output>
 
-      <\input|<with|color|red|(<with|math-font-family|rm|%i>14)
+      <\input|<with|color|red|(<with|math-font-family|rm|%i>12)
       <with|color|black|>>>
-        integrate((l-r^2/l)^alpha*spherearea*r^(n-1),r,0,l)
+        intval:integrate((l-r^2/l)^alpha*spherearea*r^(n-1),r,0,l)
       </input>
 
       <\input|<with|color|red|><with|mode|math|math-display|true|<with|mode|text|Is
@@ -69,11 +69,21 @@
       </input>
 
       <\output>
-        <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o16>)
+        <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o12>)
         <with|color|black|>><frac|l<rsup|n+\<alpha\>>*\<beta\><left|(><frac|n|2>,\<alpha\>+1<right|)>*<with|math-font-family|rm|spherearea>|2>>
       </output>
 
-      <\input|<with|color|red|(<with|math-font-family|rm|%i>17)
+      <\input|<with|color|red|(<with|math-font-family|rm|%i>13)
+      <with|color|black|>>>
+        ev(intval, n=2, alpha=2)
+      </input>
+
+      <\output>
+        <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o14>)
+        <with|color|black|>><frac|l<rsup|4>*<with|math-font-family|rm|spherearea>|6>>
+      </output>
+
+      <\input|<with|color|red|(<with|math-font-family|rm|%i>15)
       <with|color|black|>>>
         \;
       </input>

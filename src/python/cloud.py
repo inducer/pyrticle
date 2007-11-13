@@ -290,7 +290,7 @@ class ParticleCloud:
             for axis in range(self.dimensions_velocity)])
 
         if velocities is None:
-            velocities = self.velocities()
+            velocities = self.icloud.velocities()
 
         self.icloud.reconstruct_densities(rho, j, self.particle_radius, velocities)
 
@@ -390,7 +390,7 @@ class ParticleCloud:
 
         grid.add_pointdata(
                 DataArray("velocity", 
-                    self.velocities(),
+                    self.icloud.velocities(),
                     vector_format=VF_INTERLEAVED,
                     components=dim)
                 )
@@ -434,7 +434,6 @@ class ParticleCloud:
 
     def _add_to_silo(self, db, time, step):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
-        dim = self.icloud.mesh_info.dimensions
 
         optlist = {}
         if time is not None:
@@ -442,17 +441,22 @@ class ParticleCloud:
         if step is not None:
             optlist[DBOPT_CYCLE] = step
 
-        coords = num.hstack([self.icloud.positions[i::dim] for i in range(dim)])
-        db.put_pointmesh("particles", dim, coords, optlist)
+        coords = num.hstack([
+            self.icloud.positions[i::self.dimensions_pos] 
+            for i in range(self.dimensions_pos)])
+        db.put_pointmesh("particles", self.dimensions_pos, coords, optlist)
 
         db.put_pointvar("momenta", "particles", 
-                [self.icloud.momenta[i::dim] for i in range(dim)])
-        velocities = self.velocities()
+                [self.icloud.momenta[i::self.dimensions_velocity] 
+                    for i in range(self.dimensions_velocity)])
+
+        velocities = self.icloud.velocities()
         db.put_pointvar("velocity", "particles", 
-                [velocities[i::dim] for i in range(dim)])
+                [velocities[i::self.dimensions_velocity] 
+                    for i in range(self.dimensions_velocity)])
 
         pcount = len(self.icloud.containing_elements)
-        def add_vis_vector(name):
+        def add_vis_vector(name, dim):
             if name in self.icloud.vis_info:
                 db.put_pointvar(name, "particles", 
                         [self.icloud.vis_info[name][i::dim] for i in range(dim)])
@@ -464,10 +468,10 @@ class ParticleCloud:
         mesh_vectors = []
 
         if self.verbose_vis:
-            add_vis_vector("pt_e")
-            add_vis_vector("pt_h")
-            add_vis_vector("el_force")
-            add_vis_vector("lorentz_force")
+            add_vis_vector("pt_e", 3)
+            add_vis_vector("pt_h", 3)
+            add_vis_vector("el_force", 3)
+            add_vis_vector("lorentz_force", 3)
 
             if "rho" in self.icloud.vis_info:
                 mesh_scalars.append(("rho", self.icloud.vis_info["rho"]))

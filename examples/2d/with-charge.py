@@ -92,7 +92,6 @@ def main():
             verbose_vis=True)
 
     cloud_charge = 1e-9 * units.C
-    particle_charge = cloud_charge/nparticles
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
@@ -104,7 +103,7 @@ def main():
     mean_p = gamma*pmass*mean_v
 
     add_gauss_particles(nparticles, cloud, discr, 
-            charge=units.EL_CHARGE, 
+            charge=cloud_charge/nparticles, 
             mass=pmass,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
@@ -131,6 +130,11 @@ def main():
                 )
 
         rho = cloud.reconstruct_rho() 
+        from hedge.discretization import ones_on_volume
+        print "charge: supposed=%g reconstructed=%g" % (
+                cloud_charge,
+                ones_on_volume(discr)*(discr.mass_operator*rho),
+                )
 
         from hedge.tools import parallel_cg
         phi = -parallel_cg(pcon, -poisson_op, 
@@ -183,19 +187,21 @@ def main():
     fields = compute_initial_condition()
 
     # timestepping ------------------------------------------------------------
+    eh_components = max_op.component_count()
 
     def rhs(t, y):
-        e, h = max_op.split_fields(y)
-
         velocities = cloud.velocities()
-        maxwell_rhs = max_op.rhs(t, y[0:6])
         rho, j = cloud.reconstruct_densities(velocities)
+
+        e, h = max_op.split_fields(y)
         cloud_rhs = cloud.rhs(t, e, h, velocities)
 
-        rhs_e = maxwell_rhs[:3]
-        rhs_h = maxwell_rhs[3:6]
+        maxwell_rhs = max_op.rhs(t, y[0:eh_components])
+        rhs_e, rhs_h = max_op.split_fields(maxwell_rhs)
+
         return join_fields(
                 rhs_e - 1/max_op.epsilon*j,
+                #rhs_e,
                 rhs_h,
                 ).plus([cloud_rhs])
 
@@ -215,8 +221,9 @@ def main():
 
         cloud.upkeep()
 
+        e, h = max_op.split_fields(fields)
         print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
-                step, t, l2_norm(fields[0:3]), l2_norm(fields[3:6]),
+                step, t, l2_norm(e), l2_norm(h),
                 time()-last_tstep, len(cloud))
         if False:
             print "searches: same=%d, normal=%d, vertex=%d, global=%d, periodic=%d" % (
@@ -240,8 +247,8 @@ def main():
                     cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields[0:3])),
-                        ("e", fields[0:3]), 
-                        ("h", fields[3:6]), 
+                        ("e", e), 
+                        ("h", h), 
                         ] + mesh_scalars + mesh_vectors,
                     time=t, step=step)
             visf.close()

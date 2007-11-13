@@ -137,8 +137,9 @@ def main():
                 neumann_tag=TAG_NONE,
                 )
 
-        from hedge.discretization import ones_on_volume
         rho = cloud.reconstruct_rho() 
+
+        from hedge.discretization import ones_on_volume
         print "charge: supposed=%g reconstructed=%g" % (
                 cloud_charge,
                 ones_on_volume(discr)*(discr.mass_operator*rho),
