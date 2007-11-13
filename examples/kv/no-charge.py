@@ -60,8 +60,7 @@ def main():
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
-    #el_energy = 5.2e6 * units.EV
-    el_energy = 1.01 * units.EL_REST_ENERGY
+    el_energy = 5.2e6 * units.EV
     #el_energy = units.EL_REST_ENERGY*1.00001
     gamma = el_energy/units.EL_REST_ENERGY
     #gamma = 100000
@@ -108,7 +107,7 @@ def main():
             )
     theory_with_charge = KVRadiusPredictor(
             beam.radii[0], beam.emittances[0],
-            xi=beam.get_space_charge_parameter())
+            xi=6e-5)
 
     r_logger.generate_plot("Kapchinskij-Vladimirskij Beam Evolution, "
             "no space charge", 

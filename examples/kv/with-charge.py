@@ -24,7 +24,7 @@ def main():
     from hedge.operators import MaxwellOperator, DivergenceOperator
     from pyrticle.cloud import ParticleCloud
     from kv import \
-            add_kv_xy_particles, \
+            KVZIntervalBeam, \
             KVRadiusPredictor, \
             MaxBeamRadiusLogger, \
             RMSBeamRadiusLogger
@@ -32,26 +32,25 @@ def main():
     from random import seed
     from pytools.stopwatch import Job
 
-    from pyrticle.units import SIUnits
-    units = SIUnits()
+    from pyrticle.units import SI
+    units = SI()
 
     seed(0)
 
     beam_radius = 2.5*units.MM
     # discretization setup ----------------------------------------------------
-    #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True,
-            #max_volume=100*units.MM**3, radial_subdivisions=10)
-    #full_mesh = make_cylinder_mesh(radius=15*units.MM, height=30*units.MM, periodic=True,
-            #max_volume=100*units.MM**3, radial_subdivisions=10)
+    job = Job("mesh")
+    full_mesh = make_cylinder_mesh(radius=25*units.MM, height=25*units.MM, periodic=True,
+            max_volume=100*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
-    job = Job("mesh")
-    full_mesh = make_cylinder_with_fine_core(
-            r=10*beam_radius, inner_r=1.5*beam_radius, 
-            min_z=0, max_z=20*beam_radius,
-            max_volume_inner=1*units.MM**3,
-            max_volume_outer=100*units.MM**3,
-            )
+    if False:
+        full_mesh = make_cylinder_with_fine_core(
+                r=10*beam_radius, inner_r=1.5*beam_radius, 
+                min_z=0, max_z=20*beam_radius,
+                max_volume_inner=1*units.MM**3,
+                max_volume_outer=100*units.MM**3,
+                )
     job.done()
 
     from hedge.parallel import guess_parallelization_context
@@ -64,7 +63,7 @@ def main():
         mesh = pcon.receive_mesh()
 
     job = Job("discretization")
-    discr = pcon.make_discretization(mesh, TetrahedralElement(2))
+    discr = pcon.make_discretization(mesh, TetrahedralElement(3))
     job.done()
 
     vis = SiloVisualizer(discr)
@@ -90,12 +89,10 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1000
-
     cloud = ParticleCloud(max_op, 3, 3, verbose_vis=True)
 
+    nparticles = 1000
     cloud_charge = 1e-9 * units.C
-    particle_charge = cloud_charge/nparticles
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
@@ -110,14 +107,15 @@ def main():
     gamma = 1/sqrt(1-beta**2)
     print "beta = %g, gamma = %g" % (beta, gamma)
 
-    add_kv_xy_particles(nparticles, cloud, discr, 
-            charge=units.EL_CHARGE, 
-            mass=electrons_per_particle*units.EL_MASS,
-            radii=[2.5*units.MM, 2.5*units.MM],
+    beam = KVZIntervalBeam(units, nparticles, 
+            p_charge=cloud_charge/nparticles, 
+            p_mass=electrons_per_particle*units.EL_MASS,
+            radii=2*[2.5*units.MM],
+            emittances=2*[5 * units.MM * units.MRAD], 
             z_length=5*units.MM,
             z_pos=10*units.MM,
-            emittances=[emittance, emittance], 
             beta=beta)
+    beam.add_to(cloud, discr)
 
     # intial condition --------------------------------------------------------
     def compute_initial_condition():
@@ -211,40 +209,9 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = MaxBeamRadiusLogger(cloud.mesh_info.dimensions,
-            initial_radius, emittance)
+    r_logger = MaxBeamRadiusLogger(cloud.mesh_info.dimensions)
 
     for step in xrange(nsteps):
-        r_logger.update(t, cloud.positions, cloud.velocities())
-
-        if False:
-            myfields = [fields]
-            fields = profile.runctx("myfields[0] = stepper(fields, t, dt, rhs)", 
-                    globals(), locals(), "pic-%04d.prof" % step)
-            fields = myfields[0]
-        else:
-            fields = stepper(fields, t, dt, rhs)
-
-        cloud.upkeep()
-
-        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
-                step, t, l2_norm(fields[0:3]), l2_norm(fields[3:6]),
-                time()-last_tstep, len(cloud))
-        if False:
-            print "searches: same=%d, normal=%d, vertex=%d, global=%d, periodic=%d" % (
-                    cloud.same_searches.pop(),
-                    cloud.normal_searches.pop(),
-                    cloud.vertex_searches.pop(),
-                    cloud.global_searches.pop(),
-                    cloud.periodic_hits.pop(),
-                    )
-            print "shape-adds: neighbor=%d vertex=%d" % (
-                    cloud.neighbor_shape_adds.pop(),
-                    cloud.vertex_shape_adds.pop(),
-                    )
-
-        last_tstep = time()
-
         if True:
             visf = vis.make_file("pic-%04d" % step)
 
@@ -260,12 +227,51 @@ def main():
                 time=t, step=step)
             visf.close()
 
+        r_logger.update(t, cloud.positions, cloud.velocities())
+
+        if False:
+            myfields = [fields]
+            fields = profile.runctx("myfields[0] = stepper(fields, t, dt, rhs)", 
+                    globals(), locals(), "pic-%04d.prof" % step)
+            fields = myfields[0]
+        else:
+            fields = stepper(fields, t, dt, rhs)
+
+        cloud.upkeep()
+
+        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
+                step, t, l2_norm(fields[0:3]), l2_norm(fields[3:6]),
+                time()-last_tstep, len(cloud))
+        last_tstep = time()
+
+        if False:
+            print "searches: same=%d, normal=%d, vertex=%d, global=%d, periodic=%d" % (
+                    cloud.same_searches.pop(),
+                    cloud.normal_searches.pop(),
+                    cloud.vertex_searches.pop(),
+                    cloud.global_searches.pop(),
+                    cloud.periodic_hits.pop(),
+                    )
+            print "shape-adds: neighbor=%d vertex=%d" % (
+                    cloud.neighbor_shape_adds.pop(),
+                    cloud.vertex_shape_adds.pop(),
+                    )
+
         t += dt
 
     vis.close()
 
+    theory_with_charge = KVRadiusPredictor(
+            beam.radii[0], beam.emittances[0],
+            xi=beam.get_space_charge_parameter())
+
     r_logger.generate_plot("Kapchinskij-Vladimirskij Beam Evolution, "
-            "with space charge")
+            "with space charge", 
+            theories=[
+                ("theoretical, with space charge", theory_with_charge)
+                ])
+    
+    print "Relative error: %g" % r_logger.relative_error(theory_with_charge)
 
 
 
