@@ -76,7 +76,7 @@ def main():
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.c) / 2
-    final_time = 1*units.M/max_op.c
+    final_time = 0.01*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -91,7 +91,7 @@ def main():
     # particles setup ---------------------------------------------------------
     cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
-    nparticles = 1000
+    nparticles = 10000
     cloud_charge = 1e-9 * units.C
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
@@ -216,7 +216,7 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = MaxBeamRadiusLogger(cloud.dimensions_pos)
+    rms_r_logger = RMSBeamRadiusLogger(cloud.dimensions_pos, 0)
 
     for step in xrange(nsteps):
         if True:
@@ -234,7 +234,7 @@ def main():
                 time=t, step=step)
             visf.close()
 
-        r_logger.update(t, cloud.positions, cloud.velocities())
+        rms_r_logger.update(t, cloud.positions, cloud.velocities())
 
         fields = stepper(fields, t, dt, fields.rhs)
         cloud.upkeep()
@@ -261,18 +261,21 @@ def main():
 
     vis.close()
 
-    theory_with_charge = KVRadiusPredictor(
-            beam.radii[0], beam.emittances[0],
+    rms_theory_with_charge = KVRadiusPredictor(
+            beam.rms_radii[rms_r_logger.axis], 
+            beam.rms_emittances[rms_r_logger.axis],
             xi=beam.get_space_charge_parameter())
 
-    r_logger.generate_plot("Kapchinskij-Vladimirskij Beam Evolution, "
-            "with space charge", 
+    rms_r_logger.generate_plot(
+            title="Kapchinskij-Vladimirskij Beam Evolution",
+            sim_label="RMS, simulated, with space charge", 
+            outfile="beam-rad-rms.eps",
             theories=[
-                ("theoretical, with space charge", theory_with_charge)
+                ("RMS, theoretical, with space charge", rms_theory_with_charge)
                 ])
-    r_logger.write_data("beam-radius.dat")
+    rms_r_logger.write_data("rms-beam-radius.dat")
     
-    print "Relative error: %g" % r_logger.relative_error(theory_with_charge)
+    print "Relative error: %g" % rms_r_logger.relative_error(rms_theory_with_charge)
 
 
 

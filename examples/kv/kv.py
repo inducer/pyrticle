@@ -250,9 +250,9 @@ class KVRadiusPredictor(ODEDefinedFunction):
     See equation (1.65) for the definition of M{xi}.
     M{Q} is the number of electrons in the beam
     """
-    def __init__(self, a0, eps, eB_2E=0, xi=0):
+    def __init__(self, a0, eps, eB_2E=0, xi=0, dt=1e-4):
         ODEDefinedFunction.__init__(self, 0, num.array([a0, 0]), 
-                dt=1e-3*(a0**4/eps**2)**2)
+                dt=dt*(a0**4/eps**2)**2)
         self.eps = eps
         self.xi = xi
         self.eB_2E = eB_2E
