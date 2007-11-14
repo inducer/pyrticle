@@ -643,7 +643,7 @@ namespace {
                                         m_neighbor_shape_adds,
                                         m_periodic_hits;
 
-      const double                      m_epsilon, m_mu, m_c;
+      const double                      m_vacuum_c;
 
 
 
@@ -654,13 +654,12 @@ namespace {
           unsigned vertices_sizehint,
           unsigned elements_sizehint, 
           unsigned discretizations_sizehint,
-          double epsilon, 
-          double mu)
+          double vacuum_c)
         : m_mesh_info(dimensions_mesh, 
             vertices_sizehint,
             elements_sizehint, 
             discretizations_sizehint),
-        m_epsilon(epsilon), m_mu(mu), m_c(1/sqrt(mu*epsilon))
+        m_vacuum_c(vacuum_c)
       {
       }
 
@@ -684,7 +683,7 @@ namespace {
           {
             const double m = m_masses[pn];
             double p = norm_2(subrange(m_momenta, vpstart, vpend));
-            double v = m_c*p/sqrt(m*m*m_c*m_c + p*p);
+            double v = m_vacuum_c*p/sqrt(m*m*m_vacuum_c*m_vacuum_c + p*p);
             subrange(result, vpstart, vpend) = v/p*subrange(m_momenta, vpstart, vpend);
           }
         }
@@ -884,23 +883,23 @@ namespace {
       // pass a zero_vector, and interpolation will know to
       // not even compute anything, but just return zero.
       template <class EX, class EY, class EZ, 
-               class HX, class HY, class HZ>
+               class BX, class BY, class BZ>
       hedge::vector forces(
           const EX &ex, const EY &ey, const EZ &ez,
-          const HX &hx, const HY &hy, const HZ &hz,
+          const BX &bx, const BY &by, const BZ &bz,
           const hedge::vector &velocities,
           bool update_vis_info
           )
       {
         hedge::vector result(m_momenta.size());
         std::auto_ptr<hedge::vector> 
-          vis_e, vis_h, vis_el_force, vis_lorentz_force;
+          vis_e, vis_b, vis_el_force, vis_lorentz_force;
 
         if (update_vis_info)
         {
           vis_e = std::auto_ptr<hedge::vector>(
               new hedge::vector(3*m_containing_elements.size()));
-          vis_h = std::auto_ptr<hedge::vector>(
+          vis_b = std::auto_ptr<hedge::vector>(
               new hedge::vector(3*m_containing_elements.size()));
           vis_el_force = std::auto_ptr<hedge::vector>(
               new hedge::vector(3*m_containing_elements.size()));
@@ -930,10 +929,10 @@ namespace {
           e[1] = interp(ey);
           e[2] = interp(ez);
 
-          hedge::vector h(3);
-          h[0] = interp(hx);
-          h[1] = interp(hy);
-          h[2] = interp(hz);
+          hedge::vector b(3);
+          b[0] = interp(bx);
+          b[1] = interp(by);
+          b[2] = interp(bz);
 
           const double charge = m_charges[i];
 
@@ -943,7 +942,7 @@ namespace {
           el_force[2] = charge*e[2];
 
           const hedge::vector v = subrange(velocities, v_pstart, v_pend);
-          hedge::vector lorentz_force = cross(v, charge*m_mu*h);
+          hedge::vector lorentz_force = cross(v, charge*b);
 
           // truncate forces to m_dimensions_velocity entries
           subrange(result, v_pstart, v_pend) = subrange(
@@ -952,7 +951,7 @@ namespace {
           if (update_vis_info)
           {
             subrange(*vis_e, 3*i, 3*(i+1)) = e;
-            subrange(*vis_h, 3*i, 3*(i+1)) = h;
+            subrange(*vis_b, 3*i, 3*(i+1)) = b;
             subrange(*vis_el_force, 3*i, 3*(i+1)) = el_force;
             subrange(*vis_lorentz_force, 3*i, 3*(i+1)) = lorentz_force;
           }
@@ -961,7 +960,7 @@ namespace {
         if (update_vis_info)
         {
           m_vis_info["pt_e"] = python::object(*vis_e);
-          m_vis_info["pt_h"] = python::object(*vis_h);
+          m_vis_info["pt_b"] = python::object(*vis_b);
           m_vis_info["el_force"] = python::object(*vis_el_force);
           m_vis_info["lorentz_force"] = python::object(*vis_lorentz_force);
         }
@@ -1201,6 +1200,31 @@ namespace {
 
 
 
+      void reconstruct_j(python::object py_j, double radius) const
+      {
+        j_reconstruction_target<m_dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
+            m_charges, m_masses, m_momenta);
+
+        reconstruct_densities_on_target(j_tgt, radius);
+
+        int i = 0;
+        BOOST_FOREACH(hedge::vector &j_i, 
+            std::make_pair(
+              python::stl_input_iterator<hedge::vector &>(py_j),
+              python::stl_input_iterator<hedge::vector &>()))
+        {
+          if (i >= m_dimensions_velocity)
+            throw std::runtime_error("j field must have v_dim dimensions");
+          j_i = subslice(j_tgt.result(), 
+              i++, m_dimensions_velocity, m_mesh_info.m_nodes.size());
+        }
+        if (i < m_dimensions_velocity)
+            throw std::runtime_error("j field must have v_dim dimensions");
+      }
+
+
+
+
       void reconstruct_rho(hedge::vector &rho, double radius) const
       {
         rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
@@ -1227,7 +1251,7 @@ namespace {
           python::init<
           unsigned, 
           unsigned, unsigned, unsigned, 
-          double, double>());
+          double>());
     cloud_wrap
       .DEF_RO_MEMBER(mesh_info)
 
@@ -1252,9 +1276,7 @@ namespace {
       .DEF_RO_MEMBER(neighbor_shape_adds)
       .DEF_RO_MEMBER(periodic_hits)
 
-      .DEF_RO_MEMBER(epsilon)
-      .DEF_RO_MEMBER(mu)
-      .DEF_RO_MEMBER(c)
+      .DEF_RO_MEMBER(vacuum_c)
 
       .DEF_SIMPLE_METHOD(velocities)
       .DEF_SIMPLE_METHOD(find_new_containing_element)
@@ -1268,7 +1290,7 @@ namespace {
             hedge::vector, hedge::vector, hedge::vector,
             hedge::vector, hedge::vector, hedge::vector>,
             (arg("ex"), arg("ey"), arg("ez"), 
-             arg("hx"), arg("hy"), arg("hz"),
+             arg("bx"), arg("by"), arg("bz"),
              arg("velocities"), arg("verbose_vis")))
         ;
     }
@@ -1279,13 +1301,13 @@ namespace {
             zero_vector, zero_vector, hedge::vector,
             hedge::vector, hedge::vector, zero_vector>,
             (arg("ex"), arg("ey"), arg("ez"), 
-             arg("hx"), arg("hy"), arg("hz"),
+             arg("bx"), arg("by"), arg("bz"),
              arg("velocities"), arg("verbose_vis")))
         .def("forces", &cl::template forces< // TE case
             hedge::vector, hedge::vector, zero_vector,
             zero_vector, zero_vector, hedge::vector>,
             (arg("ex"), arg("ey"), arg("ez"), 
-             arg("hx"), arg("hy"), arg("hz"),
+             arg("bx"), arg("by"), arg("bz"),
              arg("velocities"), arg("verbose_vis")))
         ;
     }
@@ -1293,6 +1315,7 @@ namespace {
     cloud_wrap
       .DEF_SIMPLE_METHOD(reconstruct_densities)
       .DEF_SIMPLE_METHOD(reconstruct_rho)
+      .DEF_SIMPLE_METHOD(reconstruct_j)
       ;
   }
 }

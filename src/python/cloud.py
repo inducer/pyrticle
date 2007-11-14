@@ -8,6 +8,11 @@ import pyrticle._internal as _internal
 
 
 
+ZeroVector = _internal.ZeroVector
+
+
+
+
 def v_from_p(p, m, c):
     from math import sqrt
     value =  c*p*(comp.norm_2_squared(p)+c*c*m*m)**(-0.5)
@@ -102,13 +107,12 @@ class ParticleCloud:
     problems of any dimension, examples below are given for three
     dimensions for simplicity.
     """
-    def __init__(self, maxwell_op, units, 
+    def __init__(self, discr, units, 
             dimensions_pos, dimensions_velocity,
             verbose_vis=False):
 
-        self.maxwell_op = maxwell_op
         self.units = units
-        discr = self.discretization = maxwell_op.discr
+        self.discretization = discr
         self.verbose_vis = verbose_vis
 
         self.dimensions_mesh = discr.dimensions
@@ -120,7 +124,7 @@ class ParticleCloud:
         constructor_args  = (
                 self.dimensions_mesh,
                 len(discr.mesh.points), len(discr.mesh.elements), len(discr.element_groups),
-                maxwell_op.epsilon, maxwell_op.mu)
+                units.VACUUM_LIGHT_SPEED)
 
         if dims == (3,3):
             self.icloud = _internal.ParticleCloud33(*constructor_args)
@@ -239,7 +243,7 @@ class ParticleCloud:
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
         """
-        pass
+        self.icloud.vis_info.clear()
 
     def reconstruct_densities(self):
         """Return a tuple (charge_density, current_densities), where
@@ -260,6 +264,21 @@ class ParticleCloud:
 
         return rho, j
 
+    def reconstruct_j(self):
+        """Return a the current densities in the structure::
+          ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
+        """
+
+        j = ArithmeticList([self.discretization.volume_zeros()
+            for axis in range(self.dimensions_velocity)])
+
+        self.icloud.reconstruct_j(j, self.particle_radius)
+
+        if self.verbose_vis:
+            self.icloud.vis_info["j"] = j
+
+        return j
+
     def reconstruct_rho(self):
         """Return a the charge_density as a volume vector.
         """
@@ -273,30 +292,18 @@ class ParticleCloud:
 
         return rho
 
-    def rhs(self, t, e, h, velocities=None):
-        from pyrticle._internal import ZeroVector
-        
-        if velocities is None:
-            velocities = self.icloud.velocities()
+    def rhs(self, t, e, b):
+        """Return an ArithmeticList of velocities and forces on the particles.
 
-        # assemble field_args of the form [ex,ey,ez,hx,hy,hz],
-        # inserting ZeroVectors where necessary.
-        field_args = []
-        idx = 0
-        for use_component in self.maxwell_op.get_subset()[0:3]:
-            if use_component:
-                field_args.append(e[idx])
-                idx += 1
-            else:
-                field_args.append(ZeroVector())
-        idx = 0
-        for use_component in self.maxwell_op.get_subset()[3:6]:
-            if use_component:
-                field_args.append(h[idx])
-                idx += 1
-            else:
-                field_args.append(ZeroVector())
+        @arg e: triple of M{E_x}, M{E_y}, M{E_z}, each of which may be either 
+          a Pylinear vector or a L{ZeroVector}.
+        @arg b: triple of M{B_x}, M{B_y}, M{B_z}, each of which may be either 
+          a Pylinear vector or a L{ZeroVector}. Caution: The hedge Maxwell operator
+          deals with M{H}, not M{B}.
+        """
 
+        field_args = tuple(e) + tuple(b)
+        velocities = self.icloud.velocities() 
         # compute forces
         return ArithmeticList([
             velocities, 
@@ -439,3 +446,64 @@ class ParticleCloud:
                 mesh_vectors.append(("j", self.icloud.vis_info["j"]))
 
         return mesh_scalars, mesh_vectors
+
+
+
+
+class FieldsAndCloud:
+    def __init__(self, maxwell_op, e, h, cloud):
+        from pytools.arithmetic_container import join_fields
+        self.maxwell_op = maxwell_op
+        self.e = e
+        self.h = h
+        self.cloud = cloud
+
+        self.eh_components = maxwell_op.component_count()
+
+    def __iadd__(self, other):
+        assert len(other) == self.eh_components + 1
+        rhs_e, rhs_h = self.maxwell_op.split_fields(other[:self.eh_components])
+        rhs_cloud = other[self.eh_components]
+
+        self.e += rhs_e
+        self.h += rhs_h
+        self.cloud += rhs_cloud
+
+        return self
+
+    def rhs(self, t, y):
+        assert y is self
+
+        from pytools.arithmetic_container import join_fields
+
+        # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
+        # inserting ZeroVectors where necessary.
+        idx = 0
+        e_arg = []
+        for use_component in self.maxwell_op.get_subset()[0:3]:
+            if use_component:
+                e_arg.append(self.e[idx])
+                idx += 1
+            else:
+                e_arg.append(ZeroVector())
+
+        idx = 0
+        b_arg = []
+        for use_component in self.maxwell_op.get_subset()[3:6]:
+            if use_component:
+                b_arg.append(self.maxwell_op.mu * self.h[idx])
+                idx += 1
+            else:
+                b_arg.append(ZeroVector())
+
+        cloud_rhs = self.cloud.rhs(t, e_arg, b_arg)
+
+        rhs_e, rhs_h = self.maxwell_op.split_fields(
+                self.maxwell_op.rhs(t, join_fields(self.e, self.h))
+                )
+
+        return join_fields(
+                rhs_e - 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j(),
+                rhs_h,
+                ).plus([cloud_rhs])
+

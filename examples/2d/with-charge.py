@@ -93,7 +93,7 @@ def main():
     # particles setup ---------------------------------------------------------
     nparticles = 1
 
-    cloud = ParticleCloud(max_op, units, dimensions_pos=2, dimensions_velocity=2,
+    cloud = ParticleCloud(discr, units, dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
 
     cloud_charge = 1e-9 * units.C
@@ -187,49 +187,25 @@ def main():
             cloud.add_to_vis(vis, visf)
             visf.close()
 
-        return join_fields(eprime, hprime, [cloud])
+        from pyrticle.cloud import FieldsAndCloud
+        return FieldsAndCloud(max_op, eprime, hprime, cloud)
 
     fields = compute_initial_condition()
 
     # timestepping ------------------------------------------------------------
-    eh_components = max_op.component_count()
-
-    def rhs(t, y):
-        rho, j = cloud.reconstruct_densities()
-
-        e, h = max_op.split_fields(y)
-        velocities = cloud.velocities()
-        cloud_rhs = cloud.rhs(t, e, h, velocities)
-
-        maxwell_rhs = max_op.rhs(t, y[0:eh_components])
-        rhs_e, rhs_h = max_op.split_fields(maxwell_rhs)
-
-        return join_fields(
-                rhs_e - 1/max_op.epsilon*j,
-                #rhs_e,
-                rhs_h,
-                ).plus([cloud_rhs])
-
     stepper = RK4TimeStepper()
     from time import time
     last_tstep = time()
     t = 0
 
     for step in xrange(nsteps):
-        if False:
-            myfields = [fields]
-            fields = profile.runctx("myfields[0] = stepper(fields, t, dt, rhs)", 
-                    globals(), locals(), "pic-%04d.prof" % step)
-            fields = myfields[0]
-        else:
-            fields = stepper(fields, t, dt, rhs)
-
+        fields = stepper(fields, t, dt, fields.rhs)
         cloud.upkeep()
 
-        e, h = max_op.split_fields(fields)
         print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
-                step, t, l2_norm(e), l2_norm(h),
+                step, t, l2_norm(fields.e), l2_norm(fields.h),
                 time()-last_tstep, len(cloud))
+
         if False:
             print "searches: same=%d, normal=%d, vertex=%d, global=%d, periodic=%d" % (
                     cloud.same_searches.pop(),
@@ -251,9 +227,9 @@ def main():
             mesh_scalars, mesh_vectors = \
                     cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
-                        ("divD", max_op.epsilon*div_op(fields[0:3])),
-                        ("e", e), 
-                        ("h", h), 
+                        ("divD", max_op.epsilon*div_op(fields.e)),
+                        ("e", fields.e), 
+                        ("h", fields.h), 
                         ] + mesh_scalars + mesh_vectors,
                     time=t, step=step)
             visf.close()

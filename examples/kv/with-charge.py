@@ -193,18 +193,18 @@ def main():
         return join_fields(eprime, hprime, [cloud])
 
     fields = compute_initial_condition()
+
     # timestepping ------------------------------------------------------------
 
     def rhs(t, y):
+        rho, j = cloud.reconstruct_densities()
+
         e, h = max_op.split_fields(y)
+        cloud_rhs = cloud.rhs(t, e, h)
 
-        velocities = cloud.velocities()
-        maxwell_rhs = max_op.rhs(t, y[0:6])
-        rho, j = cloud.reconstruct_densities(velocities)
-        cloud_rhs = cloud.rhs(t, e, h, velocities)
+        maxwell_rhs = max_op.rhs(t, y[0:eh_components])
+        rhs_e, rhs_h = max_op.split_fields(maxwell_rhs)
 
-        rhs_e = maxwell_rhs[:3]
-        rhs_h = maxwell_rhs[3:6]
         return join_fields(
                 rhs_e - 1/max_op.epsilon*j,
                 rhs_h,
