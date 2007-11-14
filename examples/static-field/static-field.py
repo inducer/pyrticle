@@ -272,13 +272,10 @@ def run_setup(casename, setup, discr):
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    max_op = MaxwellOperator(discr, 
-            epsilon=units.EPSILON0, 
-            mu=units.MU0, 
-            upwind_alpha=1)
-    cloud = ParticleCloud(max_op, units, 3, 3, verbose_vis=True)
+    cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
     e, h = setup.fields(discr)
+    b = units.MU0 * h
 
     init_positions = setup.positions(0)
     init_velocities = setup.velocities(0)
@@ -300,7 +297,7 @@ def run_setup(casename, setup, discr):
 
     # timestepping ------------------------------------------------------------
     def rhs(t, y):
-        return cloud.rhs(t, e, h)
+        return cloud.rhs(t, e, b)
 
     stepper = RK4TimeStepper()
     from time import time
@@ -321,8 +318,8 @@ def run_setup(casename, setup, discr):
 
         all_sim_f = cloud.icloud.vis_info["lorentz_force"] + cloud.icloud.vis_info["el_force"]
 
-        e = setup.e()
-        h = setup.h()
+        local_e = setup.e()
+        local_b = units.MU0 * setup.h()
 
         x_err = 0
         v_err = 0
@@ -336,7 +333,7 @@ def run_setup(casename, setup, discr):
             f = all_f[i]
             sim_f = all_sim_f[i*dim:(i+1)*dim]
 
-            real_f = num.array(cross(sim_v, setup.charge*max_op.mu*h)) + setup.charge*e
+            real_f = num.array(cross(sim_v, setup.charge*local_b)) + setup.charge*local_e
 
             #print "pos%d:" % i, comp.norm_2(x-sim_x)
 
@@ -385,8 +382,8 @@ def run_setup(casename, setup, discr):
                     vis.add_data(visf, [], time=t, step=step)
                 visf.close()
 
-        cloud = stepper(cloud, t, dt, rhs)
         cloud.upkeep()
+        cloud = stepper(cloud, t, dt, rhs)
 
         t += dt
 

@@ -89,7 +89,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    cloud = ParticleCloud(max_op, units, 3, 3, verbose_vis=True)
+    cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
     nparticles = 1000
     cloud_charge = 1e-9 * units.C
@@ -190,7 +190,8 @@ def main():
             cloud.add_to_vis(vis, visf)
             visf.close()
 
-        return join_fields(eprime, hprime, [cloud])
+        from pyrticle.cloud import FieldsAndCloud
+        return FieldsAndCloud(max_op, eprime, hprime, cloud)
 
     fields = compute_initial_condition()
 
@@ -224,9 +225,9 @@ def main():
             mesh_scalars, mesh_vectors = \
                     cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
-                ("divD", max_op.epsilon*div_op(fields[0:3])),
-                ("e", fields[0:3]), 
-                ("h", fields[3:6]), 
+                ("divD", max_op.epsilon*div_op(fields.e)),
+                ("e", fields.e), 
+                ("h", fields.h), 
                 ]
                 + mesh_vectors
                 + mesh_scalars,
@@ -235,18 +236,11 @@ def main():
 
         r_logger.update(t, cloud.positions, cloud.velocities())
 
-        if False:
-            myfields = [fields]
-            fields = profile.runctx("myfields[0] = stepper(fields, t, dt, rhs)", 
-                    globals(), locals(), "pic-%04d.prof" % step)
-            fields = myfields[0]
-        else:
-            fields = stepper(fields, t, dt, rhs)
-
+        fields = stepper(fields, t, dt, fields.rhs)
         cloud.upkeep()
 
         print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
-                step, t, l2_norm(fields[0:3]), l2_norm(fields[3:6]),
+                step, t, l2_norm(fields.e), l2_norm(fields.h),
                 time()-last_tstep, len(cloud))
         last_tstep = time()
 

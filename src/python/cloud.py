@@ -506,4 +506,3 @@ class FieldsAndCloud:
                 rhs_e - 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j(),
                 rhs_h,
                 ).plus([cloud_rhs])
-

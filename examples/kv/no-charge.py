@@ -49,11 +49,7 @@ def main():
     nparticles = 1000
 
     from hedge.operators import MaxwellOperator
-    max_op = MaxwellOperator(discr, 
-            epsilon=units.EPSILON0, 
-            mu=units.MU0, 
-            upwind_alpha=1)
-    cloud = ParticleCloud(max_op, units, 3, 3, verbose_vis=False)
+    cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=False)
 
     cloud_charge = 1e-9 * units.C
     particle_charge = cloud_charge/nparticles
