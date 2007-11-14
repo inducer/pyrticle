@@ -31,7 +31,8 @@ def main():
     from hedge.timestep import RK4TimeStepper
     from hedge.mesh import \
             make_square_mesh, \
-            make_regular_square_mesh
+            make_regular_square_mesh, \
+            make_regular_rect_mesh
     from hedge.discretization import \
             Discretization, \
             pair_with_boundary
@@ -49,7 +50,13 @@ def main():
     units = SI()
 
     # discretization setup ----------------------------------------------------
-    full_mesh = make_regular_square_mesh(n=2, periodicity=(True, False))
+    full_mesh = make_regular_rect_mesh(
+            a=(-0.5, -0.5),
+            b=(1.5, 0.5),
+            n=(10, 5), 
+            periodicity=(True, False))
+
+    #full_mesh = make_regular_square_mesh(n=2, periodicity=(True, False))
 
     from hedge.parallel import guess_parallelization_context
 
@@ -60,7 +67,7 @@ def main():
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TriangularElement(17))
+    discr = pcon.make_discretization(mesh, TriangularElement(5))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
