@@ -71,7 +71,7 @@ def add_mesh_info_methods():
                     estart, eend,
                     [vi for vi in el.vertex_indices],
                     el.face_normals,
-                    [neighbor_map[el,fi] for fi in xrange(len(el.faces))]
+                    set(neighbor_map[el,fi] for fi in xrange(len(el.faces)))
                     )
 
     def add_vertices(self, discr):
@@ -80,9 +80,9 @@ def add_mesh_info_methods():
         vertex_to_element_map = {}
         for el in mesh.elements:
             for vi in el.vertex_indices:
-                vertex_to_element_map.setdefault(vi, []).append(el.id)
+                vertex_to_element_map.setdefault(vi, set()).add(el.id)
                 for other_vi in mesh.periodic_opposite_vertices.get(vi, []):
-                    vertex_to_element_map.setdefault(other_vi, []).append(el.id)
+                    vertex_to_element_map.setdefault(other_vi, set()).add(el.id)
 
         for vi in xrange(len(mesh.points)):
             self.add_vertex(vi, 
@@ -120,8 +120,7 @@ class ParticleCloud:
         constructor_args  = (
                 self.dimensions_mesh,
                 len(discr.mesh.points), len(discr.mesh.elements), len(discr.element_groups),
-                maxwell_op.epsilon, maxwell_op.mu,
-                self.boundary_hit)
+                maxwell_op.epsilon, maxwell_op.mu)
 
         if dims == (3,3):
             self.icloud = _internal.ParticleCloud33(*constructor_args)
@@ -146,13 +145,11 @@ class ParticleCloud:
         self.particle_radius = 0.5*min(min_vertex_distance(el) 
                 for el in discr.mesh.elements)
 
-        self.periodicity = []
-        for axis_interval, periodicity_tags in zip(
-                zip(*discr.mesh.bounding_box), discr.mesh.periodicity):
-            if periodicity_tags is None:
-                self.periodicity.append(None)
-            else:
-                self.periodicity.append(axis_interval)
+        for axis, ((ax_min, ax_max), periodicity_tags) in enumerate(zip(
+                zip(*discr.mesh.bounding_box), discr.mesh.periodicity)):
+            if periodicity_tags is not None:
+                self.icloud.mesh_info.add_periodicity(
+                        axis, ax_min, ax_max)
 
     def __len__(self):
         return len(self.icloud.containing_elements) - len(self.icloud.deadlist)
@@ -237,42 +234,6 @@ class ParticleCloud:
             charges[already_placed:]))
         self.icloud.masses = num.hstack((self.icloud.masses, 
             masses[already_placed:]))
-
-    def boundary_hit(self, pn):
-        dim = self.icloud.mesh_info.dimensions
-
-        x_pstart = pn*self.dimensions_pos
-        x_pend = (pn+1)*self.dimensions_pos
-
-        periodicity_trip = False
-
-        pt = self.icloud.positions[x_pstart:x_pend]
-        for i, (axis_interval, xi) in enumerate(zip(self.periodicity, pt)):
-            if axis_interval is not None:
-                xmin, xmax = axis_interval
-                if not (xmin <= xi <= xmax):
-                    pt[i] = (xi-xmin) % (xmax-xmin) + xmin;
-                    periodicity_trip = True
-
-        if periodicity_trip:
-            self.icloud.positions[x_pstart:x_pend] = pt
-            ce = self.icloud.find_new_containing_element(
-                    pn, self.icloud.containing_elements[pn])
-            if ce != MeshInfo.INVALID_ELEMENT:
-                self.icloud.containing_elements[pn] = ce
-                self.icloud.periodic_hits.tick()
-                return
-
-        print "KILL %d" % pn
-        
-        self.icloud.containing_elements[pn] = MeshInfo.INVALID_ELEMENT
-        self.icloud.deadlist.append(pn)
-
-        v_pstart = pn*self.dimensions_velocity
-        v_pend = (pn+1)*self.dimensions_velocity
-
-        self.icloud.positions[x_pstart:x_pend] = num.zeros((dim,))
-        self.icloud.momenta[v_pstart:v_pend] = num.zeros((dim,))
 
     def upkeep(self):
         """Perform any operations must fall in between timesteps,

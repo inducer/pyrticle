@@ -49,7 +49,7 @@ def main():
     units = SI()
 
     # discretization setup ----------------------------------------------------
-    full_mesh = make_regular_square_mesh(n=5, periodicity=(True, False))
+    full_mesh = make_regular_square_mesh(n=2, periodicity=(True, False))
 
     from hedge.parallel import guess_parallelization_context
 
@@ -60,7 +60,7 @@ def main():
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TriangularElement(5))
+    discr = pcon.make_discretization(mesh, TriangularElement(17))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
@@ -84,7 +84,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 2
+    nparticles = 1
 
     cloud = ParticleCloud(max_op, units, dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)

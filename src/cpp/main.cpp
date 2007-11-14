@@ -175,6 +175,11 @@ namespace {
           return m_normalizer * pow(m_l-r_squared/m_l, m_alpha);
       }
 
+      const double radius() const
+      {
+        return m_l;
+      }
+
     private:
       double m_normalizer;
       double m_alpha;
@@ -389,6 +394,12 @@ namespace {
         csr_matrix m_p_mon_vandermonde_t;
       };
 
+      struct periodicity_axis
+      {
+        unsigned                m_axis;
+        double                  m_min, m_max, m_width;
+      };
+
       // data members ---------------------------------------------------------
       const unsigned m_dimensions;
 
@@ -396,6 +407,7 @@ namespace {
       std::vector<element_info> m_element_info;
       std::vector<hedge::vector> m_vertices, m_nodes;
       boost::ptr_vector<el_id_vector> m_vertex_adj_elements;
+      std::vector<periodicity_axis> m_periodicities;
 
 
 
@@ -449,9 +461,18 @@ namespace {
         ei.m_start = start;
         ei.m_end = end;
 
-        COPY_PY_LIST(ei.m_vertices, vertices, vertex_number);
-        COPY_PY_LIST(ei.m_normals, normals, const hedge::vector &);
-        COPY_PY_LIST(ei.m_neighbors, neighbors, element_number);
+        std::copy(
+            python::stl_input_iterator<vertex_number>(vertices),
+            python::stl_input_iterator<vertex_number>(),
+            back_inserter(ei.m_vertices));
+        std::copy(
+            python::stl_input_iterator<const hedge::vector &>(normals),
+            python::stl_input_iterator<const hedge::vector &>(),
+            back_inserter(ei.m_normals));
+        std::copy(
+            python::stl_input_iterator<element_number>(neighbors),
+            python::stl_input_iterator<element_number>(),
+            back_inserter(ei.m_neighbors));
 
         m_element_info.push_back(ei);
       }
@@ -462,7 +483,7 @@ namespace {
       void add_vertex(
           vertex_number vn, 
           const hedge::vector &pos,
-          python::list adjacent_elements)
+          python::object adjacent_elements)
       {
         if (vn != m_vertex_adj_elements.size())
           throw std::runtime_error("vertices must be added in increasing order");
@@ -470,7 +491,10 @@ namespace {
         m_vertices.push_back(pos);
 
         std::auto_ptr<el_id_vector> adj_els_cpp(new el_id_vector);
-        COPY_PY_LIST(*adj_els_cpp, adjacent_elements, element_number);
+        std::copy(
+            python::stl_input_iterator<element_number>(adjacent_elements),
+            python::stl_input_iterator<element_number>(),
+            back_inserter(*adj_els_cpp));
 
         m_vertex_adj_elements.push_back(adj_els_cpp);
       }
@@ -484,6 +508,19 @@ namespace {
         python::stl_input_iterator<const hedge::vector &> 
           first(iterable), last;
         std::copy(first, last, std::back_inserter(m_nodes));
+      }
+
+
+
+
+      void add_periodicity(unsigned axis, double min, double max)
+      {
+        periodicity_axis pa;
+        pa.m_axis = axis;
+        pa.m_min = min;
+        pa.m_max = max;
+        pa.m_width = max-min;
+        m_periodicities.push_back(pa);
       }
 
 
@@ -604,8 +641,6 @@ namespace {
 
       const double                      m_epsilon, m_mu, m_c;
 
-      python::object                    m_boundary_hit_cb;
-
 
 
 
@@ -616,14 +651,12 @@ namespace {
           unsigned elements_sizehint, 
           unsigned discretizations_sizehint,
           double epsilon, 
-          double mu,
-          python::object boundary_hit_cb)
+          double mu)
         : m_mesh_info(dimensions_mesh, 
             vertices_sizehint,
             elements_sizehint, 
             discretizations_sizehint),
-        m_epsilon(epsilon), m_mu(mu), m_c(1/sqrt(mu*epsilon)),
-        m_boundary_hit_cb(boundary_hit_cb)
+        m_epsilon(epsilon), m_mu(mu), m_c(1/sqrt(mu*epsilon))
       {
       }
 
@@ -779,10 +812,64 @@ namespace {
 
           // no element found? delegate to callback ---------------------------
           if (new_el == mesh_info::INVALID_ELEMENT)
-            m_boundary_hit_cb(i);
+            boundary_hit(i);
           else
             m_containing_elements[i] = new_el;
         }
+      }
+
+
+
+
+      void boundary_hit(particle_number pn)
+      {
+        unsigned x_pstart = pn*m_dimensions_pos;
+        unsigned x_pend = (pn+1)*m_dimensions_pos;
+
+        bool periodicity_trip = false;
+
+        hedge::vector pt = subrange(m_positions, x_pstart, x_pend);
+        BOOST_FOREACH(const mesh_info::periodicity_axis &pa, 
+            m_mesh_info.m_periodicities)
+        {
+          const double xi = pt[pa.m_axis];
+          if (xi < pa.m_min)
+          {
+            pt[pa.m_axis] += pa.m_width;
+            periodicity_trip = true;
+          }
+          else if (xi > pa.m_max)
+          {
+            pt[pa.m_axis] -= pa.m_width;
+            periodicity_trip = true;
+          }
+        }
+
+        if (periodicity_trip)
+        {
+          subrange(m_positions, x_pstart, x_pend) = pt;
+          mesh_info::element_number ce = 
+            find_new_containing_element(pn, m_containing_elements[pn]);
+          if (ce != mesh_info::INVALID_ELEMENT)
+          {
+            m_containing_elements[pn] = ce;
+            m_periodic_hits.tick();
+            return;
+          }
+        }
+
+        std::cout << "KILL " << pn << std::endl;
+        
+        m_containing_elements[pn] = mesh_info::INVALID_ELEMENT;
+        m_deadlist.push_back(pn);
+
+        unsigned v_pstart = pn*m_dimensions_velocity;
+        unsigned v_pend = (pn+1)*m_dimensions_velocity;
+
+        subrange(m_positions, x_pstart, x_pend) = 
+          zero_vector(m_dimensions_pos);
+        subrange(m_momenta, v_pstart, v_pend) = 
+          zero_vector(m_dimensions_velocity);
       }
 
 
@@ -884,14 +971,14 @@ namespace {
       template <class Target, class ShapeFunction>
       void add_shape_on_element(
           Target &tgt, 
+          const ShapeFunction &sf,
           const hedge::vector &center,
-          mesh_info::element_number en,
-          const ShapeFunction &sf) const
+          const mesh_info::element_number en
+          ) const
       {
-        const mesh_info::element_info &el = 
-          m_mesh_info.m_element_info[en];
-
-        for (unsigned i = el.m_start; i < el.m_end; i++)
+        const mesh_info::element_info &einfo(
+            m_mesh_info.m_element_info[en]);
+        for (unsigned i = einfo.m_start; i < einfo.m_end; i++)
           tgt.add_shape_at_point(i, sf(m_mesh_info.m_nodes[i]-center));
       }
 
@@ -902,19 +989,93 @@ namespace {
       void add_shape_by_neighbors(
           Target &target,
           const ShapeFunction &sf,
-          particle_number pi) const
+          const hedge::vector &pos,
+          const mesh_info::element_info &einfo) const
       {
-        const unsigned dim = m_dimensions_pos;
-        const hedge::vector pos = subrange(
-            m_positions, pi*dim, (pi+1)*dim);
-        const mesh_info::element_info &el(
-            m_mesh_info.m_element_info[m_containing_elements[pi]]);
+        add_shape_on_element(target, sf, pos, einfo.m_id);
 
-        add_shape_on_element(
-            target, pos, m_containing_elements[pi], sf);
-        BOOST_FOREACH(mesh_info::element_number en, el.m_neighbors)
+        BOOST_FOREACH(mesh_info::element_number en, einfo.m_neighbors)
           if (en != mesh_info::INVALID_ELEMENT)
-            add_shape_on_element(target, pos, en, sf);
+            add_shape_on_element(target, sf, pos, en);
+
+        // now check if we need to redo this for periodic copies
+        BOOST_FOREACH(const mesh_info::periodicity_axis &pa,
+            m_mesh_info.m_periodicities)
+        {
+          if (pos[pa.m_axis] - sf.radius() < pa.m_min)
+          {
+            hedge::vector pos2(pos);
+            pos2[pa.m_axis] += pa.m_width;
+
+            BOOST_FOREACH(mesh_info::element_number en, einfo.m_neighbors)
+              if (en != mesh_info::INVALID_ELEMENT)
+                add_shape_on_element(target, sf, pos2, en);
+          }
+          if (pos[pa.m_axis] + sf.radius() > pa.m_max)
+          {
+            hedge::vector pos2(pos);
+            pos2[pa.m_axis] -= pa.m_width;
+
+            BOOST_FOREACH(mesh_info::element_number en, einfo.m_neighbors)
+              if (en != mesh_info::INVALID_ELEMENT)
+                add_shape_on_element(target, sf, pos2, en);
+          }
+        }
+      }
+
+
+
+
+      template <class Target, class ShapeFunction>
+      void add_shape_by_vertex(
+          Target &target,
+          const ShapeFunction &sf,
+          const hedge::vector &pos,
+          const mesh_info::element_info &einfo) const
+      {
+        // find closest vertex
+        mesh_info::vertex_number closest_vertex = 
+          mesh_info::INVALID_VERTEX;
+        double min_dist = std::numeric_limits<double>::infinity();
+
+        BOOST_FOREACH(mesh_info::vertex_number vi, einfo.m_vertices)
+        {
+          double dist = norm_2(m_mesh_info.m_vertices[vi] - pos);
+          if (dist < min_dist)
+          {
+            closest_vertex = vi;
+            min_dist = dist;
+          }
+        }
+
+        // go through vertex-adjacent elements
+        BOOST_FOREACH(mesh_info::element_number en, 
+            m_mesh_info.m_vertex_adj_elements[closest_vertex])
+          add_shape_on_element(target, sf, pos, en);
+
+        // now check if we need to redo this for periodic copies
+        BOOST_FOREACH(const mesh_info::periodicity_axis &pa,
+            m_mesh_info.m_periodicities)
+        {
+          if (pos[pa.m_axis] - sf.radius() < pa.m_min)
+          {
+            hedge::vector pos2(pos);
+            pos2[pa.m_axis] += pa.m_width;
+
+            BOOST_FOREACH(mesh_info::element_number en, 
+                m_mesh_info.m_vertex_adj_elements[closest_vertex])
+              add_shape_on_element(target, sf, pos2, en);
+          }
+          if (pos[pa.m_axis] + sf.radius() > pa.m_max)
+          {
+            hedge::vector pos2(pos);
+            pos2[pa.m_axis] -= pa.m_width;
+
+            BOOST_FOREACH(mesh_info::element_number en, 
+                m_mesh_info.m_vertex_adj_elements[closest_vertex])
+              add_shape_on_element(target, sf, pos2, en);
+          }
+        }
       }
 
 
@@ -924,13 +1085,15 @@ namespace {
       void add_shape(
           Target &target, 
           const ShapeFunction &sf,
-          double radius, particle_number pi) const
+          particle_number pn) const
       {
         const unsigned dim = m_dimensions_pos;
         const hedge::vector pos = subrange(
-            m_positions, pi*dim, (pi+1)*dim);
-        const mesh_info::element_info &el(
-            m_mesh_info.m_element_info[m_containing_elements[pi]]);
+            m_positions, pn*dim, (pn+1)*dim);
+        const mesh_info::element_number containing_el = 
+          m_containing_elements[pn];
+        const mesh_info::element_info &einfo(
+            m_mesh_info.m_element_info[containing_el]);
 
         // We're deciding between RULE A and RULE B below.
         // The decision is made by looking at the barycentric coordinates of
@@ -946,7 +1109,7 @@ namespace {
         // of a right triangle.
 
         // FIXME this assumes m_dimension_pos == m_dimension_mesh
-        hedge::vector unit_pt = el.m_inverse_map(pos);
+        hedge::vector unit_pt = einfo.m_inverse_map(pos);
         
         bool can_use_rule_a = true;
 
@@ -966,34 +1129,14 @@ namespace {
           // RULE A: we're far enough away from vertices, 
           // weight onto neighboring elements
           m_neighbor_shape_adds.tick();
-
-          add_shape_by_neighbors(target, sf, pi);
+          add_shape_by_neighbors(target, sf, pos, einfo);
         }
         else
         {
           // RULE B: we're close to a vertex, weight onto all elements
           // adjoining that vertex
-
-          // find closest vertex
-          mesh_info::vertex_number closest_vertex = 
-            mesh_info::INVALID_VERTEX;
-          double min_dist = std::numeric_limits<double>::infinity();
-
-          BOOST_FOREACH(mesh_info::vertex_number vi, el.m_vertices)
-          {
-            double dist = norm_2(m_mesh_info.m_vertices[vi] - pos);
-            if (dist < min_dist)
-            {
-              closest_vertex = vi;
-              min_dist = dist;
-            }
-          }
-          // found a close vertex, go through adjacent elements
           m_vertex_shape_adds.tick();
-
-          BOOST_FOREACH(mesh_info::element_number en, 
-              m_mesh_info.m_vertex_adj_elements[closest_vertex])
-            add_shape_on_element(target, pos, en, sf);
+          add_shape_by_vertex(target, sf, pos, einfo);
         }
       }
 
@@ -1012,7 +1155,7 @@ namespace {
         {
           tgt.begin_particle(pn);
           if (en != mesh_info::INVALID_ELEMENT)
-            add_shape(tgt, sf, radius, pn);
+            add_shape(tgt, sf, pn);
           ++pn;
         }
       }
@@ -1081,7 +1224,7 @@ namespace {
           python::init<
           unsigned, 
           unsigned, unsigned, unsigned, 
-          double, double, python::object>());
+          double, double>());
     cloud_wrap
       .DEF_RO_MEMBER(mesh_info)
 
@@ -1184,6 +1327,7 @@ BOOST_PYTHON_MODULE(_internal)
       .DEF_SIMPLE_METHOD(add_element)
       .DEF_SIMPLE_METHOD(add_vertex)
       .DEF_SIMPLE_METHOD(add_nodes)
+      .DEF_SIMPLE_METHOD(add_periodicity)
 
       .DEF_SIMPLE_METHOD(is_in_element)
       .DEF_SIMPLE_METHOD(find_containing_element)
