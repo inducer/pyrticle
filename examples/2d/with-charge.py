@@ -78,7 +78,7 @@ def main():
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.c) / 2
-    final_time = 1*units.M/max_op.c
+    final_time = 2*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -100,7 +100,7 @@ def main():
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
-    avg_x_vel = 0.8*units.VACUUM_LIGHT_SPEED
+    avg_x_vel = 0.99*units.VACUUM_LIGHT_SPEED
     mean_v = num.array([avg_x_vel, 0])
     mean_beta = mean_v/units.VACUUM_LIGHT_SPEED
     gamma = units.gamma(mean_v)
@@ -112,7 +112,7 @@ def main():
             mass=pmass,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
-            sigma_x=0.2*num.ones((2,)),
+            sigma_x=0.1*num.ones((2,)),
             sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.1,
             )
 
@@ -195,10 +195,10 @@ def main():
     eh_components = max_op.component_count()
 
     def rhs(t, y):
-        velocities = cloud.velocities()
-        rho, j = cloud.reconstruct_densities(velocities)
+        rho, j = cloud.reconstruct_densities()
 
         e, h = max_op.split_fields(y)
+        velocities = cloud.velocities()
         cloud_rhs = cloud.rhs(t, e, h, velocities)
 
         maxwell_rhs = max_op.rhs(t, y[0:eh_components])

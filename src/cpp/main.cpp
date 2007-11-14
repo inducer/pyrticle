@@ -242,13 +242,16 @@ namespace {
     private:
       hedge::vector m_target_vector;
       const hedge::vector &m_charges;
-      const hedge::vector &m_velocities;
+      const hedge::vector &m_masses;
+      const hedge::vector &m_momenta;
       double m_scale_factors[dimensions_velocity];
 
     public:
-      j_reconstruction_target(unsigned points, const hedge::vector &charges,
-          const hedge::vector &velocities)
-        : m_target_vector(3*points), m_charges(charges), m_velocities(velocities)
+      j_reconstruction_target(unsigned points, 
+          const hedge::vector &charges,
+          const hedge::vector &masses,
+          const hedge::vector &momenta)
+        : m_target_vector(3*points), m_charges(charges), m_masses(masses), m_momenta(momenta)
       { 
         m_target_vector.clear();
       }
@@ -256,8 +259,9 @@ namespace {
       void begin_particle(particle_number pn)
       {
         const double charge = m_charges[pn];
+        const double mass = m_masses[pn];
         for (unsigned axis = 0; axis < dimensions_velocity; axis++)
-          m_scale_factors[axis] = charge * m_velocities[pn*dimensions_velocity+axis];
+          m_scale_factors[axis] = charge/mass * m_momenta[pn*dimensions_velocity+axis];
       }
 
       void add_shape_at_point(unsigned i, double shape_factor)
@@ -1166,12 +1170,11 @@ namespace {
       void reconstruct_densities(
           hedge::vector &rho, 
           python::object py_j,
-          double radius,
-          const hedge::vector &velocities) const
+          double radius) const
       {
         rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
         j_reconstruction_target<m_dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
-            m_charges, velocities);
+            m_charges, m_masses, m_momenta);
 
         chained_reconstruction_target
           <rho_reconstruction_target, j_reconstruction_target<m_dimensions_velocity> >

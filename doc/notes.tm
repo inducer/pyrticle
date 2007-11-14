@@ -7,7 +7,7 @@
     <doc-data|<doc-title|Notes on PIC>>
   </hide-part|>
 
-  <\show-part|2>
+  <\hide-part|2>
     <section|Shape function Integrals>
 
     <with|prog-language|axiom|prog-session|default|<\session>
@@ -88,11 +88,11 @@
         \;
       </input>
     </session>>
-  <|show-part>
+  <|hide-part>
     <section|Shape function Integrals>
-  </show-part>
+  </hide-part>
 
-  <\hide-part|3>
+  <\show-part|3>
     <section|Initial Conditions by Lorentz Transform>
 
     Before we start, a brief remark on notation: If we let <math|\<b-v\>> be
@@ -196,7 +196,7 @@
     </eqnarray*>
 
     According to Jackson (11.149), the Lorentz Transform for transforming
-    <math|\<b-E\>>- and <math|\<b-B\>> in Gaussian units, reads:
+    <math|\<b-E\>> and <math|\<b-B\>> in Gaussian units, reads:
 
     <\eqnarray*>
       <tformat|<table|<row|<cell|\<b-E\><rprime|'>(\<b-x\><rprime|'>,t<rprime|'>)>|<cell|=>|<cell|\<gamma\>(\<b-E\>*(\<b-x\>,t)+\<b-beta\>\<times\>\<b-B\>(\<b-x\>,t))-<frac|\<gamma\><rsup|2>|\<gamma\>+1>\<b-beta\>(\<b-beta\>\<cdot\>\<b-E\>(\<b-x\>,t)),>>|<row|<cell|\<b-B\><rprime|'>(\<b-x\><rprime|'>,t<rprime|'>)>|<cell|=>|<cell|\<gamma\>(\<b-B\>(\<b-x\>,t)-\<b-beta\>\<times\>\<b-E\>(\<b-x\>,t))-<frac|\<gamma\><rsup|2>|\<gamma\>+1>\<b-beta\>(\<b-beta\>\<cdot\>\<b-B\>(x,t)).>>>>
@@ -246,9 +246,17 @@
     <\eqnarray*>
       <tformat|<table|<row|<cell|div<rsub|\<b-x\><rprime|'>>\<b-E\><rprime|'>(\<b-x\><rprime|'>)>|<cell|=>|<cell|div<rsub|\<b-x\><rprime|'>><left|[>\<gamma\><wide|\<b-E\>|~><rsub|\<perp\>\<b-beta\>>(\<b-x\><rprime|'>)+<wide|\<b-E\>|~><rsub|\<\|\|\>\<b-beta\>>(\<b-x\><rprime|'>)<right|]>>>|<row|<cell|>|<cell|=>|<cell|div<rsub|\<b-x\><rprime|'>><left|[>\<gamma\>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>)+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>|\<gamma\>><wide|\<Phi\>|~>(\<b-x\><rprime|'>)<right|]>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))|\<gamma\>>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\><left|[>\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))+<frac|\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>>\<cdot\>(\<nabla\><rsub|\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>><wide|\<Phi\>|~>(\<b-x\><rprime|'>))|\<gamma\><rsup|2>><right|]>>>|<row|<cell|>|<cell|=>|<cell|\<gamma\><left|[><frac|<wide|\<rho\>|~>(\<b-x\><rprime|'>)|\<varepsilon\>><right|]>=<frac|\<rho\><rprime|'>(\<b-x\><rprime|'>)|\<varepsilon\>>.>>>>
     </eqnarray*>
-  <|hide-part>
+
+    As a final part of this derivation, we derive an expression for the
+    current density seen in the lab frame <math|K<rprime|'>>. We note that in
+    the moving frame we have <math|\<b-J\>=(c\<rho\>,\<b-0\>)>, and find
+
+    <\eqnarray*>
+      <tformat|<table|<row|<cell|c\<rho\><rprime|'>>|<cell|=>|<cell|\<gamma\>(c\<rho\>),>>|<row|<cell|\<b-J\><rprime|'>>|<cell|=>|<cell|-\<gamma\>\<b-beta\>c\<rho\>=\<gamma\><frac|\<b-v\><rsub|0>|c>c\<rho\>=\<gamma\>\<b-v\><rsub|0>\<rho\>.>>>>
+    </eqnarray*>
+  <|show-part>
     <section|Initial Conditions by Lorentz Transform>
-  </hide-part>
+  </show-part>
 
   <\hide-part|4>
     <section|Relativistic Momentum>
