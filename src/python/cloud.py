@@ -162,6 +162,18 @@ class ParticleCloud:
     def positions(self):
         return self.icloud.positions
 
+    @property
+    def momenta(self):
+        return self.icloud.momenta
+
+    @property
+    def masses(self):
+        return self.icloud.masses
+
+    @property
+    def charges(self):
+        return self.icloud.charges
+
     def velocities(self):
         return self.icloud.velocities()
 

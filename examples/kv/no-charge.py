@@ -86,35 +86,55 @@ def main():
     last_tstep = time()
     t = 0
 
-    r_logger = MaxBeamRadiusLogger(cloud.dimensions_pos)
+    max_logger = MaxBeamRadiusLogger(cloud.dimensions_pos)
+    rms_logger = RMSBeamRadiusLogger(cloud.dimensions_pos, 0)
 
     for step in xrange(nsteps):
         if step % 100 == 0:
             print "timestep %d" % step
-        r_logger.update(t, cloud.positions, cloud.velocities())
+
+        vel = cloud.velocities()
+        max_logger.update(t, cloud.positions, vel)
+        rms_logger.update(t, cloud.positions, vel)
+
         cloud = stepper(cloud, t, dt, rhs)
         cloud.upkeep()
         t += dt
 
     vis.close()
 
-    theory_no_charge = ChargelessKVRadiusPredictor(
-            beam.radii[0], beam.emittances[0]
-            )
-    theory_with_charge = KVRadiusPredictor(
+    theory_no_charge_max = ChargelessKVRadiusPredictor(
+            beam.radii[0], beam.emittances[0])
+    theory_with_charge_max = KVRadiusPredictor(
             beam.radii[0], beam.emittances[0],
             xi=6e-5)
 
-    r_logger.generate_plot("Kapchinskij-Vladimirskij Beam Evolution, "
-            "no space charge", 
+    theory_no_charge_rms = ChargelessKVRadiusPredictor(
+            beam.rms_radii[0], beam.rms_emittances[0])
+    theory_with_charge_max = KVRadiusPredictor(
+            beam.rms_radii[0], beam.rms_emittances[0],
+            xi=6e-5)
+
+    rms_logger.generate_plot(title="Kapchinskij-Vladimirskij Beam Evolution",
+            sim_label="RMS, simulated, no space charge", 
+            outfile="beam-rad-rms.eps",
             theories=[
-                ("theoretical, no space charge", theory_no_charge), 
-                ("theoretical, with space charge", theory_with_charge)
+                ("RMS, theoretical, no space charge", theory_no_charge_rms), 
+                #("RMS, theoretical, with space charge", theory_with_charge_rms)
+                ])
+    max_logger.generate_plot(title="Kapchinskij-Vladimirskij Beam Evolution",
+            sim_label="100%, simulated, no space charge", 
+            outfile="beam-rad-max.eps",
+            theories=[
+                ("100%, theoretical, no space charge", theory_no_charge_max), 
+                ("100%, theoretical, with space charge", theory_with_charge_max)
                 ])
     
-    print "Relative error: %g" % r_logger.relative_error(theory_no_charge)
+    print "Relative error (max): %g" % max_logger.relative_error(theory_no_charge_max)
+    print "Relative error (rms): %g" % rms_logger.relative_error(theory_no_charge_rms)
+    max_logger.write_data("beam-radius-max.dat")
+    rms_logger.write_data("beam-radius-rms.dat")
              
-
 
 
 

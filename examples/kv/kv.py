@@ -12,10 +12,9 @@ def uniform_on_unit_sphere(dim):
     # http://www-alg.ist.hokudai.ac.jp/~jan/randsphere.pdf
     # Algorith due to Knuth
 
-    while True:
-        pt = num.array([gauss(0,1) for i in range(dim)])
-        n2 = comp.norm_2(pt)
-        return pt/n2
+    pt = num.array([gauss(0,1) for i in range(dim)])
+    n2 = comp.norm_2(pt)
+    return pt/n2
 
 
 
@@ -26,6 +25,12 @@ def uniform_on_unit_sphere(dim):
 class KVZIntervalBeam:
     def __init__(self, units, nparticles, p_charge, p_mass,
             radii, emittances, beta, z_length, z_pos):
+        """Construct a beam that is KV-distributed in (x,y)
+        and uniform over an interval along z.
+
+        @par radii: total (100%) radii
+        @par emittances: total (100%) emittances
+        """
 
         assert len(radii) == len(emittances)
 
@@ -45,31 +50,40 @@ class KVZIntervalBeam:
         self.z_length = z_length
         self.z_pos = z_pos
 
+    @property
+    def rms_radii(self):
+        return [r/2 for r in self.radii]
+
+    @property
+    def rms_emittances(self):
+        return [eps/4 for eps in self.emittances]
+
     def make_particle(self, vz, dim_x, dim_p):
         """Return (position, velocity) for a random particle
         according to a Kapchinskij-Vladimirskij distribution.
         """
 
-        x = uniform_on_unit_sphere(len(self.radii) + len(self.emittances))
-        pos = [xi*ri for xi, ri in zip(x[:len(self.radii)], self.radii)]
-        momenta = [x_i/r_i*eps_i 
-                for x_i, r_i, eps_i in 
-                zip(x[len(self.radii):], self.radii, self.emittances)]
+        s = uniform_on_unit_sphere(len(self.radii) + len(self.emittances))
+        x = [x_i*r_i for x_i, r_i in zip(s[:len(self.radii)], self.radii)]
+        # xp like xprime
+        xp = [s_i/r_i*eps_i 
+                for s_i, r_i, eps_i in 
+                zip(s[len(self.radii):], self.radii, self.emittances)]
 
-        one = sum(x_i**2/r_i**2 for x_i, r_i in zip(pos, self.radii)) + \
-                sum(p_i**2*r_i**2/eps_i**2 
-                for p_i, r_i, epsi in zip(momenta, self.radii, self.emittances))
+        one = sum(x_i**2/r_i**2 for x_i, r_i in zip(x, self.radii)) + \
+                sum(xp_i**2*r_i**2/eps_i**2 
+                for xp_i, r_i, epsi in zip(xp, self.radii, self.emittances))
         assert abs(one-1) < 1e-15
 
-        while len(pos) < dim_x:
-            pos.append(0)
-        while len(momenta) < dim_p:
-            momenta.append(0)
+        while len(x) < dim_x:
+            x.append(0)
+        while len(xp) < dim_p:
+            xp.append(0)
 
         z = num.array([0,0,1])
 
-        return (num.array([x_i for x_i in pos]),
-                z*vz + num.array([p_i*vz for p_i in momenta]))
+        return (num.array(x),
+                z*vz + num.array([xp_i*vz for xp_i in xp]))
 
     def add_to(self, cloud, discr):
         from random import uniform
@@ -121,6 +135,37 @@ class KVZIntervalBeam:
                 /
                 (A * self.beta**2 * self.gamma**2))
         return xi
+
+
+
+
+def calculate_rms_beam_size(cloud, axis):
+    from pytools import average
+    from math import sqrt
+
+    xdim = cloud.dimensions_pos
+
+    return sqrt(average(x**2 for x in cloud.positions[axis::xdim]))
+
+
+
+
+def calculate_rms_emittance(cloud, axis):
+    from pytools import average
+    from math import sqrt
+
+    xdim = cloud.dimensions_pos
+    vdim = cloud.dimensions_velocity
+
+    xprime = [px/pz for px, pz in zip(cloud.momenta[axis::vdim], cloud.momenta[2::vdim])]
+    mean_x_squared = average(x**2 for x in cloud.positions[axis::xdim])
+    mean_p_squared = average(xp**2 for xp in xprime)
+    squared_mean_xp = average(
+            x*xp 
+            for x, xp in zip(cloud.positions[axis::xdim], xprime)
+            )**2
+
+    return sqrt(mean_x_squared*mean_p_squared - squared_mean_xp)
 
 
 
@@ -237,7 +282,7 @@ class BeamRadiusLoggerBase:
 
         self.nparticles = 0
 
-    def generate_plot(self, title, theories, outfile="beam-rad.eps"):
+    def generate_plot(self, title, sim_label, theories, outfile="beam-rad.eps"):
         from Gnuplot import Gnuplot, Data
 
         gp = Gnuplot()
@@ -250,7 +295,7 @@ class BeamRadiusLoggerBase:
         data = [Data(
             self.s_collector, 
             self.r_collector,
-            title="simulation: %d particles" % self.nparticles,
+            title=sim_label+" [%d particles]" % self.nparticles,
             with_="lines")]
 
         for name, theory in theories:
@@ -295,6 +340,10 @@ class MaxBeamRadiusLogger(BeamRadiusLoggerBase):
 
 
 class RMSBeamRadiusLogger(BeamRadiusLoggerBase):
+    def __init__(self, dimensions, axis):
+        BeamRadiusLoggerBase.__init__(self, dimensions)
+        self.axis = axis
+
     def update(self, t, positions, velocities):
         from math import sqrt,pi
         from pytools import average
@@ -302,10 +351,12 @@ class RMSBeamRadiusLogger(BeamRadiusLoggerBase):
         dim = self.dimensions
         nparticles = len(positions) // dim
         self.nparticles = max(nparticles, self.nparticles)
-        r = sqrt(
-                average(positions[i*dim+0]**2 +positions[i*dim+1]**2
-                for i in xrange(nparticles))
-                )
+        
+        r = sqrt(average(
+            positions[i*dim+self.axis]**2
+            for i in xrange(nparticles)
+            ))
+
         vz = average(velocities[(dim-1)::dim])
         s = t*vz
 
