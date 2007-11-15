@@ -282,40 +282,66 @@ class BeamRadiusLoggerBase:
 
         self.nparticles = 0
 
-    def generate_plot(self, title, sim_label, theories, outfile="beam-rad.eps"):
-        from Gnuplot import Gnuplot, Data
+    def generate_plot(self, title, sim_label, theories, outfile="beam-rad"):
+        theory_data = [
+            (name, [theory(s) for s in self.s_collector])
+            for name, theory in theories]
+        
+        try:
+            from Gnuplot import Gnuplot, Data
 
-        gp = Gnuplot()
-        gp("set terminal postscript eps")
-        gp("set output \"%s\"" % outfile)
-        gp.title(title)
-        gp.xlabel("s [m]")
-        gp.ylabel("Beam Radius [m]")
+            gp = Gnuplot()
+            gp("set terminal postscript eps")
+            gp("set output \"%s.eps\"" % outfile)
+            gp.title(title)
+            gp.xlabel("s [m]")
+            gp.ylabel("Beam Radius [m]")
 
-        data = [Data(
-            self.s_collector, 
+            data = [Data(
+                self.s_collector, 
+                self.r_collector,
+                title=sim_label+" [%d particles]" % self.nparticles,
+                with_="lines")]
+
+            for name, data in theory_data:
+                data.append(
+                        Data(self.s_collector, data, title=name,
+                            with_="lines"))
+
+            gp.plot(*data)
+        except ImportError:
+            pass 
+
+        write_data_file(
+            "%s-sim.dat" % outfile,
+            self.s_collector,
             self.r_collector,
-            title=sim_label+" [%d particles]" % self.nparticles,
-            with_="lines")]
+            sim_label)
 
-        for name, theory in theories:
-            data.append(
-                    Data(self.s_collector, 
-                        [theory(s) for s in self.s_collector],
-                        title=name,
-                        with_="lines"))
-
-        gp.plot(*data)
-
-    def write_data(self, filename):
-        outf = open(filename, "w")
-        for s, r in zip(self.s_collector, self.r_collector):
-            outf.write("%g\t%g\n" % (s, r))
-        outf.close()
+        for i, (name, data) in enumerate(theory_data):
+            write_data_file(
+                "%s-theory-%d.dat" % (outfile, i),
+                self.s_collector,
+                data,
+                name)
 
     def relative_error(self, theory):
         true_r = [theory(s) for s in self.s_collector]
         return max(abs(r-r0)/r0 for r, r0 in zip(self.r_collector, true_r))
+
+
+
+
+def write_data_file(filename, x, y, comment=None):
+    outf = open(filename, "w")
+
+    if comment is not None:
+        outf.write("# %s\n" % comment)
+
+    for x_i, y_i in zip(x, y):
+        outf.write("%g\t%g\n" % (x_i, y_i))
+    outf.close()
+
 
 
 

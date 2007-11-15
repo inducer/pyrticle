@@ -6,4 +6,4 @@ SUBDIR="run-$NOW"
 mkdir $SUBDIR
 cp $SCRIPT $SUBDIR
 cd $SUBDIR
-exec python2.5 ../$SCRIPT
+exec time python2.5 ../$SCRIPT

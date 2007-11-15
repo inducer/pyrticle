@@ -78,7 +78,7 @@ def main():
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.c) / 2
-    final_time = 0.1*units.M/max_op.c
+    final_time = 1*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -275,7 +275,6 @@ def main():
             theories=[
                 ("RMS, theoretical, with space charge", rms_theory_with_charge)
                 ])
-    rms_r_logger.write_data("rms-beam-radius.dat")
     
     print "Relative error: %g" % rms_r_logger.relative_error(rms_theory_with_charge)
 

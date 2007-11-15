@@ -117,14 +117,14 @@ def main():
 
     rms_logger.generate_plot(title="Kapchinskij-Vladimirskij Beam Evolution",
             sim_label="RMS, simulated, no space charge", 
-            outfile="beam-rad-rms.eps",
+            outfile="beam-rad-rms",
             theories=[
                 ("RMS, theoretical, no space charge", theory_no_charge_rms), 
                 #("RMS, theoretical, with space charge", theory_with_charge_rms)
                 ])
     max_logger.generate_plot(title="Kapchinskij-Vladimirskij Beam Evolution",
             sim_label="100%, simulated, no space charge", 
-            outfile="beam-rad-max.eps",
+            outfile="beam-rad-max",
             theories=[
                 ("100%, theoretical, no space charge", theory_no_charge_max), 
                 ("100%, theoretical, with space charge", theory_with_charge_max)
@@ -132,8 +132,6 @@ def main():
     
     print "Relative error (max): %g" % max_logger.relative_error(theory_no_charge_max)
     print "Relative error (rms): %g" % rms_logger.relative_error(theory_no_charge_rms)
-    max_logger.write_data("beam-radius-max.dat")
-    rms_logger.write_data("beam-radius-rms.dat")
              
 
 

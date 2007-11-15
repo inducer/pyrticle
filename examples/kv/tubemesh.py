@@ -59,8 +59,8 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
         pbcg.set_transform(translation=[0,0,max_z-min_z])
 
         mesh = build(mesh_info, verbose=True, volume_constraints=True)
-        print "%d elements" % len(mesh.elements)
-        mesh.write_vtk("gun.vtk")
+        #print "%d elements" % len(mesh.elements)
+        #mesh.write_vtk("gun.vtk")
 
         from hedge.mesh import ConformalMesh
 
