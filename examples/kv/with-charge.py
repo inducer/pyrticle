@@ -78,7 +78,7 @@ def main():
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.c) / 2
-    final_time = 1*units.M/max_op.c
+    final_time = 0.3*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -93,7 +93,7 @@ def main():
     # particles setup ---------------------------------------------------------
     cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
-    nparticles = 1000
+    nparticles = 3000
     cloud_charge = 1e-9 * units.C
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
@@ -220,6 +220,23 @@ def main():
 
     rms_r_logger = RMSBeamRadiusLogger(cloud.dimensions_pos, 0)
 
+    rms_theory_with_charge = KVRadiusPredictor(
+            beam.rms_radii[rms_r_logger.axis], 
+            beam.rms_emittances[rms_r_logger.axis],
+            xi=beam.get_space_charge_parameter())
+
+    def write_out_plots():
+        rms_r_logger.generate_plot(
+                title="Kapchinskij-Vladimirskij Beam Evolution",
+                sim_label="RMS, simulated, with space charge", 
+                outfile="beam-rad-rms.eps",
+                theories=[
+                    ("RMS, theoretical, with space charge", rms_theory_with_charge)
+                    ])
+
+    from pytools.stopwatch import EtaEstimator
+    eta = EtaEstimator(nsteps)
+
     for step in xrange(nsteps):
         if True:
             visf = vis.make_file("pic-%04d" % step)
@@ -241,9 +258,9 @@ def main():
         fields = stepper(fields, t, dt, fields.rhs)
         cloud.upkeep()
 
-        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
+        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f eta=%s particles=%d" % (
                 step, t, l2_norm(fields.e), l2_norm(fields.h),
-                time()-last_tstep, len(cloud))
+                time()-last_tstep, eta.estimate(step), len(cloud))
         last_tstep = time()
 
         if False:
@@ -261,22 +278,15 @@ def main():
 
         t += dt
 
+        if step % 100 == 0:
+            write_out_plots()
+
     vis.close()
+        
+    write_out_plots()
 
-    rms_theory_with_charge = KVRadiusPredictor(
-            beam.rms_radii[rms_r_logger.axis], 
-            beam.rms_emittances[rms_r_logger.axis],
-            xi=beam.get_space_charge_parameter())
-
-    rms_r_logger.generate_plot(
-            title="Kapchinskij-Vladimirskij Beam Evolution",
-            sim_label="RMS, simulated, with space charge", 
-            outfile="beam-rad-rms.eps",
-            theories=[
-                ("RMS, theoretical, with space charge", rms_theory_with_charge)
-                ])
-    
     print "Relative error: %g" % rms_r_logger.relative_error(rms_theory_with_charge)
+
 
 
 
