@@ -1,9 +1,16 @@
 #! /bin/sh
 
+if test "$1" = "" || test "$2" != "--" ; then
+  echo "usage: $0 moniker -- commands"
+  exit 1
+fi
+
 NOW="`date +%Y-%m-%d-%H%M`"
-SCRIPT="$1"
-SUBDIR="run-$NOW"
+MONIKER="$1"
+shift
+shift
+SUBDIR="$MONIKER-$NOW"
 mkdir $SUBDIR
-cp $SCRIPT $SUBDIR
 cd $SUBDIR
-exec time python2.5 ../$SCRIPT
+echo "$@" > commandline.log
+"$@" | tee run.log

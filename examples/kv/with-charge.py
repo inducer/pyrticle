@@ -37,7 +37,40 @@ def main():
 
     seed(0)
 
-    beam_radius = 2.5*units.MM
+    # parse command line ------------------------------------------------------
+    from optparse import OptionParser
+    parser = OptionParser()
+    parser.add_option(
+            "--radial-subdiv", dest="radial_subdiv", default="10",
+            help="how many angular subdivisions in the surface mesh")
+    parser.add_option(
+            "--tube-length", dest="tube_length", default="0.1",
+            help="how long a beam tube [m]")
+    parser.add_option(
+            "--nparticles", dest="nparticles", default="1000",
+            help="how many particles")
+    parser.add_option(
+            "--beam-radius", dest="beam_radius", default="2.5",
+            help="radius of the beam [mm]")
+    parser.add_option(
+            "--emittance", dest="emittance", default="5",
+            help="total emittance of the beam [mm*mrad]")
+    parser.add_option(
+            "--final-time", dest="final_time", default="0.1",
+            help="how long to run the computation [m]")
+    parser.add_option(
+            "--field-dump-interval", dest="field_dump_interval", default="100",
+            help="every how many time steps to dump the fields")
+
+    options, args = parser.parse_args()
+
+    radial_subdiv = int(options.radial_subdiv)
+    tube_length = float(options.tube_length)*units.M
+    nparticles = int(options.nparticles)
+    beam_radius = float(options.beam_radius)*units.MM
+    emittance = float(options.emittance) * units.MM * units.MRAD
+    final_time = float(options.final_time)*units.M/units.VACUUM_LIGHT_SPEED
+    field_dump_interval = int(options.field_dump_interval)
 
     # discretization setup ----------------------------------------------------
     job = Job("mesh")
@@ -45,14 +78,13 @@ def main():
             #max_volume=1000*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
-    if True:
-        full_mesh = make_cylinder_with_fine_core(
-                r=10*beam_radius, inner_r=1*beam_radius, 
-                min_z=0, max_z=20*beam_radius,
-                max_volume_inner=10*units.MM**3,
-                max_volume_outer=100*units.MM**3,
-                radial_subdiv=10,
-                )
+    full_mesh = make_cylinder_with_fine_core(
+            r=10*beam_radius, inner_r=1*beam_radius, 
+            min_z=0, max_z=tube_length,
+            max_volume_inner=10*units.MM**3,
+            max_volume_outer=100*units.MM**3,
+            radial_subdiv=radial_subdiv,
+            )
     job.done()
 
     from hedge.parallel import guess_parallelization_context
@@ -78,7 +110,6 @@ def main():
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.c) / 2
-    final_time = 0.3*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -93,13 +124,9 @@ def main():
     # particles setup ---------------------------------------------------------
     cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
-    nparticles = 3000
     cloud_charge = 1e-9 * units.C
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
-
-    emittance = 5 * units.MM * units.MRAD
-    initial_radius = 2.5*units.MM
 
     el_energy = 5.2e6 * units.EV
     #el_energy = units.EL_REST_ENERGY*1.00001
@@ -229,7 +256,7 @@ def main():
         rms_r_logger.generate_plot(
                 title="Kapchinskij-Vladimirskij Beam Evolution",
                 sim_label="RMS, simulated, with space charge", 
-                outfile="beam-rad-rms.eps",
+                outfile="beam-rad-rms",
                 theories=[
                     ("RMS, theoretical, with space charge", rms_theory_with_charge)
                     ])
@@ -238,7 +265,7 @@ def main():
     eta = EtaEstimator(nsteps)
 
     for step in xrange(nsteps):
-        if True:
+        if step % field_dump_interval == 0:
             visf = vis.make_file("pic-%04d" % step)
 
             mesh_scalars, mesh_vectors = \
