@@ -282,7 +282,25 @@ class BeamRadiusLoggerBase:
 
         self.nparticles = 0
 
-    def generate_plot(self, title, sim_label, theories, outfile="beam-rad"):
+    def read_data(self, name):
+        inf = open(name, "r")
+        for line in inf.readlines():
+            line = line.strip()
+            if line == "":
+                continue
+            if line[0] == "#": 
+                continue
+
+            values = line.split()
+            if len(values) >= 2:
+                self.s_collector.append(float(values[0]))
+                self.r_collector.append(float(values[1]))
+
+        inf.close()
+
+
+    def generate_plot(self, title, sim_label, theories, outfile="beam-rad",
+            no_overwrite=False):
         theory_data = [
             (name, [theory(s) for s in self.s_collector])
             for name, theory in theories]
@@ -316,14 +334,16 @@ class BeamRadiusLoggerBase:
             "%s-sim.dat" % outfile,
             self.s_collector,
             self.r_collector,
-            sim_label)
+            sim_label,
+            no_overwrite)
 
         for i, (name, data) in enumerate(theory_data):
             write_data_file(
                 "%s-theory-%d.dat" % (outfile, i),
                 self.s_collector,
                 data,
-                name)
+                name,
+                no_overwrite)
 
     def relative_error(self, theory):
         true_r = [theory(s) for s in self.s_collector]
@@ -332,7 +352,12 @@ class BeamRadiusLoggerBase:
 
 
 
-def write_data_file(filename, x, y, comment=None):
+def write_data_file(filename, x, y, comment=None, no_overwrite=False):
+    if no_overwrite:
+        import os
+        if os.access(filename, os.R_OK):
+            raise IOError, "cowardly refusing to overwrite '%s'" % filename
+    
     outf = open(filename, "w")
 
     if comment is not None:
