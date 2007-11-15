@@ -1,0 +1,9 @@
+#! /bin/sh
+
+NOW="`date +%Y-%m-%d-%H%M`"
+SCRIPT="$1"
+SUBDIR="run-$NOW"
+mkdir $SUBDIR
+cp $SCRIPT $SUBDIR
+cd $SUBDIR
+exec python2.5 ../$SCRIPT

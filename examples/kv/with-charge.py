@@ -38,18 +38,20 @@ def main():
     seed(0)
 
     beam_radius = 2.5*units.MM
+
     # discretization setup ----------------------------------------------------
     job = Job("mesh")
-    full_mesh = make_cylinder_mesh(radius=25*units.MM, height=25*units.MM, periodic=True,
-            max_volume=1000*units.MM**3, radial_subdivisions=10)
+    #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=25*units.MM, periodic=True,
+            #max_volume=1000*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
-    if False:
+    if True:
         full_mesh = make_cylinder_with_fine_core(
-                r=10*beam_radius, inner_r=1.5*beam_radius, 
+                r=10*beam_radius, inner_r=1*beam_radius, 
                 min_z=0, max_z=20*beam_radius,
-                max_volume_inner=1*units.MM**3,
+                max_volume_inner=10*units.MM**3,
                 max_volume_outer=100*units.MM**3,
+                radial_subdiv=10,
                 )
     job.done()
 
@@ -76,7 +78,7 @@ def main():
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.c) / 2
-    final_time = 0.01*units.M/max_op.c
+    final_time = 0.1*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -91,7 +93,7 @@ def main():
     # particles setup ---------------------------------------------------------
     cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
-    nparticles = 10000
+    nparticles = 1000
     cloud_charge = 1e-9 * units.C
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
@@ -110,7 +112,7 @@ def main():
     beam = KVZIntervalBeam(units, nparticles, 
             p_charge=cloud_charge/nparticles, 
             p_mass=electrons_per_particle*units.EL_MASS,
-            radii=2*[2.5*units.MM],
+            radii=2*[beam_radius],
             emittances=2*[5 * units.MM * units.MRAD], 
             z_length=5*units.MM,
             z_pos=10*units.MM,
