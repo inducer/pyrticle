@@ -432,6 +432,11 @@ namespace {
 
 
 
+      static element_number get_INVALID_ELEMENT() { return INVALID_ELEMENT; }
+
+
+
+
       void add_local_discretization(python::list basis,
           const hedge::matrix &l_vdmt, 
           const hedge::matrix &u_vdmt, 
@@ -623,9 +628,6 @@ namespace {
       // member data ----------------------------------------------------------
       mesh_info                         m_mesh_info;
 
-      static const unsigned             m_dimensions_pos = dimensions_pos;
-      static const unsigned             m_dimensions_velocity = dimensions_velocity;
-
       mesh_info::el_id_vector           m_containing_elements;
       hedge::vector                     m_positions;
       hedge::vector                     m_momenta;
@@ -666,10 +668,17 @@ namespace {
 
 
 
+      static unsigned get_dimensions_pos()
+      { return dimensions_pos; }
+
+      static unsigned get_dimensions_velocity()
+      { return dimensions_velocity; }
+
+
       // operation ------------------------------------------------------------
       const hedge::vector velocities() const
       {
-        const unsigned vdim = m_dimensions_velocity;
+        const unsigned vdim = dimensions_velocity;
 
         hedge::vector result(m_momenta.size());
 
@@ -696,7 +705,7 @@ namespace {
       mesh_info::element_number find_new_containing_element(particle_number i,
           mesh_info::element_number prev) const
       {
-        const unsigned xdim = m_dimensions_pos;
+        const unsigned xdim = dimensions_pos;
 
         const unsigned x_pstart = i*xdim;
         const unsigned x_pend = (i+1)*xdim;
@@ -826,8 +835,8 @@ namespace {
 
       void boundary_hit(particle_number pn)
       {
-        unsigned x_pstart = pn*m_dimensions_pos;
-        unsigned x_pend = (pn+1)*m_dimensions_pos;
+        unsigned x_pstart = pn*dimensions_pos;
+        unsigned x_pend = (pn+1)*dimensions_pos;
 
         bool periodicity_trip = false;
 
@@ -866,13 +875,13 @@ namespace {
         m_containing_elements[pn] = mesh_info::INVALID_ELEMENT;
         m_deadlist.push_back(pn);
 
-        unsigned v_pstart = pn*m_dimensions_velocity;
-        unsigned v_pend = (pn+1)*m_dimensions_velocity;
+        unsigned v_pstart = pn*dimensions_velocity;
+        unsigned v_pend = (pn+1)*dimensions_velocity;
 
         subrange(m_positions, x_pstart, x_pend) = 
-          zero_vector(m_dimensions_pos);
+          zero_vector(dimensions_pos);
         subrange(m_momenta, v_pstart, v_pend) = 
-          zero_vector(m_dimensions_velocity);
+          zero_vector(dimensions_velocity);
       }
 
 
@@ -909,15 +918,15 @@ namespace {
 
         for (particle_number i = 0; i < m_containing_elements.size(); i++)
         {
-          unsigned x_pstart = m_dimensions_pos*i;
-          unsigned x_pend = m_dimensions_pos*(i+1);
-          unsigned v_pstart = m_dimensions_velocity*i;
-          unsigned v_pend = m_dimensions_velocity*(i+1);
+          unsigned x_pstart = dimensions_pos*i;
+          unsigned x_pend = dimensions_pos*(i+1);
+          unsigned v_pstart = dimensions_velocity*i;
+          unsigned v_pend = dimensions_velocity*(i+1);
 
           mesh_info::element_number in_el = m_containing_elements[i];
           if (in_el == mesh_info::INVALID_ELEMENT)
           {
-            subrange(result, v_pstart, v_pend) = zero_vector(m_dimensions_pos);
+            subrange(result, v_pstart, v_pend) = zero_vector(dimensions_pos);
             continue;
           }
 
@@ -944,9 +953,9 @@ namespace {
           const hedge::vector v = subrange(velocities, v_pstart, v_pend);
           hedge::vector lorentz_force = cross(v, charge*b);
 
-          // truncate forces to m_dimensions_velocity entries
+          // truncate forces to dimensions_velocity entries
           subrange(result, v_pstart, v_pend) = subrange(
-              el_force + lorentz_force, 0, m_dimensions_velocity);
+              el_force + lorentz_force, 0, dimensions_velocity);
 
           if (update_vis_info)
           {
@@ -1090,7 +1099,7 @@ namespace {
           const ShapeFunction &sf,
           particle_number pn) const
       {
-        const unsigned dim = m_dimensions_pos;
+        const unsigned dim = dimensions_pos;
         const hedge::vector pos = subrange(
             m_positions, pn*dim, (pn+1)*dim);
         const mesh_info::element_number containing_el = 
@@ -1111,7 +1120,7 @@ namespace {
         // well alone, but falls flat on its face for near the center of the hypotenuse
         // of a right triangle.
 
-        // FIXME this assumes m_dimension_pos == m_dimension_mesh
+        // FIXME this assumes dimension_pos == dimension_mesh
         hedge::vector unit_pt = einfo.m_inverse_map(pos);
         
         bool can_use_rule_a = true;
@@ -1172,11 +1181,11 @@ namespace {
           double radius) const
       {
         rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
-        j_reconstruction_target<m_dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
+        j_reconstruction_target<dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
             m_charges, m_masses, m_momenta);
 
         chained_reconstruction_target
-          <rho_reconstruction_target, j_reconstruction_target<m_dimensions_velocity> >
+          <rho_reconstruction_target, j_reconstruction_target<dimensions_velocity> >
           tgt(rho_tgt, j_tgt);
         reconstruct_densities_on_target(tgt, radius);
 
@@ -1188,12 +1197,12 @@ namespace {
               python::stl_input_iterator<hedge::vector &>(py_j),
               python::stl_input_iterator<hedge::vector &>()))
         {
-          if (i >= m_dimensions_velocity)
+          if (i >= dimensions_velocity)
             throw std::runtime_error("j field must have v_dim dimensions");
           j_i = subslice(j_tgt.result(), 
-              i++, m_dimensions_velocity, m_mesh_info.m_nodes.size());
+              i++, dimensions_velocity, m_mesh_info.m_nodes.size());
         }
-        if (i < m_dimensions_velocity)
+        if (i < dimensions_velocity)
             throw std::runtime_error("j field must have v_dim dimensions");
       }
 
@@ -1202,7 +1211,7 @@ namespace {
 
       void reconstruct_j(python::object py_j, double radius) const
       {
-        j_reconstruction_target<m_dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
+        j_reconstruction_target<dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
             m_charges, m_masses, m_momenta);
 
         reconstruct_densities_on_target(j_tgt, radius);
@@ -1213,12 +1222,12 @@ namespace {
               python::stl_input_iterator<hedge::vector &>(py_j),
               python::stl_input_iterator<hedge::vector &>()))
         {
-          if (i >= m_dimensions_velocity)
+          if (i >= dimensions_velocity)
             throw std::runtime_error("j field must have v_dim dimensions");
           j_i = subslice(j_tgt.result(), 
-              i++, m_dimensions_velocity, m_mesh_info.m_nodes.size());
+              i++, dimensions_velocity, m_mesh_info.m_nodes.size());
         }
-        if (i < m_dimensions_velocity)
+        if (i < dimensions_velocity)
             throw std::runtime_error("j field must have v_dim dimensions");
       }
 
@@ -1253,10 +1262,10 @@ namespace {
           unsigned, unsigned, unsigned, 
           double>());
     cloud_wrap
-      .DEF_RO_MEMBER(mesh_info)
+      .add_static_property("dimensions_pos", &cl::get_dimensions_pos)
+      .add_static_property("dimensions_velocity", &cl::get_dimensions_velocity)
 
-      .DEF_RO_MEMBER(dimensions_pos)
-      .DEF_RO_MEMBER(dimensions_velocity)
+      .DEF_RO_MEMBER(mesh_info)
 
       .DEF_RO_MEMBER(containing_elements)
       .DEF_RW_MEMBER(positions)
@@ -1283,7 +1292,7 @@ namespace {
       .DEF_SIMPLE_METHOD(update_containing_elements)
       ;
 
-    if (Cloud::m_dimensions_velocity == 3)
+    if (Cloud::get_dimensions_velocity() == 3)
     {
       cloud_wrap
         .def("forces", &cl::template forces< // full-field case
@@ -1294,7 +1303,7 @@ namespace {
              arg("velocities"), arg("verbose_vis")))
         ;
     }
-    else if (Cloud::m_dimensions_velocity == 2)
+    else if (Cloud::get_dimensions_velocity() == 2)
     {
       cloud_wrap
         .def("forces", &cl::template forces< // TM case
@@ -1345,7 +1354,8 @@ BOOST_PYTHON_MODULE(_internal)
     typedef mesh_info cl;
     python::class_<cl, boost::noncopyable>("MeshInfo", 
         python::init<unsigned, unsigned, unsigned, unsigned>())
-      .def_readonly("INVALID_ELEMENT", &cl::INVALID_ELEMENT)
+      .add_static_property("INVALID_ELEMENT", &cl::get_INVALID_ELEMENT)
+
       .DEF_RW_MEMBER(nodes)
       .DEF_RO_MEMBER(dimensions)
 
