@@ -18,7 +18,7 @@ vars = [
     ("MPICXX", None,
         "Path to MPI C++ compiler (defaults to same as MPICC)"),
     ("BOOST_MPI_LIBNAME", "boost_mpi-gcc42-mt",
-        "Path to MPI C++ compiler (defaults to same as MPICC)"),
+        "The name of the Boost MPI library binary (without lib and .so)"),
     # -------------------------------------------------------------------------
     ("CXXFLAGS", "-Wno-sign-compare",
         "Any extra C++ compiler options to include"),

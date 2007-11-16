@@ -116,7 +116,7 @@ class KVZIntervalBeam:
         cloud.add_particles(positions, velocities, 
                 self.p_charge, self.p_mass)
 
-    def get_space_charge_parameter(self):
+    def get_total_space_charge_parameter(self):
         from math import pi
 
         Q = self.p_charge / self.units.EL_CHARGE
@@ -135,6 +135,10 @@ class KVZIntervalBeam:
                 /
                 (A * self.beta**2 * self.gamma**2))
         return xi
+
+    def get_rms_space_charge_parameter(self):
+        # by rms scaling analysis 
+        return self.get_total_space_charge_parameter()/4
 
 
 
