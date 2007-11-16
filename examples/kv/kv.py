@@ -45,7 +45,7 @@ class KVZIntervalBeam:
         self.emittances = emittances
 
         self.beta = beta
-        self.gamma = (1-beta)**(-0.5)
+        self.gamma = (1-beta**2)**(-0.5)
 
         self.z_length = z_length
         self.z_pos = z_pos
@@ -119,8 +119,6 @@ class KVZIntervalBeam:
     def get_total_space_charge_parameter(self):
         from math import pi
 
-        Q = self.p_charge / self.units.EL_CHARGE
-
         # see (1.3) in Alex Wu Chao and 
         # http://en.wikipedia.org/wiki/Classical_electron_radius
         r0 = 1/(4*pi*self.units.EPSILON0)*( 
@@ -128,16 +126,36 @@ class KVZIntervalBeam:
                 /
                 (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED**2))
 
-        lambda_ = self.nparticles/self.z_length
-        A = self.p_mass / self.units.EL_MASS
+        Q = 1 # unit charges per particle
+        A = 1 # unit masses per particle
+        # "unit" refers to what's used in the classical radius
 
-        xi = ((4 * Q**2 * r0 * lambda_)
-                /
-                (A * self.beta**2 * self.gamma**2))
-        return xi
+        total_charge = self.p_charge*self.nparticles
+        lambda_ = total_charge/(self.z_length*self.units.EL_CHARGE)
+        print "total_charge", total_charge
+        print "z_length", self.z_length
+        print "lambda", lambda_
+
+        print  "beta", self.beta
+        print  "gamma", self.gamma
+
+        # factor of 2 here is uncertain
+        # from S.Y.Lee, Accelerator Physics, p. 68
+        # 2nd ed. 
+        # (2.140), space charge term (2.136)
+
+        xi = 2*((lambda_ * r0) / (self.beta**2 * self.gamma**3))
+        print "xi", xi
+
+        # Chao form (wrong)
+        #xi = ((4 * Q**2 * r0 * lambda_)
+                #/
+                #(A * self.beta**2 * self.gamma**2))
+
+        return 15*xi
 
     def get_rms_space_charge_parameter(self):
-        # by rms scaling analysis 
+        # by rms scaling analysis on the KV ODE
         return self.get_total_space_charge_parameter()/4
 
 
