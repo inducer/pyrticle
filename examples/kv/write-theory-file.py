@@ -82,7 +82,7 @@ def main():
     rms_theory_with_charge = KVRadiusPredictor(
             beam.rms_radii[rms_r_logger.axis], 
             beam.rms_emittances[rms_r_logger.axis],
-            xi=beam.get_space_charge_parameter())
+            xi=beam.get_rms_space_charge_parameter())
 
     rms_r_logger.generate_plot(
             title="Kapchinskij-Vladimirskij Beam Evolution",
