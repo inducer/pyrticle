@@ -152,7 +152,7 @@ class KVZIntervalBeam:
                 #/
                 #(A * self.beta**2 * self.gamma**2))
 
-        return 15*xi
+        return xi
 
     def get_rms_space_charge_parameter(self):
         # by rms scaling analysis on the KV ODE
