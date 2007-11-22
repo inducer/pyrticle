@@ -37,40 +37,12 @@ def main():
 
     seed(0)
 
-    # parse command line ------------------------------------------------------
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option(
-            "--radial-subdiv", dest="radial_subdiv", default="10",
-            help="how many angular subdivisions in the surface mesh")
-    parser.add_option(
-            "--tube-length", dest="tube_length", default="0.1",
-            help="how long a beam tube [m]")
-    parser.add_option(
-            "--nparticles", dest="nparticles", default="1000",
-            help="how many particles")
-    parser.add_option(
-            "--beam-radius", dest="beam_radius", default="2.5",
-            help="radius of the beam [mm]")
-    parser.add_option(
-            "--emittance", dest="emittance", default="5",
-            help="total emittance of the beam [mm*mrad]")
-    parser.add_option(
-            "--final-time", dest="final_time", default="0.1",
-            help="how long to run the computation [m]")
-    parser.add_option(
-            "--field-dump-interval", dest="field_dump_interval", default="100",
-            help="every how many time steps to dump the fields")
-
-    options, args = parser.parse_args()
-
-    radial_subdiv = int(options.radial_subdiv)
-    tube_length = float(options.tube_length)*units.M
-    nparticles = int(options.nparticles)
-    beam_radius = float(options.beam_radius)*units.MM
-    emittance = float(options.emittance) * units.MM * units.MRAD
-    final_time = float(options.final_time)*units.M/units.VACUUM_LIGHT_SPEED
-    field_dump_interval = int(options.field_dump_interval)
+    nparticles = 10000
+    beam_radius = 2.5 * units.MM
+    emittance = 5 * units.MM * units.MRAD
+    final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
+    field_dump_interval = 1
+    tube_length = 20*units.MM
 
     # discretization setup ----------------------------------------------------
     job = Job("mesh")
@@ -83,7 +55,7 @@ def main():
             min_z=0, max_z=tube_length,
             max_volume_inner=10*units.MM**3,
             max_volume_outer=100*units.MM**3,
-            radial_subdiv=radial_subdiv,
+            radial_subdiv=10,
             )
     job.done()
 
@@ -141,8 +113,8 @@ def main():
             p_mass=electrons_per_particle*units.EL_MASS,
             radii=2*[beam_radius],
             emittances=2*[5 * units.MM * units.MRAD], 
-            z_length=5*units.MM,
-            z_pos=10*units.MM,
+            z_length=tube_length,
+            z_pos=tube_length/2,
             beta=beta)
     beam.add_to(cloud, discr)
 
@@ -152,6 +124,23 @@ def main():
         from hedge.mesh import TAG_ALL, TAG_NONE
         from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
         from hedge.tools import cross
+
+        q_per_unit_z = cloud_charge/beam.z_length
+        class TheoreticalEField():
+            shape = (3,)
+
+            def __call__(self, x):
+                r = comp.norm_2(x[:2])
+                if r >= max(beam.radii):
+                    xy_unit = x/r
+                    xy_unit[2] = 0
+                    return xy_unit*((gamma*q_per_unit_z)
+                            /
+                            (2*pi*r*max_op.epsilon))
+                else:
+                    return num.zeros((3,))
+
+        e_theory = discr.interpolate_volume_function(TheoreticalEField())
 
         # see doc/notes.tm for derivation of IC
 
@@ -212,6 +201,7 @@ def main():
                 ("divDcentral", divDprime_central),
                 ("phi", phi),
                 ("e", eprime), 
+                ("e_theory", e_theory), 
                 ("h", hprime), 
                 ],
                 scale_factor=1e30

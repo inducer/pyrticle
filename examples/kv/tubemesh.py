@@ -17,12 +17,15 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
         inner_points, inner_facets, inner_tags = \
                 generate_surface_of_revolution(
                         [
-                            (0,min_z), 
                             (inner_r, min_z), 
                             (inner_r, max_z),
-                            (0, max_z)],
-                        ring_tags=[MINUS_Z_MARKER, 0, PLUS_Z_MARKER],
-                        radial_subdiv=radial_subdiv)
+                            ],
+                        minus_z_closure_tag=MINUS_Z_MARKER,
+                        plus_z_closure_tag=PLUS_Z_MARKER,
+                        radial_subdiv=radial_subdiv,
+                        closure=EXT_CLOSE_IN_Z)
+
+        inner_point_indices = range(len(inner_points))
 
         outer_points, outer_facets, outer_tags = \
                 generate_surface_of_revolution(
@@ -34,7 +37,14 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
                         ring_tags=[MINUS_Z_MARKER, 0, PLUS_Z_MARKER],
                         point_idx_offset=len(inner_points),
                         closure=EXT_OPEN,
-                        radial_subdiv=radial_subdiv)
+                        radial_subdiv=radial_subdiv,
+                        ring_point_indices=[
+                            inner_point_indices[:radial_subdiv],
+                            None,
+                            None,
+                            inner_point_indices[radial_subdiv:],
+                            ]
+                        )
 
         mesh_info = MeshInfo()
         mesh_info.set_points(inner_points + outer_points)

@@ -96,7 +96,7 @@ def main():
     cloud = ParticleCloud(discr, units, dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
 
-    cloud_charge = 1e-9 * units.C
+    cloud_charge = -1e-9 * units.C
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
     print "e-/particle = ", electrons_per_particle 
 
