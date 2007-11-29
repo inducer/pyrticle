@@ -97,7 +97,7 @@ def main():
             verbose_vis=True)
 
     cloud_charge = -1e-9 * units.C
-    electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
+    electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
     avg_x_vel = 0.99*units.VACUUM_LIGHT_SPEED

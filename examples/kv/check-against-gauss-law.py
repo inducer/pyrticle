@@ -97,11 +97,11 @@ def main():
     cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
     cloud_charge = -1e-9 * units.C
-    electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
+    electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
-    el_energy = 5.2e6 * units.EV
-    #el_energy = units.EL_REST_ENERGY*1.00001
+    #el_energy = 5.2e6 * units.EV
+    el_energy = units.EL_REST_ENERGY
     el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
     #el_lorentz_gamma = 100000
     beta = (1-1/el_lorentz_gamma**2)**0.5
@@ -140,7 +140,15 @@ def main():
                 else:
                     return num.zeros((3,))
 
+        def theory_indicator(x):
+            r = comp.norm_2(x[:2])
+            if r >= max(beam.radii):
+                return 1
+            else:
+                return 0
+
         e_theory = discr.interpolate_volume_function(TheoreticalEField())
+        theory_ind = discr.interpolate_volume_function(theory_indicator)
 
         # see doc/notes.tm for derivation of IC
 
@@ -202,6 +210,7 @@ def main():
                 ("phi", phi),
                 ("e", eprime), 
                 ("e_theory", e_theory), 
+                ("theory_ind", theory_ind), 
                 ("h", hprime), 
                 ],
                 scale_factor=1e30

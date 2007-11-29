@@ -125,7 +125,7 @@ def main():
     cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
     cloud_charge = -1e-9 * units.C
-    electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
+    electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
     el_energy = 5.2e6 * units.EV
@@ -145,6 +145,10 @@ def main():
             z_pos=10*units.MM,
             beta=beta)
     beam.add_to(cloud, discr)
+    from kv import calculate_rms_energy_spread
+
+    print "energy spread: %g %%" % (
+            calculate_rms_energy_spread(cloud) * 100)
 
     # intial condition --------------------------------------------------------
     def compute_initial_condition():

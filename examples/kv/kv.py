@@ -106,7 +106,9 @@ class KVZIntervalBeam:
                     dim_x=cloud.dimensions_pos, dim_p=cloud.dimensions_velocity)
 
             my_beta = comp.norm_2(v)/self.units.VACUUM_LIGHT_SPEED
-            assert abs(self.beta - my_beta)/self.beta < 1e-4
+            
+            if abs(self.beta) > 1e-4:
+                assert abs(self.beta - my_beta)/self.beta < 1e-4
 
             positions.append(center
                     +pos
@@ -127,7 +129,10 @@ class KVZIntervalBeam:
                 (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED**2))
 
         total_charge = self.p_charge*self.nparticles
-        lambda_ = total_charge/(self.z_length*self.units.EL_CHARGE)
+
+        # FIXME !!!! the extra gamma is a fixup for the botched test run
+        #lambda_ = total_charge/(self.z_length*self.units.EL_CHARGE)
+        lambda_ = self.gamma*total_charge/(self.z_length*self.units.EL_CHARGE)
 
         #print "total_charge", total_charge
         #print "z_length", self.z_length
@@ -142,16 +147,16 @@ class KVZIntervalBeam:
         # 2nd ed. 
         # (2.140), space charge term (2.136)
 
-        #xi = 2*((lambda_ * r0) / (self.beta**2 * self.gamma**3))
+        xi = 4*((lambda_ * r0) / (self.beta**2 * self.gamma**3))
 
         Q = 1 # unit charges per particle
         A = 1 # unit masses per particle
 
         # "unit" refers to what's used in the classical radius
         # Chao form
-        xi = ((4 * Q**2 * r0 * lambda_)
-                /
-                (A * self.beta**2 * self.gamma**2))
+        #xi = ((4 * Q**2 * r0 * lambda_)
+                #/
+                #(A * self.beta**2 * self.gamma**3))
 
         return xi
 
@@ -189,6 +194,36 @@ def calculate_rms_emittance(cloud, axis):
             )**2
 
     return sqrt(mean_x_squared*mean_p_squared - squared_mean_xp)
+
+
+
+
+def calculate_rms_energy_spread(cloud):
+    from pytools import average
+    from math import sqrt
+
+    xdim = cloud.dimensions_pos
+    vdim = cloud.dimensions_velocity
+
+    velocities = cloud.velocities()
+
+    def generate_separate_vectors(vec, dim):
+        assert len(vec) % dim == 0
+        subvectors = len(vec)//dim
+        for i in range(subvectors):
+            yield vec[i*dim:(i+1)*dim]
+
+    from pytools import average
+
+    gammas = [cloud.units.gamma(v) 
+            for v in generate_separate_vectors(cloud.velocities(), vdim)]
+    energies = [gamma*m*cloud.units.VACUUM_LIGHT_SPEED**2
+            for gamma, m in zip(gammas, cloud.masses)]
+    mean_energy = average(energies)
+    squared_mean_energy = average(energies)**2
+
+    return sqrt(average(energy**2 for energy in energies)
+            -squared_mean_energy)/mean_energy
 
 
 
@@ -344,9 +379,9 @@ class BeamRadiusLoggerBase:
                 title=sim_label+" [%d particles]" % self.nparticles,
                 with_="lines")]
 
-            for name, data in theory_data:
+            for name, theory_r in theory_data:
                 data.append(
-                        Data(self.s_collector, data, title=name,
+                        Data(self.s_collector, theory_r, title=name,
                             with_="lines"))
 
             gp.plot(*data)
