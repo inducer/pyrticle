@@ -26,3 +26,5 @@ dump.py
 *-2007-*
 *-2008-*
 *-2009-*
+*.bak
+*-gdbcommands

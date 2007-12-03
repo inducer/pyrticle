@@ -1,4 +1,4 @@
-<TeXmacs|1.0.6.11>
+<TeXmacs|1.0.6.12>
 
 <style|<tuple|article|axiom|maxima>>
 
@@ -6,22 +6,6 @@
   <doc-data|<doc-title|Notes on PIC>>
 
   <section|Shape function Integrals>
-
-  <with|prog-language|axiom|prog-session|default|<\session>
-    <\input|<with|color|red|<with|mode|math|\<rightarrow\>> >>
-      integrate((l-r^2/l)^3*r^2,r=0..l)
-    </input>
-
-    <\output>
-      <with|mode|math|math-display|true|<frac|16l<rsup|6>|315><leqno>(7)>
-
-      <axiomtype|Union(f1: OrderedCompletion Expression Integer,...) >
-    </output>
-
-    <\input|<with|color|red|<with|mode|math|\<rightarrow\>> >>
-      \;
-    </input>
-  </session>>
 
   <with|prog-language|maxima|prog-session|default|<\session>
     <\input|<with|color|red|(<with|math-font-family|rm|%i>7)
@@ -147,10 +131,8 @@
 
   We may therefore neglect time dependency in the following.
 
-  In <math|K>, <math|\<b-E\>> can be found as <math|\<nabla\>\<Phi\>> from
-  <math|\<Delta\>\<Phi\>(\<b-x\>)=\<rho\>(\<b-x\>)/\<varepsilon\>>.
-  <math|\<rho\><rprime|'>(\<b-x\><rprime|'>)> is given to us. Now,
-  <math|c\<rho\>> is part of the 4-vector
+  Next, let us worry about how charge densities are affected by the Lorentz
+  transform. <math|c\<rho\>> is part of the 4-vector
   <math|J<rsup|\<alpha\>>=(c\<rho\>,\<b-J\>)>, therefore transforms in
   timelike fashion, and we obtain
 
@@ -158,15 +140,85 @@
     \<rho\><rprime|'>(\<b-x\><rprime|'>)=\<gamma\>\<rho\>(\<b-x\>).
   </equation*>
 
-  Define
+  This makes sense simply because the same amount of charge is distributed
+  over a larger amount of space. We can find
+  <math|\<rho\><rprime|'>(\<b-x\><rprime|'>)> in <math|K<rprime|'>> by shape
+  function reconstruction. Assume we have \ a shape function <math|S>
+  satisfying
+
+  <\equation*>
+    <big|int><rsub|\<bbb-R\><rsup|d>>S<rprime|'>(\<b-x\><rprime|'>)\<mathd\>\<b-x\><rprime|'>=1.
+  </equation*>
+
+  Then
+
+  <\equation*>
+    \<rho\><rprime|'>(\<b-x\><rprime|'>)=<big|sum><rsub|i>q<rsub|i>S<left|(><frac|\<b-x\><rprime|'>-\<b-x\><rprime|'><rsub|i>|r<rsub|i>><right|)>
+  </equation*>
+
+  satisfies the defining relationship
+
+  <\equation*>
+    Q=<big|int><rsub|\<bbb-R\><rsup|d>>\<rho\><rprime|'>(\<b-x\><rprime|'>)*\<mathd\>\<b-x\><rprime|'>=<big|sum><rsub|i>q<rsub|i><big|int><rsub|\<bbb-R\><rsup|d>>S<left|(><frac|\<b-x\><rprime|'>-\<b-x\><rprime|'><rsub|i>|r<rsub|i>><right|)>=<big|sum><rsub|i>q<rsub|i>.
+  </equation*>
+
+  It is important to avoid confusion here--since the positions of the
+  particles are known in terms of lab frame coordinates, we necessarily
+  reconstruct <math|\<rho\><rprime|'>>, not <math|\<rho\>>. <math|\<rho\>>
+  can then be found as
+
+  <\equation*>
+    \<rho\>(\<b-x\>)=<frac|\<rho\><rprime|'>(\<b-x\><rprime|'>)|\<gamma\>>.
+  </equation*>
+
+  Once we obtain <math|\<rho\>> in the rest frame <math|K>, where we may
+  assume the requisite radial symmetry of the particle, the initial
+  <math|\<b-E\>> can be found as <math|\<nabla\>\<Phi\>> from
+  <math|\<Delta\>\<Phi\>(\<b-x\>)=\<rho\>(\<b-x\>)/\<varepsilon\>>. Figure
+  <reference|fig:dilation-lab-flat> illustrates the situation.
+
+  <big-figure|<postscript|pic-dilation-rest-round.fig|11cm|||||>|<label|fig:dilation-lab-flat>Illustration
+  of the effects of Lorentz transformation on initial conditions.>
+
+  <with|color|red|An important question arises here:> The scheme used in the
+  code right now does not do what Figure <reference|fig:dilation-lab-flat>
+  says. Instead, we deposit particle shapes as round blobs in the lab frame,
+  and so they appear strangely elongated in the rest frame, as shown in
+  Figure <reference|fig:dilation>. This does not seem to be the correct thing
+  to do--if the ``electrons'' have proper rotational symmetry anywhere, then
+  it should be in their rest frame. The treatment of Figure
+  <reference|fig:dilation-lab-flat> seems more appropriate, where charge
+  blobs shortened by <math|\<gamma\>> are deposited in the lab frame,
+  resulting in the ``correct'' shape in the rest frame. However, option
+  <reference|fig:dilation-lab-flat> obviously makes charge deposition in the
+  lab frame harder, because it necessitates more mesh resolution in the
+  <math|z> direction by a factor of <math|\<gamma\>>. Can this be helped
+  somehow? Can we get away with option <reference|fig:dilation> and not worry
+  about it? Am I correct in asserting that Picture
+  <reference|fig:dilation-lab-flat> is more physically correct?
+
+  <\big-figure>
+    \ <postscript|pic-dilation-2.fig|11cm|||||>
+  </big-figure|<label|fig:dilation>Present charge deposition scheme. Produces
+  elongated particles in the rest frame.>
+
+  \;
+
+  Note that we never want to explicitly deal with a function defined on a
+  mesh in the rest frame, since we do not have (and do not want to construct)
+  such a mesh. Instead, we treat functions living in the rest frame on the
+  (existing) lab frame mesh, and simply adapt any rest frame derivative
+  operators to act on lab frame functions as if the function was ``properly''
+  in the rest frame. To this end, we define
 
   <\eqnarray*>
     <tformat|<table|<row|<cell|<wide|\<b-E\>|~>(\<b-x\><rprime|'>)>|<cell|\<assign\>>|<cell|\<b-E\>(\<b-x\>)=\<b-E\><left|(>\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>-\<gamma\>\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'><right|)>,>>|<row|<cell|<wide|\<Phi\>|~>(\<b-x\><rprime|'>)>|<cell|\<assign\>>|<cell|\<Phi\>(\<b-x\>)=\<Phi\>(\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>-\<gamma\>\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>),>>|<row|<cell|<wide|\<rho\>|~>(\<b-x\><rprime|'>)>|<cell|\<assign\>>|<cell|\<rho\>(\<b-x\>)=\<rho\>(\<b-x\><rsub|\<perp\>\<b-beta\>><rprime|'>-\<gamma\>\<b-x\><rsub|\<\|\|\>\<b-beta\>><rprime|'>),>>>>
   </eqnarray*>
 
-  i.e. the tilde'd quantities have their <math|\<b-x\>>-dependencies
-  switchted to the <math|K<rprime|'>> frame, but still carry the values they
-  do in <math|K>, i.e. no Lorentz transform has taken place.
+  i.e. the tilde'd (semi-rest frame) quantities have their
+  <math|\<b-x\>>-dependencies switchted to the <math|K<rprime|'>> frame, but
+  still carry the values they do in <math|K>, i.e. no Lorentz transform has
+  taken place.
 
   Therefore
 
@@ -288,6 +340,7 @@
 
 <\initial>
   <\collection>
+    <associate|info-flag|detailed>
     <associate|page-type|letter>
   </collection>
 </initial>
@@ -296,16 +349,24 @@
   <\collection>
     <associate|auto-1|<tuple|1|1>>
     <associate|auto-2|<tuple|2|1>>
-    <associate|auto-3|<tuple|3|?>>
+    <associate|auto-3|<tuple|1|?>>
+    <associate|auto-4|<tuple|2|?>>
+    <associate|auto-5|<tuple|3|?>>
     <associate|auto.2-1|<tuple|1|?|#2>>
     <associate|auto.3-1|<tuple|2|?|#3>>
     <associate|auto.3-2|<tuple|3|?|#3>>
     <associate|auto.4-1|<tuple|3|?|#4>>
+    <associate|fig:dilation|<tuple|2|?>>
+    <associate|fig:dilation-lab-flat|<tuple|1|?>>
   </collection>
 </references>
 
 <\auxiliary>
   <\collection>
+    <\associate|figure>
+      <tuple|normal|<label|fig:dilation>Illustration of the effects of
+      Lorentz transformation on initial conditions.|<pageref|auto-3>>
+    </associate>
     <\associate|toc>
       <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|1<space|2spc>Shape
       function Integrals> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
@@ -317,7 +378,7 @@
 
       <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|3<space|2spc>Relativistic
       Momentum> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
-      <no-break><pageref|auto-3><vspace|0.5fn>
+      <no-break><pageref|auto-4><vspace|0.5fn>
     </associate>
   </collection>
 </auxiliary>
