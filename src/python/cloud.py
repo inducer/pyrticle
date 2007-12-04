@@ -562,7 +562,6 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         scale_mat = other_scale*num.identity(discr.dimensions)
         scale_mat[0,0] = 1/gamma**2
         return sim_transform.T * scale_mat * sim_transform
-    print make_scaling_matrix(1/gamma**2, 1)
 
     poisson_op = WeakPoissonOperator(discr, 
             diffusion_tensor=ConstantGivenFunction(
