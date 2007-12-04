@@ -97,7 +97,7 @@ def main():
         mesh = pcon.receive_mesh()
 
     job = Job("discretization")
-    discr = pcon.make_discretization(mesh, TetrahedralElement(3))
+    discr = pcon.make_discretization(mesh, TetrahedralElement(1))
     job.done()
 
     vis = SiloVisualizer(discr)
@@ -132,9 +132,9 @@ def main():
     #el_energy = units.EL_REST_ENERGY*1.00001
     el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
     #el_lorentz_gamma = 100000
-    beta = (1-1/el_lorentz_gamma**2)**0.5
-    gamma = 1/sqrt(1-beta**2)
-    print "beta = %g, gamma = %g" % (beta, gamma)
+    mean_beta = (1-1/el_lorentz_gamma**2)**0.5
+    gamma = 1/sqrt(1-mean_beta**2)
+    print "beta = %g, gamma = %g" % (mean_beta, gamma)
 
     beam = KVZIntervalBeam(units, nparticles, 
             p_charge=cloud_charge/nparticles, 
@@ -143,107 +143,19 @@ def main():
             emittances=2*[5 * units.MM * units.MRAD], 
             z_length=5*units.MM,
             z_pos=10*units.MM,
-            beta=beta)
+            beta=mean_beta)
     beam.add_to(cloud, discr)
     from kv import calculate_rms_energy_spread
 
     print "energy spread: %g %%" % (
             calculate_rms_energy_spread(cloud) * 100)
 
-    # intial condition --------------------------------------------------------
-    def compute_initial_condition():
-        from hedge.operators import WeakPoissonOperator
-        from hedge.mesh import TAG_ALL, TAG_NONE
-        from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
-        from hedge.tools import cross
-
-        # see doc/notes.tm for derivation of IC
-
-        beta_vec = num.array([0,0,beta])
-
-        diff_tensor = num.identity(discr.dimensions)
-        diff_tensor[2,2] = 1/gamma**2
-
-        poisson_op = WeakPoissonOperator(discr, 
-                diffusion_tensor=ConstantGivenFunction(diff_tensor),
-                dirichlet_tag=TAG_ALL,
-                neumann_tag=TAG_NONE,
-                )
-
-        rho = cloud.reconstruct_rho() 
-
-        from hedge.discretization import ones_on_volume
-        print "charge: supposed=%g reconstructed=%g" % (
-                cloud_charge,
-                ones_on_volume(discr)*(discr.mass_operator*rho),
-                )
-
-        from hedge.tools import parallel_cg
-        phi = -parallel_cg(pcon, -poisson_op, 
-                poisson_op.prepare_rhs(
-                    GivenVolumeInterpolant(discr, rho/max_op.epsilon)), 
-                debug=True, tol=1e-10)
-
-        etilde = ArithmeticList([1,1,1/gamma])*poisson_op.grad(phi)
-
-        eprime = ArithmeticList([gamma,gamma,1])*etilde
-
-        hprime = (1/max_op.mu)*gamma/max_op.c * cross(beta_vec, etilde)
-
-        rhoprime = gamma*rho
-        divDprime_ldg = max_op.epsilon*poisson_op.div(eprime)
-        divDprime_ldg2 = max_op.epsilon*poisson_op.div(eprime, gamma*phi)
-        divDprime_ldg3 = max_op.epsilon*gamma*\
-                (discr.inverse_mass_operator*poisson_op.op(phi))
-        divDprime_central = max_op.epsilon*div_op(eprime)
-
-        print "l2 div error ldg: %g" % \
-                l2_error(divDprime_ldg, rhoprime)
-        print "l2 div error central: %g" % \
-                l2_error(divDprime_central, rhoprime)
-        print "l2 div error ldg with phi: %g" % \
-                l2_error(divDprime_ldg2, rhoprime)
-        print "l2 div error ldg with phi 3: %g" % \
-                l2_error(divDprime_ldg3, rhoprime)
-
-        if True:
-            visf = vis.make_file("ic")
-            vis.add_data(visf, [ 
-                ("rho", rhoprime), 
-                ("divDldg", divDprime_ldg),
-                ("divDldg2", divDprime_ldg2),
-                ("divDldg3", divDprime_ldg3),
-                ("divDcentral", divDprime_central),
-                ("phi", phi),
-                ("e", eprime), 
-                ("h", hprime), 
-                ],
-                scale_factor=1e30
-                )
-            cloud.add_to_vis(vis, visf)
-            visf.close()
-
-        from pyrticle.cloud import FieldsAndCloud
-        return FieldsAndCloud(max_op, eprime, hprime, cloud)
-
-    fields = compute_initial_condition()
+    # initial condition -------------------------------------------------------
+    from pyrticle.cloud import compute_initial_condition
+    fields = compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
+            debug=True)
 
     # timestepping ------------------------------------------------------------
-
-    def rhs(t, y):
-        rho, j = cloud.reconstruct_densities()
-
-        e, h = max_op.split_fields(y)
-        cloud_rhs = cloud.rhs(t, e, h)
-
-        maxwell_rhs = max_op.rhs(t, y[0:eh_components])
-        rhs_e, rhs_h = max_op.split_fields(maxwell_rhs)
-
-        return join_fields(
-                rhs_e - 1/max_op.epsilon*j,
-                rhs_h,
-                ).plus([cloud_rhs])
-
     stepper = RK4TimeStepper()
     from time import time
     last_tstep = time()

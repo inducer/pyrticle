@@ -121,8 +121,7 @@ class KVZIntervalBeam:
     def get_total_space_charge_parameter(self):
         from math import pi
 
-        # see (1.3) in Alex Wu Chao and 
-        # http://en.wikipedia.org/wiki/Classical_electron_radius
+        # see http://en.wikipedia.org/wiki/Classical_electron_radius
         r0 = 1/(4*pi*self.units.EPSILON0)*( 
                 (self.units.EL_CHARGE**2)
                 /
@@ -130,9 +129,7 @@ class KVZIntervalBeam:
 
         total_charge = self.p_charge*self.nparticles
 
-        # FIXME !!!! the extra gamma is a fixup for the botched test run
-        #lambda_ = total_charge/(self.z_length*self.units.EL_CHARGE)
-        lambda_ = self.gamma*total_charge/(self.z_length*self.units.EL_CHARGE)
+        lambda_ = total_charge/(self.z_length*self.units.EL_CHARGE)
 
         #print "total_charge", total_charge
         #print "z_length", self.z_length
@@ -148,15 +145,6 @@ class KVZIntervalBeam:
         # (2.140), space charge term (2.136)
 
         xi = 4*((lambda_ * r0) / (self.beta**2 * self.gamma**3))
-
-        Q = 1 # unit charges per particle
-        A = 1 # unit masses per particle
-
-        # "unit" refers to what's used in the classical radius
-        # Chao form
-        #xi = ((4 * Q**2 * r0 * lambda_)
-                #/
-                #(A * self.beta**2 * self.gamma**3))
 
         return xi
 

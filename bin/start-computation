@@ -5,7 +5,7 @@ if test "$1" = "" || test "$2" != "--" ; then
   exit 1
 fi
 
-NOW="`date +%Y-%m-%d-%H%M`"
+NOW="`date +%Y-%m-%d-%H%M%S`"
 MONIKER="$1"
 shift
 shift

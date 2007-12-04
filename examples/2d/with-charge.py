@@ -91,7 +91,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1
+    nparticles = 1000
 
     cloud = ParticleCloud(discr, units, dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
@@ -117,80 +117,9 @@ def main():
             )
 
     # intial condition --------------------------------------------------------
-    def compute_initial_condition():
-        from hedge.operators import WeakPoissonOperator
-        from hedge.mesh import TAG_ALL, TAG_NONE
-        from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
-        from hedge.tools import cross
-
-        # see doc/notes.tm for derivation of IC
-
-        diff_tensor = num.identity(discr.dimensions)
-        diff_tensor[0,0] = 1/gamma**2
-
-        poisson_op = WeakPoissonOperator(discr, 
-                diffusion_tensor=ConstantGivenFunction(diff_tensor),
-                dirichlet_tag=TAG_ALL,
-                neumann_tag=TAG_NONE,
-                )
-
-        rho = cloud.reconstruct_rho() 
-        from hedge.discretization import ones_on_volume
-        print "charge: supposed=%g reconstructed=%g" % (
-                cloud_charge,
-                ones_on_volume(discr)*(discr.mass_operator*rho),
-                )
-
-        from hedge.tools import parallel_cg
-        phi = -parallel_cg(pcon, -poisson_op, 
-                poisson_op.prepare_rhs(
-                    GivenVolumeInterpolant(discr, rho/max_op.epsilon)), 
-                debug=True, tol=1e-10)
-
-        etilde = ArithmeticList([1/gamma,1])*poisson_op.grad(phi)
-
-        eprime = ArithmeticList([1, gamma])*etilde
-
-        hprime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, etilde)
-
-        rhoprime = gamma*rho
-        divDprime_ldg = max_op.epsilon*poisson_op.div(eprime)
-        divDprime_ldg2 = max_op.epsilon*poisson_op.div(eprime, gamma*phi)
-        divDprime_ldg3 = max_op.epsilon*gamma*\
-                (discr.inverse_mass_operator*poisson_op.op(phi))
-        divDprime_central = max_op.epsilon*div_op(eprime)
-
-        print "l2 div error ldg: %g" % \
-                l2_error(divDprime_ldg, rhoprime)
-        print "l2 div error central: %g" % \
-                l2_error(divDprime_central, rhoprime)
-        print "l2 div error ldg with phi: %g" % \
-                l2_error(divDprime_ldg2, rhoprime)
-        print "l2 div error ldg with phi 3: %g" % \
-                l2_error(divDprime_ldg3, rhoprime)
-
-        if True:
-            visf = vis.make_file("ic")
-            vis.add_data(visf,
-                    [ 
-                        ("rho", rhoprime), 
-                        ("divDldg", divDprime_ldg),
-                        ("divDldg2", divDprime_ldg2),
-                        ("divDldg3", divDprime_ldg3),
-                        ("divDcentral", divDprime_central),
-                        ("phi", phi),
-                        ("e", eprime), 
-                        ("h", hprime), 
-                        ],
-                    scale_factor=1e30
-                    )
-            cloud.add_to_vis(vis, visf)
-            visf.close()
-
-        from pyrticle.cloud import FieldsAndCloud
-        return FieldsAndCloud(max_op, eprime, hprime, cloud)
-
-    fields = compute_initial_condition()
+    from pyrticle.cloud import compute_initial_condition
+    fields = compute_initial_condition(pcon, discr, cloud, 
+            mean_beta=num.array([0, 0, mean_beta]), max_op)
 
     # timestepping ------------------------------------------------------------
     stepper = RK4TimeStepper()
@@ -199,8 +128,21 @@ def main():
     t = 0
 
     for step in xrange(nsteps):
-        fields = stepper(fields, t, dt, fields.rhs)
         cloud.upkeep()
+        fields = stepper(fields, t, dt, fields.rhs)
+
+        if True:
+            visf = vis.make_file("pic-%04d" % step)
+
+            mesh_scalars, mesh_vectors = \
+                    cloud.add_to_vis(vis, visf, time=t, step=step)
+            vis.add_data(visf, [
+                        ("divD", max_op.epsilon*div_op(fields.e)),
+                        ("e", fields.e), 
+                        ("h", fields.h), 
+                        ] + mesh_scalars + mesh_vectors,
+                    time=t, step=step)
+            visf.close()
 
         print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
                 step, t, l2_norm(fields.e), l2_norm(fields.h),
@@ -220,19 +162,6 @@ def main():
                     )
 
         last_tstep = time()
-
-        if True:
-            visf = vis.make_file("pic-%04d" % step)
-
-            mesh_scalars, mesh_vectors = \
-                    cloud.add_to_vis(vis, visf, time=t, step=step)
-            vis.add_data(visf, [
-                        ("divD", max_op.epsilon*div_op(fields.e)),
-                        ("e", fields.e), 
-                        ("h", fields.h), 
-                        ] + mesh_scalars + mesh_vectors,
-                    time=t, step=step)
-            visf.close()
 
         t += dt
 

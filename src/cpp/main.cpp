@@ -242,16 +242,14 @@ namespace {
     private:
       hedge::vector m_target_vector;
       const hedge::vector &m_charges;
-      const hedge::vector &m_masses;
-      const hedge::vector &m_momenta;
+      const hedge::vector &m_velocities;
       double m_scale_factors[dimensions_velocity];
 
     public:
       j_reconstruction_target(unsigned points, 
           const hedge::vector &charges,
-          const hedge::vector &masses,
-          const hedge::vector &momenta)
-        : m_target_vector(3*points), m_charges(charges), m_masses(masses), m_momenta(momenta)
+          const hedge::vector &velocities)
+        : m_target_vector(3*points), m_charges(charges), m_velocities(velocities)
       { 
         m_target_vector.clear();
       }
@@ -259,9 +257,8 @@ namespace {
       void begin_particle(particle_number pn)
       {
         const double charge = m_charges[pn];
-        const double mass = m_masses[pn];
         for (unsigned axis = 0; axis < dimensions_velocity; axis++)
-          m_scale_factors[axis] = charge/mass * m_momenta[pn*dimensions_velocity+axis];
+          m_scale_factors[axis] = charge * m_velocities[pn*dimensions_velocity+axis];
       }
 
       void add_shape_at_point(unsigned i, double shape_factor)
@@ -897,14 +894,14 @@ namespace {
           const EX &ex, const EY &ey, const EZ &ez,
           const BX &bx, const BY &by, const BZ &bz,
           const hedge::vector &velocities,
-          bool update_vis_info
+          bool verbose_vis
           )
       {
         hedge::vector result(m_momenta.size());
         std::auto_ptr<hedge::vector> 
           vis_e, vis_b, vis_el_force, vis_lorentz_force;
 
-        if (update_vis_info)
+        if (verbose_vis)
         {
           vis_e = std::auto_ptr<hedge::vector>(
               new hedge::vector(3*m_containing_elements.size()));
@@ -957,7 +954,7 @@ namespace {
           subrange(result, v_pstart, v_pend) = subrange(
               el_force + lorentz_force, 0, dimensions_velocity);
 
-          if (update_vis_info)
+          if (verbose_vis)
           {
             subrange(*vis_e, 3*i, 3*(i+1)) = e;
             subrange(*vis_b, 3*i, 3*(i+1)) = b;
@@ -966,7 +963,7 @@ namespace {
           }
         }
 
-        if (update_vis_info)
+        if (verbose_vis)
         {
           m_vis_info["pt_e"] = python::object(*vis_e);
           m_vis_info["pt_b"] = python::object(*vis_b);
@@ -1178,11 +1175,12 @@ namespace {
       void reconstruct_densities(
           hedge::vector &rho, 
           python::object py_j,
-          double radius) const
+          double radius,
+          const hedge::vector &velocities) const
       {
         rho_reconstruction_target rho_tgt(m_mesh_info.m_nodes.size(), m_charges);
         j_reconstruction_target<dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
-            m_charges, m_masses, m_momenta);
+            m_charges, velocities);
 
         chained_reconstruction_target
           <rho_reconstruction_target, j_reconstruction_target<dimensions_velocity> >
@@ -1209,10 +1207,10 @@ namespace {
 
 
 
-      void reconstruct_j(python::object py_j, double radius) const
+      void reconstruct_j(python::object py_j, double radius, const hedge::vector &velocities) const
       {
         j_reconstruction_target<dimensions_velocity> j_tgt(m_mesh_info.m_nodes.size(), 
-            m_charges, m_masses, m_momenta);
+            m_charges, velocities);
 
         reconstruct_densities_on_target(j_tgt, radius);
 

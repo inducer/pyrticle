@@ -257,18 +257,22 @@ class ParticleCloud:
         """
         self.icloud.vis_info.clear()
 
-    def reconstruct_densities(self):
+    def reconstruct_densities(self, velocities=None):
         """Return a tuple (charge_density, current_densities), where
         current_densities is an 
           ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
         of the densities in each direction.
         """
 
+        if velocities is None:
+            velocities = self.icloud.velocities()
+
         rho = self.discretization.volume_zeros()
         j = ArithmeticList([self.discretization.volume_zeros()
             for axis in range(self.dimensions_velocity)])
 
-        self.icloud.reconstruct_densities(rho, j, self.particle_radius)
+        self.icloud.reconstruct_densities(rho, j, self.particle_radius,
+                velocities)
 
         if self.verbose_vis:
             self.icloud.vis_info["rho"] = rho
@@ -276,15 +280,18 @@ class ParticleCloud:
 
         return rho, j
 
-    def reconstruct_j(self):
+    def reconstruct_j(self, velocities=None):
         """Return a the current densities in the structure::
           ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
         """
 
+        if velocities is None:
+            velocities = self.icloud.velocities()
+
         j = ArithmeticList([self.discretization.volume_zeros()
             for axis in range(self.dimensions_velocity)])
 
-        self.icloud.reconstruct_j(j, self.particle_radius)
+        self.icloud.reconstruct_j(j, self.particle_radius, velocities)
 
         if self.verbose_vis:
             self.icloud.vis_info["j"] = j
@@ -304,7 +311,7 @@ class ParticleCloud:
 
         return rho
 
-    def rhs(self, t, e, b):
+    def rhs(self, t, e, b, velocities=None):
         """Return an ArithmeticList of velocities and forces on the particles.
 
         @arg e: triple of M{E_x}, M{E_y}, M{E_z}, each of which may be either 
@@ -314,8 +321,10 @@ class ParticleCloud:
           deals with M{H}, not M{B}.
         """
 
+        if velocities is None:
+            velocities = self.icloud.velocities()
+
         field_args = tuple(e) + tuple(b)
-        velocities = self.icloud.velocities() 
         # compute forces
         return ArithmeticList([
             velocities, 
@@ -391,7 +400,7 @@ class ParticleCloud:
 
         if self.verbose_vis:
             add_vis_vector("pt_e")
-            add_vis_vector("pt_h")
+            add_vis_vector("pt_b")
             add_vis_vector("el_force")
             add_vis_vector("lorentz_force")
 
@@ -413,6 +422,7 @@ class ParticleCloud:
 
     def _add_to_silo(self, db, time, step):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
+        from warnings import warn
 
         optlist = {}
         if time is not None:
@@ -435,27 +445,32 @@ class ParticleCloud:
                     for i in range(self.dimensions_velocity)])
 
         pcount = len(self.icloud.containing_elements)
-        def add_vis_vector(name, dim):
+        def add_particle_vis(name, dim):
             if name in self.icloud.vis_info:
                 db.put_pointvar(name, "particles", 
                         [self.icloud.vis_info[name][i::dim] for i in range(dim)])
             else:
+                warn("writing zero for particle visualization variable '%s'" % name)
                 db.put_pointvar(name, "particles", 
                         [num.zeros((pcount,)) for i in range(dim)])
+
+        def add_mesh_vis(name):
+            if name in self.icloud.vis_info:
+                mesh_scalars.append((name, self.icloud.vis_info[name]))
+            else:
+                warn("visualization of unavailable mesh variable '%s' requested" % name)
 
         mesh_scalars = []
         mesh_vectors = []
 
         if self.verbose_vis:
-            add_vis_vector("pt_e", 3)
-            add_vis_vector("pt_h", 3)
-            add_vis_vector("el_force", 3)
-            add_vis_vector("lorentz_force", 3)
+            add_particle_vis("pt_e", 3)
+            add_particle_vis("pt_b", 3)
+            add_particle_vis("el_force", 3)
+            add_particle_vis("lorentz_force", 3)
 
-            if "rho" in self.icloud.vis_info:
-                mesh_scalars.append(("rho", self.icloud.vis_info["rho"]))
-            if "j" in self.icloud.vis_info:
-                mesh_vectors.append(("j", self.icloud.vis_info["j"]))
+            add_mesh_vis("rho")
+            add_mesh_vis("j")
 
         return mesh_scalars, mesh_vectors
 
@@ -488,6 +503,8 @@ class FieldsAndCloud:
 
         from pytools.arithmetic_container import join_fields
 
+        velocities = self.cloud.velocities()
+
         # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
         # inserting ZeroVectors where necessary.
         idx = 0
@@ -508,13 +525,108 @@ class FieldsAndCloud:
             else:
                 b_arg.append(ZeroVector())
 
-        cloud_rhs = self.cloud.rhs(t, e_arg, b_arg)
+        cloud_rhs = self.cloud.rhs(t, e_arg, b_arg, velocities)
 
         rhs_e, rhs_h = self.maxwell_op.split_fields(
                 self.maxwell_op.rhs(t, join_fields(self.e, self.h))
                 )
 
         return join_fields(
-                rhs_e - 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j(),
+                rhs_e - 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j(velocities),
                 rhs_h,
                 ).plus([cloud_rhs])
+
+
+
+
+def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
+        debug=False):
+    from hedge.operators import WeakPoissonOperator
+    from hedge.mesh import TAG_ALL, TAG_NONE
+    from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
+    from hedge.tools import dot
+
+    def l2_norm(field):
+        return sqrt(dot(field, discr.mass_operator*field))
+    def l2_error(field, true):
+        return l2_norm(field-true)/l2_norm(true)
+
+    gamma = (1-comp.norm_2_squared(mean_beta))**(-0.5)
+
+    # see doc/notes.tm for derivation of IC
+
+    def make_scaling_matrix(beta_scale, other_scale):
+        sim_transform = num.vstack(
+                comp.make_onb_with([mean_beta/comp.norm_2(mean_beta)])
+                )
+        scale_mat = other_scale*num.identity(discr.dimensions)
+        scale_mat[0,0] = 1/gamma**2
+        return sim_transform.T * scale_mat * sim_transform
+    print make_scaling_matrix(1/gamma**2, 1)
+
+    poisson_op = WeakPoissonOperator(discr, 
+            diffusion_tensor=ConstantGivenFunction(
+                make_scaling_matrix(1/gamma**2, 1)),
+            dirichlet_tag=TAG_ALL,
+            neumann_tag=TAG_NONE,
+            )
+
+    rhoprime = cloud.reconstruct_rho() 
+    rho = rhoprime/gamma
+
+    from hedge.discretization import ones_on_volume
+    print "charge: supposed=%g reconstructed=%g" % (
+            sum(cloud.charges),
+            gamma*ones_on_volume(discr)*(discr.mass_operator*rho),
+            )
+
+    from hedge.tools import parallel_cg
+    phi = -parallel_cg(pcon, -poisson_op, 
+            poisson_op.prepare_rhs(
+                GivenVolumeInterpolant(discr, rho/max_op.epsilon)), 
+            debug=True, tol=1e-10)
+
+    from pytools.arithmetic_container import ArithmeticListMatrix
+    ALM = ArithmeticListMatrix
+    etilde = ALM(make_scaling_matrix(1/gamma, 1))*poisson_op.grad(phi)
+    eprime = ALM(make_scaling_matrix(1, gamma))*etilde
+    hprime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, etilde)
+
+    if debug:
+        from hedge.operators import DivergenceOperator
+        divDprime_ldg = max_op.epsilon*poisson_op.div(eprime)
+        divDprime_ldg2 = max_op.epsilon*poisson_op.div(eprime, gamma*phi)
+        divDprime_ldg3 = max_op.epsilon*gamma*\
+                (discr.inverse_mass_operator*poisson_op.op(phi))
+        div_op = DivergenceOperator(discr)
+        divDprime_central = max_op.epsilon*div_op(eprime)
+
+        print "l2 div error ldg: %g" % \
+                l2_error(divDprime_ldg, rhoprime)
+        print "l2 div error central: %g" % \
+                l2_error(divDprime_central, rhoprime)
+        print "l2 div error ldg with phi: %g" % \
+                l2_error(divDprime_ldg2, rhoprime)
+        print "l2 div error ldg with phi 3: %g" % \
+                l2_error(divDprime_ldg3, rhoprime)
+
+        from hedge.visualization import SiloVisualizer
+        vis = SiloVisualizer(discr)
+        visf = vis.make_file("ic")
+        vis.add_data(visf, [ 
+            ("rho", rhoprime), 
+            ("divDldg", divDprime_ldg),
+            ("divDldg2", divDprime_ldg2),
+            ("divDldg3", divDprime_ldg3),
+            ("divDcentral", divDprime_central),
+            ("phi", phi),
+            ("e", eprime), 
+            ("h", hprime), 
+            ],
+            scale_factor=1e30
+            )
+        cloud.add_to_vis(vis, visf)
+        visf.close()
+
+    return FieldsAndCloud(max_op, eprime, hprime, cloud)
+
