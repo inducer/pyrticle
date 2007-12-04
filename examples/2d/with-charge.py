@@ -118,8 +118,7 @@ def main():
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
-    fields = compute_initial_condition(pcon, discr, cloud, 
-            mean_beta=num.array([0, 0, mean_beta]), max_op)
+    fields = compute_initial_condition(pcon, discr, cloud, mean_beta, max_op)
 
     # timestepping ------------------------------------------------------------
     stepper = RK4TimeStepper()

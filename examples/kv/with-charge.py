@@ -152,8 +152,8 @@ def main():
 
     # initial condition -------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
-    fields = compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
-            debug=True)
+    fields = compute_initial_condition(pcon, discr, cloud, 
+            mean_beta=num.array([0, 0, mean_beta]), max_op, debug=True)
 
     # timestepping ------------------------------------------------------------
     stepper = RK4TimeStepper()
