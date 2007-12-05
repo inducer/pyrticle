@@ -53,6 +53,7 @@ def main():
     full_mesh = make_regular_rect_mesh(
             a=(-0.5, -0.5),
             b=(1.5, 0.5),
+            #n=(30, 10), 
             n=(10, 5), 
             periodicity=(True, False))
 
@@ -107,6 +108,8 @@ def main():
     pmass = electrons_per_particle*units.EL_MASS
     mean_p = gamma*pmass*mean_v
 
+    print "beta=%g, gamma=%g" % (comp.norm_2(mean_beta), gamma)
+
     add_gauss_particles(nparticles, cloud, discr, 
             charge=cloud_charge/nparticles, 
             mass=pmass,
@@ -118,7 +121,8 @@ def main():
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
-    fields = compute_initial_condition(pcon, discr, cloud, mean_beta, max_op)
+    fields = compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
+            debug=True)
 
     # timestepping ------------------------------------------------------------
     stepper = RK4TimeStepper()

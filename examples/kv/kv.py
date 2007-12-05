@@ -127,7 +127,7 @@ class KVZIntervalBeam:
                 /
                 (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED**2))
 
-        total_charge = self.p_charge*self.nparticles
+        total_charge = abs(self.p_charge*self.nparticles)
 
         lambda_ = total_charge/(self.z_length*self.units.EL_CHARGE)
 

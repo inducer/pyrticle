@@ -10,6 +10,9 @@ MONIKER="$1"
 shift
 shift
 SUBDIR="$MONIKER-$NOW"
+echo "-------------------------------------------------------------------------"
+echo "starting $SUBDIR"
+echo "-------------------------------------------------------------------------"
 mkdir $SUBDIR
 cd $SUBDIR
 echo "$@" > commandline.log

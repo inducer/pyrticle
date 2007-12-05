@@ -348,16 +348,19 @@ class ParticleCloud:
 
         return self
 
-    def add_to_vis(self, visualizer, vis_file, time=None, step=None):
+    def add_to_vis(self, visualizer, vis_file, time=None, step=None, verbose=None):
+        if verbose is None:
+            verbose = self.verbose_vis
+
         from hedge.visualization import VtkVisualizer, SiloVisualizer
         if isinstance(visualizer, VtkVisualizer):
-            return self._add_to_vtk(visualizer, vis_file, time, step)
+            return self._add_to_vtk(visualizer, vis_file, time, step, verbose)
         elif isinstance(visualizer, SiloVisualizer):
-            return self._add_to_silo(vis_file, time, step)
+            return self._add_to_silo(vis_file, time, step, verbose)
         else:
             raise ValueError, "unknown visualizer type `%s'" % type(visualizer)
 
-    def _add_to_vtk(self, visualizer, vis_file, time, step):
+    def _add_to_vtk(self, visualizer, vis_file, time, step, verbose):
         from hedge.vtk import \
                 VTK_VERTEX, VF_INTERLEAVED, \
                 DataArray, \
@@ -398,7 +401,7 @@ class ParticleCloud:
         mesh_scalars = []
         mesh_vectors = []
 
-        if self.verbose_vis:
+        if verbose:
             add_vis_vector("pt_e")
             add_vis_vector("pt_b")
             add_vis_vector("el_force")
@@ -420,7 +423,7 @@ class ParticleCloud:
 
         return mesh_scalars, mesh_vectors
 
-    def _add_to_silo(self, db, time, step):
+    def _add_to_silo(self, db, time, step, verbose):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
         from warnings import warn
 
@@ -454,22 +457,23 @@ class ParticleCloud:
                 db.put_pointvar(name, "particles", 
                         [num.zeros((pcount,)) for i in range(dim)])
 
-        def add_mesh_vis(name):
+        def add_mesh_vis(name, unavail_ok=False):
             if name in self.icloud.vis_info:
                 mesh_scalars.append((name, self.icloud.vis_info[name]))
             else:
-                warn("visualization of unavailable mesh variable '%s' requested" % name)
+                if not unavail_ok:
+                    warn("visualization of unavailable mesh variable '%s' requested" % name)
 
         mesh_scalars = []
         mesh_vectors = []
 
-        if self.verbose_vis:
+        if verbose:
             add_particle_vis("pt_e", 3)
             add_particle_vis("pt_b", 3)
             add_particle_vis("el_force", 3)
             add_particle_vis("lorentz_force", 3)
 
-            add_mesh_vis("rho")
+            add_mesh_vis("rho", unavail_ok=True)
             add_mesh_vis("j")
 
         return mesh_scalars, mesh_vectors
@@ -556,12 +560,9 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
     # see doc/notes.tm for derivation of IC
 
     def make_scaling_matrix(beta_scale, other_scale):
-        sim_transform = num.vstack(
-                comp.make_onb_with([mean_beta/comp.norm_2(mean_beta)])
-                )
-        scale_mat = other_scale*num.identity(discr.dimensions)
-        scale_mat[0,0] = 1/gamma**2
-        return sim_transform.T * scale_mat * sim_transform
+        beta_unit = mean_beta/comp.norm_2(mean_beta)
+        return (other_scale*num.identity(discr.dimensions) 
+                + (beta_scale-other_scale)*(beta_unit <<num.outer>> beta_unit))
 
     poisson_op = WeakPoissonOperator(discr, 
             diffusion_tensor=ConstantGivenFunction(
@@ -570,62 +571,86 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
             neumann_tag=TAG_NONE,
             )
 
-    rhoprime = cloud.reconstruct_rho() 
-    rho = rhoprime/gamma
-
-    from hedge.discretization import ones_on_volume
-    print "charge: supposed=%g reconstructed=%g" % (
-            sum(cloud.charges),
-            gamma*ones_on_volume(discr)*(discr.mass_operator*rho),
-            )
+    rho_prime = cloud.reconstruct_rho() 
+    rho_tilde = rho_prime/gamma
 
     from hedge.tools import parallel_cg
-    phi = -parallel_cg(pcon, -poisson_op, 
+    phi_tilde = -parallel_cg(pcon, -poisson_op, 
             poisson_op.prepare_rhs(
-                GivenVolumeInterpolant(discr, rho/max_op.epsilon)), 
+                GivenVolumeInterpolant(discr, rho_tilde/max_op.epsilon)), 
             debug=True, tol=1e-10)
 
     from pytools.arithmetic_container import ArithmeticListMatrix
     ALM = ArithmeticListMatrix
-    etilde = ALM(make_scaling_matrix(1/gamma, 1))*poisson_op.grad(phi)
-    eprime = ALM(make_scaling_matrix(1, gamma))*etilde
-    hprime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, etilde)
+    e_tilde = ALM(make_scaling_matrix(1/gamma, 1))*poisson_op.grad(phi_tilde)
+    e_prime = ALM(make_scaling_matrix(1, gamma))*e_tilde
+    h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
 
     if debug:
-        from hedge.operators import DivergenceOperator
-        divDprime_ldg = max_op.epsilon*poisson_op.div(eprime)
-        divDprime_ldg2 = max_op.epsilon*poisson_op.div(eprime, gamma*phi)
-        divDprime_ldg3 = max_op.epsilon*gamma*\
-                (discr.inverse_mass_operator*poisson_op.op(phi))
-        div_op = DivergenceOperator(discr)
-        divDprime_central = max_op.epsilon*div_op(eprime)
+        from hedge.discretization import ones_on_volume
+        reconstructed_charge = ones_on_volume(discr)*(discr.mass_operator*rho_prime)
+        real_charge = sum(cloud.charges)
+        print "charge: supposed=%g reconstructed=%g error=%g %%" % (
+                real_charge,
+                reconstructed_charge,
+                100*abs(reconstructed_charge-real_charge)/abs(real_charge)
+                )
 
-        print "l2 div error ldg: %g" % \
-                l2_error(divDprime_ldg, rhoprime)
-        print "l2 div error central: %g" % \
-                l2_error(divDprime_central, rhoprime)
-        print "l2 div error ldg with phi: %g" % \
-                l2_error(divDprime_ldg2, rhoprime)
-        print "l2 div error ldg with phi 3: %g" % \
-                l2_error(divDprime_ldg3, rhoprime)
+        from hedge.operators import DivergenceOperator
+
+        div_op = DivergenceOperator(discr)
+
+        d_tilde = max_op.epsilon*e_tilde
+        d_prime = max_op.epsilon*e_prime
+
+        divD_tilde_ldg = poisson_op.div(d_tilde)
+        divD_tilde_ldg2 = poisson_op.div(d_tilde, max_op.epsilon*phi_tilde)
+        divD_tilde_central = div_op(d_tilde)
+
+        divD_prime_ldg = poisson_op.div(d_prime)
+        divD_prime_ldg2 = poisson_op.div(d_prime, max_op.epsilon*gamma*phi_tilde)
+        divD_prime_ldg3 = max_op.epsilon*\
+                (discr.inverse_mass_operator*poisson_op.op(gamma*phi_tilde))
+        divD_prime_central = div_op(d_prime)
+
+        print "l2 div D_tilde error central: %g" % \
+                l2_error(divD_tilde_central, rho_tilde)
+        print "l2 div D_tilde error ldg: %g" % \
+                l2_error(divD_tilde_ldg, rho_tilde)
+        print "l2 div D_tilde error ldg2: %g" % \
+                l2_error(divD_tilde_ldg2, rho_tilde)
+
+        print "l2 div D_prime error central: %g" % \
+                l2_error(divD_prime_central, rho_prime)
+        print "l2 div D_prime error ldg: %g" % \
+                l2_error(divD_prime_ldg, rho_prime)
+        print "l2 div D_prime error ldg with phi: %g" % \
+                l2_error(divD_prime_ldg2, rho_prime)
+        print "l2 div D_prime error ldg with phi 3: %g" % \
+                l2_error(divD_prime_ldg3, rho_prime)
 
         from hedge.visualization import SiloVisualizer
         vis = SiloVisualizer(discr)
         visf = vis.make_file("ic")
         vis.add_data(visf, [ 
-            ("rho", rhoprime), 
-            ("divDldg", divDprime_ldg),
-            ("divDldg2", divDprime_ldg2),
-            ("divDldg3", divDprime_ldg3),
-            ("divDcentral", divDprime_central),
-            ("phi", phi),
-            ("e", eprime), 
-            ("h", hprime), 
+            ("phi_tilde", phi_tilde),
+            ("rho_tilde", rho_tilde), 
+            ("divD_tilde_central", divD_tilde_central),
+            ("divD_tilde_ldg", divD_tilde_ldg),
+            ("divD_tilde_ldg2", divD_tilde_ldg2),
+            ("e_tilde", e_tilde), 
+
+            ("rho_prime", rho_prime), 
+            ("divD_prime_ldg", divD_prime_ldg),
+            ("divD_prime_ldg2", divD_prime_ldg2),
+            ("divD_prime_ldg3", divD_prime_ldg3),
+            ("divD_prime_central", divD_prime_central),
+            ("e_prime", e_prime), 
+            ("h_prime", h_prime), 
             ],
-            scale_factor=1e30
             )
-        cloud.add_to_vis(vis, visf)
+        cloud.add_to_vis(vis, visf, verbose=False)
         visf.close()
 
-    return FieldsAndCloud(max_op, eprime, hprime, cloud)
+    return FieldsAndCloud(max_op, e_prime, h_prime, cloud)
 

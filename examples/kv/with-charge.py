@@ -181,6 +181,10 @@ def main():
     eta = EtaEstimator(nsteps)
 
     for step in xrange(nsteps):
+        cloud.upkeep()
+        fields = stepper(fields, t, dt, fields.rhs)
+        print cloud.icloud.vis_info.keys()
+
         if step % field_dump_interval == 0:
             visf = vis.make_file("pic-%04d" % step)
 
@@ -197,9 +201,6 @@ def main():
             visf.close()
 
         rms_r_logger.update(t, cloud.positions, cloud.velocities())
-
-        fields = stepper(fields, t, dt, fields.rhs)
-        cloud.upkeep()
 
         print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f eta=%s particles=%d" % (
                 step, t, l2_norm(fields.e), l2_norm(fields.h),
@@ -229,7 +230,6 @@ def main():
     write_out_plots()
 
     print "Relative error: %g" % rms_r_logger.relative_error(rms_theory_with_charge)
-
 
 
 
