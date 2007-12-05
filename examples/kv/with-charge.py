@@ -124,12 +124,11 @@ def main():
     # particles setup ---------------------------------------------------------
     cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
 
-    cloud_charge = -1e-9 * units.C
+    cloud_charge = -10e-9 * units.C
     electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
-    el_energy = 5.2e6 * units.EV
-    #el_energy = units.EL_REST_ENERGY*1.00001
+    el_energy = units.EL_REST_ENERGY*10
     el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
     #el_lorentz_gamma = 100000
     mean_beta = (1-1/el_lorentz_gamma**2)**0.5
@@ -183,7 +182,6 @@ def main():
     for step in xrange(nsteps):
         cloud.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
-        print cloud.icloud.vis_info.keys()
 
         if step % field_dump_interval == 0:
             visf = vis.make_file("pic-%04d" % step)
