@@ -98,7 +98,7 @@ def main():
     print "e-/particle = ", electrons_per_particle 
 
     #el_energy = 5.2e6 * units.EV
-    el_energy = units.EL_REST_ENERGY
+    el_energy = 10*units.EL_REST_ENERGY
     el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
     #el_lorentz_gamma = 100000
     beta = (1-1/el_lorentz_gamma**2)**0.5
@@ -134,7 +134,7 @@ def main():
             if r >= max(beam.radii):
                 xy_unit = x/r
                 xy_unit[2] = 0
-                return xy_unit*((gamma*q_per_unit_z)
+                return xy_unit*((q_per_unit_z)
                         /
                         (2*pi*r*max_op.epsilon))
             else:
