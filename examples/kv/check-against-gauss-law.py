@@ -46,16 +46,13 @@ def main():
 
     # discretization setup ----------------------------------------------------
     job = Job("mesh")
-    #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=25*units.MM, periodic=True,
-            #max_volume=1000*units.MM**3, radial_subdivisions=10)
-    #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
     full_mesh = make_cylinder_with_fine_core(
             r=10*beam_radius, inner_r=1*beam_radius, 
             min_z=0, max_z=tube_length,
             max_volume_inner=10*units.MM**3,
             max_volume_outer=100*units.MM**3,
-            radial_subdiv=35,
+            radial_subdiv=10,
             )
     job.done()
 
@@ -94,7 +91,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
+    cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=False)
 
     cloud_charge = -1e-9 * units.C
     electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
@@ -119,199 +116,55 @@ def main():
     beam.add_to(cloud, discr)
 
     # intial condition --------------------------------------------------------
-    def compute_initial_condition():
-        from hedge.operators import WeakPoissonOperator
-        from hedge.mesh import TAG_ALL, TAG_NONE
-        from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
-        from hedge.tools import cross
+    from pyrticle.cloud import compute_initial_condition
+    fields = compute_initial_condition(pcon, discr, cloud, 
+            mean_beta=num.array([0, 0, beta]), max_op=max_op,
+            debug=True)
 
-        q_per_unit_z = cloud_charge/beam.z_length
-        class TheoreticalEField():
-            shape = (3,)
+    # check against theory ----------------------------------------------------
+    from pytools.arithmetic_container import work_with_arithmetic_containers
+    ac_multiply = work_with_arithmetic_containers(num.multiply)
 
-            def __call__(self, x):
-                r = comp.norm_2(x[:2])
-                if r >= max(beam.radii):
-                    xy_unit = x/r
-                    xy_unit[2] = 0
-                    return xy_unit*((gamma*q_per_unit_z)
-                            /
-                            (2*pi*r*max_op.epsilon))
-                else:
-                    return num.zeros((3,))
+    q_per_unit_z = cloud_charge/beam.z_length
+    class TheoreticalEField():
+        shape = (3,)
 
-        def theory_indicator(x):
+        def __call__(self, x):
             r = comp.norm_2(x[:2])
             if r >= max(beam.radii):
-                return 1
+                xy_unit = x/r
+                xy_unit[2] = 0
+                return xy_unit*((gamma*q_per_unit_z)
+                        /
+                        (2*pi*r*max_op.epsilon))
             else:
-                return 0
+                return num.zeros((3,))
 
-        e_theory = discr.interpolate_volume_function(TheoreticalEField())
-        theory_ind = discr.interpolate_volume_function(theory_indicator)
+    def theory_indicator(x):
+        r = comp.norm_2(x[:2])
+        if r >= max(beam.radii):
+            return 1
+        else:
+            return 0
 
-        # see doc/notes.tm for derivation of IC
+    e_theory = discr.interpolate_volume_function(TheoreticalEField())
+    theory_ind = discr.interpolate_volume_function(theory_indicator)
 
-        beta_vec = num.array([0,0,beta])
+    restricted_e = ac_multiply(fields.e, theory_ind)
 
-        diff_tensor = num.identity(discr.dimensions)
-        diff_tensor[2,2] = 1/gamma**2
+    print "L2 error in outer E field: %g" % l2_error(restricted_e, e_theory)
 
-        poisson_op = WeakPoissonOperator(discr, 
-                diffusion_tensor=ConstantGivenFunction(diff_tensor),
-                dirichlet_tag=TAG_ALL,
-                neumann_tag=TAG_NONE,
-                )
-
-        rho = cloud.reconstruct_rho() 
-
-        from hedge.discretization import ones_on_volume
-        print "charge: supposed=%g reconstructed=%g" % (
-                cloud_charge,
-                ones_on_volume(discr)*(discr.mass_operator*rho),
-                )
-
-        from hedge.tools import parallel_cg
-        phi = -parallel_cg(pcon, -poisson_op, 
-                poisson_op.prepare_rhs(
-                    GivenVolumeInterpolant(discr, rho/max_op.epsilon)), 
-                debug=True, tol=1e-10)
-
-        etilde = ArithmeticList([1,1,1/gamma])*poisson_op.grad(phi)
-
-        eprime = ArithmeticList([gamma,gamma,1])*etilde
-
-        hprime = (1/max_op.mu)*gamma/max_op.c * cross(beta_vec, etilde)
-
-        rhoprime = gamma*rho
-        divDprime_ldg = max_op.epsilon*poisson_op.div(eprime)
-        divDprime_ldg2 = max_op.epsilon*poisson_op.div(eprime, gamma*phi)
-        divDprime_ldg3 = max_op.epsilon*gamma*\
-                (discr.inverse_mass_operator*poisson_op.op(phi))
-        divDprime_central = max_op.epsilon*div_op(eprime)
-
-        print "l2 div error ldg: %g" % \
-                l2_error(divDprime_ldg, rhoprime)
-        print "l2 div error central: %g" % \
-                l2_error(divDprime_central, rhoprime)
-        print "l2 div error ldg with phi: %g" % \
-                l2_error(divDprime_ldg2, rhoprime)
-        print "l2 div error ldg with phi 3: %g" % \
-                l2_error(divDprime_ldg3, rhoprime)
-
-        if True:
-            visf = vis.make_file("ic")
-            vis.add_data(visf, [ 
-                ("rho", rhoprime), 
-                ("divDldg", divDprime_ldg),
-                ("divDldg2", divDprime_ldg2),
-                ("divDldg3", divDprime_ldg3),
-                ("divDcentral", divDprime_central),
-                ("phi", phi),
-                ("e", eprime), 
-                ("e_theory", e_theory), 
-                ("theory_ind", theory_ind), 
-                ("h", hprime), 
-                ],
-                scale_factor=1e30
-                )
+    visf = vis.make_file("e_comparison")
+    mesh_scalars, mesh_vectors = \
             cloud.add_to_vis(vis, visf)
-            visf.close()
-
-        from pyrticle.cloud import FieldsAndCloud
-        return FieldsAndCloud(max_op, eprime, hprime, cloud)
-
-    fields = compute_initial_condition()
-
-    # timestepping ------------------------------------------------------------
-
-    def rhs(t, y):
-        rho, j = cloud.reconstruct_densities()
-
-        e, h = max_op.split_fields(y)
-        cloud_rhs = cloud.rhs(t, e, h)
-
-        maxwell_rhs = max_op.rhs(t, y[0:eh_components])
-        rhs_e, rhs_h = max_op.split_fields(maxwell_rhs)
-
-        return join_fields(
-                rhs_e - 1/max_op.epsilon*j,
-                rhs_h,
-                ).plus([cloud_rhs])
-
-    stepper = RK4TimeStepper()
-    from time import time
-    last_tstep = time()
-    t = 0
-
-    rms_r_logger = RMSBeamRadiusLogger(cloud.dimensions_pos, 0)
-
-    rms_theory_with_charge = KVRadiusPredictor(
-            beam.rms_radii[rms_r_logger.axis], 
-            beam.rms_emittances[rms_r_logger.axis],
-            xi=beam.get_rms_space_charge_parameter())
-
-    def write_out_plots():
-        rms_r_logger.generate_plot(
-                title="Kapchinskij-Vladimirskij Beam Evolution",
-                sim_label="RMS, simulated, with space charge", 
-                outfile="beam-rad-rms",
-                theories=[
-                    ("RMS, theoretical, with space charge", rms_theory_with_charge)
-                    ])
-
-    from pytools.stopwatch import EtaEstimator
-    eta = EtaEstimator(nsteps)
-
-    for step in xrange(nsteps):
-        if step % field_dump_interval == 0:
-            visf = vis.make_file("pic-%04d" % step)
-
-            mesh_scalars, mesh_vectors = \
-                    cloud.add_to_vis(vis, visf, time=t, step=step)
-            vis.add_data(visf, [
-                ("divD", max_op.epsilon*div_op(fields.e)),
-                ("e", fields.e), 
-                ("h", fields.h), 
-                ]
-                + mesh_vectors
-                + mesh_scalars,
-                time=t, step=step)
-            visf.close()
-
-        rms_r_logger.update(t, cloud.positions, cloud.velocities())
-
-        fields = stepper(fields, t, dt, fields.rhs)
-        cloud.upkeep()
-
-        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f eta=%s particles=%d" % (
-                step, t, l2_norm(fields.e), l2_norm(fields.h),
-                time()-last_tstep, eta.estimate(step), len(cloud))
-        last_tstep = time()
-
-        if False:
-            print "searches: same=%d, normal=%d, vertex=%d, global=%d, periodic=%d" % (
-                    cloud.same_searches.pop(),
-                    cloud.normal_searches.pop(),
-                    cloud.vertex_searches.pop(),
-                    cloud.global_searches.pop(),
-                    cloud.periodic_hits.pop(),
-                    )
-            print "shape-adds: neighbor=%d vertex=%d" % (
-                    cloud.neighbor_shape_adds.pop(),
-                    cloud.vertex_shape_adds.pop(),
-                    )
-
-        t += dt
-
-        if step % 100 == 0:
-            write_out_plots()
-
-    vis.close()
-        
-    write_out_plots()
-
-    print "Relative error: %g" % rms_r_logger.relative_error(rms_theory_with_charge)
+    vis.add_data(visf, [
+        ("e", restricted_e), 
+        ("e_theory", e_theory), 
+        ]
+        + mesh_vectors
+        + mesh_scalars
+        )
+    visf.close()
 
 
 

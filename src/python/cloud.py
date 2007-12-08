@@ -560,9 +560,12 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
     # see doc/notes.tm for derivation of IC
 
     def make_scaling_matrix(beta_scale, other_scale):
-        beta_unit = mean_beta/comp.norm_2(mean_beta)
-        return (other_scale*num.identity(discr.dimensions) 
-                + (beta_scale-other_scale)*(beta_unit <<num.outer>> beta_unit))
+        if comp.norm_2(mean_beta) < 1e-10:
+            return other_scale*num.identity(discr.dimensions) 
+        else:
+            beta_unit = mean_beta/comp.norm_2(mean_beta)
+            return (other_scale*num.identity(discr.dimensions) 
+                    + (beta_scale-other_scale)*(beta_unit <<num.outer>> beta_unit))
 
     poisson_op = WeakPoissonOperator(discr, 
             diffusion_tensor=ConstantGivenFunction(
