@@ -28,8 +28,11 @@ def main():
 	    "--inverse", dest="generate_inverse", action="store_true",
 	    help="Whether to mesh the inverse of the gun (useless, but fun)")
     parser.add_option(
-	    "--fine-tube", dest="generate_fine_tube", action="store_true",
-	    help="Whether to generate a fine inner tube")
+	    "--radial-subdiv", dest="radial_subdiv", action="store", type="int",
+            default=16, help="How many radial subdivisions")
+    parser.add_option(
+	    "--tube-radius", dest="tube_radius", action="store", type="float",
+            default=0.1, help="Radius of the interior tube")
 
     options, args = parser.parse_args()
 
@@ -49,15 +52,23 @@ def main():
 
         # construct outer cylinder
         ((min_r, max_r), (min_z, max_z)) = bounding_box(rz)
-        first_z = rz[0][1]
-        last_z = rz[-1][1]
-        rz.extend([
-                (max_r+2, min_z),
-                (max_r+2, max_z),
-                ])
+
+        if rz[0][1] < rz[-1][1]:
+            # built in positive z direction
+            rz.extend([
+                    (max_r+2, max_z),
+                    (max_r+2, min_z),
+                    ])
+        else:
+            rz.extend([
+                    (max_r+2, min_z),
+                    (max_r+2, max_z),
+                    ])
         closure=EXT_CLOSED_IN_RZ
 
-    if options.generate_fine_tube:
+    if options.tube_radius:
+        assert closure is EXT_OPEN
+
         # chop off points with zero radius
         while rz[0][0] == 0:
             rz.pop(0)
@@ -65,38 +76,64 @@ def main():
             rz.pop(-1)
 
         # construct outer cylinder
-        ((min_r, max_r), (min_z, max_z)) = bounding_box(rz)
         first_z = rz[0][1]
         last_z = rz[-1][1]
-        first_r = rz[0][0]
-        tube_r = first_r*0.6
+        tube_r = options.tube_radius
+        assert tube_r is not None
 
-        rz.insert(0, (tube_r, min_z))
-        rz.append((tube_r, max_z))
+        rz.insert(0, (tube_r, first_z))
+        rz.append((tube_r, last_z))
 
-        points, facets = generate_surface_of_revolution(rz,
-                closure=closure)
+        outer_points, outer_facets, outer_facet_holestarts, outer_facet_markers = \
+                generate_surface_of_revolution(rz, 
+                        closure=closure,
+                        radial_subdiv=options.radial_subdiv
+                        )
 
-        tube_points, tube_facets = generate_surface_of_revolution(
-                [(0,min_z), (tube_r, min_z), (tube_r, max_z),
-                    (0, max_z)], point_idx_offset=len(points))
+        outer_point_indices = tuple(range(len(outer_points)))
 
-        points.extend(tube_points)
-        facets.extend(tube_facets)
+        inner_points, inner_facets, inner_facet_holestarts, inner_facet_markers = \
+                generate_surface_of_revolution(
+                        [(0,first_z), 
+                            (tube_r, first_z), 
+                            (tube_r, last_z),
+                            (0, last_z)], 
+                        point_idx_offset=len(outer_points),
+                        radial_subdiv=options.radial_subdiv,
+                        ring_point_indices=[
+                            None,
+                            outer_point_indices[:options.radial_subdiv],
+                            outer_point_indices[-options.radial_subdiv:],
+                            None,
+                            ]
+                        )
+
+        points = outer_points + inner_points
+        facets = outer_facets + inner_facets
+        facet_holestarts = outer_facet_holestarts + inner_facet_holestarts
+        facet_markers = outer_facet_markers + inner_facet_markers
 
         # set regional max. volume
         mesh_info.regions.resize(1)
-        mesh_info.regions[0] = [0, 0,(max_z+min_z)/2, 0, 1e-4]
+        mesh_info.regions[0] = [0, 0,(first_z+last_z)/2, 0, 1e-4]
 
         build_kwargs["volume_constraints"] = True
     else:
-        points, facets = generate_surface_of_revolution(rz,
-                closure=closure)
+        points, facets, facet_holestarts, facet_markers = \
+                generate_surface_of_revolution(rz, closure=closure,
+                        radial_subdiv=options.radial_subdiv)
+
+    #print rz
+    #for i, p in enumerate(points):
+        #print i, p
+    #for i, f in enumerate(facets):
+        #print i, f
 
     mesh_info.set_points(points)
-    mesh_info.set_facets(facets, [0 for i in range(len(facets))])
+    mesh_info.set_facets_ex(facets, facet_holestarts, facet_markers)
     #mesh_info.save_poly("gun")
     #mesh_info.save_nodes("gun")
+
     mesh = build(mesh_info, verbose=True, **build_kwargs)
     print "%d elements" % len(mesh.elements)
     mesh.write_vtk("gun.vtk")

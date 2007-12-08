@@ -126,6 +126,32 @@ def parse_superfish_format(filename, max_point_dist=0.1):
         else:
             raise ValueError, "unhandled shape type: nt=%s" % shape_type
 
+    # assert that last point coincides with first
+    assert ((points[0][0]-points[-1][0])**2 + (points[0][1]-points[-1][1])**2) < 1e-10
+    # and kill it
+    points.pop()
+
+    # now find the on-axis line, if any, and shift it so straddles the array boundary
+    assert len(points) > 1
+
+    for i, (z, r) in enumerate(points):
+        next_i = (i+1)%len(points)
+        next_r = points[next_i][1]
+
+        if r == 0 and next_r == 0:
+            if i < len(points):
+                # if the on-axis line is already the last line in the polygon,
+                # then that's fine--no need to change. Otherwise, shift so that
+                # this becomes the case.
+
+                from pytools import shift
+                points = shift(points, len(points)-1-i)
+                break
+
+    # assert start and end r are 0
+    assert points[0][1] == 0
+    assert points[-1][1] == 0
+
     outf = file("gun-lines.dat", "w")
     for p in points:
         outf.write("%f\t%f\n" % (p[0], p[1]))

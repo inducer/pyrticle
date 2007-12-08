@@ -8,26 +8,30 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
         radial_subdiv=20):
 
         from meshpy.tet import MeshInfo, build, \
-                generate_surface_of_revolution, \
-                EXT_CLOSED_IN_RZ, EXT_OPEN, EXT_CLOSE_IN_Z
+                generate_surface_of_revolution
 
         MINUS_Z_MARKER = 1
         PLUS_Z_MARKER = 2
 
-        inner_points, inner_facets, inner_markers, inner_holes = \
+        inner_points, inner_facets, inner_holes, inner_markers = \
                 generate_surface_of_revolution(
                         [
+                            (0, min_z),
                             (inner_r, min_z), 
                             (inner_r, max_z),
+                            (0, max_z),
                             ],
-                        minus_z_closure_marker=MINUS_Z_MARKER,
-                        plus_z_closure_marker=PLUS_Z_MARKER,
+                        ring_markers=[
+                            MINUS_Z_MARKER,
+                            0,
+                            PLUS_Z_MARKER
+                            ],
                         radial_subdiv=radial_subdiv,
-                        closure=EXT_CLOSE_IN_Z)
+                        )
 
-        inner_point_indices = range(len(inner_points))
+        inner_point_indices = tuple(range(len(inner_points)))
 
-        outer_points, outer_facets, outer_markers, outer_holes = \
+        outer_points, outer_facets, outer_holes, outer_markers = \
                 generate_surface_of_revolution(
                         [ (inner_r,min_z), 
                             (r, min_z), 
@@ -36,7 +40,6 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
                             ], 
                         ring_markers=[MINUS_Z_MARKER, 0, PLUS_Z_MARKER],
                         point_idx_offset=len(inner_points),
-                        closure=EXT_OPEN,
                         radial_subdiv=radial_subdiv,
                         ring_point_indices=[
                             inner_point_indices[:radial_subdiv],
@@ -50,8 +53,9 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
         mesh_info.set_points(inner_points + outer_points)
         mesh_info.set_facets_ex(
                 inner_facets + outer_facets,
+                inner_holes + outer_holes,
                 inner_markers + outer_markers,
-                inner_holes + outer_holes)
+                )
 
         # set regional max. volume
         mesh_info.regions.resize(2)
@@ -70,8 +74,8 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
         pbcg.set_transform(translation=[0,0,max_z-min_z])
 
         mesh = build(mesh_info, verbose=True, volume_constraints=True)
-        #print "%d elements" % len(mesh.elements)
-        #mesh.write_vtk("gun.vtk")
+        print "%d elements" % len(mesh.elements)
+        mesh.write_vtk("gun.vtk")
 
         from hedge.mesh import ConformalMesh
 

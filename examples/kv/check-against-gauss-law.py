@@ -55,7 +55,7 @@ def main():
             min_z=0, max_z=tube_length,
             max_volume_inner=10*units.MM**3,
             max_volume_outer=100*units.MM**3,
-            radial_subdiv=10,
+            radial_subdiv=35,
             )
     job.done()
 
