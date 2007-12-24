@@ -97,7 +97,7 @@ def main():
         mesh = pcon.receive_mesh()
 
     job = Job("discretization")
-    discr = pcon.make_discretization(mesh, TetrahedralElement(1))
+    discr = pcon.make_discretization(mesh, TetrahedralElement(3))
     job.done()
 
     vis = SiloVisualizer(discr)

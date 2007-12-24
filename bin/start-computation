@@ -17,3 +17,5 @@ mkdir $SUBDIR
 cd $SUBDIR
 echo "$@" > commandline.log
 "$@" | tee run.log
+echo -n "Finished. [Hit Enter] "
+read DUMMY
