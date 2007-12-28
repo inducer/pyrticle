@@ -175,7 +175,6 @@ namespace pyrticle
           std::auto_ptr<hedge::vector> 
             vis_e, vis_b, vis_el_force, vis_lorentz_force;
 
-          /*
           if (verbose_vis)
           {
             vis_e = std::auto_ptr<hedge::vector>(
@@ -187,7 +186,6 @@ namespace pyrticle
             vis_lorentz_force = std::auto_ptr<hedge::vector>(
                 new hedge::vector(3*PIC_THIS->m_containing_elements.size()));
           }
-          */
 
           for (particle_number i = 0; i < PIC_THIS->m_containing_elements.size(); i++)
           {
@@ -241,15 +239,13 @@ namespace pyrticle
             }
           }
 
-          /*
           if (verbose_vis)
           {
-            m_vis_info["pt_e"] = python::object(*vis_e);
-            m_vis_info["pt_b"] = python::object(*vis_b);
-            m_vis_info["el_force"] = python::object(*vis_el_force);
-            m_vis_info["lorentz_force"] = python::object(*vis_lorentz_force);
+            PIC_THIS->store_vis_vector("pt_e", *vis_e);
+            PIC_THIS->store_vis_vector("pt_b", *vis_b);
+            PIC_THIS->store_vis_vector("el_force", *vis_el_force);
+            PIC_THIS->store_vis_vector("lorentz_force", *vis_lorentz_force);
           }
-          */
 
           return result;
         }

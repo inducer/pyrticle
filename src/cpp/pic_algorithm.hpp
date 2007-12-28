@@ -35,6 +35,17 @@
 
 namespace pyrticle 
 {
+  class visualization_listener
+  {
+    public:
+      virtual void store_vis_vector(
+          const char *name,
+          const hedge::vector &vec) const = 0;
+  };
+
+
+
+
   template<unsigned DimensionsPos, unsigned DimensionsVelocity>
   struct pic_data
   {
@@ -297,6 +308,9 @@ namespace pyrticle
     public Reconstructor::template type<pic<PICData, Reconstructor, ParticlePusher> >,
     public ParticlePusher::template type<pic<PICData, Reconstructor, ParticlePusher> >
   {
+    private:
+      std::auto_ptr<visualization_listener> m_vis_listener;
+
     public:
       typedef typename PICData::template type<pic> pic_data;
       typedef typename Reconstructor::template type<pic> reconstructor;
@@ -306,6 +320,20 @@ namespace pyrticle
         : pic_data(mdata, vacuum_c)
       { }
 
+      // visualization-related ------------------------------------------------
+      void store_vis_vector(
+          const char *name,
+          const hedge::vector &vec)
+      {
+        if (m_vis_listener.get())
+          m_vis_listener->store_vis_vector(name, vec);
+      }
+
+      void set_vis_listener(
+          std::auto_ptr<visualization_listener> listener)
+      {
+        m_vis_listener = listener;
+      }
   };
 }
 

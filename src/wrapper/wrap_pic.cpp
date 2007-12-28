@@ -114,7 +114,26 @@ namespace
       .DEF_SIMPLE_METHOD(reconstruct_rho)
       .DEF_SIMPLE_METHOD(reconstruct_j)
       ;
+    
+    pic_wrap
+      .DEF_SIMPLE_METHOD(store_vis_vector)
+      .DEF_SIMPLE_METHOD(set_vis_listener)
+      ;
   }
+
+
+
+  struct visualization_listener_wrap : 
+    visualization_listener,
+    python::wrapper<visualization_listener>
+  {
+    void store_vis_vector(
+        const char *name,
+        const hedge::vector &vec) const
+    {
+      this->get_override("store_vis_vector")(name, vec);
+    }
+  };
 }
 
 
@@ -122,6 +141,15 @@ namespace
 
 void expose_pic()
 {
+  {
+    typedef visualization_listener cl;
+    python::class_<visualization_listener_wrap, boost::noncopyable>
+      ("VisualizationListener")
+      .def("store_vis_vector", 
+          python::pure_virtual(&cl::store_vis_vector))
+      ;
+  }
+
   expose_pic_algorithm<
       pic<
         pic_data<3,3>,
