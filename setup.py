@@ -84,7 +84,14 @@ def main():
           ext_package="pyrticle",
           ext_modules=[
             Extension("_internal", 
-                ["src/cpp/main.cpp", ],
+                [
+                    "src/cpp/meshdata.cpp",
+                    "src/cpp/rec_shape.cpp",
+                    "src/wrapper/wrap_tools.cpp",
+                    "src/wrapper/wrap_meshdata.cpp",
+                    "src/wrapper/wrap_pusher.cpp",
+                    "src/wrapper/wrap_pic.cpp", 
+                ],
                 include_dirs=INCLUDE_DIRS + EXTRA_INCLUDE_DIRS,
                 library_dirs=LIBRARY_DIRS + EXTRA_LIBRARY_DIRS,
                 libraries=LIBRARIES + EXTRA_LIBRARIES,
