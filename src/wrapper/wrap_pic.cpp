@@ -19,8 +19,8 @@
 
 #include <boost/lexical_cast.hpp>
 #include "pic_algorithm.hpp"
-#include "push_monomial.hpp"
-#include "rec_shape.hpp"
+#include "wrap_reconstructor.hpp"
+#include "wrap_pusher.hpp"
 #include "wrap_helpers.hpp"
 
 
@@ -48,8 +48,8 @@ namespace
     typedef PICAlgorithm cl;
 
     python::class_<cl, boost::noncopyable> 
-      pic_wrap(name.c_str(), 
-          python::init<unsigned, double>());
+      pic_wrap(name.c_str(), python::init<unsigned, double>());
+
     pic_wrap
       .add_static_property("dimensions_pos", &cl::get_dimensions_pos)
       .add_static_property("dimensions_velocity", &cl::get_dimensions_velocity)
@@ -120,6 +120,15 @@ namespace
       .DEF_SIMPLE_METHOD(store_vis_vector)
       .DEF_SIMPLE_METHOD(set_vis_listener)
       ;
+
+    expose_typed_pusher(
+        pic_wrap, 
+        (typename PICAlgorithm::particle_pusher *) 0
+        );
+    expose_typed_reconstructor(
+        pic_wrap, 
+        (typename PICAlgorithm::reconstructor *) 0
+        );
   }
 
 

@@ -1,5 +1,5 @@
 // Pyrticle - Particle in Cell in Python
-// Main Module of the Python wrapper
+// Python wrapper for reconstruction bits
 // Copyright (C) 2007 Andreas Kloeckner
 // 
 // This program is free software: you can redistribute it and/or modify
@@ -18,25 +18,13 @@
 
 
 
-#include <boost/python.hpp>
+
+#include "rec_shape.hpp"
+#include "wrap_helpers.hpp"
 
 
 
 
-void expose_tools();
-void expose_meshdata();
-void expose_reconstructor();
-void expose_pusher();
-void expose_pic();
-
-
-
-
-BOOST_PYTHON_MODULE(_internal)
+void expose_reconstructor()
 {
-  expose_tools();
-  expose_meshdata();
-  expose_reconstructor();
-  expose_pusher();
-  expose_pic();
 }

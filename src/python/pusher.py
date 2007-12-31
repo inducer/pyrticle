@@ -28,15 +28,12 @@ class MonomialParticlePusher:
     name = "Monomial"
 
     def initialize(self, cloud):
-        # add monomial basis data
+        # add monomial basis data ---------------------------------------------
         from hedge.polynomial import generic_vandermonde
         from pyrticle._internal import MonomialBasisFunction
 
-        ldis_indices = {}
-        
         for i, eg in enumerate(cloud.mesh_data.discr.element_groups):
             ldis = eg.local_discretization
-            ldis_indices[ldis] = i
 
             from pyrticle._internal import LocalMonomialDiscretization
             lmd = LocalMonomialDiscretization()
@@ -49,6 +46,6 @@ class MonomialParticlePusher:
             lmd.l_vandermonde_t, \
                     lmd.u_vandermonde_t, perm, sign = comp.lu(mon_vdm_t)
             lmd.p_vandermonde_t = num.permutation_matrix(from_indices=perm)
+            cloud.pic_algorithm.local_discretizations.append(lmd)
 
-
-        return ldis_indices
+            cloud.pic_algorithm.ldis_indices.extend([i]*len(eg.members))

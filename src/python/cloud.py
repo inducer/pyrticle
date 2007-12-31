@@ -64,7 +64,7 @@ class ParticleCloud:
 
         dims = (dimensions_pos, dimensions_velocity)
 
-        self.icloud = getattr(_internal, 
+        self.pic_algorithm = getattr(_internal, 
                 "PIC%s%s%d%d" % (
                     self.reconstructor.name,
                     self.pusher.name,
@@ -76,41 +76,41 @@ class ParticleCloud:
         # We need to retain this particular Python wrapper
         # of our mesh_data object because we write new stuff
         # to its __dict__. (And every time we access it via
-        # icloud, a new wrapper--with a fresh __dict__--gets
+        # pic_algorithm, a new wrapper--with a fresh __dict__--gets
         # created, which is not what we want.)
-        self.mesh_data = self.icloud.mesh_data
+        self.mesh_data = self.pic_algorithm.mesh_data
         self.mesh_data.fill_from_hedge(discr)
 
         self.particle_radius = 0.5*self.mesh_data.min_vertex_distance()
 
         self.vis_info = {}
-        self.icloud.set_vis_listener(
+        self.pic_algorithm.set_vis_listener(
                 MapStorageVisualizationListener(self.vis_info))
 
         self.reconstructor.initialize(self)
         self.pusher.initialize(self)
 
     def __len__(self):
-        return len(self.icloud.containing_elements) - len(self.icloud.deadlist)
+        return len(self.pic_algorithm.containing_elements) - len(self.pic_algorithm.deadlist)
 
     @property
     def positions(self):
-        return self.icloud.positions
+        return self.pic_algorithm.positions
 
     @property
     def momenta(self):
-        return self.icloud.momenta
+        return self.pic_algorithm.momenta
 
     @property
     def masses(self):
-        return self.icloud.masses
+        return self.pic_algorithm.masses
 
     @property
     def charges(self):
-        return self.icloud.charges
+        return self.pic_algorithm.charges
 
     def velocities(self):
-        return self.icloud.velocities()
+        return self.pic_algorithm.velocities()
 
     def add_particles(self, positions, velocities, charges, masses):
         """Add the particles with the given data to the cloud."""
@@ -132,7 +132,7 @@ class ParticleCloud:
         momenta = [m*self.units.gamma(v)*v for m, v in zip(masses, velocities)]
 
         # find containing elements
-        containing_elements = [self.icloud.mesh_data.find_containing_element(p) 
+        containing_elements = [self.pic_algorithm.mesh_data.find_containing_element(p) 
                 for p in positions]
 
         # weed out uncontained particles
@@ -157,33 +157,33 @@ class ParticleCloud:
 
         # first, fill up the spots of formerly dead particles
         already_placed = 0
-        while len(self.icloud.deadlist):
-            i = self.icloud.deadlist.pop()
+        while len(self.pic_algorithm.deadlist):
+            i = self.pic_algorithm.deadlist.pop()
             x_pstart = i*self.dimensions_pos
             x_pend = (i+1)*self.dimensions_pos
             v_pstart = i*self.dimensions_velocity
             v_pend = (i+1)*self.dimensions_velocity
 
-            self.icloud.containing_elements[i] = containing_elements[alreay_placed]
-            self.icloud.positions[x_pstart:x_pend] = positions[already_placed]
-            self.icloud.momenta[v_pstart:v_pend] = momenta[already_placed]
-            self.icloud.charges[i] = charges[already_placed]
-            self.icloud.masses[i] = masses[already_placed]
+            self.pic_algorithm.containing_elements[i] = containing_elements[alreay_placed]
+            self.pic_algorithm.positions[x_pstart:x_pend] = positions[already_placed]
+            self.pic_algorithm.momenta[v_pstart:v_pend] = momenta[already_placed]
+            self.pic_algorithm.charges[i] = charges[already_placed]
+            self.pic_algorithm.masses[i] = masses[already_placed]
 
             already_placed += 1
 
         # next, append
-        self.icloud.containing_elements[-1:] = \
+        self.pic_algorithm.containing_elements[-1:] = \
                 containing_elements[already_placed:]
 
-        self.icloud.positions = num.hstack((self.icloud.positions, 
+        self.pic_algorithm.positions = num.hstack((self.pic_algorithm.positions, 
             num.hstack(positions[already_placed:])))
-        self.icloud.momenta = num.hstack((self.icloud.momenta, 
+        self.pic_algorithm.momenta = num.hstack((self.pic_algorithm.momenta, 
             num.hstack(momenta[already_placed:])))
 
-        self.icloud.charges = num.hstack((self.icloud.charges, 
+        self.pic_algorithm.charges = num.hstack((self.pic_algorithm.charges, 
             charges[already_placed:]))
-        self.icloud.masses = num.hstack((self.icloud.masses, 
+        self.pic_algorithm.masses = num.hstack((self.pic_algorithm.masses, 
             masses[already_placed:]))
 
     def upkeep(self):
@@ -200,13 +200,13 @@ class ParticleCloud:
         """
 
         if velocities is None:
-            velocities = self.icloud.velocities()
+            velocities = self.pic_algorithm.velocities()
 
         rho = self.discretization.volume_zeros()
         j = ArithmeticList([self.discretization.volume_zeros()
             for axis in range(self.dimensions_velocity)])
 
-        self.icloud.reconstruct_densities(rho, j, self.particle_radius,
+        self.pic_algorithm.reconstruct_densities(rho, j, self.particle_radius,
                 velocities)
 
         if self.verbose_vis:
@@ -221,12 +221,12 @@ class ParticleCloud:
         """
 
         if velocities is None:
-            velocities = self.icloud.velocities()
+            velocities = self.pic_algorithm.velocities()
 
         j = ArithmeticList([self.discretization.volume_zeros()
             for axis in range(self.dimensions_velocity)])
 
-        self.icloud.reconstruct_j(j, self.particle_radius, velocities)
+        self.pic_algorithm.reconstruct_j(j, self.particle_radius, velocities)
 
         if self.verbose_vis:
             self.vis_info["j"] = j
@@ -239,7 +239,7 @@ class ParticleCloud:
 
         rho = self.discretization.volume_zeros()
 
-        self.icloud.reconstruct_rho(rho, self.particle_radius)
+        self.pic_algorithm.reconstruct_rho(rho, self.particle_radius)
 
         if self.verbose_vis:
             self.vis_info["rho"] = rho
@@ -257,13 +257,13 @@ class ParticleCloud:
         """
 
         if velocities is None:
-            velocities = self.icloud.velocities()
+            velocities = self.pic_algorithm.velocities()
 
         field_args = tuple(e) + tuple(b)
         # compute forces
         return ArithmeticList([
             velocities, 
-            self.icloud.forces(
+            self.pic_algorithm.forces(
                 velocities=velocities,
                 verbose_vis=self.verbose_vis,
                 *field_args
@@ -276,10 +276,10 @@ class ParticleCloud:
         assert isinstance(rhs, ArithmeticList)
 
         dx, dp = rhs
-        self.icloud.positions += dx
-        self.icloud.momenta += dp
+        self.pic_algorithm.positions += dx
+        self.pic_algorithm.momenta += dp
 
-        self.icloud.update_containing_elements()
+        self.pic_algorithm.update_containing_elements()
 
         return self
 
@@ -302,10 +302,10 @@ class ParticleCloud:
                 UnstructuredGrid, \
                 AppendedDataXMLGenerator
 
-        dim = self.icloud.mesh_data.dimensions
+        dim = self.pic_algorithm.mesh_data.dimensions
 
-        points = (len(self.icloud.containing_elements),
-                DataArray("points", self.icloud.positions,
+        points = (len(self.pic_algorithm.containing_elements),
+                DataArray("points", self.pic_algorithm.positions,
                     vector_format=VF_INTERLEAVED,
                     components=dim))
         grid = UnstructuredGrid(
@@ -316,7 +316,7 @@ class ParticleCloud:
 
         grid.add_pointdata(
                 DataArray("velocity", 
-                    self.icloud.velocities(),
+                    self.pic_algorithm.velocities(),
                     vector_format=VF_INTERLEAVED,
                     components=dim)
                 )
@@ -325,7 +325,7 @@ class ParticleCloud:
             if name in self.vis_info:
                 vec = self.vis_info[name]
             else:
-                vec = num.zeros((len(self.icloud.containing_elements) * dim,))
+                vec = num.zeros((len(self.pic_algorithm.containing_elements) * dim,))
 
             grid.add_pointdata(
                     DataArray(name, 
@@ -369,20 +369,20 @@ class ParticleCloud:
             optlist[DBOPT_CYCLE] = step
 
         coords = num.hstack([
-            self.icloud.positions[i::self.dimensions_pos] 
+            self.pic_algorithm.positions[i::self.dimensions_pos] 
             for i in range(self.dimensions_pos)])
         db.put_pointmesh("particles", self.dimensions_pos, coords, optlist)
 
         db.put_pointvar("momenta", "particles", 
-                [self.icloud.momenta[i::self.dimensions_velocity] 
+                [self.pic_algorithm.momenta[i::self.dimensions_velocity] 
                     for i in range(self.dimensions_velocity)])
 
-        velocities = self.icloud.velocities()
+        velocities = self.pic_algorithm.velocities()
         db.put_pointvar("velocity", "particles", 
                 [velocities[i::self.dimensions_velocity] 
                     for i in range(self.dimensions_velocity)])
 
-        pcount = len(self.icloud.containing_elements)
+        pcount = len(self.pic_algorithm.containing_elements)
         def add_particle_vis(name, dim):
             if name in self.vis_info:
                 db.put_pointvar(name, "particles", 

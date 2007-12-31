@@ -1,5 +1,5 @@
 // Pyrticle - Particle in Cell in Python
-// Main Module of the Python wrapper
+// Python wrapper for particle pusher bits
 // Copyright (C) 2007 Andreas Kloeckner
 // 
 // This program is free software: you can redistribute it and/or modify
@@ -18,25 +18,36 @@
 
 
 
-#include <boost/python.hpp>
+
+#ifndef _AYYTYAH_PYRTICLE_WRAP_PUSHER_HPP_INCLUDED
+#define _AYYTYAH_PYRTICLE_WRAP_PUSHER_HPP_INCLUDED
 
 
 
 
-void expose_tools();
-void expose_meshdata();
-void expose_reconstructor();
-void expose_pusher();
-void expose_pic();
+#include "wrap_helpers.hpp"
+#include "push_monomial.hpp"
 
 
 
 
-BOOST_PYTHON_MODULE(_internal)
+namespace pyrticle
 {
-  expose_tools();
-  expose_meshdata();
-  expose_reconstructor();
-  expose_pusher();
-  expose_pic();
+  template <class Wrapper, class PIC>
+  void expose_typed_pusher(
+      Wrapper &wrp, 
+      monomial_particle_pusher::type<PIC> *)
+  {
+    typedef PIC cl;
+
+    wrp
+      .DEF_RW_MEMBER(local_discretizations)
+      .DEF_RW_MEMBER(ldis_indices)
+      ;
+  }
 }
+
+
+
+
+#endif

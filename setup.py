@@ -89,6 +89,7 @@ def main():
                     "src/cpp/rec_shape.cpp",
                     "src/wrapper/wrap_tools.cpp",
                     "src/wrapper/wrap_meshdata.cpp",
+                    "src/wrapper/wrap_reconstructor.cpp",
                     "src/wrapper/wrap_pusher.cpp",
                     "src/wrapper/wrap_pic.cpp", 
                     "src/wrapper/wrap_main.cpp", 
