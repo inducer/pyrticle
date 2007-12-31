@@ -195,6 +195,9 @@ namespace pyrticle
     class type
     {
       public:
+        static const char *get_name()
+        { return "Shape"; }
+
         template <class Target, class ShapeFunction>
         void add_shape_on_element(
             Target &tgt, 

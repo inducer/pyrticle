@@ -1,0 +1,54 @@
+# Pyrticle - Particle in Cell in Python
+# Python interface for different particle pushers
+# Copyright (C) 2007 Andreas Kloeckner
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+
+import pylinear.array as num
+import pylinear.computation as comp
+
+
+
+
+class MonomialParticlePusher:
+    name = "Monomial"
+
+    def initialize(self, cloud):
+        # add monomial basis data
+        from hedge.polynomial import generic_vandermonde
+        from pyrticle._internal import MonomialBasisFunction
+
+        ldis_indices = {}
+        
+        for i, eg in enumerate(cloud.mesh_data.discr.element_groups):
+            ldis = eg.local_discretization
+            ldis_indices[ldis] = i
+
+            from pyrticle._internal import LocalMonomialDiscretization
+            lmd = LocalMonomialDiscretization()
+
+            lmd.basis.extend([MonomialBasisFunction(*idx)
+                for idx in ldis.node_tuples()])
+
+            mon_vdm_t = generic_vandermonde(ldis.unit_nodes(), lmd.basis).T
+
+            lmd.l_vandermonde_t, \
+                    lmd.u_vandermonde_t, perm, sign = comp.lu(mon_vdm_t)
+            lmd.p_vandermonde_t = num.permutation_matrix(from_indices=perm)
+
+
+        return ldis_indices

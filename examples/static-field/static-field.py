@@ -265,14 +265,19 @@ class EBParallel(StaticFieldSetup):
 
 def run_setup(casename, setup, discr):
     from hedge.timestep import RK4TimeStepper
-    from pyrticle.cloud import ParticleCloud
     from hedge.visualization import VtkVisualizer, SiloVisualizer
     from hedge.operators import MaxwellOperator
 
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
+    from pyrticle.cloud import ParticleCloud
+    from pyrticle.reconstruction import ShapeFunctionReconstructor
+    from pyrticle.pusher import MonomialParticlePusher
+    cloud = ParticleCloud(discr, units, 
+            ShapeFunctionReconstructor(),
+            MonomialParticlePusher(),
+            3, 3, verbose_vis=True)
 
     e, h = setup.fields(discr)
     b = units.MU0 * h
@@ -316,7 +321,7 @@ def run_setup(casename, setup, discr):
         all_f = [(p2-p1)/(2*deriv_dt)
                 for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
 
-        all_sim_f = cloud.icloud.vis_info["lorentz_force"] + cloud.icloud.vis_info["el_force"]
+        all_sim_f = cloud.vis_info["lorentz_force"] + cloud.vis_info["el_force"]
 
         local_e = setup.e()
         local_b = units.MU0 * setup.h()

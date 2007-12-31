@@ -27,6 +27,7 @@
 
 
 #include <boost/foreach.hpp> 
+#include <boost/shared_ptr.hpp> 
 #include <boost/numeric/ublas/vector_proxy.hpp>
 #include "meshdata.hpp"
 
@@ -53,7 +54,7 @@ namespace pyrticle
     class type : boost::noncopyable
     {
       public:
-        mesh_data                         &m_mesh_data;
+        mesh_data                         m_mesh_data;
 
         mesh_data::el_id_vector           m_containing_elements;
         hedge::vector                     m_positions;
@@ -65,10 +66,9 @@ namespace pyrticle
 
         const double                      m_vacuum_c;
 
-        type(mesh_data &mdata, double vacuum_c)
-          : m_mesh_data(mdata), m_vacuum_c(vacuum_c)
-        {
-        }
+        type(unsigned mesh_dimensions, double vacuum_c)
+          : m_mesh_data(mesh_dimensions), m_vacuum_c(vacuum_c)
+        { }
 
         static const unsigned dimensions_pos = DimensionsPos;
         static const unsigned dimensions_velocity = DimensionsVelocity;
@@ -78,10 +78,6 @@ namespace pyrticle
 
         static unsigned get_dimensions_velocity()
         { return dimensions_velocity; }
-
-        mesh_data &get_mesh_data()
-        { return m_mesh_data; }
-
 
 
         const hedge::vector velocities() const
@@ -309,15 +305,15 @@ namespace pyrticle
     public ParticlePusher::template type<pic<PICData, Reconstructor, ParticlePusher> >
   {
     private:
-      std::auto_ptr<visualization_listener> m_vis_listener;
+      boost::shared_ptr<visualization_listener> m_vis_listener;
 
     public:
       typedef typename PICData::template type<pic> pic_data;
       typedef typename Reconstructor::template type<pic> reconstructor;
       typedef typename ParticlePusher::template type<pic> particle_pusher;
 
-      pic(mesh_data &mdata, double vacuum_c)
-        : pic_data(mdata, vacuum_c)
+      pic(unsigned mesh_dimensions, double vacuum_c)
+        : pic_data(mesh_dimensions, vacuum_c)
       { }
 
       // visualization-related ------------------------------------------------
@@ -330,7 +326,7 @@ namespace pyrticle
       }
 
       void set_vis_listener(
-          std::auto_ptr<visualization_listener> listener)
+          boost::shared_ptr<visualization_listener> listener)
       {
         m_vis_listener = listener;
       }

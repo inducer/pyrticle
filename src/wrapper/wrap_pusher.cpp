@@ -42,5 +42,20 @@ void expose_pusher()
       ;
   }
 
+  expose_std_vector<monomial_basis_function>(
+      "MonomialBasisFunction");
+
+  {
+    typedef local_monomial_discretization cl;
+    python::class_<cl>("LocalMonomialDiscretization")
+      .DEF_RW_MEMBER(basis)
+      .DEF_RW_MEMBER(l_vandermonde_t)
+      .DEF_RW_MEMBER(u_vandermonde_t)
+      .DEF_RW_MEMBER(p_vandermonde_t)
+      ;
+  }
+
+  expose_std_vector<local_monomial_discretization>(
+      "LocalMonomialDiscretization");
 }
 

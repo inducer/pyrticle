@@ -17,6 +17,7 @@
 
 
 
+#include <boost/lexical_cast.hpp>
 #include "pic_algorithm.hpp"
 #include "push_monomial.hpp"
 #include "rec_shape.hpp"
@@ -34,24 +35,26 @@ using namespace pyrticle;
 namespace
 {
   template <class PICAlgorithm>
-  void expose_pic_algorithm(const std::string &name)
+  void expose_pic_algorithm()
   {
+    std::string name = "PIC";
+    name += PICAlgorithm::reconstructor::get_name();
+    name += PICAlgorithm::particle_pusher::get_name();
+    name += boost::lexical_cast<std::string>(PICAlgorithm::dimensions_pos);
+    name += boost::lexical_cast<std::string>(PICAlgorithm::dimensions_velocity);
+
     using python::arg;
 
     typedef PICAlgorithm cl;
 
     python::class_<cl, boost::noncopyable> 
       pic_wrap(name.c_str(), 
-          python::init<mesh_data &, double>());
+          python::init<unsigned, double>());
     pic_wrap
       .add_static_property("dimensions_pos", &cl::get_dimensions_pos)
       .add_static_property("dimensions_velocity", &cl::get_dimensions_velocity)
 
-      .add_property("mesh_data", 
-          python::make_function(
-            &cl::get_mesh_data,
-            python::return_internal_reference<>()
-            ))
+      .DEF_RO_MEMBER(mesh_data)
 
       .DEF_RO_MEMBER(containing_elements)
       .DEF_RW_MEMBER(positions)
@@ -60,8 +63,6 @@ namespace
       .DEF_RW_MEMBER(masses)
 
       .DEF_RO_MEMBER(deadlist)
-
-      // .DEF_RO_MEMBER(vis_info)
 
       /*
       .DEF_RO_MEMBER(same_searches)
@@ -143,7 +144,9 @@ void expose_pic()
 {
   {
     typedef visualization_listener cl;
-    python::class_<visualization_listener_wrap, boost::noncopyable>
+    python::class_<visualization_listener_wrap, 
+      boost::shared_ptr<visualization_listener_wrap>,
+      boost::noncopyable>
       ("VisualizationListener")
       .def("store_vis_vector", 
           python::pure_virtual(&cl::store_vis_vector))
@@ -156,6 +159,5 @@ void expose_pic()
         shape_function_reconstructor,
         monomial_particle_pusher
         >
-      >
-      ("ParticleCloud33");
+      >();
 }

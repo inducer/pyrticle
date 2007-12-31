@@ -18,6 +18,7 @@
 
 
 
+#include <boost/shared_ptr.hpp>
 #include "meshdata.hpp"
 #include "wrap_helpers.hpp"
 
@@ -34,22 +35,52 @@ void expose_meshdata()
 {
   {
     typedef mesh_data cl;
-    python::class_<cl, boost::noncopyable>("MeshData", 
-        python::init<unsigned>())
+    python::class_<cl, boost::noncopyable>("MeshData", python::init<unsigned>())
       .add_static_property("INVALID_ELEMENT", &cl::get_INVALID_ELEMENT)
 
       .DEF_RW_MEMBER(nodes)
       .DEF_RO_MEMBER(dimensions)
 
+      .DEF_RO_MEMBER(vertices)
+      .DEF_RO_MEMBER(nodes)
+      .DEF_RO_MEMBER(periodicities)
+
       //.DEF_SIMPLE_METHOD(add_local_discretization)
       //.DEF_SIMPLE_METHOD(add_element)
       //.DEF_SIMPLE_METHOD(add_vertex)
       //.DEF_SIMPLE_METHOD(add_nodes)
-      .DEF_SIMPLE_METHOD(add_periodicity)
+      //.DEF_SIMPLE_METHOD(add_periodicity)
 
       .DEF_SIMPLE_METHOD(is_in_element)
       .DEF_SIMPLE_METHOD(find_containing_element)
       ;
   }
 
+  {
+    typedef mesh_data::element_info cl;
+    python::class_<cl>("ElementInfo")
+      .DEF_RW_MEMBER(id)
+      .DEF_RW_MEMBER(inverse_map)
+      .DEF_RW_MEMBER(start)
+      .DEF_RW_MEMBER(end)
+      .DEF_RW_MEMBER(vertices)
+      .DEF_RW_MEMBER(normals)
+      .DEF_RW_MEMBER(neighbors)
+      ;
+  }
+
+  {
+    typedef mesh_data::periodicity_axis cl;
+    python::class_<cl>("PeriodicityAxis")
+      .DEF_RW_MEMBER(axis)
+      .DEF_RW_MEMBER(min)
+      .DEF_RW_MEMBER(max)
+      .DEF_RW_MEMBER(width)
+      ;
+  }
+
+  expose_std_vector<mesh_data::element_info>("ElementInfo");
+  expose_std_vector<mesh_data::periodicity_axis>("PeriodicityAxis");
+  expose_std_vector<hedge::vector>("Vector");
+  expose_std_vector<mesh_data::el_id_vector>("Unsigned");
 }

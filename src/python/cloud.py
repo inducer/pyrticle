@@ -1,9 +1,42 @@
+# Pyrticle - Particle in Cell in Python
+# Main state container Python interface
+# Copyright (C) 2007 Andreas Kloeckner
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+
 import pylinear.array as num
 import pylinear.computation as comp
 from pytools.arithmetic_container import work_with_arithmetic_containers
 from pytools.arithmetic_container import ArithmeticList
 from math import sqrt
 import pyrticle._internal as _internal
+
+from pyrticle.meshdata import MeshData
+
+
+
+
+class MapStorageVisualizationListener(_internal.VisualizationListener):
+    def __init__(self, storage_map):
+        _internal.VisualizationListener.__init__(self)
+        self.storage_map = storage_map
+
+    def store_vis_vector(self, name, vec):
+        self.storage_map[name] = vec
 
 
 
@@ -14,6 +47,7 @@ class ParticleCloud:
     dimensions for simplicity.
     """
     def __init__(self, discr, units, 
+            reconstructor, pusher,
             dimensions_pos, dimensions_velocity,
             verbose_vis=False):
 
@@ -21,45 +55,40 @@ class ParticleCloud:
         self.discretization = discr
         self.verbose_vis = verbose_vis
 
+        self.reconstructor = reconstructor
+        self.pusher = pusher
+
         self.dimensions_mesh = discr.dimensions
         self.dimensions_pos = dimensions_pos
         self.dimensions_velocity = dimensions_velocity
 
         dims = (dimensions_pos, dimensions_velocity)
 
-        constructor_args  = (
-                self.dimensions_mesh,
-                len(discr.mesh.points), len(discr.mesh.elements), len(discr.element_groups),
-                units.VACUUM_LIGHT_SPEED)
+        self.icloud = getattr(_internal, 
+                "PIC%s%s%d%d" % (
+                    self.reconstructor.name,
+                    self.pusher.name,
+                    self.dimensions_pos,
+                    self.dimensions_velocity
+                    ),
+                )(discr.dimensions, units.VACUUM_LIGHT_SPEED)
 
-        if dims == (3,3):
-            self.icloud = _internal.ParticleCloud33(*constructor_args)
-        elif dims == (2,2):
-            self.icloud = _internal.ParticleCloud22(*constructor_args)
-        else:
-            raise ValueError, "unsupported combination of dimensions"
+        # We need to retain this particular Python wrapper
+        # of our mesh_data object because we write new stuff
+        # to its __dict__. (And every time we access it via
+        # icloud, a new wrapper--with a fresh __dict__--gets
+        # created, which is not what we want.)
+        self.mesh_data = self.icloud.mesh_data
+        self.mesh_data.fill_from_hedge(discr)
 
-        self.icloud.mesh_info.add_elements(discr)
-        self.icloud.mesh_info.add_vertices(discr)
-        self.icloud.mesh_info.add_nodes(len(discr.nodes), discr.nodes)
+        self.particle_radius = 0.5*self.mesh_data.min_vertex_distance()
 
-        def min_vertex_distance(el):
-            vertices = [discr.mesh.points[vi] 
-                    for vi in el.vertex_indices]
+        self.vis_info = {}
+        self.icloud.set_vis_listener(
+                MapStorageVisualizationListener(self.vis_info))
 
-            return min(min(comp.norm_2(vi-vj)
-                    for i, vi in enumerate(vertices)
-                    if i != j)
-                    for j, vj in enumerate(vertices))
-
-        self.particle_radius = 0.5*min(min_vertex_distance(el) 
-                for el in discr.mesh.elements)
-
-        for axis, ((ax_min, ax_max), periodicity_tags) in enumerate(zip(
-                zip(*discr.mesh.bounding_box), discr.mesh.periodicity)):
-            if periodicity_tags is not None:
-                self.icloud.mesh_info.add_periodicity(
-                        axis, ax_min, ax_max)
+        self.reconstructor.initialize(self)
+        self.pusher.initialize(self)
 
     def __len__(self):
         return len(self.icloud.containing_elements) - len(self.icloud.deadlist)
@@ -103,14 +132,14 @@ class ParticleCloud:
         momenta = [m*self.units.gamma(v)*v for m, v in zip(masses, velocities)]
 
         # find containing elements
-        containing_elements = [self.icloud.mesh_info.find_containing_element(p) 
+        containing_elements = [self.icloud.mesh_data.find_containing_element(p) 
                 for p in positions]
 
         # weed out uncontained particles
-        deathflags = [ce == MeshInfo.INVALID_ELEMENT 
+        deathflags = [ce == MeshData.INVALID_ELEMENT 
                 for ce in containing_elements]
         containing_elements = [ce for ce in containing_elements 
-                if ce != MeshInfo.INVALID_ELEMENT]
+                if ce != MeshData.INVALID_ELEMENT]
         positions = [p for p, dead in zip(positions, deathflags) 
                 if not dead]
         momenta = [v for v, dead in zip(momenta, deathflags) 
@@ -161,7 +190,7 @@ class ParticleCloud:
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
         """
-        self.icloud.vis_info.clear()
+        self.vis_info.clear()
 
     def reconstruct_densities(self, velocities=None):
         """Return a tuple (charge_density, current_densities), where
@@ -181,8 +210,8 @@ class ParticleCloud:
                 velocities)
 
         if self.verbose_vis:
-            self.icloud.vis_info["rho"] = rho
-            self.icloud.vis_info["j"] = j
+            self.vis_info["rho"] = rho
+            self.vis_info["j"] = j
 
         return rho, j
 
@@ -200,7 +229,7 @@ class ParticleCloud:
         self.icloud.reconstruct_j(j, self.particle_radius, velocities)
 
         if self.verbose_vis:
-            self.icloud.vis_info["j"] = j
+            self.vis_info["j"] = j
 
         return j
 
@@ -213,7 +242,7 @@ class ParticleCloud:
         self.icloud.reconstruct_rho(rho, self.particle_radius)
 
         if self.verbose_vis:
-            self.icloud.vis_info["rho"] = rho
+            self.vis_info["rho"] = rho
 
         return rho
 
@@ -273,7 +302,7 @@ class ParticleCloud:
                 UnstructuredGrid, \
                 AppendedDataXMLGenerator
 
-        dim = self.icloud.mesh_info.dimensions
+        dim = self.icloud.mesh_data.dimensions
 
         points = (len(self.icloud.containing_elements),
                 DataArray("points", self.icloud.positions,
@@ -293,8 +322,8 @@ class ParticleCloud:
                 )
 
         def add_vis_vector(name):
-            if name in self.icloud.vis_info:
-                vec = self.icloud.vis_info[name]
+            if name in self.vis_info:
+                vec = self.vis_info[name]
             else:
                 vec = num.zeros((len(self.icloud.containing_elements) * dim,))
 
@@ -355,17 +384,17 @@ class ParticleCloud:
 
         pcount = len(self.icloud.containing_elements)
         def add_particle_vis(name, dim):
-            if name in self.icloud.vis_info:
+            if name in self.vis_info:
                 db.put_pointvar(name, "particles", 
-                        [self.icloud.vis_info[name][i::dim] for i in range(dim)])
+                        [self.vis_info[name][i::dim] for i in range(dim)])
             else:
                 warn("writing zero for particle visualization variable '%s'" % name)
                 db.put_pointvar(name, "particles", 
                         [num.zeros((pcount,)) for i in range(dim)])
 
         def add_mesh_vis(name, unavail_ok=False):
-            if name in self.icloud.vis_info:
-                mesh_scalars.append((name, self.icloud.vis_info[name]))
+            if name in self.vis_info:
+                mesh_scalars.append((name, self.vis_info[name]))
             else:
                 if not unavail_ok:
                     warn("visualization of unavailable mesh variable '%s' requested" % name)

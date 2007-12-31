@@ -1,45 +1,56 @@
+# Pyrticle - Particle in Cell in Python
+# Python interface for mesh data
+# Copyright (C) 2007 Andreas Kloeckner
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+
 import pyrticle._internal as _internal
 import pylinear.array as num
+import pylinear.computation as comp
 
 
 
 
-class MeshData(_internal.MeshData):
-    pass
+MeshData = _internal.MeshData
 
 
 
 
-def find_containing_element(discr, point):
-    for el in discr.mesh.elements:
-        if el.contains_point(point):
-            return el
-    return None
+def _add_mesh_data_methods():
+    def fill_from_hedge(self, discr):
+        self.discr = discr
 
+        # add periodicity
+        from pyrticle._internal import PeriodicityAxis
+        for axis, ((ax_min, ax_max), periodicity_tags) in enumerate(zip(
+                zip(*discr.mesh.bounding_box), discr.mesh.periodicity)):
+            if periodicity_tags is not None:
+                pa = PeriodicityAxis()
+                pa.axis = axis
+                pa.min = ax_min
+                pa.max = ax_max
+                pa.width = ax_max-ax_min
+                self.periodicities.append(pa)
 
-
-
-def add_mesh_data_methods():
-    def add_local_discretizations(self, discr):
-        from hedge.polynomial import generic_vandermonde
-
-        ldis_indices = {}
-        
-        for i, eg in enumerate(discr.element_groups):
-            ldis = eg.local_discretization
-            ldis_indices[ldis] = i
-
-            mon_basis = [_internal.MonomialBasisFunction(*idx)
-                    for idx in ldis.node_tuples()]
-            mon_vdm = generic_vandermonde(ldis.unit_nodes(), mon_basis).T
-
-            l_vdm, u_vdm, perm, sign = comp.lu(mon_vdm)
-            p_vdm = num.permutation_matrix(from_indices=perm)
-
-            self.add_local_discretization(
-                    mon_basis, l_vdm, u_vdm, p_vdm)
-
-        return ldis_indices
+    def find_containing_element(self, point):
+        for el in self.discr.mesh.elements:
+            if el.contains_point(point):
+                return el
+        return None
 
     def add_elements(self, discr):
         ldis_indices = self.add_local_discretizations(discr)
@@ -80,12 +91,22 @@ def add_mesh_data_methods():
                     mesh.points[vi],
                     vertex_to_element_map[vi])
 
-    _internal.MeshData.add_local_discretizations = add_local_discretizations
-    _internal.MeshData.add_elements = add_elements
-    _internal.MeshData.add_vertices = add_vertices
+
+    def min_vertex_distance(self):
+        def min_vertex_distance_for_el(el):
+            vertices = [self.discr.mesh.points[vi] 
+                    for vi in el.vertex_indices]
+
+            return min(min(comp.norm_2(vi-vj)
+                    for i, vi in enumerate(vertices)
+                    if i != j)
+                    for j, vj in enumerate(vertices))
+
+        return min(min_vertex_distance_for_el(el) 
+                for el in self.discr.mesh.elements)
+
+    MeshData.fill_from_hedge = fill_from_hedge
+    MeshData.add_elements = add_elements
+    MeshData.add_vertices = add_vertices
+    MeshData.min_vertex_distance = min_vertex_distance
 _add_mesh_data_methods()
-
-
-
-
-

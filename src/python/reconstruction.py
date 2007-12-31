@@ -1,5 +1,5 @@
 # Pyrticle - Particle in Cell in Python
-# Main module
+# Python interface for reconstructors
 # Copyright (C) 2007 Andreas Kloeckner
 # 
 # This program is free software: you can redistribute it and/or modify
@@ -17,3 +17,9 @@
 
 
 
+
+class ShapeFunctionReconstructor:
+    name = "Shape"
+
+    def initialize(self, cloud):
+        pass

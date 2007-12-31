@@ -25,7 +25,6 @@
 
 
 
-#include <boost/ptr_container/ptr_vector.hpp>
 #include "tools.hpp"
 
 
@@ -54,7 +53,6 @@ namespace pyrticle
       {
         element_number                 m_id;
         hedge::affine_map              m_inverse_map;
-        unsigned                       m_ldis_index;
 
         unsigned                       m_start, m_end;
 
@@ -81,7 +79,7 @@ namespace pyrticle
 
       std::vector<element_info> m_element_info;
       std::vector<hedge::vector> m_vertices, m_nodes;
-      boost::ptr_vector<el_id_vector> m_vertex_adj_elements;
+      std::vector<el_id_vector> m_vertex_adj_elements;
       std::vector<periodicity_axis> m_periodicities;
 
 
@@ -188,20 +186,6 @@ namespace pyrticle
         std::copy(first, last, std::back_inserter(m_nodes));
       }
       */
-
-
-
-
-      void add_periodicity(unsigned axis, double min, double max)
-      {
-        periodicity_axis pa;
-        pa.m_axis = axis;
-        pa.m_min = min;
-        pa.m_max = max;
-        pa.m_width = max-min;
-        m_periodicities.push_back(pa);
-      }
-
 
 
 

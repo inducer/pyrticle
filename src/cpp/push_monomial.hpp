@@ -95,9 +95,9 @@ namespace pyrticle
   struct local_monomial_discretization
   {
     std::vector<monomial_basis_function> m_basis;
-    hedge::matrix m_l_mon_vandermonde_t;
-    hedge::matrix m_u_mon_vandermonde_t;
-    csr_matrix m_p_mon_vandermonde_t;
+    hedge::matrix m_l_vandermonde_t;
+    hedge::matrix m_u_vandermonde_t;
+    csr_matrix m_p_vandermonde_t;
   };
 
 
@@ -109,18 +109,13 @@ namespace pyrticle
     class type
     {
       public:
+        static const char *get_name()
+        { return "Monomial"; }
+
         std::vector<local_monomial_discretization> 
           m_local_discretizations;
         std::vector<unsigned> 
           m_ldis_indices;
-
-        void intialize_pusher()
-        {
-
-        };
-
-
-
 
         const interpolator make_interpolator(
             const hedge::vector &pt, 
@@ -140,14 +135,14 @@ namespace pyrticle
             mon_basis_values_at_pt[i] = ldis.m_basis[i](unit_pt);
 
           hedge::vector permuted_basis_values = prod(
-                    ldis.m_p_mon_vandermonde_t,
+                    ldis.m_p_vandermonde_t,
                     mon_basis_values_at_pt);
 
           hedge::vector coeff = 
             solve(
-                ldis.m_u_mon_vandermonde_t,
+                ldis.m_u_vandermonde_t,
                 solve(
-                  ldis.m_l_mon_vandermonde_t,
+                  ldis.m_l_vandermonde_t,
                   permuted_basis_values,
                   ublas::lower_tag()),
                 ublas::upper_tag());

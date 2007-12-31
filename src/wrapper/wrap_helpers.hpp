@@ -25,12 +25,19 @@
 
 
 
+#include <string>
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
 #include <boost/python/suite/indexing/vector_indexing_suite.hpp>
 
 
 
+
+#define PYTHON_ERROR(TYPE, REASON) \
+{ \
+  PyErr_SetString(PyExc_##TYPE, REASON); \
+  throw boost::python::error_already_set(); \
+}
 
 #define COPY_PY_LIST(CPP_LIST, PY_LIST, EXTRACT_TYPE) \
         for (unsigned i = 0; i < unsigned(len(PY_LIST)); i++) \
@@ -56,6 +63,31 @@ namespace pyrticle {
     typename boost::python::manage_new_object::apply<T *>::type 
       result_converter;
     return result_converter(obj);
+  }
+
+
+
+
+  template <class T>
+  class no_compare_indexing_suite :
+    public boost::python::vector_indexing_suite<T, false, no_compare_indexing_suite<T> >
+  {
+    public:
+      static bool contains(T &container, typename T::value_type const &key)
+      { PYTHON_ERROR(NotImplementedError, "containment checking not supported on this container"); }
+  };
+
+
+
+
+  template <class ValueType>
+  void expose_std_vector(const char *name)
+  {
+    typedef std::vector<ValueType> cl;
+    boost::python::class_<cl>((std::string(name)+"Vector").c_str())
+      .def(no_compare_indexing_suite<cl>())
+      .DEF_SIMPLE_METHOD(reserve)
+      ;
   }
 }
 

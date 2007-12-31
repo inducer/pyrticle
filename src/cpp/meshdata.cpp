@@ -30,7 +30,7 @@ using namespace pyrticle;
 
 
 
-const bool is_in_unit_simplex(const hedge::vector &unit_coords)
+const bool pyrticle::is_in_unit_simplex(const hedge::vector &unit_coords)
 {
   const double eps = 1e-10;
 
