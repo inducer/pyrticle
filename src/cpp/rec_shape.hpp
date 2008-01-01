@@ -27,6 +27,7 @@
 
 #include <boost/foreach.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
+#include <boost/typeof/std/utility.hpp>
 #include "tools.hpp"
 #include "meshdata.hpp"
 
@@ -236,7 +237,7 @@ namespace pyrticle
             if (pos[pa.m_axis] - sf.radius() < pa.m_min)
             {
               hedge::vector pos2(pos);
-              pos2[pa.m_axis] += pa.m_width;
+              pos2[pa.m_axis] += (pa.m_max-pa.m_min);
 
               BOOST_FOREACH(mesh_data::element_number en, einfo.m_neighbors)
                 if (en != mesh_data::INVALID_ELEMENT)
@@ -245,7 +246,7 @@ namespace pyrticle
             if (pos[pa.m_axis] + sf.radius() > pa.m_max)
             {
               hedge::vector pos2(pos);
-              pos2[pa.m_axis] -= pa.m_width;
+              pos2[pa.m_axis] -= (pa.m_max-pa.m_min);
 
               BOOST_FOREACH(mesh_data::element_number en, einfo.m_neighbors)
                 if (en != mesh_data::INVALID_ELEMENT)
@@ -279,31 +280,39 @@ namespace pyrticle
             }
           }
 
+          const mesh_data &md = CONST_PIC_THIS->m_mesh_data;
+
           // go through vertex-adjacent elements
-          BOOST_FOREACH(mesh_data::element_number en, 
-              CONST_PIC_THIS->m_mesh_data.m_vertex_adj_elements[closest_vertex])
+          BOOST_AUTO(vertex_el_range, 
+              std::make_pair(
+                md.m_vertex_adj_elements.begin()
+                + md.m_vertex_adj_element_starts[closest_vertex],
+                md.m_vertex_adj_elements.begin()
+                + md.m_vertex_adj_element_starts[closest_vertex+1]
+                )
+              );
+          
+          BOOST_FOREACH(mesh_data::element_number en, vertex_el_range)
             add_shape_on_element(target, sf, pos, en);
 
           // now check if we need to redo this for periodic copies
           BOOST_FOREACH(const mesh_data::periodicity_axis &pa,
-              CONST_PIC_THIS->m_mesh_data.m_periodicities)
+              md.m_periodicities)
           {
             if (pos[pa.m_axis] - sf.radius() < pa.m_min)
             {
               hedge::vector pos2(pos);
-              pos2[pa.m_axis] += pa.m_width;
+              pos2[pa.m_axis] -= (pa.m_max - pa.m_min);
 
-              BOOST_FOREACH(mesh_data::element_number en, 
-                  CONST_PIC_THIS->m_mesh_data.m_vertex_adj_elements[closest_vertex])
+              BOOST_FOREACH(mesh_data::element_number en, vertex_el_range)
                 add_shape_on_element(target, sf, pos2, en);
             }
             if (pos[pa.m_axis] + sf.radius() > pa.m_max)
             {
               hedge::vector pos2(pos);
-              pos2[pa.m_axis] -= pa.m_width;
+              pos2[pa.m_axis] -= (pa.m_max - pa.m_min);
 
-              BOOST_FOREACH(mesh_data::element_number en, 
-                  CONST_PIC_THIS->m_mesh_data.m_vertex_adj_elements[closest_vertex])
+              BOOST_FOREACH(mesh_data::element_number en, vertex_el_range)
                 add_shape_on_element(target, sf, pos2, en);
             }
           }

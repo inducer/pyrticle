@@ -41,15 +41,14 @@ void expose_meshdata()
       .DEF_RW_MEMBER(nodes)
       .DEF_RO_MEMBER(dimensions)
 
+      .DEF_RO_MEMBER(element_info)
       .DEF_RO_MEMBER(vertices)
       .DEF_RO_MEMBER(nodes)
-      .DEF_RO_MEMBER(periodicities)
 
-      //.DEF_SIMPLE_METHOD(add_local_discretization)
-      //.DEF_SIMPLE_METHOD(add_element)
-      //.DEF_SIMPLE_METHOD(add_vertex)
-      //.DEF_SIMPLE_METHOD(add_nodes)
-      //.DEF_SIMPLE_METHOD(add_periodicity)
+      .DEF_RO_MEMBER(vertex_adj_element_starts)
+      .DEF_RO_MEMBER(vertex_adj_elements)
+
+      .DEF_RO_MEMBER(periodicities)
 
       .DEF_SIMPLE_METHOD(is_in_element)
       .DEF_SIMPLE_METHOD(find_containing_element)
@@ -75,12 +74,10 @@ void expose_meshdata()
       .DEF_RW_MEMBER(axis)
       .DEF_RW_MEMBER(min)
       .DEF_RW_MEMBER(max)
-      .DEF_RW_MEMBER(width)
       ;
   }
 
   expose_std_vector<mesh_data::element_info>("ElementInfo");
   expose_std_vector<mesh_data::periodicity_axis>("PeriodicityAxis");
   expose_std_vector<hedge::vector>("Vector");
-  expose_std_vector<mesh_data::el_id_vector>("Unsigned");
 }

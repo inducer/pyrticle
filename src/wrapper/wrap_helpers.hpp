@@ -80,11 +80,27 @@ namespace pyrticle {
 
 
 
+  template <class T>
+  std::auto_ptr<std::vector<T> > construct_vector(boost::python::object iterable)
+  {
+    std::auto_ptr<std::vector<T> > result(new std::vector<T>());
+    copy(
+        boost::python::stl_input_iterator<T>(iterable),
+        boost::python::stl_input_iterator<T>(),
+        std::back_inserter(*result));
+    return result;
+  }
+
+
+
+
   template <class ValueType>
   void expose_std_vector(const char *name)
   {
     typedef std::vector<ValueType> cl;
     boost::python::class_<cl>((std::string(name)+"Vector").c_str())
+      .def("__init__", boost::python::make_constructor(
+            construct_vector<ValueType>))
       .def(no_compare_indexing_suite<cl>())
       .DEF_SIMPLE_METHOD(reserve)
       ;

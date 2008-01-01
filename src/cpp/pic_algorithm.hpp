@@ -184,7 +184,13 @@ namespace pyrticle
 
               // found closest vertex, go through adjacent elements
               BOOST_FOREACH(mesh_data::element_number possible_idx, 
-                  m_mesh_data.m_vertex_adj_elements[closest_vertex])
+                  std::make_pair(
+                    m_mesh_data.m_vertex_adj_elements.begin()
+                    + m_mesh_data.m_vertex_adj_element_starts[closest_vertex],
+                    m_mesh_data.m_vertex_adj_elements.begin()
+                    + m_mesh_data.m_vertex_adj_element_starts[closest_vertex+1]
+                    )
+                  )
               {
                 const mesh_data::element_info &possible = 
                   m_mesh_data.m_element_info[possible_idx];
@@ -195,6 +201,7 @@ namespace pyrticle
                   return possible.m_id;
                 }
               }
+
             }
 
           }
@@ -252,12 +259,12 @@ namespace pyrticle
             const double xi = pt[pa.m_axis];
             if (xi < pa.m_min)
             {
-              pt[pa.m_axis] += pa.m_width;
+              pt[pa.m_axis] += (pa.m_max-pa.m_min);
               periodicity_trip = true;
             }
             else if (xi > pa.m_max)
             {
-              pt[pa.m_axis] -= pa.m_width;
+              pt[pa.m_axis] -= (pa.m_max-pa.m_min);
               periodicity_trip = true;
             }
           }

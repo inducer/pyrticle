@@ -71,7 +71,7 @@ namespace pyrticle
       struct periodicity_axis
       {
         unsigned                m_axis;
-        double                  m_min, m_max, m_width;
+        double                  m_min, m_max;
       };
 
       // data members ---------------------------------------------------------
@@ -79,7 +79,10 @@ namespace pyrticle
 
       std::vector<element_info> m_element_info;
       std::vector<hedge::vector> m_vertices, m_nodes;
-      std::vector<el_id_vector> m_vertex_adj_elements;
+
+      std::vector<unsigned> m_vertex_adj_element_starts;
+      el_id_vector m_vertex_adj_elements;
+
       std::vector<periodicity_axis> m_periodicities;
 
 
@@ -94,61 +97,6 @@ namespace pyrticle
 
 
       static element_number get_INVALID_ELEMENT() { return INVALID_ELEMENT; }
-
-
-
-
-      /*
-      void add_local_discretization(python::list basis,
-          const hedge::matrix &l_vdmt, 
-          const hedge::matrix &u_vdmt, 
-          const csr_matrix &p_vdmt)
-      {
-        local_discretization ldis;
-
-        COPY_PY_LIST(ldis.m_basis, basis, const monomial_basis_function &);
-
-        ldis.m_l_mon_vandermonde_t = l_vdmt;
-        ldis.m_u_mon_vandermonde_t = u_vdmt;
-        ldis.m_p_mon_vandermonde_t = p_vdmt;
-        m_local_discretizations.push_back(ldis);
-      }
-      */
-
-
-
-
-      /*
-      void add_element(const hedge::affine_map &inverse_map, 
-          unsigned start, unsigned end,
-          python::object vertices,
-          python::object normals, 
-          python::object neighbors
-          )
-      {
-        element_info ei;
-        ei.m_id = m_element_info.size();
-        ei.m_inverse_map = inverse_map;
-
-        ei.m_start = start;
-        ei.m_end = end;
-
-        std::copy(
-            python::stl_input_iterator<vertex_number>(vertices),
-            python::stl_input_iterator<vertex_number>(),
-            back_inserter(ei.m_vertices));
-        std::copy(
-            python::stl_input_iterator<const hedge::vector &>(normals),
-            python::stl_input_iterator<const hedge::vector &>(),
-            back_inserter(ei.m_normals));
-        std::copy(
-            python::stl_input_iterator<element_number>(neighbors),
-            python::stl_input_iterator<element_number>(),
-            back_inserter(ei.m_neighbors));
-
-        m_element_info.push_back(ei);
-      }
-      */
 
 
 

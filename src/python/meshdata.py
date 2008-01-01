@@ -34,7 +34,7 @@ def _add_mesh_data_methods():
     def fill_from_hedge(self, discr):
         self.discr = discr
 
-        # add periodicity
+        # add periodicity -----------------------------------------------------
         from pyrticle._internal import PeriodicityAxis
         for axis, ((ax_min, ax_max), periodicity_tags) in enumerate(zip(
                 zip(*discr.mesh.bounding_box), discr.mesh.periodicity)):
@@ -46,15 +46,7 @@ def _add_mesh_data_methods():
                 pa.width = ax_max-ax_min
                 self.periodicities.append(pa)
 
-    def find_containing_element(self, point):
-        for el in self.discr.mesh.elements:
-            if el.contains_point(point):
-                return el
-        return None
-
-    def add_elements(self, discr):
-        ldis_indices = self.add_local_discretizations(discr)
-
+        # add elements --------------------------------------------------------
         mesh = discr.mesh
 
         neighbor_map = {}
@@ -64,33 +56,54 @@ def _add_mesh_data_methods():
         for face in discr.mesh.tag_to_boundary[TAG_ALL]:
             neighbor_map[face] = MeshData.INVALID_ELEMENT
 
-        for el in mesh.elements:
-            (estart, eend), ldis = discr.find_el_data(el.id)
+        from pyrticle._internal import ElementInfo
 
-            self.add_element(
-                    el.inverse_map,
-                    ldis_indices[ldis],
-                    estart, eend,
-                    [vi for vi in el.vertex_indices],
-                    el.face_normals,
-                    set(neighbor_map[el,fi] for fi in xrange(len(el.faces)))
-                    )
+        self.element_info.reserve(len(mesh.elements))
+        for i, el in enumerate(mesh.elements):
+            ei = ElementInfo()
+            ei.id = i
+            ei.inverse_map = el.inverse_map
+            ei.start, ei.end = discr.find_el_range(el.id)
+            ei.vertices.extend([vi for vi in el.vertex_indices])
+            ei.normals.extend(el.face_normals)
+            ei.neighbors.extend(
+                    list(set(neighbor_map[el,fi] 
+                        for fi in xrange(len(el.faces)))))
 
-    def add_vertices(self, discr):
-        mesh = discr.mesh
+            self.element_info.append(ei)
 
+        # add vertices --------------------------------------------------------
         vertex_to_element_map = {}
+
         for el in mesh.elements:
             for vi in el.vertex_indices:
                 vertex_to_element_map.setdefault(vi, set()).add(el.id)
                 for other_vi in mesh.periodic_opposite_vertices.get(vi, []):
                     vertex_to_element_map.setdefault(other_vi, set()).add(el.id)
 
-        for vi in xrange(len(mesh.points)):
-            self.add_vertex(vi, 
-                    mesh.points[vi],
-                    vertex_to_element_map[vi])
+        self.vertices.reserve(len(mesh.points))
+        self.vertices.extend(mesh.points)
 
+        from pyrticle._internal import UnsignedVector
+        self.vertex_adj_elements.reserve(
+                2*discr.dimensions*len(mesh.points))
+        self.vertex_adj_element_starts.reserve(len(mesh.points))
+        self.vertex_adj_element_starts.append(0)
+
+        for vi in xrange(len(mesh.points)):
+            self.vertex_adj_elements.extend(vertex_to_element_map[vi])
+            self.vertex_adj_element_starts.append(
+                    len(self.vertex_adj_elements))
+
+        # add nodes -----------------------------------------------------------
+        self.nodes.reserve(len(discr.nodes))
+        self.nodes.extend(discr.nodes)
+
+    def find_containing_element(self, point):
+        for el in self.discr.mesh.elements:
+            if el.contains_point(point):
+                return el
+        return None
 
     def min_vertex_distance(self):
         def min_vertex_distance_for_el(el):
@@ -106,7 +119,5 @@ def _add_mesh_data_methods():
                 for el in self.discr.mesh.elements)
 
     MeshData.fill_from_hedge = fill_from_hedge
-    MeshData.add_elements = add_elements
-    MeshData.add_vertices = add_vertices
     MeshData.min_vertex_distance = min_vertex_distance
 _add_mesh_data_methods()
