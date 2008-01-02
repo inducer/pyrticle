@@ -22,7 +22,6 @@ def main():
     from pytools.arithmetic_container import \
             ArithmeticList, join_fields
     from hedge.operators import MaxwellOperator, DivergenceOperator
-    from pyrticle.cloud import ParticleCloud
     from kv import \
             KVZIntervalBeam, \
             KVRadiusPredictor, \
@@ -122,7 +121,13 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=True)
+    from pyrticle.cloud import ParticleCloud
+    from pyrticle.reconstruction import ShapeFunctionReconstructor
+    from pyrticle.pusher import MonomialParticlePusher
+    cloud = ParticleCloud(discr, units, 
+            ShapeFunctionReconstructor(),
+            MonomialParticlePusher(),
+            3, 3, verbose_vis=True)
 
     cloud_charge = -10e-9 * units.C
     electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)

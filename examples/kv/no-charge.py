@@ -16,7 +16,6 @@ def main():
     from hedge.visualization import VtkVisualizer, SiloVisualizer
     from hedge.tools import dot, cross
     from pytools.arithmetic_container import ArithmeticList
-    from pyrticle.cloud import ParticleCloud
     from kv import \
             KVZIntervalBeam, \
             ChargelessKVRadiusPredictor, \
@@ -49,7 +48,13 @@ def main():
     nparticles = 1000
 
     from hedge.operators import MaxwellOperator
-    cloud = ParticleCloud(discr, units, 3, 3, verbose_vis=False)
+    from pyrticle.cloud import ParticleCloud
+    from pyrticle.reconstruction import ShapeFunctionReconstructor
+    from pyrticle.pusher import MonomialParticlePusher
+    cloud = ParticleCloud(discr, units, 
+            ShapeFunctionReconstructor(),
+            MonomialParticlePusher(),
+            3, 3, verbose_vis=False)
 
     cloud_charge = 1e-9 * units.C
     particle_charge = cloud_charge/nparticles
