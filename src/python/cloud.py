@@ -203,11 +203,14 @@ class ParticleCloud:
             velocities = self.pic_algorithm.velocities()
 
         rho = self.discretization.volume_zeros()
-        j = ArithmeticList([self.discretization.volume_zeros()
-            for axis in range(self.dimensions_velocity)])
+        from hedge.tools import FixedSizeSliceAdapter
+        j = FixedSizeSliceAdapter(num.zeros(
+            (self.dimensions_velocity*len(self.discretization),)),
+            self.dimensions_velocity)
 
         self.pic_algorithm.reconstruct_densities(rho, j, self.particle_radius,
                 velocities)
+        j = j.get_alist_of_components()
 
         if self.verbose_vis:
             self.vis_info["rho"] = rho
@@ -223,11 +226,14 @@ class ParticleCloud:
         if velocities is None:
             velocities = self.pic_algorithm.velocities()
 
-        j = ArithmeticList([self.discretization.volume_zeros()
-            for axis in range(self.dimensions_velocity)])
+        from hedge.tools import FixedSizeSliceAdapter
+        j = FixedSizeSliceAdapter(num.zeros(
+            (self.dimensions_velocity*len(self.discretization),)),
+            self.dimensions_velocity)
 
-        self.pic_algorithm.reconstruct_j(j, self.particle_radius, velocities)
+        self.pic_algorithm.reconstruct_j(j.adaptee, self.particle_radius, velocities)
 
+        j = j.get_alist_of_components()
         if self.verbose_vis:
             self.vis_info["j"] = j
 
@@ -441,6 +447,7 @@ class FieldsAndCloud:
         assert y is self
 
         from pytools.arithmetic_container import join_fields
+        from pyrticle._internal import ZeroVector
 
         velocities = self.cloud.velocities()
 

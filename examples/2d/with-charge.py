@@ -10,7 +10,7 @@ import cProfile as profile
 def add_gauss_particles(nparticles, cloud, discr, charge, mass, 
         mean_x, mean_p, sigma_x, sigma_p):
     from random import gauss
-    from pyrticle.cloud import v_from_p
+    from pyrticle.tools import v_from_p
 
     cloud.add_particles(
             positions=[
@@ -42,7 +42,6 @@ def main():
     from pytools.arithmetic_container import \
             ArithmeticList, join_fields
     from hedge.operators import TEMaxwellOperator, DivergenceOperator
-    from pyrticle.cloud import ParticleCloud
     from random import seed
     #seed(0)
 
@@ -94,7 +93,13 @@ def main():
     # particles setup ---------------------------------------------------------
     nparticles = 1000
 
-    cloud = ParticleCloud(discr, units, dimensions_pos=2, dimensions_velocity=2,
+    from pyrticle.cloud import ParticleCloud
+    from pyrticle.reconstruction import ShapeFunctionReconstructor
+    from pyrticle.pusher import MonomialParticlePusher
+    cloud = ParticleCloud(discr, units, 
+            ShapeFunctionReconstructor(),
+            MonomialParticlePusher(),
+            dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
 
     cloud_charge = -1e-9 * units.C

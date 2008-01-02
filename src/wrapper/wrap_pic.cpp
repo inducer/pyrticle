@@ -169,4 +169,11 @@ void expose_pic()
         monomial_particle_pusher
         >
       >();
+  expose_pic_algorithm<
+      pic<
+        pic_data<2,2>,
+        shape_function_reconstructor,
+        monomial_particle_pusher
+        >
+      >();
 }
