@@ -1,3 +1,23 @@
+# Pyrticle - Particle in Cell in Python
+# Kapchinskij-Vladimirskij beam physics
+# Copyright (C) 2007 Andreas Kloeckner
+# 
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+
+
+
 from __future__ import division
 import pylinear.array as num
 import pylinear.computation as comp
@@ -151,67 +171,6 @@ class KVZIntervalBeam:
     def get_rms_space_charge_parameter(self):
         # by rms scaling analysis on the KV ODE
         return self.get_total_space_charge_parameter()/4
-
-
-
-
-def calculate_rms_beam_size(cloud, axis):
-    from pytools import average
-    from math import sqrt
-
-    xdim = cloud.dimensions_pos
-
-    return sqrt(average(x**2 for x in cloud.positions[axis::xdim]))
-
-
-
-
-def calculate_rms_emittance(cloud, axis):
-    from pytools import average
-    from math import sqrt
-
-    xdim = cloud.dimensions_pos
-    vdim = cloud.dimensions_velocity
-
-    xprime = [px/pz for px, pz in zip(cloud.momenta[axis::vdim], cloud.momenta[2::vdim])]
-    mean_x_squared = average(x**2 for x in cloud.positions[axis::xdim])
-    mean_p_squared = average(xp**2 for xp in xprime)
-    squared_mean_xp = average(
-            x*xp 
-            for x, xp in zip(cloud.positions[axis::xdim], xprime)
-            )**2
-
-    return sqrt(mean_x_squared*mean_p_squared - squared_mean_xp)
-
-
-
-
-def calculate_rms_energy_spread(cloud):
-    from pytools import average
-    from math import sqrt
-
-    xdim = cloud.dimensions_pos
-    vdim = cloud.dimensions_velocity
-
-    velocities = cloud.velocities()
-
-    def generate_separate_vectors(vec, dim):
-        assert len(vec) % dim == 0
-        subvectors = len(vec)//dim
-        for i in range(subvectors):
-            yield vec[i*dim:(i+1)*dim]
-
-    from pytools import average
-
-    gammas = [cloud.units.gamma(v) 
-            for v in generate_separate_vectors(cloud.velocities(), vdim)]
-    energies = [gamma*m*cloud.units.VACUUM_LIGHT_SPEED**2
-            for gamma, m in zip(gammas, cloud.masses)]
-    mean_energy = average(energies)
-    squared_mean_energy = average(energies)**2
-
-    return sqrt(average(energy**2 for energy in energies)
-            -squared_mean_energy)/mean_energy
 
 
 

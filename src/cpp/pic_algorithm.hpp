@@ -66,6 +66,11 @@ namespace pyrticle
 
         const double                      m_vacuum_c;
 
+        mutable event_counter             m_find_same;
+        mutable event_counter             m_find_by_neighbor;
+        mutable event_counter             m_find_by_vertex;
+        mutable event_counter             m_find_global;
+
         type(unsigned mesh_dimensions, double vacuum_c)
           : m_mesh_data(mesh_dimensions), m_vacuum_c(vacuum_c)
         { }
@@ -99,10 +104,51 @@ namespace pyrticle
               double v = m_vacuum_c*p/sqrt(m*m*m_vacuum_c*m_vacuum_c + p*p);
               subrange(result, vpstart, vpend) = v/p*subrange(m_momenta, vpstart, vpend);
             }
+            else
+              subrange(result, vpstart, vpend) = zero_vector(vdim);
           }
           return result;
         }
 
+        const hedge::vector kinetic_energies() const
+        {
+          const unsigned vdim = dimensions_velocity;
+
+          hedge::vector result(m_momenta.size()/vdim);
+
+          const double c_squared = m_vacuum_c*m_vacuum_c;
+
+          for (particle_number pn = 0; pn < m_containing_elements.size(); pn++)
+          {
+            unsigned vpstart = vdim*pn;
+            unsigned vpend = vdim*(pn+1);
+
+            mesh_data::element_number in_el = m_containing_elements[pn];
+            if (in_el != mesh_data::INVALID_ELEMENT)
+            {
+              const double m = m_masses[pn];
+              double p = norm_2(subrange(m_momenta, vpstart, vpend));
+              double v = m_vacuum_c*p/sqrt(m*m*c_squared + p*p);
+              result[pn] = (p/v-m)*c_squared;
+            }
+            else
+              result[pn] = 0;
+          }
+          return result;
+        }
+
+        
+
+        const double total_charge() const
+        {
+          double result;
+          for (particle_number pn = 0; pn < m_containing_elements.size(); pn++)
+          {
+            if (m_containing_elements[pn] != mesh_data::INVALID_ELEMENT)
+              result += m_charges[pn];
+          }
+          return result;
+        }
 
         
 
@@ -123,7 +169,7 @@ namespace pyrticle
             // check if we're still in the same element -------------------------
             if (is_in_unit_simplex(prev_el.m_inverse_map(pt)))
             {
-              //m_same_searches.tick();
+              m_find_same.tick();
               return prev;
             }
 
@@ -157,7 +203,7 @@ namespace pyrticle
 
                 if (is_in_unit_simplex(possible.m_inverse_map(pt)))
                 {
-                  //m_normal_searches.tick();
+                  m_find_by_neighbor.tick();
                   return possible.m_id;
                 }
               }
@@ -197,7 +243,7 @@ namespace pyrticle
 
                 if (is_in_unit_simplex(possible.m_inverse_map(pt)))
                 {
-                  //m_vertex_searches.tick();
+                  m_find_by_vertex.tick();
                   return possible.m_id;
                 }
               }
@@ -208,7 +254,7 @@ namespace pyrticle
 
           // last resort: global search ---------------------------------------
           {
-            //m_global_searches.tick();
+            m_find_global.tick();
 
             mesh_data::element_number new_el = 
               m_mesh_data.find_containing_element(pt);

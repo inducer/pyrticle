@@ -28,3 +28,4 @@ dump.py
 *-2009-*
 *.bak
 *-gdbcommands
+bin/logtool

@@ -1,19 +1,21 @@
-# Pyrticle - Particle in Cell in Python
-# Main state container Python interface
-# Copyright (C) 2007 Andreas Kloeckner
-# 
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-# 
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-# 
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+"""Main state container Python interface"""
+
+__copyright__ = "Copyright (C) 2007, 2008 Andreas Kloeckner"
+
+__license__ = """
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see U{http://www.gnu.org/licenses/}.
+"""
 
 
 
@@ -81,6 +83,12 @@ class ParticleCloud:
         self.mesh_data = self.pic_algorithm.mesh_data
         self.mesh_data.fill_from_hedge(discr)
 
+        from hedge.tools import FixedSizeSliceAdapter
+        self.positions = FixedSizeSliceAdapter(
+                self.pic_algorithm.positions, dimensions_pos)
+        self.momenta = FixedSizeSliceAdapter(
+                self.pic_algorithm.momenta, dimensions_velocity)
+
         self.particle_radius = 0.5*self.mesh_data.min_vertex_distance()
 
         self.vis_info = {}
@@ -90,16 +98,52 @@ class ParticleCloud:
         self.reconstructor.initialize(self)
         self.pusher.initialize(self)
 
+        self.density_cache = {}
+
+        # instrumentation 
+        from pytools.log import IntervalTimer, EventCounter
+
+        self.reconstruct_timer = IntervalTimer(
+                "t_reconstruct",
+                "Time spent reconstructing")
+        self.reconstruct_counter = EventCounter(
+                "n_reconstruct",
+                "Number of reconstructions")
+
+        self.find_el_timer = IntervalTimer(
+                "t_find",
+                "Time spent finding new elements")
+        self.find_same_counter = EventCounter(
+                "n_find_same",
+                "#Particles found in same element")
+        self.find_by_neighbor_counter = EventCounter(
+                "n_find_neighbor",
+                "#Particles found through neighbor")
+        self.find_by_vertex_counter = EventCounter(
+                "n_find_by_vertex",
+                "#Particles found by vertex")
+        self.find_global_counter = EventCounter(
+                "n_find_global",
+                "#Particles found by global search")
+
+        self.force_timer = IntervalTimer(
+                "t_force",
+                "Time spent calculating forces")
+
     def __len__(self):
         return len(self.pic_algorithm.containing_elements) - len(self.pic_algorithm.deadlist)
 
-    @property
-    def positions(self):
-        return self.pic_algorithm.positions
+    def add_instrumentation(self, mgr):
+        mgr.add_quantity(self.reconstruct_timer)
+        mgr.add_quantity(self.reconstruct_counter)
 
-    @property
-    def momenta(self):
-        return self.pic_algorithm.momenta
+        mgr.add_quantity(self.find_el_timer)
+        mgr.add_quantity(self.find_same_counter)
+        mgr.add_quantity(self.find_by_neighbor_counter)
+        mgr.add_quantity(self.find_by_vertex_counter)
+        mgr.add_quantity(self.find_global_counter)
+
+        mgr.add_quantity(self.force_timer)
 
     @property
     def masses(self):
@@ -110,7 +154,10 @@ class ParticleCloud:
         return self.pic_algorithm.charges
 
     def velocities(self):
-        return self.pic_algorithm.velocities()
+        from hedge.tools import FixedSizeSliceAdapter
+        return FixedSizeSliceAdapter(
+                self.pic_algorithm.velocities(),
+                self.dimensions_velocity)
 
     def add_particles(self, positions, velocities, charges, masses):
         """Add the particles with the given data to the cloud."""
@@ -197,45 +244,71 @@ class ParticleCloud:
         current_densities is an 
           ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
         of the densities in each direction.
+
+        @arg velocities: the adaptee of the C{FixedSizeSliceAdapter}
+          returned by L{velocities}.
         """
 
-        if velocities is None:
-            velocities = self.pic_algorithm.velocities()
+        if "j" in self.density_cache:
+            j = self.density_cache["j"]
+            if "rho" in self.density_cache:
+                rho = self.density_cache["rho"]
+            else:
+                rho = self.reconstruct_rho()
+            return rho, j
+        else:
+            if velocities is None:
+                velocities = self.pic_algorithm.velocities().adaptee
 
-        rho = self.discretization.volume_zeros()
-        from hedge.tools import FixedSizeSliceAdapter
-        j = FixedSizeSliceAdapter(num.zeros(
-            (self.dimensions_velocity*len(self.discretization),)),
-            self.dimensions_velocity)
+            if "rho" in self.density_cache:
+                rho = self.density_cache["rho"]
+                j = self.reconstruct_j(velocities)
+                return rho, j
+            else:
+                rho = self.discretization.volume_zeros()
+                from hedge.tools import FixedSizeSliceAdapter
+                j = FixedSizeSliceAdapter(num.zeros(
+                    (self.dimensions_velocity*len(self.discretization),)),
+                    self.dimensions_velocity)
 
-        self.pic_algorithm.reconstruct_densities(rho, j, self.particle_radius,
-                velocities)
-        j = j.get_alist_of_components()
+                self.reconstruct_timer.start()
+                self.pic_algorithm.reconstruct_densities(rho, j, self.particle_radius,
+                        velocities)
+                j = j.get_alist_of_components()
+                self.reconstruct_timer.stop()
+                self.reconstruct_counter.add(self.dimensions_velocity+1)
 
-        if self.verbose_vis:
-            self.vis_info["rho"] = rho
-            self.vis_info["j"] = j
+                self.density_cache["rho"] = rho
+                self.density_cache["j"] = j
 
-        return rho, j
+                return rho, j
 
     def reconstruct_j(self, velocities=None):
         """Return a the current densities in the structure::
           ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
+
+        @arg velocities: the adaptee of the C{FixedSizeSliceAdapter}
+          returned by L{velocities}.
         """
 
+        if "j" in self.density_cache:
+            return self.density_cache["j"]
+
         if velocities is None:
-            velocities = self.pic_algorithm.velocities()
+            velocities = self.velocities().adaptee
 
         from hedge.tools import FixedSizeSliceAdapter
         j = FixedSizeSliceAdapter(num.zeros(
             (self.dimensions_velocity*len(self.discretization),)),
             self.dimensions_velocity)
 
+        self.reconstruct_timer.start()
         self.pic_algorithm.reconstruct_j(j.adaptee, self.particle_radius, velocities)
-
         j = j.get_alist_of_components()
-        if self.verbose_vis:
-            self.vis_info["j"] = j
+        self.reconstruct_timer.stop()
+        self.reconstruct_counter.add(self.dimensions_velocity)
+
+        self.density_cache["j"] = j
 
         return j
 
@@ -243,12 +316,17 @@ class ParticleCloud:
         """Return a the charge_density as a volume vector.
         """
 
+        if "rho" in self.density_cache:
+            return self.density_cache["rho"]
+
         rho = self.discretization.volume_zeros()
 
+        self.reconstruct_timer.start()
         self.pic_algorithm.reconstruct_rho(rho, self.particle_radius)
+        self.reconstruct_timer.stop()
+        self.reconstruct_counter.add(1)
 
-        if self.verbose_vis:
-            self.vis_info["rho"] = rho
+        self.density_cache["rho"] = rho
 
         return rho
 
@@ -266,8 +344,10 @@ class ParticleCloud:
             velocities = self.pic_algorithm.velocities()
 
         field_args = tuple(e) + tuple(b)
+
         # compute forces
-        return ArithmeticList([
+        self.force_timer.start()
+        result = ArithmeticList([
             velocities, 
             self.pic_algorithm.forces(
                 velocities=velocities,
@@ -275,9 +355,13 @@ class ParticleCloud:
                 *field_args
                 )
             ])
+        self.force_timer.stop()
+        return result
 
     def __iadd__(self, rhs):
         from pytools import argmin, argmax
+
+        self.density_cache.clear()
 
         assert isinstance(rhs, ArithmeticList)
 
@@ -285,7 +369,17 @@ class ParticleCloud:
         self.pic_algorithm.positions += dx
         self.pic_algorithm.momenta += dp
 
+        self.find_el_timer.start()
         self.pic_algorithm.update_containing_elements()
+        self.find_el_timer.stop()
+        self.find_same_counter.transfer(
+                self.pic_algorithm.find_same)
+        self.find_by_neighbor_counter.transfer(
+                self.pic_algorithm.find_by_neighbor)
+        self.find_by_vertex_counter.transfer(
+                self.pic_algorithm.find_by_vertex)
+        self.find_global_counter.transfer(
+                self.pic_algorithm.find_global)
 
         return self
 
@@ -348,8 +442,10 @@ class ParticleCloud:
             add_vis_vector("el_force")
             add_vis_vector("lorentz_force")
 
-            mesh_scalars.append(("rho", self.vis_info["rho"]))
-            mesh_vectors.append(("j", self.vis_info["j"]))
+            if "rho" in self.density_cache:
+                mesh_scalars.append(("rho", self.density_cache["rho"]))
+            if "j" in self.density_cache:
+                mesh_vectors.append(("j", self.density_cache["j"]))
 
         from os.path import splitext
         pathname = splitext(vis_file.pathname)[0] + "-particles.vtu"
@@ -383,10 +479,8 @@ class ParticleCloud:
                 [self.pic_algorithm.momenta[i::self.dimensions_velocity] 
                     for i in range(self.dimensions_velocity)])
 
-        velocities = self.pic_algorithm.velocities()
         db.put_pointvar("velocity", "particles", 
-                [velocities[i::self.dimensions_velocity] 
-                    for i in range(self.dimensions_velocity)])
+                self.velocities().get_alist_of_components())
 
         pcount = len(self.pic_algorithm.containing_elements)
         def add_particle_vis(name, dim):
@@ -399,8 +493,8 @@ class ParticleCloud:
                         [num.zeros((pcount,)) for i in range(dim)])
 
         def add_mesh_vis(name, unavail_ok=False):
-            if name in self.vis_info:
-                mesh_scalars.append((name, self.vis_info[name]))
+            if name in self.density_cache:
+                mesh_scalars.append((name, self.density_cache[name]))
             else:
                 if not unavail_ok:
                     warn("visualization of unavailable mesh variable '%s' requested" % name)
@@ -432,6 +526,17 @@ class FieldsAndCloud:
 
         self.eh_components = maxwell_op.component_count()
 
+        self.field_solve_timer = _DummyIntervalTimer()
+
+    def add_instrumentation(self, mgr):
+        from pytools.log import IntervalTimer
+        self.field_solve_timer = IntervalTimer(
+                "t_field",
+                "Time spent in field solver")
+        mgr.add_quantity(self.field_solve_timer)
+        self.cloud.add_instrumentation(mgr)
+        self.maxwell_op.discr.add_instrumentation(mgr)
+
     def __iadd__(self, other):
         assert len(other) == self.eh_components + 1
         rhs_e, rhs_h = self.maxwell_op.split_fields(other[:self.eh_components])
@@ -449,7 +554,7 @@ class FieldsAndCloud:
         from pytools.arithmetic_container import join_fields
         from pyrticle._internal import ZeroVector
 
-        velocities = self.cloud.velocities()
+        velocities = self.cloud.velocities().adaptee
 
         # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
         # inserting ZeroVectors where necessary.
@@ -473,9 +578,11 @@ class FieldsAndCloud:
 
         cloud_rhs = self.cloud.rhs(t, e_arg, b_arg, velocities)
 
+        self.field_solve_timer.start()
         rhs_e, rhs_h = self.maxwell_op.split_fields(
                 self.maxwell_op.rhs(t, join_fields(self.e, self.h))
                 )
+        self.field_solve_timer.stop()
 
         return join_fields(
                 rhs_e - 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j(velocities),
@@ -530,7 +637,6 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
     e_tilde = ALM(make_scaling_matrix(1/gamma, 1))*poisson_op.grad(phi_tilde)
     e_prime = ALM(make_scaling_matrix(1, gamma))*e_tilde
     h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
-
     if debug:
         from hedge.discretization import ones_on_volume
         reconstructed_charge = ones_on_volume(discr)*(discr.mass_operator*rho_prime)

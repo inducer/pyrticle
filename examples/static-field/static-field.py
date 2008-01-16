@@ -300,6 +300,13 @@ def run_setup(casename, setup, discr):
     print "#elements=%d, dt=%s, #steps=%d" % (
             len(discr.mesh.elements), dt, nsteps)
 
+    from pytools.log import LogManager, add_general_quantities
+    from pyrticle.log import add_particle_quantities
+    logmgr = LogManager()
+    add_general_quantities(logmgr, dt)
+    add_particle_quantities(logmgr, cloud)
+    cloud.add_instrumentation(logmgr)
+
     # timestepping ------------------------------------------------------------
     def rhs(t, y):
         return cloud.rhs(t, e, b)
@@ -317,7 +324,7 @@ def run_setup(casename, setup, discr):
         dim = discr.dimensions
         all_x = setup.positions(t)
         all_v = setup.velocities(t)
-        all_sim_v = cloud.velocities()
+        all_sim_v = cloud.velocities().adaptee
         all_f = [(p2-p1)/(2*deriv_dt)
                 for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
 
@@ -332,9 +339,9 @@ def run_setup(casename, setup, discr):
 
         for i in range(len(cloud)):
             x = all_x[i]
-            sim_x = cloud.positions[i*dim:(i+1)*dim]
+            sim_x = cloud.positions.adaptee[i*dim:(i+1)*dim]
             v = all_v[i]
-            sim_v = cloud.velocities()[i*dim:(i+1)*dim]
+            sim_v = cloud.velocities().adaptee[i*dim:(i+1)*dim]
             f = all_f[i]
             sim_f = all_sim_f[i*dim:(i+1)*dim]
 
@@ -361,16 +368,26 @@ def run_setup(casename, setup, discr):
 
     errors = (0, 0, 0)
 
+    from pytools.log import IntervalTimer
+    check_timer = IntervalTimer("t_check", "Time spent checking results")
+    vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
+    logmgr.add_quantity(check_timer)
+    logmgr.add_quantity(vis_timer)
     for step in xrange(nsteps):
+        logmgr.tick()
+        
         if step % (setup.nsteps()/100) == 0:
             print "timestep %d, t=%g secs=%f particles=%d" % (
                     step, t, time()-last_tstep, len(cloud))
 
+            check_timer.start()
             errors = tuple(
                     max(old_err, new_err) 
                     for old_err, new_err in zip(errors, check_result()))
+            check_timer.stop()
 
             last_tstep = time()
+            vis_timer.start()
             if True:
                 visf = vis.make_file("%s-%04d" % (casename, step))
 
@@ -386,11 +403,15 @@ def run_setup(casename, setup, discr):
                 else:
                     vis.add_data(visf, [], time=t, step=step)
                 visf.close()
+            vis_timer.stop()
 
         cloud.upkeep()
         cloud = stepper(cloud, t, dt, rhs)
 
         t += dt
+
+    logmgr.tick()
+    logmgr.save("%s.dat" % casename)
 
     print
     print "l_inf errors (pos,vel,acc):", errors

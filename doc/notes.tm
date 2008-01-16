@@ -76,7 +76,7 @@
     <section|Shape function Integrals>
   </hide-part>
 
-  <\show-part|3>
+  <\hide-part|3>
     <section|Initial Conditions by Lorentz Transform>
 
     Before we start, a brief remark on notation: If we let <math|\<b-v\>> be
@@ -317,11 +317,11 @@
     <\eqnarray*>
       <tformat|<table|<row|<cell|<big|int><rsub|{r\<leqslant\>R}>div\<b-E\><rprime|'>*\<mathd\>V>|<cell|=>|<cell|<big|int><rsub|{r=R}>\<b-E\><rprime|'>\<cdot\>\<b-n\>\<mathd\>A>>|<row|<cell|<big|int><rsub|{r\<leqslant\>R}>\<gamma\><frac|<wide|\<rho\>|~>|\<varepsilon\>>*\<mathd\>V>|<cell|=>|<cell|\<b-E\><rprime|'><rsub|r>(R)\<cdot\>2\<pi\>R>>|<row|<cell|<frac|\<gamma\>|\<varepsilon\>><big|int><rsub|{r\<leqslant\>R}><wide|\<rho\>|~>*\<mathd\>V>|<cell|=>|<cell|\<b-E\><rprime|'><rsub|r>(R)\<cdot\>2\<pi\>R>>|<row|<cell|<frac|\<gamma\>|2\<pi\>R\<varepsilon\>>Q>|<cell|=>|<cell|\<b-E\><rprime|'><rsub|r>(R).>>>>
     </eqnarray*>
-  <|show-part>
+  <|hide-part>
     <section|Initial Conditions by Lorentz Transform>
-  </show-part>
+  </hide-part>
 
-  <\hide-part|4>
+  <\show-part|4>
     <section|Relativistic Momentum>
 
     <with|prog-language|axiom|prog-session|default|<\session>
@@ -330,28 +330,28 @@
       </input>
 
       <\output>
-        <with|mode|math|<frac|<with|math-display|true|1>|<sqrt|<frac|-v<rsup|2>+c<rsup|2>|c<rsup|2>>>><leqno>(1)>
+        <with|mode|math|<frac|<with|math-display|true|1>|<sqrt|<frac|-v<rsup|2>+c<rsup|2><\ >|c<rsup|2>>>><leqno>(1)>
 
         <axiomtype|Expression Integer >
       </output>
 
-      <\input|<with|color|red|<with|mode|math|\<rightarrow\>> >>
+      <\input|<with|color|red|<with|mode|math|\<rightarrow\>><\ >>>
         solve(m*gamma*v=p,v)
       </input>
 
       <\output>
-        <with|mode|math|math-display|true|<left|[>v=<frac|c*p|<sqrt|p<rsup|2>+c<rsup|2>m<rsup|2>>>,<space|0.5spc>v=-<frac|c*p|<sqrt|p<rsup|2>+c<rsup|2>m<rsup|2>>><right|]><leqno>(2)>
+        <with|mode|math|math-display|true|<left|[>v=<frac|c<\ >p<\ >|<sqrt|p<rsup|2>+c<rsup|2><\ ><\ >m<rsup|2>>>,<:|v=-<frac|c<\ >p<\ >|<sqrt|p<rsup|2>+c<rsup|2><\ ><\ >m<rsup|2>>>><right|]><leqno>(2)>
 
         <axiomtype|List Equation Expression Integer >
       </output>
 
-      <\input|<with|color|red|<with|mode|math|\<rightarrow\>> >>
+      <\input|<with|color|red|<with|mode|math|\<rightarrow\>><\ >>>
         \;
       </input>
     </session>>
-  <|hide-part>
+  <|show-part>
     <section|Relativistic Momentum>
-  </hide-part>
+  </show-part>
 </body>
 
 <\initial>

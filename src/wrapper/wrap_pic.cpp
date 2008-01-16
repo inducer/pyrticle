@@ -64,19 +64,16 @@ namespace
 
       .DEF_RO_MEMBER(deadlist)
 
-      /*
-      .DEF_RO_MEMBER(same_searches)
-      .DEF_RO_MEMBER(normal_searches)
-      .DEF_RO_MEMBER(vertex_searches)
-      .DEF_RO_MEMBER(global_searches)
-      .DEF_RO_MEMBER(vertex_shape_adds)
-      .DEF_RO_MEMBER(neighbor_shape_adds)
-      .DEF_RO_MEMBER(periodic_hits)
-      */
-
       .DEF_RO_MEMBER(vacuum_c)
 
+      .DEF_RO_MEMBER(find_same)
+      .DEF_RO_MEMBER(find_by_neighbor)
+      .DEF_RO_MEMBER(find_by_vertex)
+      .DEF_RO_MEMBER(find_global)
+
       .DEF_SIMPLE_METHOD(velocities)
+      .DEF_SIMPLE_METHOD(kinetic_energies)
+      .DEF_SIMPLE_METHOD(total_charge)
       .DEF_SIMPLE_METHOD(find_new_containing_element)
       .DEF_SIMPLE_METHOD(update_containing_elements)
       ;

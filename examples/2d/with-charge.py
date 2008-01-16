@@ -129,6 +129,28 @@ def main():
     fields = compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
             debug=True)
 
+    # diagnostics setup -------------------------------------------------------
+    from pytools.log import LogManager, add_general_quantities, add_run_info
+    from pyrticle.log import add_particle_quantities, add_field_quantities, \
+            add_beam_quantities
+    logmgr = LogManager("2d.dat")
+    add_run_info(logmgr)
+    add_general_quantities(logmgr, dt)
+    add_particle_quantities(logmgr, cloud)
+    add_field_quantities(logmgr, fields)
+    add_beam_quantities(logmgr, fields, axis=1, beam_axis=0)
+    fields.add_instrumentation(logmgr)
+    logmgr.set_variable("beta", comp.norm_2(mean_beta))
+    logmgr.set_variable("gamma", gamma)
+    logmgr.set_variable("vx", avg_x_vel)
+    logmgr.set_variable("Q0", cloud_charge)
+    logmgr.set_variable("n_part_0", nparticles)
+    logmgr.set_variable("pmass", electrons_per_particle*units.EL_MASS)
+
+    from pytools.log import IntervalTimer
+    vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
+    logmgr.add_quantity(vis_timer)
+
     # timestepping ------------------------------------------------------------
     stepper = RK4TimeStepper()
     from time import time
@@ -136,9 +158,12 @@ def main():
     t = 0
 
     for step in xrange(nsteps):
+        logmgr.tick()
+
         cloud.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
 
+        vis_timer.start()
         if True:
             visf = vis.make_file("pic-%04d" % step)
 
@@ -151,6 +176,7 @@ def main():
                         ] + mesh_scalars + mesh_vectors,
                     time=t, step=step)
             visf.close()
+        vis_timer.stop()
 
         print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f particles=%d" % (
                 step, t, l2_norm(fields.e), l2_norm(fields.h),
@@ -174,6 +200,9 @@ def main():
         t += dt
 
     vis.close()
+
+    logmgr.tick()
+    logmgr.save()
 
 
 
