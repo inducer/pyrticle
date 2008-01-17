@@ -1,26 +1,30 @@
-# Pyrticle - Particle in Cell in Python
-# Kapchinskij-Vladimirskij beam physics
-# Copyright (C) 2007 Andreas Kloeckner
-# 
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-# 
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-# 
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
-
-
+"""Kapchinskij-Vladimirskij beam physics"""
 
 from __future__ import division
+
+__copyright__ = "Copyright (C) 2007, 2008 Andreas Kloeckner"
+
+__license__ = """
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see U{http://www.gnu.org/licenses/}.
+"""
+
+
+
+
 import pylinear.array as num
 import pylinear.computation as comp
+from pytools.log import SimulationLogQuantity
 
 
 
@@ -172,6 +176,16 @@ class KVZIntervalBeam:
         # by rms scaling analysis on the KV ODE
         return self.get_total_space_charge_parameter()/4
 
+    def get_rms_predictor(self, axis):
+        return KVRadiusPredictor(
+                self.rms_radii[axis], self.rms_emittances[axis],
+                xi=self.get_rms_space_charge_parameter())
+
+    def get_total_predictor(self, axis):
+        return KVRadiusPredictor(
+                self.radii[axis], self.emittances[axis],
+                xi=self.get_total_space_charge_parameter())
+
 
 
 
@@ -278,6 +292,25 @@ class KVRadiusPredictor(ODEDefinedFunction):
 
 
 
+class KVPredictedRadius(SimulationLogQuantity):
+    def __init__(self, dt, beam_v, predictor, suffix, name=None):
+        from pyrticle.log import axis_name
+        if name is None:
+            name = "r%s%s_theory" % (axis_name(axis), suffix)
+
+        SimulationLogQuantity.__init__(self, dt, name, "m", 
+                "Theoretical RMS Beam Radius along %s" % axis_name(axis))
+
+        self.beam_v = beam_v
+        self.predictor = predictor
+        self.t = 0
+
+    def __call__(self):
+        s = self.beam_v * self.t
+        self.t += dt
+        return self.predictor(s)
+
+    
 class BeamRadiusLoggerBase:
     def __init__(self, dimensions):
         self.dimensions = dimensions

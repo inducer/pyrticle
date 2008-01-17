@@ -173,16 +173,16 @@ namespace pyrticle
           if (verbose_vis)
           {
             vis_e = std::auto_ptr<hedge::vector>(
-                new hedge::vector(3*PIC_THIS->m_containing_elements.size()));
+                new hedge::vector(3*PIC_THIS->m_particle_count));
             vis_b = std::auto_ptr<hedge::vector>(
-                new hedge::vector(3*PIC_THIS->m_containing_elements.size()));
+                new hedge::vector(3*PIC_THIS->m_particle_count));
             vis_el_force = std::auto_ptr<hedge::vector>(
-                new hedge::vector(3*PIC_THIS->m_containing_elements.size()));
+                new hedge::vector(3*PIC_THIS->m_particle_count));
             vis_lorentz_force = std::auto_ptr<hedge::vector>(
-                new hedge::vector(3*PIC_THIS->m_containing_elements.size()));
+                new hedge::vector(3*PIC_THIS->m_particle_count));
           }
 
-          for (particle_number i = 0; i < PIC_THIS->m_containing_elements.size(); i++)
+          for (particle_number i = 0; i < PIC_THIS->m_particle_count; i++)
           {
             unsigned x_pstart = PIC_THIS->dimensions_pos*i;
             unsigned x_pend = PIC_THIS->dimensions_pos*(i+1);
@@ -191,12 +191,6 @@ namespace pyrticle
 
             mesh_data::mesh_data::element_number in_el = 
               PIC_THIS->m_containing_elements[i];
-            if (in_el == mesh_data::INVALID_ELEMENT)
-            {
-              subrange(result, v_pstart, v_pend) = zero_vector(
-                  PIC_THIS->dimensions_pos);
-              continue;
-            }
 
             interpolator interp = make_interpolator(
                 subrange(PIC_THIS->m_positions, x_pstart, x_pend), in_el);

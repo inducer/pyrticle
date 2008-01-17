@@ -199,6 +199,9 @@ namespace pyrticle
         static const char *get_name()
         { return "Shape"; }
 
+
+
+
         template <class Target, class ShapeFunction>
         void add_shape_on_element(
             Target &tgt, 
@@ -387,15 +390,10 @@ namespace pyrticle
         {
           const shape_function sf(radius, CONST_PIC_THIS->m_mesh_data.m_dimensions);
 
-          particle_number pn = 0;
-
-          BOOST_FOREACH(mesh_data::element_number en,
-              CONST_PIC_THIS->m_containing_elements)
+          for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {
             tgt.begin_particle(pn);
-            if (en != mesh_data::INVALID_ELEMENT)
-              add_shape(tgt, sf, pn);
-            ++pn;
+            add_shape(tgt, sf, pn);
           }
         }
 

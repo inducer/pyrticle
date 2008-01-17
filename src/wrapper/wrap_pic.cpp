@@ -19,6 +19,7 @@
 
 #include <boost/lexical_cast.hpp>
 #include "pic_algorithm.hpp"
+#include "diagnostics.hpp"
 #include "wrap_reconstructor.hpp"
 #include "wrap_pusher.hpp"
 #include "wrap_helpers.hpp"
@@ -34,6 +35,20 @@ using namespace pyrticle;
 
 namespace
 {
+  template <class PICAlgorithm>
+  void expose_diagnostics()
+  {
+    python::def("kinetic_energies", kinetic_energies<PICAlgorithm>);
+    python::def("total_charge", total_charge<PICAlgorithm>);
+    python::def("particle_momentum", particle_momentum<PICAlgorithm>);
+    python::def("rms_beam_size", rms_beam_size<PICAlgorithm>);
+    python::def("rms_beam_emittance", rms_beam_emittance<PICAlgorithm>);
+    python::def("rms_energy_spread", rms_energy_spread<PICAlgorithm>);
+  }
+
+
+
+
   template <class PICAlgorithm>
   void expose_pic_algorithm()
   {
@@ -56,13 +71,13 @@ namespace
 
       .DEF_RO_MEMBER(mesh_data)
 
+      .DEF_RW_MEMBER(particle_count)
+
       .DEF_RO_MEMBER(containing_elements)
       .DEF_RW_MEMBER(positions)
       .DEF_RW_MEMBER(momenta)
       .DEF_RW_MEMBER(charges)
       .DEF_RW_MEMBER(masses)
-
-      .DEF_RO_MEMBER(deadlist)
 
       .DEF_RO_MEMBER(vacuum_c)
 
@@ -72,10 +87,13 @@ namespace
       .DEF_RO_MEMBER(find_global)
 
       .DEF_SIMPLE_METHOD(velocities)
-      .DEF_SIMPLE_METHOD(kinetic_energies)
-      .DEF_SIMPLE_METHOD(total_charge)
+
+      .DEF_SIMPLE_METHOD(move_particle)
+
       .DEF_SIMPLE_METHOD(find_new_containing_element)
       .DEF_SIMPLE_METHOD(update_containing_elements)
+
+      .DEF_SIMPLE_METHOD(kill_particle)
       ;
 
     if (PICAlgorithm::get_dimensions_velocity() == 3)
@@ -126,6 +144,8 @@ namespace
         pic_wrap, 
         (typename PICAlgorithm::reconstructor *) 0
         );
+
+    expose_diagnostics<PICAlgorithm>();
   }
 
 

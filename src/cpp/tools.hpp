@@ -25,7 +25,9 @@
 
 
 
+#include <functional>
 #include <hedge/base.hpp>
+#include <boost/foreach.hpp>
 #include <boost/numeric/ublas/matrix_sparse.hpp>
 
 
@@ -116,6 +118,64 @@ namespace pyrticle
     result[1] = entry_or_zero(a,2)*entry_or_zero(b,0) - entry_or_zero(a,0)*entry_or_zero(b,2);
     result[2] = entry_or_zero(a,0)*entry_or_zero(b,1) - entry_or_zero(a,1)*entry_or_zero(b,0);
     return result;
+  }
+
+
+
+
+  template <class T> 
+  struct identity : std::unary_function<T,T> {
+    const T operator()(const T& x) const
+    {
+      return x;
+    }
+  };
+
+
+
+
+  template <class InputIterator, class Function>
+  inline double average(InputIterator first, InputIterator last, 
+      Function fn = identity<double>())
+  {
+    double result = 0;
+    unsigned count = 0;
+
+    BOOST_FOREACH(double value, std::make_pair(first,last))
+    {
+      result += fn(value);
+      ++count;
+    }
+
+    if (count == 0)
+      throw std::runtime_error("attempted to take empty average");
+
+    return result/count;
+  }
+
+
+
+
+
+  template <class InputIterator>
+  inline double std_dev(InputIterator first, InputIterator last)
+  {
+    double square_sum = 0;
+    double sum = 0;
+    unsigned count = 0;
+
+    BOOST_FOREACH(double value, std::make_pair(first,last))
+    {
+      sum += value;
+      square_sum += square(sum);
+      ++count;
+    }
+
+    if (count == 0)
+      throw std::runtime_error("attempted to take empty average");
+
+    double mean = sum/count;
+    return sqrt(square_sum/count - square(mean))/mean;
   }
 }
 

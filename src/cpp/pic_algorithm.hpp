@@ -56,13 +56,13 @@ namespace pyrticle
       public:
         mesh_data                         m_mesh_data;
 
+        unsigned                          m_particle_count;
+
         mesh_data::el_id_vector           m_containing_elements;
         hedge::vector                     m_positions;
         hedge::vector                     m_momenta;
         hedge::vector                     m_charges;
         hedge::vector                     m_masses;
-
-        std::vector<particle_number>      m_deadlist;
 
         const double                      m_vacuum_c;
 
@@ -84,73 +84,48 @@ namespace pyrticle
         static unsigned get_dimensions_velocity()
         { return dimensions_velocity; }
 
-
         const hedge::vector velocities() const
         {
           const unsigned vdim = dimensions_velocity;
 
-          hedge::vector result(m_momenta.size());
+          hedge::vector result(m_particle_count * dimensions_velocity);
 
-          for (particle_number pn = 0; pn < m_containing_elements.size(); pn++)
+          for (particle_number pn = 0; pn < m_particle_count; pn++)
           {
             unsigned vpstart = vdim*pn;
             unsigned vpend = vdim*(pn+1);
 
-            mesh_data::element_number in_el = m_containing_elements[pn];
-            if (in_el != mesh_data::INVALID_ELEMENT)
-            {
-              const double m = m_masses[pn];
-              double p = norm_2(subrange(m_momenta, vpstart, vpend));
-              double v = m_vacuum_c*p/sqrt(m*m*m_vacuum_c*m_vacuum_c + p*p);
-              subrange(result, vpstart, vpend) = v/p*subrange(m_momenta, vpstart, vpend);
-            }
-            else
-              subrange(result, vpstart, vpend) = zero_vector(vdim);
+            const double m = m_masses[pn];
+            double p = norm_2(subrange(m_momenta, vpstart, vpend));
+            double v = m_vacuum_c*p/sqrt(m*m*m_vacuum_c*m_vacuum_c + p*p);
+            subrange(result, vpstart, vpend) = v/p*subrange(m_momenta, vpstart, vpend);
           }
           return result;
         }
 
-        const hedge::vector kinetic_energies() const
+
+        void move_particle(particle_number from, particle_number to)
         {
-          const unsigned vdim = dimensions_velocity;
+          m_containing_elements[to] = m_containing_elements[from];
 
-          hedge::vector result(m_momenta.size()/vdim);
+          subrange(m_positions,
+              to*dimensions_pos,
+              (to+1)*dimensions_pos) =
+            subrange(m_positions,
+                from*dimensions_pos,
+                (from+1)*dimensions_pos);
 
-          const double c_squared = m_vacuum_c*m_vacuum_c;
+          subrange(m_momenta,
+              to*dimensions_velocity,
+              (to+1)*dimensions_velocity) =
+            subrange(m_momenta,
+                from*dimensions_velocity,
+                (from+1)*dimensions_velocity);
 
-          for (particle_number pn = 0; pn < m_containing_elements.size(); pn++)
-          {
-            unsigned vpstart = vdim*pn;
-            unsigned vpend = vdim*(pn+1);
-
-            mesh_data::element_number in_el = m_containing_elements[pn];
-            if (in_el != mesh_data::INVALID_ELEMENT)
-            {
-              const double m = m_masses[pn];
-              double p = norm_2(subrange(m_momenta, vpstart, vpend));
-              double v = m_vacuum_c*p/sqrt(m*m*c_squared + p*p);
-              result[pn] = (p/v-m)*c_squared;
-            }
-            else
-              result[pn] = 0;
-          }
-          return result;
+          m_charges[to] = m_charges[from];
+          m_masses[to] = m_masses[from];
         }
 
-        
-
-        const double total_charge() const
-        {
-          double result;
-          for (particle_number pn = 0; pn < m_containing_elements.size(); pn++)
-          {
-            if (m_containing_elements[pn] != mesh_data::INVALID_ELEMENT)
-              result += m_charges[pn];
-          }
-          return result;
-        }
-
-        
 
         mesh_data::element_number find_new_containing_element(particle_number i,
             mesh_data::element_number prev) const
@@ -270,11 +245,9 @@ namespace pyrticle
 
         void update_containing_elements()
         {
-          for (particle_number i = 0; i < m_containing_elements.size(); i++)
+          for (particle_number i = 0; i < m_particle_count; i++)
           {
             mesh_data::element_number prev = m_containing_elements[i];
-            if (prev == mesh_data::INVALID_ELEMENT)
-              continue;
 
             mesh_data::element_number new_el = 
               find_new_containing_element(i, prev);
@@ -323,23 +296,19 @@ namespace pyrticle
             if (ce != mesh_data::INVALID_ELEMENT)
             {
               m_containing_elements[pn] = ce;
-              //m_periodic_hits.tick();
               return;
             }
           }
 
+          kill_particle(pn);
+        }
+
+        void kill_particle(particle_number pn)
+        {
           std::cout << "KILL " << pn << std::endl;
-          
-          m_containing_elements[pn] = mesh_data::INVALID_ELEMENT;
-          m_deadlist.push_back(pn);
 
-          unsigned v_pstart = pn*dimensions_velocity;
-          unsigned v_pend = (pn+1)*dimensions_velocity;
-
-          subrange(m_positions, x_pstart, x_pend) = 
-            zero_vector(dimensions_pos);
-          subrange(m_momenta, v_pstart, v_pend) = 
-            zero_vector(dimensions_velocity);
+          --m_particle_count;
+          move_particle(m_particle_count, pn);
         }
     };
 

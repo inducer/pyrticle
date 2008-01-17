@@ -83,12 +83,6 @@ class ParticleCloud:
         self.mesh_data = self.pic_algorithm.mesh_data
         self.mesh_data.fill_from_hedge(discr)
 
-        from hedge.tools import FixedSizeSliceAdapter
-        self.positions = FixedSizeSliceAdapter(
-                self.pic_algorithm.positions, dimensions_pos)
-        self.momenta = FixedSizeSliceAdapter(
-                self.pic_algorithm.momenta, dimensions_velocity)
-
         self.particle_radius = 0.5*self.mesh_data.min_vertex_distance()
 
         self.vis_info = {}
@@ -131,7 +125,7 @@ class ParticleCloud:
                 "Time spent calculating forces")
 
     def __len__(self):
-        return len(self.pic_algorithm.containing_elements) - len(self.pic_algorithm.deadlist)
+        return self.pic_algorithm.particle_count
 
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.reconstruct_timer)
@@ -144,6 +138,22 @@ class ParticleCloud:
         mgr.add_quantity(self.find_global_counter)
 
         mgr.add_quantity(self.force_timer)
+
+    @property
+    def positions(self):
+        from hedge.tools import FixedSizeSliceAdapter
+        return FixedSizeSliceAdapter(
+                self.pic_algorithm.positions, 
+                self.dimensions_pos,
+                self.pic_algorithm.particle_count)
+
+    @property
+    def momenta(self):
+        from hedge.tools import FixedSizeSliceAdapter
+        return FixedSizeSliceAdapter(
+                self.pic_algorithm.momenta, 
+                self.dimensions_velocity,
+                self.pic_algorithm.particle_count)
 
     @property
     def masses(self):
@@ -179,7 +189,8 @@ class ParticleCloud:
         momenta = [m*self.units.gamma(v)*v for m, v in zip(masses, velocities)]
 
         # find containing elements
-        containing_elements = [self.pic_algorithm.mesh_data.find_containing_element(p) 
+        pic = self.pic_algorithm
+        containing_elements = [pic.mesh_data.find_containing_element(p) 
                 for p in positions]
 
         # weed out uncontained particles
@@ -197,41 +208,29 @@ class ParticleCloud:
             if not dead])
 
         # check vector dimensionalities
+        xdim = self.dimensions_pos
+        vdim = self.dimensions_velocity
         for x in positions:
-            assert len(x) == self.dimensions_pos
+            assert len(x) == xdim
         for p in momenta:
-            assert len(p) == self.dimensions_velocity
+            assert len(p) == vdim
 
-        # first, fill up the spots of formerly dead particles
-        already_placed = 0
-        while len(self.pic_algorithm.deadlist):
-            i = self.pic_algorithm.deadlist.pop()
-            x_pstart = i*self.dimensions_pos
-            x_pend = (i+1)*self.dimensions_pos
-            v_pstart = i*self.dimensions_velocity
-            v_pend = (i+1)*self.dimensions_velocity
+        # add particles
+        pic.containing_elements[pic.particle_count:] = containing_elements
 
-            self.pic_algorithm.containing_elements[i] = containing_elements[alreay_placed]
-            self.pic_algorithm.positions[x_pstart:x_pend] = positions[already_placed]
-            self.pic_algorithm.momenta[v_pstart:v_pend] = momenta[already_placed]
-            self.pic_algorithm.charges[i] = charges[already_placed]
-            self.pic_algorithm.masses[i] = masses[already_placed]
+        prev_count = pic.particle_count
+        pic.positions = num.hstack(
+                (pic.positions[:prev_count*xdim], num.hstack(positions))
+                )
+        pic.momenta = num.hstack(
+                (pic.momenta[:prev_count*vdim], num.hstack(momenta)))
 
-            already_placed += 1
+        pic.charges = num.hstack(
+                (pic.charges[:prev_count], charges))
+        pic.masses = num.hstack(
+                (pic.masses[:prev_count], masses))
 
-        # next, append
-        self.pic_algorithm.containing_elements[-1:] = \
-                containing_elements[already_placed:]
-
-        self.pic_algorithm.positions = num.hstack((self.pic_algorithm.positions, 
-            num.hstack(positions[already_placed:])))
-        self.pic_algorithm.momenta = num.hstack((self.pic_algorithm.momenta, 
-            num.hstack(momenta[already_placed:])))
-
-        self.pic_algorithm.charges = num.hstack((self.pic_algorithm.charges, 
-            charges[already_placed:]))
-        self.pic_algorithm.masses = num.hstack((self.pic_algorithm.masses, 
-            masses[already_placed:]))
+        pic.particle_count += len(containing_elements)
 
     def upkeep(self):
         """Perform any operations must fall in between timesteps,
@@ -526,14 +525,14 @@ class FieldsAndCloud:
 
         self.eh_components = maxwell_op.component_count()
 
-        self.field_solve_timer = _DummyIntervalTimer()
-
-    def add_instrumentation(self, mgr):
         from pytools.log import IntervalTimer
         self.field_solve_timer = IntervalTimer(
                 "t_field",
                 "Time spent in field solver")
+
+    def add_instrumentation(self, mgr):
         mgr.add_quantity(self.field_solve_timer)
+
         self.cloud.add_instrumentation(mgr)
         self.maxwell_op.discr.add_instrumentation(mgr)
 

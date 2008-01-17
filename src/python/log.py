@@ -1,5 +1,7 @@
 """Data logging"""
 
+from __future__ import division
+
 __copyright__ = "Copyright (C) 2007, 2008 Andreas Kloeckner"
 
 __license__ = """
@@ -20,7 +22,6 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
-from __future__ import division
 from pytools.log import LogQuantity
 import pylinear.array as num
 import pylinear.computation as comp
@@ -46,6 +47,18 @@ class ParticleMomentum(LogQuantity):
         self.cloud = cloud
 
     def __call__(self):
+        from pyrticle._internal import particle_momentum
+        return particle_momentum(self.cloud.pic_algorithm)
+
+
+
+
+class PyParticleMomentum(LogQuantity):
+    def __init__(self, cloud, name="p_part_old"):
+        LogQuantity.__init__(self, name, "N*s", "Particle Momentum")
+        self.cloud = cloud
+
+    def __call__(self):
         total_momentum = num.array(
                 [num.sum(p_i) for p_i in 
                     self.cloud.momenta.get_alist_of_components()])
@@ -60,8 +73,9 @@ class KineticEnergy(LogQuantity):
         self.cloud = cloud
 
     def __call__(self):
-        total_kin_energy = num.sum(
-                self.cloud.pic_algorithm.kinetic_energies())
+        from pyrticle._internal import kinetic_energies
+        total_kin_energy = num.sum(kinetic_energies(
+                self.cloud.pic_algorithm))
         return total_kin_energy
 
 
@@ -81,6 +95,7 @@ class ParticleCharge(LogQuantity):
 def add_particle_quantities(mgr, cloud):
     mgr.add_quantity(ParticleCount(cloud))
     mgr.add_quantity(ParticleMomentum(cloud))
+    mgr.add_quantity(PyParticleMomentum(cloud))
     mgr.add_quantity(KineticEnergy(cloud))
     mgr.add_quantity(ParticleCharge(cloud))
 
@@ -192,18 +207,18 @@ class NetCurrent(LogQuantity):
 def add_field_quantities(mgr, f_and_c):
     mgr.add_quantity(FieldEnergy(f_and_c))
     mgr.add_quantity(FieldMomentum(f_and_c))
-    mgr.add_quantity(DivergenceError(f_and_c))
-    mgr.add_quantity(ReconstructedCharge(f_and_c))
+    mgr.add_quantity(DivergenceError(f_and_c), expensive_interval)
+    mgr.add_quantity(ReconstructedCharge(f_and_c), expensive_interval)
 
 
 
 
 # Beam quantities -------------------------------------------------------------
-def _axis_name(axis):
-    if axis == 0: return "X"
-    elif axis == 1: return "Y"
-    elif axis == 2: return "Z"
-    else: return "axis %d" % axis
+def axis_name(axis):
+    if axis == 0: return "x"
+    elif axis == 1: return "y"
+    elif axis == 2: return "z"
+    else: raise RuntimeError, "invalid axis index"
 
 
 
@@ -211,10 +226,10 @@ def _axis_name(axis):
 class RMSBeamRadius(LogQuantity):
     def __init__(self, cloud, axis, name=None):
         if name is None:
-            name = "r%s" % _axis_name(axis)
+            name = "r%s_rms" % axis_name(axis)
 
         LogQuantity.__init__(self, name, "m", 
-                "RMS Beam Radius along %s" % _axis_name(axis))
+                "RMS Beam Radius along %s" % axis_name(axis))
         self.cloud = cloud
         self.axis = axis
 
@@ -227,10 +242,10 @@ class RMSBeamRadius(LogQuantity):
 class RMSBeamEmittance(LogQuantity):
     def __init__(self, cloud, axis, beam_axis, name=None):
         if name is None:
-            name = "eps%s" % _axis_name(axis)
+            name = "eps%s_rms" % axis_name(axis)
 
         LogQuantity.__init__(self, name, "m*rad", 
-                "RMS Beam Emittance along %s" % _axis_name(axis))
+                "RMS Beam Emittance along %s" % axis_name(axis))
         self.cloud = cloud
         self.axis = axis
         self.beam_axis = beam_axis

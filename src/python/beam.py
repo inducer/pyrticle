@@ -71,7 +71,7 @@ def calculate_rms_energy_spread(cloud):
     from pytools import average
 
     gammas = [cloud.units.gamma(v) for v in cloud.velocities()]
-    energies = [gamma*m*cloud.units.VACUUM_LIGHT_SPEED**2
+    energies = [(gamma-1)*m*cloud.units.VACUUM_LIGHT_SPEED**2
             for gamma, m in zip(gammas, cloud.masses)]
     mean_energy = average(energies)
     squared_mean_energy = average(energies)**2
