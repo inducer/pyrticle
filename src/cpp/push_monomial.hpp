@@ -166,7 +166,10 @@ namespace pyrticle
             bool verbose_vis
             )
         {
-          hedge::vector result(PIC_THIS->m_momenta.size());
+          const unsigned xdim = CONST_PIC_THIS->dimensions_pos;
+          const unsigned vdim = CONST_PIC_THIS->dimensions_velocity;
+
+          hedge::vector result(CONST_PIC_THIS->m_particle_count * vdim);
           std::auto_ptr<hedge::vector> 
             vis_e, vis_b, vis_el_force, vis_lorentz_force;
 
@@ -184,16 +187,14 @@ namespace pyrticle
 
           for (particle_number i = 0; i < PIC_THIS->m_particle_count; i++)
           {
-            unsigned x_pstart = PIC_THIS->dimensions_pos*i;
-            unsigned x_pend = PIC_THIS->dimensions_pos*(i+1);
-            unsigned v_pstart = PIC_THIS->dimensions_velocity*i;
-            unsigned v_pend = PIC_THIS->dimensions_velocity*(i+1);
+            const unsigned v_pstart = vdim*i;
+            const unsigned v_pend = vdim*(i+1);
 
             mesh_data::mesh_data::element_number in_el = 
               PIC_THIS->m_containing_elements[i];
 
             interpolator interp = make_interpolator(
-                subrange(PIC_THIS->m_positions, x_pstart, x_pend), in_el);
+                subrange(PIC_THIS->m_positions, xdim*i, xdim*(i+1)), in_el);
 
             hedge::vector e(3);
             e[0] = interp(ex);

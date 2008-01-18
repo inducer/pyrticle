@@ -73,11 +73,13 @@ def calculate_rms_energy_spread(cloud):
     gammas = [cloud.units.gamma(v) for v in cloud.velocities()]
     energies = [(gamma-1)*m*cloud.units.VACUUM_LIGHT_SPEED**2
             for gamma, m in zip(gammas, cloud.masses)]
+    from pyrticle._internal import kinetic_energies
+    energies2 = kinetic_energies(cloud.pic_algorithm)
     mean_energy = average(energies)
     squared_mean_energy = average(energies)**2
 
     return sqrt(average(energy**2 for energy in energies)
-            -squared_mean_energy)/mean_energy
+            -squared_mean_energy)
 
 
 

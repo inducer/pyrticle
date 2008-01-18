@@ -47,6 +47,16 @@ namespace pyrticle
 
 
 
+  class dof_shift_listener
+  {
+    public:
+      virtual void note_change_size(unsigned new_size) const = 0;
+      virtual void note_move_dof(unsigned orig, unsigned dest) const = 0;
+  };
+
+
+
+
   template<unsigned DimensionsPos, unsigned DimensionsVelocity>
   struct pic_data
   {
@@ -71,10 +81,28 @@ namespace pyrticle
         mutable event_counter             m_find_by_vertex;
         mutable event_counter             m_find_global;
 
+      private:
+        boost::shared_ptr<dof_shift_listener> m_pos_dof_shift_listener;
+        boost::shared_ptr<dof_shift_listener> m_velocity_dof_shift_listener;
+
+      public:
+        // administrative stuff -----------------------------------------------
         type(unsigned mesh_dimensions, double vacuum_c)
-          : m_mesh_data(mesh_dimensions), m_vacuum_c(vacuum_c)
+          : m_mesh_data(mesh_dimensions), 
+          m_particle_count(0),
+          m_vacuum_c(vacuum_c)
         { }
 
+        void set_dof_shift_listeners(
+            boost::shared_ptr<dof_shift_listener> pos_listener,
+            boost::shared_ptr<dof_shift_listener> velocity_listener
+            )
+        {
+          m_pos_dof_shift_listener = pos_listener;
+          m_velocity_dof_shift_listener = velocity_listener;
+        }
+
+        // dimensions ---------------------------------------------------------
         static const unsigned dimensions_pos = DimensionsPos;
         static const unsigned dimensions_velocity = DimensionsVelocity;
 
@@ -84,6 +112,7 @@ namespace pyrticle
         static unsigned get_dimensions_velocity()
         { return dimensions_velocity; }
 
+        // heavy-lifting routines ---------------------------------------------
         const hedge::vector velocities() const
         {
           const unsigned vdim = dimensions_velocity;
@@ -104,27 +133,19 @@ namespace pyrticle
         }
 
 
-        void move_particle(particle_number from, particle_number to)
+
+
+        void add_rhs(
+            hedge::vector const &dx, 
+            hedge::vector const &dp)
         {
-          m_containing_elements[to] = m_containing_elements[from];
-
-          subrange(m_positions,
-              to*dimensions_pos,
-              (to+1)*dimensions_pos) =
-            subrange(m_positions,
-                from*dimensions_pos,
-                (from+1)*dimensions_pos);
-
-          subrange(m_momenta,
-              to*dimensions_velocity,
-              (to+1)*dimensions_velocity) =
-            subrange(m_momenta,
-                from*dimensions_velocity,
-                (from+1)*dimensions_velocity);
-
-          m_charges[to] = m_charges[from];
-          m_masses[to] = m_masses[from];
+          noalias(subrange(m_positions, 0, dimensions_pos*m_particle_count))
+            += dx;
+          noalias(subrange(m_momenta, 0, dimensions_velocity*m_particle_count))
+            += dp;
         }
+
+
 
 
         mesh_data::element_number find_new_containing_element(particle_number i,
@@ -309,6 +330,43 @@ namespace pyrticle
 
           --m_particle_count;
           move_particle(m_particle_count, pn);
+
+          if (m_pos_dof_shift_listener.get())
+            m_pos_dof_shift_listener->note_change_size(
+                dimensions_pos*m_particle_count);
+          if (m_velocity_dof_shift_listener.get())
+            m_velocity_dof_shift_listener->note_change_size(
+                dimensions_velocity*m_particle_count);
+        }
+
+
+
+
+        void move_particle(particle_number from, particle_number to)
+        {
+          const unsigned xdim = dimensions_pos;
+          const unsigned vdim = dimensions_velocity;
+
+          m_containing_elements[to] = m_containing_elements[from];
+
+          for (unsigned i = 0; i < xdim; i++)
+          {
+            m_positions[to*xdim+i] = m_positions[from*xdim+i];
+
+            if (m_pos_dof_shift_listener.get())
+              m_pos_dof_shift_listener->note_move_dof(from*xdim+i, to*xdim+i);
+          }
+
+          for (unsigned i = 0; i < vdim; i++)
+          {
+            m_momenta[to*vdim+i] = m_momenta[from*vdim+i];
+
+            if (m_velocity_dof_shift_listener.get())
+              m_velocity_dof_shift_listener->note_move_dof(from*vdim+i, to*vdim+i);
+          }
+
+          m_charges[to] = m_charges[from];
+          m_masses[to] = m_masses[from];
         }
     };
 

@@ -46,6 +46,8 @@
 
 #define DEF_SIMPLE_METHOD(NAME) \
   def(#NAME, &cl::NAME)
+#define DEF_PURE_VIRTUAL_METHOD(NAME) \
+  def(#NAME, boost::python::pure_virtual(&cl::NAME))
 #define DEF_SIMPLE_FUNCTION(NAME) \
   def(#NAME, &NAME)
 #define DEF_RO_MEMBER(NAME) \

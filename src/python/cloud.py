@@ -124,6 +124,13 @@ class ParticleCloud:
                 "t_force",
                 "Time spent calculating forces")
 
+        from pyrticle.tools import DOFShiftForwarder
+        self.pos_shift_signaller = DOFShiftForwarder()
+        self.velocity_shift_signaller = DOFShiftForwarder()
+        self.pic_algorithm.set_dof_shift_listeners(
+                self.pos_shift_signaller,
+                self.velocity_shift_signaller)
+
     def __len__(self):
         return self.pic_algorithm.particle_count
 
@@ -157,11 +164,11 @@ class ParticleCloud:
 
     @property
     def masses(self):
-        return self.pic_algorithm.masses
+        return self.pic_algorithm.masses[:self.pic_algorithm.particle_count]
 
     @property
     def charges(self):
-        return self.pic_algorithm.charges
+        return self.pic_algorithm.charges[:self.pic_algorithm.particle_count]
 
     def velocities(self):
         from hedge.tools import FixedSizeSliceAdapter
@@ -232,6 +239,17 @@ class ParticleCloud:
 
         pic.particle_count += len(containing_elements)
 
+        self.check_containment()
+
+    def check_containment(self):
+        """Check that a containing element is known for each particle.
+
+        This is a new invariant as of 1/17/08, and violations of this end
+        segfaulting, which we should avoid.
+        """
+        for ce in self.pic_algorithm.containing_elements[:len(self)]:
+            assert ce != MeshData.INVALID_ELEMENT
+                
     def upkeep(self):
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
@@ -346,27 +364,33 @@ class ParticleCloud:
 
         # compute forces
         self.force_timer.start()
-        result = ArithmeticList([
-            velocities, 
-            self.pic_algorithm.forces(
+        forces = self.pic_algorithm.forces(
                 velocities=velocities,
                 verbose_vis=self.verbose_vis,
                 *field_args
                 )
-            ])
         self.force_timer.stop()
+
+        from pyrticle.tools import DOFShiftableVector
+        result = ArithmeticList([
+            DOFShiftableVector(velocities, self.pos_shift_signaller),
+            DOFShiftableVector(forces, self.velocity_shift_signaller)
+            ])
         return result
 
     def __iadd__(self, rhs):
-        from pytools import argmin, argmax
-
         self.density_cache.clear()
 
         assert isinstance(rhs, ArithmeticList)
 
+        from pyrticle.tools import DOFShiftableVector
+
         dx, dp = rhs
-        self.pic_algorithm.positions += dx
-        self.pic_algorithm.momenta += dp
+        dx = DOFShiftableVector.unwrap(dx.vector)
+        dp = DOFShiftableVector.unwrap(dp.vector)
+        assert len(dx) == self.dimensions_pos*len(self)
+        assert len(dp) == self.dimensions_velocity*len(self)
+        self.pic_algorithm.add_rhs(dx, dp)
 
         self.find_el_timer.start()
         self.pic_algorithm.update_containing_elements()

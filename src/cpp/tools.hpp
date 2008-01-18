@@ -167,7 +167,7 @@ namespace pyrticle
     BOOST_FOREACH(double value, std::make_pair(first,last))
     {
       sum += value;
-      square_sum += square(sum);
+      square_sum += square(value);
       ++count;
     }
 
@@ -175,7 +175,7 @@ namespace pyrticle
       throw std::runtime_error("attempted to take empty average");
 
     double mean = sum/count;
-    return sqrt(square_sum/count - square(mean))/mean;
+    return sqrt(square_sum/count - square(mean));
   }
 }
 

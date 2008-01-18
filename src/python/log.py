@@ -87,7 +87,8 @@ class ParticleCharge(LogQuantity):
         self.cloud = cloud
 
     def __call__(self):
-        return self.cloud.pic_algorithm.total_charge()
+        from pyrticle._internal import total_charge
+        return total_charge(self.cloud.pic_algorithm)
 
 
 
@@ -207,8 +208,8 @@ class NetCurrent(LogQuantity):
 def add_field_quantities(mgr, f_and_c):
     mgr.add_quantity(FieldEnergy(f_and_c))
     mgr.add_quantity(FieldMomentum(f_and_c))
-    mgr.add_quantity(DivergenceError(f_and_c), expensive_interval)
-    mgr.add_quantity(ReconstructedCharge(f_and_c), expensive_interval)
+    mgr.add_quantity(DivergenceError(f_and_c))
+    mgr.add_quantity(ReconstructedCharge(f_and_c))
 
 
 
@@ -223,10 +224,10 @@ def axis_name(axis):
 
 
 
-class RMSBeamRadius(LogQuantity):
+class PyRMSBeamRadius(LogQuantity):
     def __init__(self, cloud, axis, name=None):
         if name is None:
-            name = "r%s_rms" % axis_name(axis)
+            name = "r%s_rms_old" % axis_name(axis)
 
         LogQuantity.__init__(self, name, "m", 
                 "RMS Beam Radius along %s" % axis_name(axis))
@@ -239,10 +240,45 @@ class RMSBeamRadius(LogQuantity):
     
 
 
+class RMSBeamRadius(LogQuantity):
+    def __init__(self, cloud, axis, name=None):
+        if name is None:
+            name = "r%s_rms" % axis_name(axis)
+
+        LogQuantity.__init__(self, name, "m", 
+                "RMS Beam Radius along %s" % axis_name(axis))
+        self.cloud = cloud
+        self.axis = axis
+
+    def __call__(self):
+        from pyrticle._internal import rms_beam_size
+        return rms_beam_size(self.cloud.pic_algorithm, self.axis)
+
+
+
+
 class RMSBeamEmittance(LogQuantity):
     def __init__(self, cloud, axis, beam_axis, name=None):
         if name is None:
             name = "eps%s_rms" % axis_name(axis)
+
+        LogQuantity.__init__(self, name, "m*rad", 
+                "RMS Beam Emittance along %s" % axis_name(axis))
+        self.cloud = cloud
+        self.axis = axis
+        self.beam_axis = beam_axis
+
+    def __call__(self):
+        from pyrticle._internal import rms_beam_emittance
+        return rms_beam_emittance(self.cloud.pic_algorithm, self.axis, self.beam_axis)
+    
+
+
+
+class PyRMSBeamEmittance(LogQuantity):
+    def __init__(self, cloud, axis, beam_axis, name=None):
+        if name is None:
+            name = "eps%s_rms_old" % axis_name(axis)
 
         LogQuantity.__init__(self, name, "m*rad", 
                 "RMS Beam Emittance along %s" % axis_name(axis))
@@ -259,7 +295,20 @@ class RMSBeamEmittance(LogQuantity):
 
 class RMSBeamEnergySpread(LogQuantity):
     def __init__(self, cloud, name="Espread"):
-        LogQuantity.__init__(self, name, "m*rad", 
+        LogQuantity.__init__(self, name, "1", 
+                "RMS Beam Energy Spread")
+        self.cloud = cloud
+
+    def __call__(self):
+        from pyrticle._internal import rms_energy_spread
+        return rms_energy_spread(self.cloud.pic_algorithm)
+
+
+
+
+class PyRMSBeamEnergySpread(LogQuantity):
+    def __init__(self, cloud, name="Espread_old"):
+        LogQuantity.__init__(self, name, "1", 
                 "RMS Beam Energy Spread")
         self.cloud = cloud
 
@@ -276,6 +325,9 @@ def add_beam_quantities(mgr, f_and_c, axis=0, beam_axis=2):
     mgr.add_quantity(RMSBeamRadius(f_and_c.cloud, axis))
     mgr.add_quantity(RMSBeamEmittance(f_and_c.cloud, axis, beam_axis))
     mgr.add_quantity(RMSBeamEnergySpread(f_and_c.cloud))
+    mgr.add_quantity(PyRMSBeamRadius(f_and_c.cloud, axis))
+    mgr.add_quantity(PyRMSBeamEmittance(f_and_c.cloud, axis, beam_axis))
+    mgr.add_quantity(PyRMSBeamEnergySpread(f_and_c.cloud))
     mgr.add_quantity(NetCurrent(f_and_c, current_dir))
 
 

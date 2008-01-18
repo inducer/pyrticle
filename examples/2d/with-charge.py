@@ -42,8 +42,9 @@ def main():
     from pytools.arithmetic_container import \
             ArithmeticList, join_fields
     from hedge.operators import TEMaxwellOperator, DivergenceOperator
+
     from random import seed
-    #seed(0)
+    seed(0)
 
     from pyrticle.units import SI
     units = SI()
@@ -143,8 +144,8 @@ def main():
     add_general_quantities(logmgr)
     add_simulation_quantities(logmgr, dt)
     add_particle_quantities(logmgr, cloud)
-    add_field_quantities(logmgr, fields, expensive_interval=1)
-    #add_beam_quantities(logmgr, fields, axis=1, beam_axis=0)
+    add_field_quantities(logmgr, fields)
+    add_beam_quantities(logmgr, fields, axis=1, beam_axis=0)
     stepper.add_instrumentation(logmgr)
     fields.add_instrumentation(logmgr)
     logmgr.set_constant("beta", comp.norm_2(mean_beta))

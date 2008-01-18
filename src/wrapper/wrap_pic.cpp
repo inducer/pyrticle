@@ -90,10 +90,13 @@ namespace
 
       .DEF_SIMPLE_METHOD(move_particle)
 
+      .DEF_SIMPLE_METHOD(add_rhs)
       .DEF_SIMPLE_METHOD(find_new_containing_element)
       .DEF_SIMPLE_METHOD(update_containing_elements)
 
       .DEF_SIMPLE_METHOD(kill_particle)
+
+      .DEF_SIMPLE_METHOD(set_dof_shift_listeners)
       ;
 
     if (PICAlgorithm::get_dimensions_velocity() == 3)
@@ -161,6 +164,24 @@ namespace
       this->get_override("store_vis_vector")(name, vec);
     }
   };
+
+
+
+
+  struct dof_shift_listener_wrap : 
+    dof_shift_listener,
+    python::wrapper<dof_shift_listener>
+  {
+    void note_change_size(unsigned new_size) const
+    {
+      this->get_override("note_change_size")(new_size);
+    }
+
+    void note_move_dof(unsigned orig, unsigned dest) const
+    {
+      this->get_override("note_move_dof")(orig, dest);
+    }
+  };
 }
 
 
@@ -174,11 +195,20 @@ void expose_pic()
       boost::shared_ptr<visualization_listener_wrap>,
       boost::noncopyable>
       ("VisualizationListener")
-      .def("store_vis_vector", 
-          python::pure_virtual(&cl::store_vis_vector))
+      .DEF_PURE_VIRTUAL_METHOD(store_vis_vector)
       ;
   }
 
+  {
+    typedef dof_shift_listener cl;
+    python::class_<dof_shift_listener_wrap, 
+      boost::shared_ptr<dof_shift_listener_wrap>,
+      boost::noncopyable>
+      ("DOFShiftListener")
+      .DEF_PURE_VIRTUAL_METHOD(note_change_size)
+      .DEF_PURE_VIRTUAL_METHOD(note_move_dof)
+      ;
+  }
   expose_pic_algorithm<
       pic<
         pic_data<3,3>,

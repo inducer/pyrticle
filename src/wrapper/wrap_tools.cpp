@@ -56,7 +56,7 @@ void expose_tools()
 
   {
     typedef std::vector<unsigned> cl;
-    python::class_<cl, boost::noncopyable>("UnsignedVector")
+    python::class_<cl>("UnsignedVector")
       .def(python::vector_indexing_suite<cl>())
       .DEF_SIMPLE_METHOD(clear)
       .DEF_SIMPLE_METHOD(reserve)
