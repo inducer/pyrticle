@@ -77,8 +77,6 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
         #print "%d elements" % len(mesh.elements)
         #mesh.write_vtk("gun.vtk")
 
-        from hedge.mesh import ConformalMesh
-
         fvi2fm = mesh.face_vertex_indices_to_face_marker
             
         def zper_boundary_tagger(fvi, el, fn):
@@ -90,7 +88,8 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
             else:
                 return ["shell"]
 
-        return ConformalMesh(mesh.points, mesh.elements,
+        from hedge.mesh import make_conformal_mesh
+        return make_conformal_mesh(mesh.points, mesh.elements,
                 zper_boundary_tagger,
                 periodicity=[None, None, ("minus_z", "plus_z")])
 

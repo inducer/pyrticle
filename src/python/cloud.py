@@ -92,7 +92,7 @@ class ParticleCloud:
         self.reconstructor.initialize(self)
         self.pusher.initialize(self)
 
-        self.density_cache = {}
+        self.derived_quantity_cache = {}
 
         # instrumentation 
         from pytools.log import IntervalTimer, EventCounter
@@ -170,10 +170,18 @@ class ParticleCloud:
     def charges(self):
         return self.pic_algorithm.charges[:self.pic_algorithm.particle_count]
 
+    def raw_velocities(self):
+        if "raw_velocities" in self.derived_quantity_cache:
+            return self.derived_quantity_cache["raw_velocities"]
+        else:
+            result = self.pic_algorithm.velocities()
+            self.derived_quantity_cache["raw_velocities"] = result
+            return result
+
     def velocities(self):
         from hedge.tools import FixedSizeSliceAdapter
         return FixedSizeSliceAdapter(
-                self.pic_algorithm.velocities(),
+                self.raw_velocities(),
                 self.dimensions_velocity)
 
     def add_particles(self, positions, velocities, charges, masses):
@@ -256,30 +264,24 @@ class ParticleCloud:
         """
         self.vis_info.clear()
 
-    def reconstruct_densities(self, velocities=None):
+    def reconstruct_densities(self):
         """Return a tuple (charge_density, current_densities), where
         current_densities is an 
           ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
         of the densities in each direction.
-
-        @arg velocities: the adaptee of the C{FixedSizeSliceAdapter}
-          returned by L{velocities}.
         """
 
-        if "j" in self.density_cache:
-            j = self.density_cache["j"]
-            if "rho" in self.density_cache:
-                rho = self.density_cache["rho"]
+        if "j" in self.derived_quantity_cache:
+            j = self.derived_quantity_cache["j"]
+            if "rho" in self.derived_quantity_cache:
+                rho = self.derived_quantity_cache["rho"]
             else:
                 rho = self.reconstruct_rho()
             return rho, j
         else:
-            if velocities is None:
-                velocities = self.pic_algorithm.velocities().adaptee
-
-            if "rho" in self.density_cache:
-                rho = self.density_cache["rho"]
-                j = self.reconstruct_j(velocities)
+            if "rho" in self.derived_quantity_cache:
+                rho = self.derived_quantity_cache["rho"]
+                j = self.reconstruct_j(self.raw_velocities())
                 return rho, j
             else:
                 rho = self.discretization.volume_zeros()
@@ -290,29 +292,23 @@ class ParticleCloud:
 
                 self.reconstruct_timer.start()
                 self.pic_algorithm.reconstruct_densities(rho, j, self.particle_radius,
-                        velocities)
+                        self.raw_velocities())
                 j = j.get_alist_of_components()
                 self.reconstruct_timer.stop()
                 self.reconstruct_counter.add(self.dimensions_velocity+1)
 
-                self.density_cache["rho"] = rho
-                self.density_cache["j"] = j
+                self.derived_quantity_cache["rho"] = rho
+                self.derived_quantity_cache["j"] = j
 
                 return rho, j
 
-    def reconstruct_j(self, velocities=None):
+    def reconstruct_j(self):
         """Return a the current densities in the structure::
           ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
-
-        @arg velocities: the adaptee of the C{FixedSizeSliceAdapter}
-          returned by L{velocities}.
         """
 
-        if "j" in self.density_cache:
-            return self.density_cache["j"]
-
-        if velocities is None:
-            velocities = self.velocities().adaptee
+        if "j" in self.derived_quantity_cache:
+            return self.derived_quantity_cache["j"]
 
         from hedge.tools import FixedSizeSliceAdapter
         j = FixedSizeSliceAdapter(num.zeros(
@@ -320,12 +316,13 @@ class ParticleCloud:
             self.dimensions_velocity)
 
         self.reconstruct_timer.start()
-        self.pic_algorithm.reconstruct_j(j.adaptee, self.particle_radius, velocities)
+        self.pic_algorithm.reconstruct_j(j.adaptee, self.particle_radius, 
+                self.raw_velocities())
         j = j.get_alist_of_components()
         self.reconstruct_timer.stop()
         self.reconstruct_counter.add(self.dimensions_velocity)
 
-        self.density_cache["j"] = j
+        self.derived_quantity_cache["j"] = j
 
         return j
 
@@ -333,8 +330,8 @@ class ParticleCloud:
         """Return a the charge_density as a volume vector.
         """
 
-        if "rho" in self.density_cache:
-            return self.density_cache["rho"]
+        if "rho" in self.derived_quantity_cache:
+            return self.derived_quantity_cache["rho"]
 
         rho = self.discretization.volume_zeros()
 
@@ -343,11 +340,11 @@ class ParticleCloud:
         self.reconstruct_timer.stop()
         self.reconstruct_counter.add(1)
 
-        self.density_cache["rho"] = rho
+        self.derived_quantity_cache["rho"] = rho
 
         return rho
 
-    def rhs(self, t, e, b, velocities=None):
+    def rhs(self, t, e, b):
         """Return an ArithmeticList of velocities and forces on the particles.
 
         @arg e: triple of M{E_x}, M{E_y}, M{E_z}, each of which may be either 
@@ -357,8 +354,7 @@ class ParticleCloud:
           deals with M{H}, not M{B}.
         """
 
-        if velocities is None:
-            velocities = self.pic_algorithm.velocities()
+        velocities = self.raw_velocities()
 
         field_args = tuple(e) + tuple(b)
 
@@ -379,15 +375,15 @@ class ParticleCloud:
         return result
 
     def __iadd__(self, rhs):
-        self.density_cache.clear()
+        self.derived_quantity_cache.clear()
 
         assert isinstance(rhs, ArithmeticList)
 
         from pyrticle.tools import DOFShiftableVector
 
         dx, dp = rhs
-        dx = DOFShiftableVector.unwrap(dx.vector)
-        dp = DOFShiftableVector.unwrap(dp.vector)
+        dx = DOFShiftableVector.unwrap(dx)
+        dp = DOFShiftableVector.unwrap(dp)
         assert len(dx) == self.dimensions_pos*len(self)
         assert len(dp) == self.dimensions_velocity*len(self)
         self.pic_algorithm.add_rhs(dx, dp)
@@ -465,10 +461,10 @@ class ParticleCloud:
             add_vis_vector("el_force")
             add_vis_vector("lorentz_force")
 
-            if "rho" in self.density_cache:
-                mesh_scalars.append(("rho", self.density_cache["rho"]))
-            if "j" in self.density_cache:
-                mesh_vectors.append(("j", self.density_cache["j"]))
+            if "rho" in self.derived_quantity_cache:
+                mesh_scalars.append(("rho", self.derived_quantity_cache["rho"]))
+            if "j" in self.derived_quantity_cache:
+                mesh_vectors.append(("j", self.derived_quantity_cache["j"]))
 
         from os.path import splitext
         pathname = splitext(vis_file.pathname)[0] + "-particles.vtu"
@@ -516,8 +512,8 @@ class ParticleCloud:
                         [num.zeros((pcount,)) for i in range(dim)])
 
         def add_mesh_vis(name, unavail_ok=False):
-            if name in self.density_cache:
-                mesh_scalars.append((name, self.density_cache[name]))
+            if name in self.derived_quantity_cache:
+                mesh_scalars.append((name, self.derived_quantity_cache[name]))
             else:
                 if not unavail_ok:
                     warn("visualization of unavailable mesh variable '%s' requested" % name)
@@ -577,8 +573,6 @@ class FieldsAndCloud:
         from pytools.arithmetic_container import join_fields
         from pyrticle._internal import ZeroVector
 
-        velocities = self.cloud.velocities().adaptee
-
         # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
         # inserting ZeroVectors where necessary.
         idx = 0
@@ -599,7 +593,7 @@ class FieldsAndCloud:
             else:
                 b_arg.append(ZeroVector())
 
-        cloud_rhs = self.cloud.rhs(t, e_arg, b_arg, velocities)
+        cloud_rhs = self.cloud.rhs(t, e_arg, b_arg)
 
         self.field_solve_timer.start()
         rhs_e, rhs_h = self.maxwell_op.split_fields(
@@ -608,7 +602,7 @@ class FieldsAndCloud:
         self.field_solve_timer.stop()
 
         return join_fields(
-                rhs_e - 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j(velocities),
+                rhs_e - 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j(),
                 rhs_h,
                 ).plus([cloud_rhs])
 

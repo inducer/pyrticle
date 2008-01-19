@@ -41,6 +41,7 @@ namespace
     python::def("kinetic_energies", kinetic_energies<PICAlgorithm>);
     python::def("total_charge", total_charge<PICAlgorithm>);
     python::def("particle_momentum", particle_momentum<PICAlgorithm>);
+    python::def("particle_current", particle_current<PICAlgorithm>);
     python::def("rms_beam_size", rms_beam_size<PICAlgorithm>);
     python::def("rms_beam_emittance", rms_beam_emittance<PICAlgorithm>);
     python::def("rms_energy_spread", rms_energy_spread<PICAlgorithm>);

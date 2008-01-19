@@ -139,6 +139,28 @@ namespace pyrticle
     hedge::vector energies = kinetic_energies(pic);
     return std_dev(energies.begin(), energies.end());
   }
+
+
+
+
+  template <class PIC>
+  const hedge::vector particle_current(PIC const &pic, hedge::vector const &velocities,
+      double length)
+  {
+    const unsigned vdim = pic.dimensions_velocity;
+    hedge::vector result(vdim);
+    result.clear();
+
+    for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
+      result += pic.m_charges[pn] * subrange(velocities, vdim*pn, vdim*(pn+1));
+
+    return result / length;
+  }
+
+
+
+
+
 }
 
 

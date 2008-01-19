@@ -294,12 +294,11 @@ class KVRadiusPredictor(ODEDefinedFunction):
 
 class KVPredictedRadius(SimulationLogQuantity):
     def __init__(self, dt, beam_v, predictor, suffix, name=None):
-        from pyrticle.log import axis_name
         if name is None:
-            name = "r%s%s_theory" % (axis_name(axis), suffix)
+            name = "r%s_theory" % suffix
 
         SimulationLogQuantity.__init__(self, dt, name, "m", 
-                "Theoretical RMS Beam Radius along %s" % axis_name(axis))
+                "Theoretical RMS Beam Radius")
 
         self.beam_v = beam_v
         self.predictor = predictor
@@ -307,7 +306,7 @@ class KVPredictedRadius(SimulationLogQuantity):
 
     def __call__(self):
         s = self.beam_v * self.t
-        self.t += dt
+        self.t += self.dt
         return self.predictor(s)
 
     

@@ -149,46 +149,68 @@ def main():
             z_pos=10*units.MM,
             beta=mean_beta)
     beam.add_to(cloud, discr)
-    from kv import calculate_rms_energy_spread
-
-    print "energy spread: %g %%" % (
-            calculate_rms_energy_spread(cloud) * 100)
 
     # initial condition -------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
     fields = compute_initial_condition(pcon, discr, cloud, 
             mean_beta=num.array([0, 0, mean_beta]), max_op=max_op, debug=True)
 
-    # timestepping ------------------------------------------------------------
+    # timestepping setup ------------------------------------------------------
     stepper = RK4TimeStepper()
-    from time import time
-    last_tstep = time()
     t = 0
 
-    rms_r_logger = RMSBeamRadiusLogger(cloud.dimensions_pos, 0)
+    # diagnostics setup -------------------------------------------------------
+    from pytools.log import LogManager, \
+            add_simulation_quantities, \
+            add_general_quantities, \
+            add_run_info, ETA
+    from pyrticle.log import add_particle_quantities, add_field_quantities, \
+            add_beam_quantities, add_currents
+    logmgr = LogManager("kv.dat")
+    add_run_info(logmgr)
+    add_general_quantities(logmgr)
+    add_simulation_quantities(logmgr, dt)
+    add_particle_quantities(logmgr, cloud)
+    add_field_quantities(logmgr, fields)
+    add_beam_quantities(logmgr, cloud, axis=0, beam_axis=2)
+    add_currents(logmgr, fields, (0,0,1), tube_length)
 
-    rms_theory_with_charge = KVRadiusPredictor(
-            beam.rms_radii[rms_r_logger.axis], 
-            beam.rms_emittances[rms_r_logger.axis],
-            xi=beam.get_rms_space_charge_parameter())
+    stepper.add_instrumentation(logmgr)
+    fields.add_instrumentation(logmgr)
+    logmgr.set_constant("beta", mean_beta)
+    logmgr.set_constant("gamma", gamma)
+    logmgr.set_constant("vz", units.VACUUM_LIGHT_SPEED)
+    logmgr.set_constant("Q0", cloud_charge)
+    logmgr.set_constant("n_part_0", nparticles)
+    logmgr.set_constant("pmass", electrons_per_particle*units.EL_MASS)
 
-    def write_out_plots():
-        rms_r_logger.generate_plot(
-                title="Kapchinskij-Vladimirskij Beam Evolution",
-                sim_label="RMS, simulated, with space charge", 
-                outfile="beam-rad-rms",
-                theories=[
-                    ("RMS, theoretical, with space charge", rms_theory_with_charge)
-                    ])
+    from pytools.log import IntervalTimer
+    vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
+    logmgr.add_quantity(vis_timer)
 
-    from pytools.stopwatch import EtaEstimator
-    eta = EtaEstimator(nsteps)
+    logmgr.add_quantity(ETA(nsteps))
 
+    logmgr.add_watches(["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"])
+
+    from kv import KVPredictedRadius
+    logmgr.add_quantity(KVPredictedRadius(dt, 
+        beam_v=beta*units.VACUUM_LIGHT_SPEED,
+        predictor=beam.get_rms_predictor(axis=0),
+        suffix="x_rms"))
+    logmgr.add_quantity(KVPredictedRadius(dt, 
+        beam_v=beta*units.VACUUM_LIGHT_SPEED,
+        predictor=beam.get_total_predictor(axis=0),
+        suffix="x_total"))
+
+    # timestepping ------------------------------------------------------------
     for step in xrange(nsteps):
+        logmgr.tick()
+
         cloud.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
 
         if step % field_dump_interval == 0:
+            vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
             mesh_scalars, mesh_vectors = \
@@ -202,35 +224,14 @@ def main():
                 + mesh_scalars,
                 time=t, step=step)
             visf.close()
-
-        rms_r_logger.update(t, cloud.positions, cloud.velocities())
-
-        print "timestep %d, t=%g l2[e]=%g l2[h]=%g secs=%f eta=%s particles=%d" % (
-                step, t, l2_norm(fields.e), l2_norm(fields.h),
-                time()-last_tstep, eta.estimate(step), len(cloud))
-        last_tstep = time()
-
-        if False:
-            print "searches: same=%d, normal=%d, vertex=%d, global=%d, periodic=%d" % (
-                    cloud.same_searches.pop(),
-                    cloud.normal_searches.pop(),
-                    cloud.vertex_searches.pop(),
-                    cloud.global_searches.pop(),
-                    cloud.periodic_hits.pop(),
-                    )
-            print "shape-adds: neighbor=%d vertex=%d" % (
-                    cloud.neighbor_shape_adds.pop(),
-                    cloud.vertex_shape_adds.pop(),
-                    )
+            vis_timer.stop()
 
         t += dt
 
-        if step % 100 == 0:
-            write_out_plots()
-
     vis.close()
         
-    write_out_plots()
+    logmgr.tick()
+    logmgr.save()
 
     print "Relative error: %g" % rms_r_logger.relative_error(rms_theory_with_charge)
 

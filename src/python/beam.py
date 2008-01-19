@@ -20,66 +20,23 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
-def calculate_rms_beam_size(cloud, axis):
-    from pytools import average
-    from math import sqrt
-
-    xdim = cloud.dimensions_pos
-
-    return sqrt(average(x**2 for x in cloud.pic_algorithm.positions[axis::xdim]))
+def rms_beam_size(cloud, axis):
+    from pyrticle._internal import rms_beam_size
+    return rms_beam_size(cloud.pic_algorithm, axis)
 
 
 
 
-def calculate_rms_emittance(cloud, axis, beam_axis):
-    from pytools import average
-    from math import sqrt
-
-    xdim = cloud.dimensions_pos
-    vdim = cloud.dimensions_velocity
-
-    def calc_xprime(px, pz):
-        if pz:
-            return px/pz
-        else:
-            return 0
-
-    xprime = [calc_xprime(px, pz) for px, pz in zip(
-        cloud.pic_algorithm.momenta[axis::vdim], 
-        cloud.pic_algorithm.momenta[beam_axis::vdim])]
-    mean_x_squared = average(x**2 for x in cloud.pic_algorithm.positions[axis::xdim])
-    mean_p_squared = average(xp**2 for xp in xprime)
-    squared_mean_xp = average(
-            x*xp 
-            for x, xp in zip(cloud.pic_algorithm.positions[axis::xdim], xprime)
-            )**2
-
-    return sqrt(mean_x_squared*mean_p_squared - squared_mean_xp)
+def rms_emittance(cloud, axis, beam_axis):
+    from pyrticle._internal import rms_beam_emittance
+    return rms_beam_emittance(cloud.pic_algorithm, axis, beam_axis)
 
 
 
 
-def calculate_rms_energy_spread(cloud):
-    from pytools import average
-    from math import sqrt
-
-    xdim = cloud.dimensions_pos
-    vdim = cloud.dimensions_velocity
-
-    velocities = cloud.velocities()
-
-    from pytools import average
-
-    gammas = [cloud.units.gamma(v) for v in cloud.velocities()]
-    energies = [(gamma-1)*m*cloud.units.VACUUM_LIGHT_SPEED**2
-            for gamma, m in zip(gammas, cloud.masses)]
-    from pyrticle._internal import kinetic_energies
-    energies2 = kinetic_energies(cloud.pic_algorithm)
-    mean_energy = average(energies)
-    squared_mean_energy = average(energies)**2
-
-    return sqrt(average(energy**2 for energy in energies)
-            -squared_mean_energy)
+def rms_energy_spread(cloud):
+    from pyrticle._internal import rms_energy_spread
+    return rms_energy_spread(cloud.pic_algorithm)
 
 
 

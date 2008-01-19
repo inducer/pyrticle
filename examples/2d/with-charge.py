@@ -50,9 +50,10 @@ def main():
     units = SI()
 
     # discretization setup ----------------------------------------------------
+    tube_length = 2
     full_mesh = make_regular_rect_mesh(
             a=(-0.5, -0.5),
-            b=(1.5, 0.5),
+            b=(-0.5+tube_length, 0.5),
             #n=(30, 10), 
             n=(10, 5), 
             periodicity=(True, False))
@@ -136,16 +137,18 @@ def main():
     from pytools.log import LogManager, \
             add_simulation_quantities, \
             add_general_quantities, \
-            add_run_info
+            add_run_info, ETA
     from pyrticle.log import add_particle_quantities, add_field_quantities, \
-            add_beam_quantities
+            add_beam_quantities, add_currents
     logmgr = LogManager("2d.dat")
     add_run_info(logmgr)
     add_general_quantities(logmgr)
     add_simulation_quantities(logmgr, dt)
     add_particle_quantities(logmgr, cloud)
     add_field_quantities(logmgr, fields)
-    add_beam_quantities(logmgr, fields, axis=1, beam_axis=0)
+    add_beam_quantities(logmgr, cloud, axis=1, beam_axis=0)
+    add_currents(logmgr, fields, (1,0), tube_length)
+
     stepper.add_instrumentation(logmgr)
     fields.add_instrumentation(logmgr)
     logmgr.set_constant("beta", comp.norm_2(mean_beta))
@@ -159,13 +162,14 @@ def main():
     vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
     logmgr.add_quantity(vis_timer)
 
-    logmgr.add_watches(["step", "t_sim", "W_field", "t_step", "n_part"])
+    logmgr.add_quantity(ETA(nsteps))
+
+    logmgr.add_watches(["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"])
 
     # timestepping ------------------------------------------------------------
     t = 0
 
     for step in xrange(nsteps):
-        cloud.reconstruct_j()
         logmgr.tick()
 
         cloud.upkeep()

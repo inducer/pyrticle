@@ -29,7 +29,8 @@ def main():
     units = SI()
 
     # discretization setup ----------------------------------------------------
-    mesh = make_cylinder_mesh(radius=25*units.MM, height=100*units.MM, periodic=True)
+    tube_length = 100*units.MM
+    mesh = make_cylinder_mesh(radius=25*units.MM, height=tube_length, periodic=True)
     #mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
     discr = Discretization(mesh, TetrahedralElement(3))
@@ -78,8 +79,8 @@ def main():
             beta=beta)
     beam.add_to(cloud, discr)
 
-    # timestepping ------------------------------------------------------------
-    vel = cloud.velocities()
+    # timestep setup ----------------------------------------------------------
+    vel = cloud.raw_velocities()
     def rhs(t, y):
         return ArithmeticList([
             vel, 
@@ -87,20 +88,47 @@ def main():
             ])
 
     stepper = RK4TimeStepper()
-    from time import time
-    last_tstep = time()
     t = 0
 
-    max_logger = MaxBeamRadiusLogger(cloud.dimensions_pos)
-    rms_logger = RMSBeamRadiusLogger(cloud.dimensions_pos, 0)
+    # diagnostics setup -------------------------------------------------------
+    from pytools.log import LogManager, \
+            add_simulation_quantities, \
+            add_general_quantities, \
+            add_run_info
+    from pyrticle.log import add_particle_quantities, add_beam_quantities, \
+            ParticleCurrent
+    logmgr = LogManager("no-charge.dat")
+    add_run_info(logmgr)
+    add_general_quantities(logmgr)
+    add_simulation_quantities(logmgr, dt)
+    add_particle_quantities(logmgr, cloud)
+    add_beam_quantities(logmgr, cloud, axis=0, beam_axis=2)
+    logmgr.add_quantity(ParticleCurrent(cloud, (1,0), tube_length))
 
+    stepper.add_instrumentation(logmgr)
+    cloud.add_instrumentation(logmgr)
+
+    logmgr.set_constant("beta", beta)
+    logmgr.set_constant("gamma", gamma)
+    logmgr.set_constant("Q0", cloud_charge)
+    logmgr.set_constant("n_part_0", nparticles)
+    logmgr.set_constant("pmass", electrons_per_particle*units.EL_MASS)
+
+    from kv import KVPredictedRadius
+    logmgr.add_quantity(KVPredictedRadius(dt, 
+        beam_v=beta*units.VACUUM_LIGHT_SPEED,
+        predictor=beam.get_rms_predictor(axis=0),
+        suffix="x_rms"))
+    logmgr.add_quantity(KVPredictedRadius(dt, 
+        beam_v=beta*units.VACUUM_LIGHT_SPEED,
+        predictor=beam.get_total_predictor(axis=0),
+        suffix="x_total"))
+
+    logmgr.add_watches(["step"])
+
+    # timestep loop -----------------------------------------------------------
     for step in xrange(nsteps):
-        if step % 100 == 0:
-            print "timestep %d" % step
-
-        vel = cloud.velocities()
-        max_logger.update(t, cloud.positions, vel)
-        rms_logger.update(t, cloud.positions, vel)
+        logmgr.tick()
 
         cloud = stepper(cloud, t, dt, rhs)
         cloud.upkeep()
@@ -108,35 +136,11 @@ def main():
 
     vis.close()
 
-    theory_no_charge_max = ChargelessKVRadiusPredictor(
-            beam.radii[0], beam.emittances[0])
-    theory_with_charge_max = KVRadiusPredictor(
-            beam.radii[0], beam.emittances[0],
-            xi=6e-5)
+    logmgr.tick()
+    logmgr.save()
 
-    theory_no_charge_rms = ChargelessKVRadiusPredictor(
-            beam.rms_radii[0], beam.rms_emittances[0])
-    theory_with_charge_max = KVRadiusPredictor(
-            beam.rms_radii[0], beam.rms_emittances[0],
-            xi=6e-5)
-
-    rms_logger.generate_plot(title="Kapchinskij-Vladimirskij Beam Evolution",
-            sim_label="RMS, simulated, no space charge", 
-            outfile="beam-rad-rms",
-            theories=[
-                ("RMS, theoretical, no space charge", theory_no_charge_rms), 
-                #("RMS, theoretical, with space charge", theory_with_charge_rms)
-                ])
-    max_logger.generate_plot(title="Kapchinskij-Vladimirskij Beam Evolution",
-            sim_label="100%, simulated, no space charge", 
-            outfile="beam-rad-max",
-            theories=[
-                ("100%, theoretical, no space charge", theory_no_charge_max), 
-                ("100%, theoretical, with space charge", theory_with_charge_max)
-                ])
-    
-    print "Relative error (max): %g" % max_logger.relative_error(theory_no_charge_max)
-    print "Relative error (rms): %g" % rms_logger.relative_error(theory_no_charge_rms)
+    _, _, err_table = logmgr.get_expr_dataset("(rx_rms-rx_rms_theory)/rx_rms")
+    print "Relative error (rms): %g" % max(err for step, err in err_table)
              
 
 
