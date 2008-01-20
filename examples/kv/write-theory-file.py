@@ -8,6 +8,22 @@ import cProfile as profile
 
 
 
+def plot_1d(f, a, b, steps=100):
+    h = (b - a)/steps
+
+    points = []
+    data = []
+    for n in range(steps):
+        x = a + h * n
+        points.append(x)
+        data.append(f(x))
+
+    from pylab import plot, show
+    plot(points, data, "o")
+
+
+
+
 def main():
     from hedge.element import TetrahedralElement
     from hedge.timestep import RK4TimeStepper
@@ -24,25 +40,13 @@ def main():
             ArithmeticList, join_fields
     from hedge.operators import MaxwellOperator, DivergenceOperator
     from pyrticle.cloud import ParticleCloud
-    from kv import \
-            KVZIntervalBeam, \
-            KVRadiusPredictor, \
-            MaxBeamRadiusLogger, \
-            RMSBeamRadiusLogger
+    from kv import KVZIntervalBeam
     from tubemesh import make_cylinder_with_fine_core
     from random import seed
     from pytools.stopwatch import Job
 
     from pyrticle.units import SI
     units = SI()
-
-    import sys
-    if len(sys.argv) != 3:
-        print "usage: %s outfile infile" % sys.argv[0]
-        return
-
-    outfile = sys.argv[1]
-    infile = sys.argv[2]
 
     seed(0)
 
@@ -73,26 +77,14 @@ def main():
             z_pos=10*units.MM,
             beta=beta)
 
-    rms_r_logger = RMSBeamRadiusLogger(3, 0)
-    rms_r_logger.read_data(infile)
+    vz = beta * units.VACUUM_LIGHT_SPEED
+    from pylab import plot, show
+    pred = beam.get_rms_predictor(axis=0)
+    plot_1d(pred, 0, 0.1, 5000)
+    plot(pred.t, [y[0] for y in pred.y], "x")
+    show()
 
-    rms_theory_no_charge = KVRadiusPredictor(
-            beam.rms_radii[rms_r_logger.axis], 
-            beam.rms_emittances[rms_r_logger.axis])
-    rms_theory_with_charge = KVRadiusPredictor(
-            beam.rms_radii[rms_r_logger.axis], 
-            beam.rms_emittances[rms_r_logger.axis],
-            xi=beam.get_rms_space_charge_parameter())
 
-    rms_r_logger.generate_plot(
-            title="Kapchinskij-Vladimirskij Beam Evolution",
-            sim_label="RMS, simulated, with space charge", 
-            outfile=outfile,
-            theories=[
-                ("RMS, theoretical, with space charge", rms_theory_with_charge),
-                ("RMS, theoretical, no space charge", rms_theory_no_charge)
-                ],
-            no_overwrite=True)
 
 
 

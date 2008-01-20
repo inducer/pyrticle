@@ -176,6 +176,10 @@ class KVZIntervalBeam:
         # by rms scaling analysis on the KV ODE
         return self.get_total_space_charge_parameter()/4
 
+    def get_chargeless_rms_predictor(self, axis):
+        return ChargelessKVRadiusPredictor(
+                self.rms_radii[axis], self.rms_emittances[axis])
+
     def get_rms_predictor(self, axis):
         return KVRadiusPredictor(
                 self.rms_radii[axis], self.rms_emittances[axis],
@@ -207,23 +211,25 @@ class ODEDefinedFunction:
                 return x
 
         if t < self.t[0]:
-            steps = int((self.t[0]-t)/self.dt)+2
+            steps = int((self.t[0]-t)/self.dt)+1
             t_list = [self.t[0]]
             y_list = [self.y[0]]
             for n in range(steps):
-                y_list.append(copy_if_necessary(self.backward_stepper(
-                    y_list[-1], t_list[-1], -self.dt, self.rhs)))
+                y_list.append(self.backward_stepper(
+                    copy_if_necessary(y_list[-1]), 
+                    t_list[-1], -self.dt, self.rhs))
                 t_list.append(t_list[-1]-self.dt)
 
             self.t = t_list[:0:-1] + self.t
             self.y = y_list[:0:-1] + self.y
         elif t >= self.t[-1]:
-            steps = int((t-self.t[-1])/self.dt)+2
+            steps = int((t-self.t[-1])/self.dt)+1
             t_list = [self.t[-1]]
             y_list = [self.y[-1]]
             for n in range(steps):
-                y_list.append(copy_if_necessary(self.forward_stepper(
-                    y_list[-1], t_list[-1], self.dt, self.rhs)))
+                y_list.append(self.forward_stepper(
+                    copy_if_necessary(y_list[-1]), 
+                    t_list[-1], self.dt, self.rhs))
                 t_list.append(t_list[-1]+self.dt)
 
             self.t = self.t + t_list[1:]
@@ -309,147 +315,6 @@ class KVPredictedRadius(SimulationLogQuantity):
         self.t += self.dt
         return self.predictor(s)
 
-    
-class BeamRadiusLoggerBase:
-    def __init__(self, dimensions):
-        self.dimensions = dimensions
-
-        self.s_collector = []
-        self.r_collector = []
-
-        self.nparticles = 0
-
-    def read_data(self, name):
-        inf = open(name, "r")
-        for line in inf.readlines():
-            line = line.strip()
-            if line == "":
-                continue
-            if line[0] == "#": 
-                continue
-
-            values = line.split()
-            if len(values) >= 2:
-                self.s_collector.append(float(values[0]))
-                self.r_collector.append(float(values[1]))
-
-        inf.close()
-
-
-    def generate_plot(self, title, sim_label, theories, outfile="beam-rad",
-            no_overwrite=False):
-        theory_data = [
-            (name, [theory(s) for s in self.s_collector])
-            for name, theory in theories]
-        
-        try:
-            from Gnuplot import Gnuplot, Data
-
-            gp = Gnuplot()
-            gp("set terminal postscript eps")
-            gp("set output \"%s.eps\"" % outfile)
-            gp.title(title)
-            gp.xlabel("s [m]")
-            gp.ylabel("Beam Radius [m]")
-
-            data = [Data(
-                self.s_collector, 
-                self.r_collector,
-                title=sim_label+" [%d particles]" % self.nparticles,
-                with_="lines")]
-
-            for name, theory_r in theory_data:
-                data.append(
-                        Data(self.s_collector, theory_r, title=name,
-                            with_="lines"))
-
-            gp.plot(*data)
-        except ImportError:
-            pass 
-
-        write_data_file(
-            "%s-sim.dat" % outfile,
-            self.s_collector,
-            self.r_collector,
-            sim_label,
-            no_overwrite)
-
-        for i, (name, data) in enumerate(theory_data):
-            write_data_file(
-                "%s-theory-%d.dat" % (outfile, i),
-                self.s_collector,
-                data,
-                name,
-                no_overwrite)
-
-    def relative_error(self, theory):
-        true_r = [theory(s) for s in self.s_collector]
-        return max(abs(r-r0)/r0 for r, r0 in zip(self.r_collector, true_r))
-
-
-
-
-def write_data_file(filename, x, y, comment=None, no_overwrite=False):
-    if no_overwrite:
-        import os
-        if os.access(filename, os.R_OK):
-            raise IOError, "cowardly refusing to overwrite '%s'" % filename
-    
-    outf = open(filename, "w")
-
-    if comment is not None:
-        outf.write("# %s\n" % comment)
-
-    for x_i, y_i in zip(x, y):
-        outf.write("%g\t%g\n" % (x_i, y_i))
-    outf.close()
-
-
-
-
-class MaxBeamRadiusLogger(BeamRadiusLoggerBase):
-    def update(self, t, positions, velocities):
-        from math import sqrt,pi
-        from pytools import argmax
-
-        dim = self.dimensions
-        nparticles = len(positions) // dim
-        self.nparticles = max(nparticles, self.nparticles)
-        pn = argmax(positions[i*dim+0]**2 +positions[i*dim+1]**2
-                for i in xrange(nparticles))
-        r = comp.norm_2(positions[pn*dim+0:pn*dim+2])
-        vz = velocities[pn*dim+2]
-        s = t*vz
-
-        self.s_collector.append(s)
-        self.r_collector.append(r)
-
-
-
-
-class RMSBeamRadiusLogger(BeamRadiusLoggerBase):
-    def __init__(self, dimensions, axis):
-        BeamRadiusLoggerBase.__init__(self, dimensions)
-        self.axis = axis
-
-    def update(self, t, positions, velocities):
-        from math import sqrt,pi
-        from pytools import average
-
-        dim = self.dimensions
-        nparticles = len(positions) // dim
-        self.nparticles = max(nparticles, self.nparticles)
-        
-        r = sqrt(average(
-            positions[i*dim+self.axis]**2
-            for i in xrange(nparticles)
-            ))
-
-        vz = average(velocities[(dim-1)::dim])
-        s = t*vz
-
-        self.s_collector.append(s)
-        self.r_collector.append(r)
 
 
 

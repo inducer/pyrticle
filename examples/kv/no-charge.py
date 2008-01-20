@@ -16,12 +16,7 @@ def main():
     from hedge.visualization import VtkVisualizer, SiloVisualizer
     from hedge.tools import dot, cross
     from pytools.arithmetic_container import ArithmeticList
-    from kv import \
-            KVZIntervalBeam, \
-            ChargelessKVRadiusPredictor, \
-            KVRadiusPredictor, \
-            MaxBeamRadiusLogger, \
-            RMSBeamRadiusLogger
+    from kv import KVZIntervalBeam
     from random import seed
     seed(0)
 

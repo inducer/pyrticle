@@ -22,11 +22,7 @@ def main():
     from pytools.arithmetic_container import \
             ArithmeticList, join_fields
     from hedge.operators import MaxwellOperator, DivergenceOperator
-    from kv import \
-            KVZIntervalBeam, \
-            KVRadiusPredictor, \
-            MaxBeamRadiusLogger, \
-            RMSBeamRadiusLogger
+    from kv import KVZIntervalBeam
     from tubemesh import make_cylinder_with_fine_core
     from random import seed
     from pytools.stopwatch import Job
@@ -46,7 +42,7 @@ def main():
             "--tube-length", dest="tube_length", default="0.1",
             help="how long a beam tube [m]")
     parser.add_option(
-            "--nparticles", dest="nparticles", default="1000",
+            "--nparticles", dest="nparticles", default="20000",
             help="how many particles")
     parser.add_option(
             "--beam-radius", dest="beam_radius", default="2.5",
@@ -152,8 +148,10 @@ def main():
 
     # initial condition -------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
+    job = Job("initial condition")
     fields = compute_initial_condition(pcon, discr, cloud, 
             mean_beta=num.array([0, 0, mean_beta]), max_op=max_op, debug=True)
+    job.done()
 
     # timestepping setup ------------------------------------------------------
     stepper = RK4TimeStepper()
@@ -194,11 +192,11 @@ def main():
 
     from kv import KVPredictedRadius
     logmgr.add_quantity(KVPredictedRadius(dt, 
-        beam_v=beta*units.VACUUM_LIGHT_SPEED,
+        beam_v=mean_beta*units.VACUUM_LIGHT_SPEED,
         predictor=beam.get_rms_predictor(axis=0),
         suffix="x_rms"))
     logmgr.add_quantity(KVPredictedRadius(dt, 
-        beam_v=beta*units.VACUUM_LIGHT_SPEED,
+        beam_v=mean_beta*units.VACUUM_LIGHT_SPEED,
         predictor=beam.get_total_predictor(axis=0),
         suffix="x_total"))
 
@@ -233,7 +231,8 @@ def main():
     logmgr.tick()
     logmgr.save()
 
-    print "Relative error: %g" % rms_r_logger.relative_error(rms_theory_with_charge)
+    _, _, err_table = logmgr.get_expr_dataset("(rx_rms-rx_rms_theory)/rx_rms")
+    print "Relative error (rms): %g" % max(err for step, err in err_table)
 
 
 
