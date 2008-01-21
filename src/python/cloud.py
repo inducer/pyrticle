@@ -688,14 +688,15 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         print "l2 div D_tilde error ldg2: %g" % \
                 l2_error(divD_tilde_ldg2, rho_tilde)
 
-        print "l2 div D_prime error central: %g" % \
-                l2_error(divD_prime_central, rho_prime)
-        print "l2 div D_prime error ldg: %g" % \
-                l2_error(divD_prime_ldg, rho_prime)
-        print "l2 div D_prime error ldg with phi: %g" % \
-                l2_error(divD_prime_ldg2, rho_prime)
-        print "l2 div D_prime error ldg with phi 3: %g" % \
-                l2_error(divD_prime_ldg3, rho_prime)
+        if False:
+            print "l2 div D_prime error central: %g" % \
+                    l2_error(divD_prime_central, rho_prime)
+            print "l2 div D_prime error ldg: %g" % \
+                    l2_error(divD_prime_ldg, rho_prime)
+            print "l2 div D_prime error ldg with phi: %g" % \
+                    l2_error(divD_prime_ldg2, rho_prime)
+            print "l2 div D_prime error ldg with phi 3: %g" % \
+                    l2_error(divD_prime_ldg3, rho_prime)
 
         from hedge.visualization import SiloVisualizer
         vis = SiloVisualizer(discr)

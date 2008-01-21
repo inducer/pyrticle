@@ -23,17 +23,9 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 from pytools.log import LogQuantity, MultiLogQuantity
+from hedge.log import axis_name
 import pylinear.array as num
 import pylinear.computation as comp
-
-
-
-
-def axis_name(axis):
-    if axis == 0: return "x"
-    elif axis == 1: return "y"
-    elif axis == 2: return "z"
-    else: raise RuntimeError, "invalid axis index"
 
 
 
@@ -105,65 +97,12 @@ def add_particle_quantities(mgr, cloud):
 
 
 # EM quantities ---------------------------------------------------------------
-class FieldEnergy(LogQuantity):
-    def __init__(self, fields, name="W_field"):
-        LogQuantity.__init__(self, name, "J", "Field Energy")
-        self.fields = fields
-
-    def __call__(self):
-        max_op = self.fields.maxwell_op
-
-        e = self.fields.e
-        h = self.fields.h
-        d = max_op.epsilon * e
-        b = max_op.mu * h
-
-        from hedge.tools import dot
-        energy_density = 1/2*(
-                dot(e, d, num.multiply) 
-                + dot(h, b, num.multiply))
-
-        from hedge.discretization import integral
-        return integral(max_op.discr, energy_density)
-
-
-
-
-class FieldMomentum(MultiLogQuantity):
-    def __init__(self, f_and_c, names=None):
-        vdim = f_and_c.cloud.dimensions_velocity
-        if names is None:
-            names = ["p%s_field" % axis_name(i) for i in range(vdim)]
-
+class DivergenceQuantities(MultiLogQuantity):
+    def __init__(self, f_and_c, names=["divD", "err_divD_l1"]):
         MultiLogQuantity.__init__(self, names, 
-            units=["N*s"] * vdim, 
-            descriptions=["Field Momentum"] * vdim)
+                units=["C", "C"], 
+                descriptions=["Central divergence of D", "L1 Divergence Error"])
 
-        self.f_and_c = f_and_c
-
-    def __call__(self):
-        max_op = self.f_and_c.maxwell_op
-
-        mu0 = self.f_and_c.cloud.units.MU0
-        c = self.f_and_c.cloud.units.VACUUM_LIGHT_SPEED
-
-        e = self.f_and_c.e
-        h = self.f_and_c.h
-
-        poynting_s = max_op.h_cross(1/mu0*e, h, 
-                three_mult=lambda lc, x, y: lc*num.multiply(x,y))
-
-        momentum_density = poynting_s/c**2
-
-        from hedge.discretization import integral
-        return integral(max_op.discr, momentum_density)
-
-
-
-
-class DivergenceError(LogQuantity):
-    def __init__(self, f_and_c, name="div_err"):
-        LogQuantity.__init__(self, name, "C", "Divergence Error")
         self.f_and_c = f_and_c
         self.discr = self.f_and_c.maxwell_op.discr
         from hedge.operators import DivergenceOperator
@@ -176,7 +115,10 @@ class DivergenceError(LogQuantity):
         div_d = self.div_op(d)
         
         from hedge.discretization import integral
-        return integral(self.discr, num.absolute(div_d-rho))
+        return [
+                integral(self.discr, div_d),
+                integral(self.discr, num.absolute(div_d-rho))
+                ]
 
 
 
@@ -213,9 +155,10 @@ class FieldCurrent(LogQuantity):
 
 
 def add_field_quantities(mgr, f_and_c, reconstruct_interval=5):
-    mgr.add_quantity(FieldEnergy(f_and_c))
-    mgr.add_quantity(FieldMomentum(f_and_c))
-    mgr.add_quantity(DivergenceError(f_and_c), reconstruct_interval)
+    from hedge.log import EMFieldEnergy, EMFieldMomentum
+    mgr.add_quantity(EMFieldEnergy(f_and_c))
+    mgr.add_quantity(EMFieldMomentum(f_and_c, f_and_c.cloud.units.VACUUM_LIGHT_SPEED))
+    mgr.add_quantity(DivergenceQuantities(f_and_c), reconstruct_interval)
     mgr.add_quantity(ReconstructedCharge(f_and_c), reconstruct_interval)
 
 
