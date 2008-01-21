@@ -41,9 +41,8 @@ def main():
             len(discr.mesh.elements), dt, nsteps)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1000
+    nparticles = 100000
 
-    from hedge.operators import MaxwellOperator
     from pyrticle.cloud import ParticleCloud
     from pyrticle.reconstruction import ShapeFunctionReconstructor
     from pyrticle.pusher import MonomialParticlePusher
@@ -89,7 +88,7 @@ def main():
     from pytools.log import LogManager, \
             add_simulation_quantities, \
             add_general_quantities, \
-            add_run_info
+            add_run_info, ETA
     from pyrticle.log import add_particle_quantities, add_beam_quantities, \
             ParticleCurrent
     logmgr = LogManager("no-charge.dat")
@@ -119,7 +118,9 @@ def main():
         predictor=beam.get_total_predictor(axis=0),
         suffix="x_total"))
 
-    logmgr.add_watches(["step"])
+    logmgr.add_quantity(ETA(nsteps))
+
+    logmgr.add_watches(["step", "t_eta", "(rx_rms-rx_rms_theory)/rx_rms_theory"])
 
     # timestep loop -----------------------------------------------------------
     for step in xrange(nsteps):
@@ -134,7 +135,7 @@ def main():
     logmgr.tick()
     logmgr.save()
 
-    _, _, err_table = logmgr.get_expr_dataset("(rx_rms-rx_rms_theory)/rx_rms")
+    _, _, err_table = logmgr.get_expr_dataset("(rx_rms-rx_rms_theory)/rx_rms_theory")
     print "Relative error (rms): %g" % max(err for step, err in err_table)
              
 

@@ -93,7 +93,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1000
+    nparticles = 1
 
     from pyrticle.cloud import ParticleCloud
     from pyrticle.reconstruction import ShapeFunctionReconstructor
@@ -122,8 +122,8 @@ def main():
             mass=pmass,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
-            sigma_x=0.1*num.ones((2,)),
-            sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.1,
+            sigma_x=0.01*num.ones((2,)),
+            sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.05,
             )
 
     # intial condition --------------------------------------------------------
@@ -179,13 +179,13 @@ def main():
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
-            mesh_scalars, mesh_vectors = \
-                    cloud.add_to_vis(vis, visf, time=t, step=step)
+            cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
                         ("e", fields.e), 
                         ("h", fields.h), 
-                        ] + mesh_scalars + mesh_vectors,
+                        ("j", cloud.reconstruct_j()), 
+                        ],
                     time=t, step=step)
             visf.close()
             vis_timer.stop()

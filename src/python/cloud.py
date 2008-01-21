@@ -452,19 +452,11 @@ class ParticleCloud:
                         components=dim)
                     )
 
-        mesh_scalars = []
-        mesh_vectors = []
-
         if verbose:
             add_vis_vector("pt_e")
             add_vis_vector("pt_b")
             add_vis_vector("el_force")
             add_vis_vector("lorentz_force")
-
-            if "rho" in self.derived_quantity_cache:
-                mesh_scalars.append(("rho", self.derived_quantity_cache["rho"]))
-            if "j" in self.derived_quantity_cache:
-                mesh_vectors.append(("j", self.derived_quantity_cache["j"]))
 
         from os.path import splitext
         pathname = splitext(vis_file.pathname)[0] + "-particles.vtu"
@@ -476,8 +468,6 @@ class ParticleCloud:
         outf.close()
 
         visualizer.register_pathname(time, pathname)
-
-        return mesh_scalars, mesh_vectors
 
     def _add_to_silo(self, db, time, step, verbose):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
@@ -511,26 +501,11 @@ class ParticleCloud:
                 db.put_pointvar(name, "particles", 
                         [num.zeros((pcount,)) for i in range(dim)])
 
-        def add_mesh_vis(name, unavail_ok=False):
-            if name in self.derived_quantity_cache:
-                mesh_scalars.append((name, self.derived_quantity_cache[name]))
-            else:
-                if not unavail_ok:
-                    warn("visualization of unavailable mesh variable '%s' requested" % name)
-
-        mesh_scalars = []
-        mesh_vectors = []
-
         if verbose:
             add_particle_vis("pt_e", 3)
             add_particle_vis("pt_b", 3)
             add_particle_vis("el_force", 3)
             add_particle_vis("lorentz_force", 3)
-
-            add_mesh_vis("rho", unavail_ok=True)
-            add_mesh_vis("j")
-
-        return mesh_scalars, mesh_vectors
 
 
 

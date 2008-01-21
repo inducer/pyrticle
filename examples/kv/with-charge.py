@@ -211,15 +211,13 @@ def main():
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
-            mesh_scalars, mesh_vectors = \
-                    cloud.add_to_vis(vis, visf, time=t, step=step)
+            cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
                 ("divD", max_op.epsilon*div_op(fields.e)),
                 ("e", fields.e), 
                 ("h", fields.h), 
-                ]
-                + mesh_vectors
-                + mesh_scalars,
+                ("j", cloud.reconstruct_j()), 
+                ],
                 time=t, step=step)
             visf.close()
             vis_timer.stop()
@@ -231,7 +229,7 @@ def main():
     logmgr.tick()
     logmgr.save()
 
-    _, _, err_table = logmgr.get_expr_dataset("(rx_rms-rx_rms_theory)/rx_rms")
+    _, _, err_table = logmgr.get_expr_dataset("(rx_rms-rx_rms_theory)/rx_rms_theory")
     print "Relative error (rms): %g" % max(err for step, err in err_table)
 
 
