@@ -305,7 +305,7 @@ namespace pyrticle
             if (pos[pa.m_axis] - sf.radius() < pa.m_min)
             {
               hedge::vector pos2(pos);
-              pos2[pa.m_axis] -= (pa.m_max - pa.m_min);
+              pos2[pa.m_axis] += (pa.m_max - pa.m_min);
 
               BOOST_FOREACH(mesh_data::element_number en, vertex_el_range)
                 add_shape_on_element(target, sf, pos2, en);
