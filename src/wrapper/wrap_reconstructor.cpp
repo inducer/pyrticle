@@ -25,6 +25,23 @@
 
 
 
+using namespace pyrticle;
+namespace python = boost::python;
+
+
+
+
 void expose_reconstructor()
 {
+  using python::arg;
+
+  {
+    typedef shape_function cl;
+    python::class_<cl>("ShapeFunction", 
+        python::init<double, unsigned, python::optional<double> >(
+          (arg("radius"), arg("dimensions"), arg("alpha"))))
+      .add_property("radius", &cl::radius)
+      .def("__call__", &cl::operator())
+      ;
+  }
 }
