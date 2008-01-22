@@ -29,6 +29,7 @@
 #include <boost/array.hpp>
 #include <boost/foreach.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
+#include <boost/numeric/bindings/blas/blas3.hpp>
 #include <boost/typeof/std/utility.hpp>
 #include "tools.hpp"
 #include "meshdata.hpp"
@@ -46,6 +47,10 @@ namespace pyrticle
     {
       public:
         static const unsigned max_faces = 4;
+
+        // FIXME This should be a safe assumption, but it is nonetheless just
+        // that: an assumption.
+        static const unsigned dimensions_mesh = PICAlgorithm::dimensions_pos;
 
         // member types -------------------------------------------------------
         struct active_element
@@ -66,27 +71,44 @@ namespace pyrticle
         {
           std::vector<active_element>   m_elements;
           double                        m_radius;
+
+          active_element *find_element(mesh_data::element_number en)
+          {
+            if (en == mesh_data::INVALID_ELEMENT)
+              return 0;
+            BOOST_FOREACH(active_element &el, m_elements)
+            {
+              if (el->m_element_info.m_id == en)
+                return &el;
+            }
+            return 0;
+          }
         };
 
 
 
 
         // member data --------------------------------------------------------
+        unsigned                        m_faces_per_element;
         unsigned                        m_dofs_per_element;
         unsigned                        m_active_elements;
         std::vector<unsigned>           m_freelist;
 
+        hedge::matrix                   m_mass_matrix;
+        hedge::matrix                   m_inverse_mass_matrix;
+        std::vector<hedge::matrix>      m_local_diff_matrices;
+
         std::vector<advected_particle>  m_advected_particles;
 
         hedge::vector                   m_rho;
-        hedge::vector                   m_j; // concatenated components of j
+
 
 
 
 
         // public interface ---------------------------------------------------
         type()
-          : m_dofs_per_element(0), m_active_elements(0)
+          : m_faces_per_element(0), m_dofs_per_element(0), m_active_elements(0)
         { }
 
 
@@ -134,20 +156,39 @@ namespace pyrticle
 
 
         // initialization -----------------------------------------------------
-        void setup_advective_reconstructor(unsigned dofs_per_element)
+        void setup_advective_reconstructor(
+            unsigned faces_per_element, 
+            unsigned dofs_per_element,
+            const hedge::matrix &mass_matrix,
+            const hedge::matrix &inverse_mass_matrix,
+            )
         {
+          m_faces_per_element = faces_per_element;
           m_dofs_per_element = dofs_per_element;
           resize_state(m_dofs_per_element * 1024);
+
+          m_mass_matrix = mass_matrix;
+          m_inverse_mass_matrix = inverse_mass_matrix;
+        }
+
+
+
+
+        void add_local_diff_matrix(unsigned coordinate, const hedge::matrix &dmat)
+        {
+          if (coordinate != m_local_diff_matrices.size())
+            throw std::runtime_error("local diff matrices added out of order");
+
+          m_local_diff_matrices.push_back(dmat);
         }
 
 
 
 
         // vectors space administration ---------------------------------------
-        /* Each element occupies a certain index range in the global
-         * state vectors m_rho and m_j (as well as elsewhere). These
-         * functions perform allocation and deallocation of space in
-         * these vectors.
+        /* Each element occupies a certain index range in the global state
+         * vector m_rho (as well as elsewhere). These functions perform
+         * allocation and deallocation of space in these vectors.
          */
 
         void resize_state(unsigned new_size)
@@ -158,12 +199,6 @@ namespace pyrticle
           hedge::vector new_rho(new_size);
           subrange(new_rho, 0, copy_size) = subrange(m_rho, 0, copy_size);
           new_rho.swap(m_rho);
-
-          hedge::vector new_j(new_size * PICAlgorithm::dimensions_pos);
-          for (unsigned i = 0; i < PICAlgorithm::dimensions_pos; i++)
-            subrange(new_j, i*new_size, i*new_size+copy_size) = 
-              subrange(m_rho, i*old_size, i*old_size+copy_size);
-          new_j.swap(m_j);
         }
 
         /** Allocate a space for a new element in the state vector, return
@@ -193,9 +228,14 @@ namespace pyrticle
 
         void deallocate_element(unsigned start_index)
         {
+          if (start_index % dofs_per_element != 0)
+            throw std::runtime_error("invalid advective element deallocation");
           m_freelist.push_back(start_index/m_dofs_per_element);
           --m_active_elements;
         }
+
+
+
 
         // particle construction ----------------------------------------------
         void add_shape_on_element(
@@ -211,12 +251,12 @@ namespace pyrticle
           new_element.m_element_info = &einfo;
           unsigned start = new_element.m_start_index = allocate_element();
 
-          shape_function sf(new_particle.m_radius, PICAlgorithm::dimensions_pos);
+          shape_function sf(new_particle.m_radius, dimensions_mesh);
 
           for (unsigned i = einfo.m_start; i < einfo.m_end; i++)
             m_rho[start+i] =
                 sf(CONST_PIC_THIS->m_mesh_data.m_nodes[i]-center);
-          
+
           new_particle.m_elements.push_back(new_element);
         }
 
@@ -233,19 +273,117 @@ namespace pyrticle
 
           add_shape(new_particle, pn, radius);
 
+          // make connections
+          BOOST_FOREACH(active_element &el, new_particle.m_elements)
+            for (int f = 0; f < m_faces_per_element; f++)
+            {
+              mesh_data::element_number connected_el = el.m_elements[f];
+              if (new_particle.find_element(connected_el))
+                el.m_connections[f] = connected_el;
+            }
+
+          // scale so the amount of charge is correct
+          std::vector<double> unscaled_masses;
+          BOOST_FOREACH(active_element &el, new_particle.m_elements)
+            unscaled_masses.push_back(integral(
+                subrange(m_rho, 
+                  el.m_start_index, 
+                  el.m_start_index+m_dofs_per_element)));
+
+          const double charge = CONST_PIC_THIS->m_charges[pn];
+          const double total_unscaled_mass = std::accumulate(
+              unscaled_masses.begin(), unscaled_masses.end(), 0);
+
+          unsigned i = 0;
+          BOOST_FOREACH(active_element &el, new_particle.m_elements)
+            subrange(m_rho, 
+                el.m_start_index, 
+                el.m_start_index+m_dofs_per_element) 
+            *= charge * unscaled_masses[i++] / total_unscaled_mass;
+          
           m_advected_particles.push_back(new_particle);
         }
 
 
 
 
-
-
-
-
         hedge::vector get_advective_particle_rhs()
         {
-          return hedge::vector();
+          const unsigned dofs = m_rho.size();
+          const unsigned active_contiguous_elements = 
+            m_active_elements + m_freelist.size();
+          hedge::vector local_div(dofs);
+
+          // calculate local derivatives
+          hedge::vector local_derivs(dimensions_mesh*dofs);
+          using namespace boost::numeric::bindings;
+          using blas::detail::gemm;
+
+          for (unsigned loc_axis = 0; loc_axis < dimensions_mesh; ++loc_axis)
+          {
+            hedge::matrix &matrix = m_local_diff_matrices[loc_axis];
+            gemm(
+                'T', // "matrix" is row-major
+                'N', // a contiguous array of vectors is column-major
+                matrix.size2(),
+                active_contiguous_elements,
+                matrix.size1(),
+                /*alpha*/ 1,
+                /*a*/ traits::matrix_storage(matrix), 
+                /*lda*/ matrix.size1(),
+                /*b*/ traits::vector_storage(m_rho), 
+                /*ldb*/ matrix.size1(),
+                /*beta*/ 1,
+                /*c*/ traits::vector_storage(local_derivs) + loc_axis*dofs, 
+                /*ldc*/ matrix.size2()
+                );
+          }
+
+          // combine them into a local div
+          BOOST_FOREACH(advected_particle &p, m_advected_particles)
+            BOOST_FOREACH(active_element &el, p.m_elements)
+            {
+              for (unsigned loc_axis = 0; loc_axis < dimensions_mesh; ++loc_axis)
+              {
+                double coeff = 0;
+                for (unsigned glob_axis = 0; glob_axis < dimensions_mesh; ++glob_axis)
+                  coeff += el.m_element_info->m_inverse_map(loc_axis, glob_axis);
+
+                subrange(local_div,
+                    el.m_start_index,
+                    el.m_start_index + m_dofs_per_element) = 
+                  subrange(local_derivs,
+                      loc_axis*dofs + el.m_start_index,
+                      loc_axis*dofs + el.m_start_index + m_dofs_per_element);
+              }
+            }
+
+          // compute fluxes
+          hedge::vector fluxes(dofs);
+
+          // apply inverse mass matrix to fluxes
+          hedge::vector minv_fluxes(dofs);
+          {
+            hedge::matrix &matrix = m_inverse_mass_matrix;
+            gemm(
+                'T', // "matrix" is row-major
+                'N', // a contiguous array of vectors is column-major
+                matrix.size2(),
+                active_contiguous_elements,
+                matrix.size1(),
+                /*alpha*/ 1,
+                /*a*/ traits::matrix_storage(matrix), 
+                /*lda*/ matrix.size1(),
+                /*b*/ traits::vector_storage(fluxes), 
+                /*ldb*/ matrix.size1(),
+                /*beta*/ 1,
+                /*c*/ traits::vector_storage(minv_fluxes), 
+                /*ldc*/ matrix.size2()
+                );
+          }
+
+          // end result
+          return local_div - minv_fluxes;
         }
         
 
@@ -253,7 +391,18 @@ namespace pyrticle
 
         void apply_advective_particle_rhs(hedge::vector const &rhs)
         {
+          m_rho += rhs;
+        }
 
+
+
+
+        template <class VectorExpression>
+        double integral(const VectorExpression &ve)
+        {
+          return inner_prod(
+              boost::numeric::ublas::scalar_vector(m_mass_matrix.size1(), 1),
+              prod(m_mass_matrix, ve));
         }
     };
   };
