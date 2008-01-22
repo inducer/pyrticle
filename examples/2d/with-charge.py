@@ -93,7 +93,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1
+    nparticles = 1000
 
     from pyrticle.cloud import ParticleCloud
     from pyrticle.reconstruction import ShapeFunctionReconstructor

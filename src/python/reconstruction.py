@@ -24,4 +24,12 @@ class ShapeFunctionReconstructor:
     name = "Shape"
 
     def initialize(self, cloud):
+        cloud.pic_algorithm.set_radius(0.5*cloud.mesh_data.min_vertex_distance())
+
+
+
+class AdvectionReconstructor:
+    name = "Advection"
+
+    def initialize(self, cloud):
         pass

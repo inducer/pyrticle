@@ -25,7 +25,9 @@
 
 
 
+#include "wrap_helpers.hpp"
 #include "rec_shape.hpp"
+#include "rec_advection.hpp"
 
 
 
@@ -33,10 +35,29 @@
 namespace pyrticle
 {
   template <class Wrapper, class PIC>
-  void expose_typed_reconstructor(
-      Wrapper &wrp, 
+  void expose_typed_reconstructor(Wrapper &wrp, 
       shape_function_reconstructor::type<PIC> *)
-  { }
+  { 
+    typedef shape_function_reconstructor::type<PIC> cl;
+    wrp
+      .DEF_SIMPLE_METHOD(set_radius)
+      ;
+  }
+
+
+
+
+  template <class Wrapper, class PIC>
+  void expose_typed_reconstructor(Wrapper &wrp, 
+      advection_reconstructor::type<PIC> *)
+  { 
+    typedef advection_reconstructor::type<PIC> cl;
+    wrp
+      .DEF_SIMPLE_METHOD(add_adv_particle)
+      .DEF_SIMPLE_METHOD(get_adv_particle_rhs)
+      .DEF_SIMPLE_METHOD(apply_adv_particle_rhs)
+      ;
+  }
 }
 
 

@@ -83,8 +83,6 @@ class ParticleCloud:
         self.mesh_data = self.pic_algorithm.mesh_data
         self.mesh_data.fill_from_hedge(discr)
 
-        self.particle_radius = 0.5*self.mesh_data.min_vertex_distance()
-
         self.vis_info = {}
         self.pic_algorithm.set_vis_listener(
                 MapStorageVisualizationListener(self.vis_info))
@@ -291,8 +289,7 @@ class ParticleCloud:
                     self.dimensions_velocity)
 
                 self.reconstruct_timer.start()
-                self.pic_algorithm.reconstruct_densities(rho, j, self.particle_radius,
-                        self.raw_velocities())
+                self.pic_algorithm.reconstruct_densities(rho, j, self.raw_velocities())
                 j = j.get_alist_of_components()
                 self.reconstruct_timer.stop()
                 self.reconstruct_counter.add(self.dimensions_velocity+1)
@@ -316,8 +313,7 @@ class ParticleCloud:
             self.dimensions_velocity)
 
         self.reconstruct_timer.start()
-        self.pic_algorithm.reconstruct_j(j.adaptee, self.particle_radius, 
-                self.raw_velocities())
+        self.pic_algorithm.reconstruct_j(j.adaptee, self.raw_velocities())
         j = j.get_alist_of_components()
         self.reconstruct_timer.stop()
         self.reconstruct_counter.add(self.dimensions_velocity)
@@ -336,7 +332,7 @@ class ParticleCloud:
         rho = self.discretization.volume_zeros()
 
         self.reconstruct_timer.start()
-        self.pic_algorithm.reconstruct_rho(rho, self.particle_radius)
+        self.pic_algorithm.reconstruct_rho(rho)
         self.reconstruct_timer.stop()
         self.reconstruct_counter.add(1)
 
