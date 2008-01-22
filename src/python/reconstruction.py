@@ -28,8 +28,8 @@ class ShapeFunctionReconstructor:
 
 
 
-class AdvectionReconstructor:
-    name = "Advection"
+class AdvectiveReconstructor:
+    name = "Advective"
 
     def initialize(self, cloud):
         pass

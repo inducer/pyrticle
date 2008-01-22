@@ -27,7 +27,7 @@
 
 #include "wrap_helpers.hpp"
 #include "rec_shape.hpp"
-#include "rec_advection.hpp"
+#include "rec_advective.hpp"
 
 
 
@@ -49,18 +49,18 @@ namespace pyrticle
 
   template <class Wrapper, class PIC>
   void expose_typed_reconstructor(Wrapper &wrp, 
-      advection_reconstructor::type<PIC> *)
+      advective_reconstructor::type<PIC> *)
   { 
     using boost::python::arg;
 
-    typedef advection_reconstructor::type<PIC> cl;
+    typedef advective_reconstructor::type<PIC> cl;
     wrp
-      .def("setup_advection_reconstructor", 
-          &cl::setup_advection_reconstructor,
+      .def("setup_advective_reconstructor", 
+          &cl::setup_advective_reconstructor,
           (arg("dofs_per_element")))
-      .DEF_SIMPLE_METHOD(add_advection_particle)
-      .DEF_SIMPLE_METHOD(get_advection_particle_rhs)
-      .DEF_SIMPLE_METHOD(apply_advection_particle_rhs)
+      .DEF_SIMPLE_METHOD(add_advective_particle)
+      .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
+      .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)
       ;
   }
 }

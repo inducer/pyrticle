@@ -19,8 +19,8 @@
 
 
 
-#ifndef _AFAYYTAA_PYRTICLE_REC_ADVECTION_HPP_INCLUDED
-#define _AFAYYTAA_PYRTICLE_REC_ADVECTION_HPP_INCLUDED
+#ifndef _AFAYYTAA_PYRTICLE_REC_ADVECTIVE_HPP_INCLUDED
+#define _AFAYYTAA_PYRTICLE_REC_ADVECTIVE_HPP_INCLUDED
 
 
 
@@ -39,7 +39,7 @@
 
 namespace pyrticle
 {
-  struct advection_reconstructor 
+  struct advective_reconstructor 
   {
     template <class PICAlgorithm>
     class type : public shape_element_finder<PICAlgorithm>
@@ -93,7 +93,7 @@ namespace pyrticle
 
 
         static const char *get_name()
-        { return "Advection"; }
+        { return "Advective"; }
 
 
 
@@ -134,7 +134,7 @@ namespace pyrticle
 
 
         // initialization -----------------------------------------------------
-        void setup_advection_reconstructor(unsigned dofs_per_element)
+        void setup_advective_reconstructor(unsigned dofs_per_element)
         {
           m_dofs_per_element = dofs_per_element;
           resize_state(m_dofs_per_element * 1024);
@@ -223,7 +223,7 @@ namespace pyrticle
 
 
 
-        void add_advection_particle(double radius, particle_number pn)
+        void add_advective_particle(double radius, particle_number pn)
         {
           if (pn != m_advected_particles.size())
             throw std::runtime_error("advected particle added out of sequence");
@@ -243,7 +243,7 @@ namespace pyrticle
 
 
 
-        hedge::vector get_advection_particle_rhs()
+        hedge::vector get_advective_particle_rhs()
         {
           return hedge::vector();
         }
@@ -251,7 +251,7 @@ namespace pyrticle
 
 
 
-        void apply_advection_particle_rhs(hedge::vector const &rhs)
+        void apply_advective_particle_rhs(hedge::vector const &rhs)
         {
 
         }
