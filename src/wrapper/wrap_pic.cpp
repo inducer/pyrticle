@@ -210,6 +210,7 @@ void expose_pic()
       .DEF_PURE_VIRTUAL_METHOD(note_move_dof)
       ;
   }
+
   expose_pic_algorithm<
       pic<
         pic_data<3,3>,
@@ -221,6 +222,21 @@ void expose_pic()
       pic<
         pic_data<2,2>,
         shape_function_reconstructor,
+        monomial_particle_pusher
+        >
+      >();
+
+  expose_pic_algorithm<
+      pic<
+        pic_data<3,3>,
+        advection_reconstructor,
+        monomial_particle_pusher
+        >
+      >();
+  expose_pic_algorithm<
+      pic<
+        pic_data<2,2>,
+        advection_reconstructor,
         monomial_particle_pusher
         >
       >();

@@ -53,9 +53,9 @@ namespace pyrticle
   { 
     typedef advection_reconstructor::type<PIC> cl;
     wrp
-      .DEF_SIMPLE_METHOD(add_adv_particle)
-      .DEF_SIMPLE_METHOD(get_adv_particle_rhs)
-      .DEF_SIMPLE_METHOD(apply_adv_particle_rhs)
+      .DEF_SIMPLE_METHOD(add_advection_particle)
+      .DEF_SIMPLE_METHOD(get_advection_particle_rhs)
+      .DEF_SIMPLE_METHOD(apply_advection_particle_rhs)
       ;
   }
 }
