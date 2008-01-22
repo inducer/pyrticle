@@ -26,6 +26,7 @@
 
 
 #include <vector>
+#include <boost/array.hpp>
 #include <boost/foreach.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
 #include <boost/typeof/std/utility.hpp>
@@ -49,39 +50,15 @@ namespace pyrticle
         // member types -------------------------------------------------------
         struct active_element
         {
-          mesh_data::element_info       const *m_element_info;
-          hedge::vector                 m_rho;
-          hedge::vector                 m_j[PICAlgorithm::dimensions_pos];
-
-          mesh_data::element_number     m_connections[type::max_faces];
+          const mesh_data::element_info *m_element_info;
+          boost::array<mesh_data::element_number, type::max_faces> m_connections;
+          unsigned m_start_index;
 
           active_element()
             : m_element_info(0)
           {
             for (unsigned i = 0; i < type::max_faces; i++)
               m_connections[i] = mesh_data::INVALID_ELEMENT;
-          }
-
-          active_element(active_element const &src)
-          { copy(src); }
-            
-
-          active_element &operator=(active_element const &src)
-          { 
-            copy(src);
-            return *this;
-          }
-
-          void copy(const active_element &src)
-          {
-            m_element_info = src.m_element_info;
-            m_rho = src.m_rho;
-
-            for (unsigned i = 0; i < PICAlgorithm::dimensions_pos; i++)
-              m_j[i] = src.m_j[i];
-
-            for (unsigned i = 0; i < type::max_faces; i++)
-              m_connections[i] = src.m_connections[i];
           }
         };
 
@@ -91,14 +68,25 @@ namespace pyrticle
           double                        m_radius;
         };
 
+
+
+
         // member data --------------------------------------------------------
+        unsigned                        m_dofs_per_element;
+        unsigned                        m_active_elements;
+        std::vector<unsigned>           m_freelist;
 
         std::vector<advected_particle>  m_advected_particles;
-        unsigned                        m_advection_elements;
 
-        // publicized interface -----------------------------------------------
+        hedge::vector                   m_rho;
+        hedge::vector                   m_j; // concatenated components of j
+
+
+
+
+        // public interface ---------------------------------------------------
         type()
-          : m_advection_elements(0)
+          : m_dofs_per_element(0), m_active_elements(0)
         { }
 
 
@@ -137,6 +125,78 @@ namespace pyrticle
 
 
 
+        void perform_reconstructor_upkeep()
+        {
+          // retire empty particle subelements 
+        }
+
+
+
+
+        // initialization -----------------------------------------------------
+        void setup_advection_reconstructor(unsigned dofs_per_element)
+        {
+          m_dofs_per_element = dofs_per_element;
+          resize_state(m_dofs_per_element * 1024);
+        }
+
+
+
+
+        // vectors space administration ---------------------------------------
+        /* Each element occupies a certain index range in the global
+         * state vectors m_rho and m_j (as well as elsewhere). These
+         * functions perform allocation and deallocation of space in
+         * these vectors.
+         */
+
+        void resize_state(unsigned new_size)
+        {
+          unsigned old_size = m_rho.size();
+          unsigned copy_size = std::min(new_size, old_size);
+
+          hedge::vector new_rho(new_size);
+          subrange(new_rho, 0, copy_size) = subrange(m_rho, 0, copy_size);
+          new_rho.swap(m_rho);
+
+          hedge::vector new_j(new_size * PICAlgorithm::dimensions_pos);
+          for (unsigned i = 0; i < PICAlgorithm::dimensions_pos; i++)
+            subrange(new_j, i*new_size, i*new_size+copy_size) = 
+              subrange(m_rho, i*old_size, i*old_size+copy_size);
+          new_j.swap(m_j);
+        }
+
+        /** Allocate a space for a new element in the state vector, return
+         * the start index.
+         */
+        unsigned allocate_element()
+        {
+          if (m_dofs_per_element == 0)
+            throw std::runtime_error("tried to allocate element on uninitialized advection reconstructor");
+
+          if (m_freelist.size())
+          {
+            unsigned result = m_freelist.back();
+            m_freelist.pop_back();
+            return result*m_dofs_per_element;
+          }
+
+          // we're all full, no gaps available.
+          // return the past-end spot in the array, reallocate if necessary.
+          unsigned avl_space = m_rho.size() / m_dofs_per_element;
+
+          if (m_active_elements == avl_space)
+            resize_state(2*m_rho.size());
+
+          return (m_active_elements++)*m_dofs_per_element;
+        }
+
+        void deallocate_element(unsigned start_index)
+        {
+          m_freelist.push_back(start_index/m_dofs_per_element);
+          --m_active_elements;
+        }
+
         // particle construction ----------------------------------------------
         void add_shape_on_element(
             advected_particle &new_particle,
@@ -149,14 +209,14 @@ namespace pyrticle
 
           active_element new_element;
           new_element.m_element_info = &einfo;
-          new_element.m_rho.resize(einfo.m_end-einfo.m_start);
+          unsigned start = new_element.m_start_index = allocate_element();
 
           shape_function sf(new_particle.m_radius, PICAlgorithm::dimensions_pos);
 
           for (unsigned i = einfo.m_start; i < einfo.m_end; i++)
-            new_element.m_rho[i] =
+            m_rho[start+i] =
                 sf(CONST_PIC_THIS->m_mesh_data.m_nodes[i]-center);
-
+          
           new_particle.m_elements.push_back(new_element);
         }
 

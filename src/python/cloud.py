@@ -261,6 +261,7 @@ class ParticleCloud:
         such as resampling or deleting particles.
         """
         self.vis_info.clear()
+        self.pic_algorithm.perform_reconstructor_upkeep()
 
     def reconstruct_densities(self):
         """Return a tuple (charge_density, current_densities), where

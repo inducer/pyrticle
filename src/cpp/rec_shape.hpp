@@ -375,7 +375,7 @@ namespace pyrticle
         // member data --------------------------------------------------------
         std::auto_ptr<shape_function>   m_shape_function;
 
-        // publicized interface -----------------------------------------------
+        // public interface ---------------------------------------------------
         static const char *get_name()
         { return "Shape"; }
 
@@ -438,6 +438,12 @@ namespace pyrticle
 
           reconstruct_densities_on_target(rho_tgt);
         }
+
+
+
+
+        void perform_reconstructor_upkeep()
+        { }
 
 
 
