@@ -44,7 +44,6 @@ def main():
         non_matching_config()
 
     INCLUDE_DIRS = ["src/cpp"] \
-            + conf["BOOST_MATH_TOOLKIT_INCLUDE_DIRS"] \
             + conf["BOOST_BINDINGS_INCLUDE_DIRS"] \
             + conf["BOOST_INCLUDE_DIRS"]
 

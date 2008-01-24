@@ -26,11 +26,16 @@
 
 
 #include <vector>
+#include <numeric>
 #include <boost/array.hpp>
 #include <boost/foreach.hpp>
+#include <boost/shared_ptr.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
+#include <boost/numeric/bindings/traits/ublas_matrix.hpp>
 #include <boost/numeric/bindings/blas/blas3.hpp>
 #include <boost/typeof/std/utility.hpp>
+#include <boost/unordered_map.hpp>
+#include <hedge/face_operators.hpp>
 #include "tools.hpp"
 #include "meshdata.hpp"
 #include "rec_shape.hpp"
@@ -78,7 +83,7 @@ namespace pyrticle
               return 0;
             BOOST_FOREACH(active_element &el, m_elements)
             {
-              if (el->m_element_info.m_id == en)
+              if (el.m_element_info->m_id == en)
                 return &el;
             }
             return 0;
@@ -97,6 +102,9 @@ namespace pyrticle
         hedge::matrix                   m_mass_matrix;
         hedge::matrix                   m_inverse_mass_matrix;
         std::vector<hedge::matrix>      m_local_diff_matrices;
+        boost::shared_ptr<hedge::face_group> m_face_group;
+
+        boost::unordered_map<mesh_data::el_face, hedge::fluxes::face *> m_el_face_to_flux_face;
 
         std::vector<advected_particle>  m_advected_particles;
 
@@ -161,6 +169,7 @@ namespace pyrticle
             unsigned dofs_per_element,
             const hedge::matrix &mass_matrix,
             const hedge::matrix &inverse_mass_matrix,
+            boost::shared_ptr<hedge::face_group> fg
             )
         {
           m_faces_per_element = faces_per_element;
@@ -169,6 +178,10 @@ namespace pyrticle
 
           m_mass_matrix = mass_matrix;
           m_inverse_mass_matrix = inverse_mass_matrix;
+
+          m_face_group = fg;
+
+          // build m_el_face_to_flux_face
         }
 
 
@@ -228,8 +241,9 @@ namespace pyrticle
 
         void deallocate_element(unsigned start_index)
         {
-          if (start_index % dofs_per_element != 0)
+          if (start_index % m_dofs_per_element != 0)
             throw std::runtime_error("invalid advective element deallocation");
+
           m_freelist.push_back(start_index/m_dofs_per_element);
           --m_active_elements;
         }
@@ -277,7 +291,7 @@ namespace pyrticle
           BOOST_FOREACH(active_element &el, new_particle.m_elements)
             for (int f = 0; f < m_faces_per_element; f++)
             {
-              mesh_data::element_number connected_el = el.m_elements[f];
+              mesh_data::element_number connected_el = el.m_connections[f];
               if (new_particle.find_element(connected_el))
                 el.m_connections[f] = connected_el;
             }
@@ -347,7 +361,7 @@ namespace pyrticle
               {
                 double coeff = 0;
                 for (unsigned glob_axis = 0; glob_axis < dimensions_mesh; ++glob_axis)
-                  coeff += el.m_element_info->m_inverse_map(loc_axis, glob_axis);
+                  coeff += el.m_element_info->m_inverse_map.matrix()(loc_axis, glob_axis);
 
                 subrange(local_div,
                     el.m_start_index,
@@ -401,8 +415,8 @@ namespace pyrticle
         double integral(const VectorExpression &ve)
         {
           return inner_prod(
-              boost::numeric::ublas::scalar_vector(m_mass_matrix.size1(), 1),
-              prod(m_mass_matrix, ve));
+              boost::numeric::ublas::scalar_vector<typename VectorExpression::value_type>
+              (m_mass_matrix.size1(), 1), prod(m_mass_matrix, ve));
         }
     };
   };

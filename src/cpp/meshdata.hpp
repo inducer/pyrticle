@@ -25,6 +25,7 @@
 
 
 
+#include <hedge/base.hpp>
 #include "tools.hpp"
 
 
@@ -40,15 +41,20 @@ namespace pyrticle
   class mesh_data : boost::noncopyable
   {
     public:
+      typedef hedge::element_number element_number;
+      typedef hedge::face_number face_number;
+      typedef hedge::vertex_number vertex_number;
+      typedef hedge::el_id_vector el_id_vector;
+      typedef hedge::vtx_id_vector vtx_id_vector;
+      typedef hedge::el_face el_face;
+
+      static const element_number INVALID_ELEMENT = hedge::INVALID_ELEMENT;
+      static const vertex_number INVALID_VERTEX = hedge::INVALID_VERTEX;
+
+
+
+
       // data structures ------------------------------------------------------
-      typedef unsigned element_number;
-      typedef unsigned vertex_number;
-      typedef std::vector<element_number> el_id_vector;
-      typedef std::vector<vertex_number> vtx_id_vector;
-
-      static const element_number INVALID_ELEMENT = UINT_MAX;
-      static const vertex_number INVALID_VERTEX = UINT_MAX;
-
       struct element_info
       {
         element_number                 m_id;
