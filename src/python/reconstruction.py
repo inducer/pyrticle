@@ -26,10 +26,34 @@ class ShapeFunctionReconstructor:
     def initialize(self, cloud):
         cloud.pic_algorithm.set_radius(0.5*cloud.mesh_data.min_vertex_distance())
 
+    def add_particle_hook(self, pn):
+        pass
+
 
 
 class AdvectiveReconstructor:
     name = "Advective"
 
     def initialize(self, cloud):
-        pass
+        self.cloud = cloud
+        discr = cloud.mesh_data.discr
+        
+        assert len(discr.face_groups) == 1
+        assert len(discr.element_groups) == 1
+
+        eg = discr.element_groups[0]
+        fg, fmm = discr.face_groups[0]
+        ldis = eg.local_discretization
+
+        cloud.pic_algorithm.setup_advective_reconstructor(
+                len(ldis.face_indices()),
+                ldis.node_count(),
+                ldis.mass_matrix(),
+                ldis.inverse_mass_matrix(),
+                fmm,
+                fg)
+
+        self.radius = 0.5*cloud.mesh_data.min_vertex_distance()
+
+    def add_particle_hook(self, pn):
+        self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)

@@ -1,12 +1,10 @@
 // Pyrticle - Particle in Cell in Python
-// Main Module of the Python wrapper
+// Python wrapper for PIC algorithm
 // Copyright (C) 2007 Andreas Kloeckner
 // 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
+// the Free Software Foundation, either version 3 of the License, or // (at your option) any later version.  // 
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -18,27 +16,27 @@
 
 
 
-#include <boost/python.hpp>
+
+#include "wrap_pic.hpp"
 
 
 
 
-void expose_tools();
-void expose_meshdata();
-void expose_reconstructor();
-void expose_pusher();
-void expose_shape_pic();
-void expose_advective_pic();
-
-
-
-
-BOOST_PYTHON_MODULE(_internal)
+void expose_advective_pic()
 {
-  expose_tools();
-  expose_meshdata();
-  expose_reconstructor();
-  expose_pusher();
-  expose_shape_pic();
-  expose_advective_pic();
+  expose_pic_algorithm<
+      pic<
+        pic_data<3,3>,
+        advective_reconstructor,
+        monomial_particle_pusher
+        >
+      >();
+  expose_pic_algorithm<
+      pic<
+        pic_data<2,2>,
+        advective_reconstructor,
+        monomial_particle_pusher
+        >
+      >();
 }
+

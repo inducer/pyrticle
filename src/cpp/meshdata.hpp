@@ -44,6 +44,7 @@ namespace pyrticle
       typedef hedge::element_number element_number;
       typedef hedge::face_number face_number;
       typedef hedge::vertex_number vertex_number;
+      typedef hedge::node_index node_index;
       typedef hedge::el_id_vector el_id_vector;
       typedef hedge::vtx_id_vector vtx_id_vector;
       typedef hedge::el_face el_face;

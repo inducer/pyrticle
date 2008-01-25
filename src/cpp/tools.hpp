@@ -177,6 +177,31 @@ namespace pyrticle
     double mean = sum/count;
     return sqrt(square_sum/count - square(mean));
   }
+
+
+
+
+  class visualization_listener
+  {
+    public:
+      virtual void store_vis_vector(
+          const char *name,
+          const hedge::vector &vec) const = 0;
+  };
+
+
+
+
+  class dof_shift_listener
+  {
+    public:
+      virtual void note_change_size(unsigned new_size) const = 0;
+      virtual void note_move_dof(unsigned orig, unsigned dest) const = 0;
+  };
+
+
+
+
 }
 
 

@@ -3,7 +3,7 @@
 # See documentation for hints.
 # --------------------------------------------------------------------
 
-PYRTICLE_CONF_TEMPLATE_VERSION = 1
+PYRTICLE_CONF_TEMPLATE_VERSION = 2
 
 # --------------------------------------------------------------------
 # Path options
@@ -15,6 +15,10 @@ BPL_LIBRARIES = [$str{BOOST_PYTHON_LIBNAME}]
 
 BOOST_BINDINGS_INCLUDE_DIRS = [$str{BOOST_BINDINGS_INC_DIR}]
 
+HAVE_BLAS = ${HAVE_BLAS}
+BLAS_LIBRARY_DIRS = [$str{BLAS_LIB_DIR}]
+BLAS_LIBRARIES = $str{BLAS_LIB_NAMES}.split(",")
+
 HAVE_MPI = ${HAVE_MPI}
 MPICC = $str{MPICC}
 MPICXX = [$str{MPICXX}]
@@ -23,8 +27,10 @@ BOOST_MPI_LIBRARIES = [$str{BOOST_MPI_LIBNAME}]
 if not MPICXX:
     MPICXX = MPICC
 
+BLAS_LIBRARIES = $str{BLAS_LIB_NAMES}.split(",")
 # --------------------------------------------------------------------
 # Compiler flags
 # --------------------------------------------------------------------
-EXTRA_COMPILE_ARGS = [$str{CXXFLAGS}]
+from pytools import flatten
+EXTRA_COMPILE_ARGS = list(flatten([eca.split() for eca in [$str{CXXFLAGS}]]))
 

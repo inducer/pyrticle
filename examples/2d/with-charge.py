@@ -93,13 +93,15 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1000
+    nparticles = 1
 
     from pyrticle.cloud import ParticleCloud
-    from pyrticle.reconstruction import ShapeFunctionReconstructor
+    from pyrticle.reconstruction import \
+            ShapeFunctionReconstructor, \
+            AdvectiveReconstructor
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
-            ShapeFunctionReconstructor(),
+            AdvectiveReconstructor(),
             MonomialParticlePusher(),
             dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)

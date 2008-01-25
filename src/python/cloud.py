@@ -229,6 +229,7 @@ class ParticleCloud:
             assert len(p) == vdim
 
         # add particles
+
         pic.containing_elements[pic.particle_count:] = containing_elements
 
         prev_count = pic.particle_count
@@ -246,6 +247,9 @@ class ParticleCloud:
         pic.particle_count += len(containing_elements)
 
         self.check_containment()
+
+        for pn in range(prev_count, pic.particle_count):
+            self.reconstructor.add_particle_hook(pn)
 
     def check_containment(self):
         """Check that a containing element is known for each particle.
@@ -590,8 +594,12 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
 
     def l2_norm(field):
         return sqrt(dot(field, discr.mass_operator*field))
-    def l2_error(field, true):
-        return l2_norm(field-true)/l2_norm(true)
+    def rel_l2_error(field, true):
+        err = l2_norm(field-true)
+        if err == 0:
+            return 0
+        else:
+            return err/l2_norm(true)
 
     gamma = (1-comp.norm_2_squared(mean_beta))**(-0.5)
 
@@ -654,21 +662,21 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         divD_prime_central = div_op(d_prime)
 
         print "l2 div D_tilde error central: %g" % \
-                l2_error(divD_tilde_central, rho_tilde)
+                rel_l2_error(divD_tilde_central, rho_tilde)
         print "l2 div D_tilde error ldg: %g" % \
-                l2_error(divD_tilde_ldg, rho_tilde)
+                rel_l2_error(divD_tilde_ldg, rho_tilde)
         print "l2 div D_tilde error ldg2: %g" % \
-                l2_error(divD_tilde_ldg2, rho_tilde)
+                rel_l2_error(divD_tilde_ldg2, rho_tilde)
 
         if False:
             print "l2 div D_prime error central: %g" % \
-                    l2_error(divD_prime_central, rho_prime)
+                    rel_l2_error(divD_prime_central, rho_prime)
             print "l2 div D_prime error ldg: %g" % \
-                    l2_error(divD_prime_ldg, rho_prime)
+                    rel_l2_error(divD_prime_ldg, rho_prime)
             print "l2 div D_prime error ldg with phi: %g" % \
-                    l2_error(divD_prime_ldg2, rho_prime)
+                    rel_l2_error(divD_prime_ldg2, rho_prime)
             print "l2 div D_prime error ldg with phi 3: %g" % \
-                    l2_error(divD_prime_ldg3, rho_prime)
+                    rel_l2_error(divD_prime_ldg3, rho_prime)
 
         from hedge.visualization import SiloVisualizer
         vis = SiloVisualizer(discr)

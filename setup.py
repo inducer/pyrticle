@@ -40,7 +40,7 @@ def main():
     if "PYRTICLE_CONF_TEMPLATE_VERSION" not in conf:
         non_matching_config()
 
-    if conf["PYRTICLE_CONF_TEMPLATE_VERSION"] != 1:
+    if conf["PYRTICLE_CONF_TEMPLATE_VERSION"] != 2:
         non_matching_config()
 
     INCLUDE_DIRS = ["src/cpp"] \
@@ -64,12 +64,17 @@ def main():
         cvars["CC"] = conf["MPICC"]
         cvars["CXX"] = conf["MPICXX"]
 
+    conf["BLAS_INCLUDE_DIRS"] = []
+    conf["USE_BLAS"] = True
+
     def handle_component(comp):
         if conf["USE_"+comp]:
             EXTRA_DEFINES["USE_"+comp] = 1
             EXTRA_INCLUDE_DIRS.extend(conf[comp+"_INCLUDE_DIRS"])
             EXTRA_LIBRARY_DIRS.extend(conf[comp+"_LIBRARY_DIRS"])
             EXTRA_LIBRARIES.extend(conf[comp+"_LIBRARIES"])
+
+    handle_component("BLAS")
 
     setup(name="pyrticle",
           version="0.90",
@@ -90,7 +95,8 @@ def main():
                     "src/wrapper/wrap_meshdata.cpp",
                     "src/wrapper/wrap_reconstructor.cpp",
                     "src/wrapper/wrap_pusher.cpp",
-                    "src/wrapper/wrap_pic.cpp", 
+                    "src/wrapper/wrap_shape_pic.cpp", 
+                    "src/wrapper/wrap_advective_pic.cpp", 
                     "src/wrapper/wrap_main.cpp", 
                 ],
                 include_dirs=INCLUDE_DIRS + EXTRA_INCLUDE_DIRS,

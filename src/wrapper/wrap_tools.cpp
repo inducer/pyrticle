@@ -35,6 +35,42 @@ using namespace pyrticle;
 
 
 
+namespace
+{
+  struct visualization_listener_wrap : 
+    visualization_listener,
+    python::wrapper<visualization_listener>
+  {
+    void store_vis_vector(
+        const char *name,
+        const hedge::vector &vec) const
+    {
+      this->get_override("store_vis_vector")(name, vec);
+    }
+  };
+
+
+
+
+  struct dof_shift_listener_wrap : 
+    dof_shift_listener,
+    python::wrapper<dof_shift_listener>
+  {
+    void note_change_size(unsigned new_size) const
+    {
+      this->get_override("note_change_size")(new_size);
+    }
+
+    void note_move_dof(unsigned orig, unsigned dest) const
+    {
+      this->get_override("note_move_dof")(orig, dest);
+    }
+  };
+}
+
+
+
+
 void expose_tools()
 {
   python::def("asinh", (double (*)(double)) boost::math::asinh);
@@ -62,4 +98,26 @@ void expose_tools()
       .DEF_SIMPLE_METHOD(reserve)
       ;
   }
+
+  {
+    typedef visualization_listener cl;
+    python::class_<visualization_listener_wrap, 
+      boost::shared_ptr<visualization_listener_wrap>,
+      boost::noncopyable>
+      ("VisualizationListener")
+      .DEF_PURE_VIRTUAL_METHOD(store_vis_vector)
+      ;
+  }
+
+  {
+    typedef dof_shift_listener cl;
+    python::class_<dof_shift_listener_wrap, 
+      boost::shared_ptr<dof_shift_listener_wrap>,
+      boost::noncopyable>
+      ("DOFShiftListener")
+      .DEF_PURE_VIRTUAL_METHOD(note_change_size)
+      .DEF_PURE_VIRTUAL_METHOD(note_move_dof)
+      ;
+  }
+
 }
