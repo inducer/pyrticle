@@ -174,23 +174,27 @@ def main():
     for step in xrange(nsteps):
         logmgr.tick()
 
-        cloud.upkeep()
-        fields = stepper(fields, t, dt, fields.rhs)
-
         if True:
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
+            rhorhs2 = dot(cloud.velocities()[0], discr.nabla*cloud.reconstruct_rho())
             cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
                         ("e", fields.e), 
                         ("h", fields.h), 
+                        ("rho", cloud.reconstruct_rho()), 
+                        ("rhorhs2", rhorhs2), 
+                        ("rhorhs", cloud.pic_algorithm.rhs_mesh_field(cloud.raw_velocities())), 
                         ("j", cloud.reconstruct_j()), 
                         ],
                     time=t, step=step)
             visf.close()
             vis_timer.stop()
+
+        cloud.upkeep()
+        fields = stepper(fields, t, dt, fields.rhs)
 
         t += dt
 

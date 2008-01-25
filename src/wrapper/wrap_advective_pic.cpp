@@ -24,6 +24,7 @@
 
 void expose_advective_pic()
 {
+  /*
   expose_pic_algorithm<
       pic<
         pic_data<3,3>,
@@ -31,6 +32,7 @@ void expose_advective_pic()
         monomial_particle_pusher
         >
       >();
+      */
   expose_pic_algorithm<
       pic<
         pic_data<2,2>,

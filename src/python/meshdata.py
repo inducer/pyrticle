@@ -63,6 +63,7 @@ def _add_mesh_data_methods():
             ei = ElementInfo()
             ei.id = i
             ei.inverse_map = el.inverse_map
+            ei.jacobian = abs(el.map.jacobian)
             ei.start, ei.end = discr.find_el_range(el.id)
             ei.vertices.extend([vi for vi in el.vertex_indices])
             ei.normals.extend(el.face_normals)

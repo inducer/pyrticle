@@ -31,6 +31,7 @@
 #include <boost/foreach.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
+#include <boost/numeric/ublas/io.hpp>
 #include <boost/numeric/bindings/traits/ublas_matrix.hpp>
 #include <boost/numeric/bindings/blas/blas3.hpp>
 #include <boost/typeof/std/utility.hpp>
@@ -188,6 +189,27 @@ namespace pyrticle
 
 
 
+        hedge::vector rhs_mesh_field(hedge::vector const &velocities)
+        {
+          hedge::vector result(m_dofs_per_element*PIC_THIS->m_mesh_data.m_element_info.size());
+          result.clear();
+
+          hedge::vector rhs = get_advective_particle_rhs(velocities);
+          BOOST_FOREACH(advected_particle &p, m_advected_particles)
+          {
+            BOOST_FOREACH(active_element &el, p.m_elements)
+            {
+              const mesh_data::element_info &einfo = *el.m_element_info;
+              noalias(subrange(result, einfo.m_start, einfo.m_end)) +=
+                subrange(rhs, el.m_start_index, el.m_start_index+m_dofs_per_element);
+            }
+          }
+          return result;
+        }
+
+
+
+
         void perform_reconstructor_upkeep()
         {
           // retire empty particle subelements 
@@ -287,8 +309,12 @@ namespace pyrticle
           if (start_index % m_dofs_per_element != 0)
             throw std::runtime_error("invalid advective element deallocation");
 
-          m_freelist.push_back(start_index/m_dofs_per_element);
+          const unsigned el_index = start_index/m_dofs_per_element;
           --m_active_elements;
+
+          // unless we're deallocating the last element, add it to the freelist.
+          if (el_index != m_active_elements+m_freelist.size())
+            m_freelist.push_back(el_index);
         }
 
 
@@ -310,9 +336,9 @@ namespace pyrticle
 
           shape_function sf(new_particle.m_radius, dimensions_mesh);
 
-          for (unsigned i = einfo.m_start; i < einfo.m_end; i++)
+          for (unsigned i = 0; i < m_dofs_per_element; ++i)
             m_rho[start+i] =
-                sf(CONST_PIC_THIS->m_mesh_data.m_nodes[i]-center);
+                sf(CONST_PIC_THIS->m_mesh_data.m_nodes[einfo.m_start+i]-center);
 
           new_particle.m_elements.push_back(new_element);
         }
@@ -342,24 +368,26 @@ namespace pyrticle
           // scale so the amount of charge is correct
           std::vector<double> unscaled_masses;
           BOOST_FOREACH(active_element &el, new_particle.m_elements)
-            unscaled_masses.push_back(integral(
-                subrange(m_rho, 
-                  el.m_start_index, 
-                  el.m_start_index+m_dofs_per_element)));
+            unscaled_masses.push_back(element_integral(
+                  el.m_element_info->m_jacobian,
+                  subrange(m_rho, 
+                    el.m_start_index, 
+                    el.m_start_index+m_dofs_per_element)));
+
 
           const double charge = CONST_PIC_THIS->m_charges[pn];
           const double total_unscaled_mass = std::accumulate(
-              unscaled_masses.begin(), unscaled_masses.end(), 0);
+              unscaled_masses.begin(), unscaled_masses.end(), double(0));
 
-          std::cout << "AFAFA" << total_unscaled_mass << std::endl;
+          if (total_unscaled_mass == 0)
+            throw std::runtime_error("total reconstructed mass is zero");
 
-          unsigned i = 0;
           BOOST_FOREACH(active_element &el, new_particle.m_elements)
             subrange(m_rho, 
                 el.m_start_index, 
                 el.m_start_index+m_dofs_per_element) 
-            *= charge * unscaled_masses[i++] / total_unscaled_mass;
-          
+            *= charge / total_unscaled_mass;
+
           m_advected_particles.push_back(new_particle);
         }
 
@@ -367,52 +395,41 @@ namespace pyrticle
 
 
         // rhs calculation ----------------------------------------------------
-        void treat_active_inbound_connection(
-            hedge::vector &fluxes,
-            advected_particle &p,
-            const hedge::vector &v,
-            active_element &el,
-            mesh_data::face_number fn,
-            const hedge::fluxes::face &flux_face)
-        {
-        }
-
-
-
-
         hedge::vector get_advective_particle_rhs(hedge::vector const &velocities)
         {
           const unsigned dofs = m_rho.size();
           const unsigned active_contiguous_elements = 
             m_active_elements + m_freelist.size();
           hedge::vector local_div(dofs);
+          local_div.clear();
 
           // calculate local rst derivatives ----------------------------------
-          hedge::vector local_derivs(dimensions_mesh*dofs);
+          hedge::vector rst_derivs(dimensions_mesh*dofs);
           using namespace boost::numeric::bindings;
           using blas::detail::gemm;
 
           for (unsigned loc_axis = 0; loc_axis < dimensions_mesh; ++loc_axis)
           {
-            hedge::matrix &matrix = m_local_diff_matrices[loc_axis];
+            hedge::matrix &matrix = m_local_diff_matrices.at(loc_axis);
+
             gemm(
                 'T', // "matrix" is row-major
                 'N', // a contiguous array of vectors is column-major
-                matrix.size2(),
-                active_contiguous_elements,
                 matrix.size1(),
+                active_contiguous_elements,
+                matrix.size2(),
                 /*alpha*/ 1,
                 /*a*/ traits::matrix_storage(matrix), 
-                /*lda*/ matrix.size1(),
+                /*lda*/ matrix.size2(),
                 /*b*/ traits::vector_storage(m_rho), 
-                /*ldb*/ matrix.size1(),
+                /*ldb*/ m_dofs_per_element,
                 /*beta*/ 1,
-                /*c*/ traits::vector_storage(local_derivs) + loc_axis*dofs, 
-                /*ldc*/ matrix.size2()
+                /*c*/ traits::vector_storage(rst_derivs) + loc_axis*dofs, 
+                /*ldc*/ m_dofs_per_element
                 );
           }
 
-          // combine them into local part of dot(v, div rho) ------------------
+          // combine them into local part of dot(v, grad rho) -----------------
           {
             particle_number pn = 0;
             BOOST_FOREACH(advected_particle &p, m_advected_particles)
@@ -432,8 +449,8 @@ namespace pyrticle
 
                   subrange(local_div,
                       el.m_start_index,
-                      el.m_start_index + m_dofs_per_element) = 
-                    subrange(local_derivs,
+                      el.m_start_index + m_dofs_per_element) += coeff *
+                    subrange(rst_derivs,
                         loc_axis*dofs + el.m_start_index,
                         loc_axis*dofs + el.m_start_index + m_dofs_per_element);
                 }
@@ -567,18 +584,25 @@ namespace pyrticle
             gemm(
                 'T', // "matrix" is row-major
                 'N', // a contiguous array of vectors is column-major
-                matrix.size2(),
-                active_contiguous_elements,
                 matrix.size1(),
+                active_contiguous_elements,
+                matrix.size2(),
                 /*alpha*/ 1,
                 /*a*/ traits::matrix_storage(matrix), 
-                /*lda*/ matrix.size1(),
+                /*lda*/ matrix.size2(),
                 /*b*/ traits::vector_storage(fluxes), 
-                /*ldb*/ matrix.size1(),
+                /*ldb*/ m_dofs_per_element,
                 /*beta*/ 1,
-                /*c*/ traits::vector_storage(minv_fluxes), 
-                /*ldc*/ matrix.size2()
+                /*c*/ traits::vector_storage(minv_fluxes),
+                /*ldc*/ m_dofs_per_element
                 );
+
+            // perform jacobian scaling
+            BOOST_FOREACH(advected_particle &p, m_advected_particles)
+              BOOST_FOREACH(active_element &el, p.m_elements)
+                subrange(minv_fluxes, 
+                    el.m_start_index, 
+                    el.m_start_index+m_dofs_per_element) *= 1/el.m_element_info->m_jacobian;
           }
 
           // end result -------------------------------------------------------
@@ -597,9 +621,9 @@ namespace pyrticle
 
 
         template <class VectorExpression>
-        double integral(const VectorExpression &ve)
+        double element_integral(double jacobian, const VectorExpression &ve)
         {
-          return inner_prod(
+          return jacobian * inner_prod(
               boost::numeric::ublas::scalar_vector<typename VectorExpression::value_type>
               (m_mass_matrix.size1(), 1), prod(m_mass_matrix, ve));
         }

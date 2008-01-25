@@ -60,6 +60,7 @@ namespace pyrticle
       {
         element_number                 m_id;
         hedge::affine_map              m_inverse_map;
+        double                         m_jacobian;
 
         unsigned                       m_start, m_end;
 

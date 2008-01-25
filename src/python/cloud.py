@@ -144,6 +144,8 @@ class ParticleCloud:
 
         mgr.add_quantity(self.force_timer)
 
+        self.reconstructor.add_instrumentation(mgr)
+
     @property
     def positions(self):
         from hedge.tools import FixedSizeSliceAdapter
@@ -371,7 +373,8 @@ class ParticleCloud:
         from pyrticle.tools import DOFShiftableVector
         result = ArithmeticList([
             DOFShiftableVector(velocities, self.pos_shift_signaller),
-            DOFShiftableVector(forces, self.velocity_shift_signaller)
+            DOFShiftableVector(forces, self.velocity_shift_signaller),
+            self.reconstructor.rhs()
             ])
         return result
 
@@ -382,12 +385,13 @@ class ParticleCloud:
 
         from pyrticle.tools import DOFShiftableVector
 
-        dx, dp = rhs
+        dx, dp, drecon = rhs
         dx = DOFShiftableVector.unwrap(dx)
         dp = DOFShiftableVector.unwrap(dp)
         assert len(dx) == self.dimensions_pos*len(self)
         assert len(dp) == self.dimensions_velocity*len(self)
         self.pic_algorithm.add_rhs(dx, dp)
+        self.reconstructor.add_rhs(drecon)
 
         self.find_el_timer.start()
         self.pic_algorithm.update_containing_elements()

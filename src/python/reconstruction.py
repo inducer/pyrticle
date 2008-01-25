@@ -1,5 +1,7 @@
 """Python interface for reconstructors"""
 
+from __future__ import division
+
 __copyright__ = "Copyright (C) 2007, 2008 Andreas Kloeckner"
 
 __license__ = """
@@ -20,18 +22,32 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
-class ShapeFunctionReconstructor:
+import pylinear.array as num
+import pylinear.computation as comp
+
+
+
+
+class ShapeFunctionReconstructor(object):
     name = "Shape"
 
     def initialize(self, cloud):
         cloud.pic_algorithm.set_radius(0.5*cloud.mesh_data.min_vertex_distance())
 
+    def add_instrumentation(self, mgr):
+        pass
+
     def add_particle_hook(self, pn):
         pass
 
+    def rhs(self):
+        return 0
+
+    def add_rhs(self, rhs):
+        return 0
 
 
-class AdvectiveReconstructor:
+class AdvectiveReconstructor(object):
     name = "Advective"
 
     def initialize(self, cloud):
@@ -53,7 +69,19 @@ class AdvectiveReconstructor:
                 fmm,
                 fg)
 
+        for i, diffmat in enumerate(ldis.differentiation_matrices()):
+            cloud.pic_algorithm.add_local_diff_matrix(i, diffmat)
+
         self.radius = 0.5*cloud.mesh_data.min_vertex_distance()
+
+    def add_instrumentation(self, mgr):
+        pass
 
     def add_particle_hook(self, pn):
         self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
+
+    def rhs(self):
+        return self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.raw_velocities())
+
+    def add_rhs(self, rhs):
+        self.cloud.pic_algorithm.apply_advective_particle_rhs(rhs)
