@@ -175,15 +175,7 @@ namespace pyrticle
 
         void reconstruct_rho(hedge::vector &rho)
         {
-          BOOST_FOREACH(advected_particle &p, m_advected_particles)
-          {
-            BOOST_FOREACH(active_element &el, p.m_elements)
-            {
-              const mesh_data::element_info &einfo = *el.m_element_info;
-              noalias(subrange(rho, einfo.m_start, einfo.m_end)) +=
-                subrange(m_rho, el.m_start_index, el.m_start_index+m_dofs_per_element);
-            }
-          }
+          map_particle_space_to_mesh_space(m_rho, rho);
         }
 
 
@@ -191,19 +183,9 @@ namespace pyrticle
 
         hedge::vector rhs_mesh_field(hedge::vector const &velocities)
         {
-          hedge::vector result(m_dofs_per_element*PIC_THIS->m_mesh_data.m_element_info.size());
-          result.clear();
-
+          hedge::vector result;
           hedge::vector rhs = get_advective_particle_rhs(velocities);
-          BOOST_FOREACH(advected_particle &p, m_advected_particles)
-          {
-            BOOST_FOREACH(active_element &el, p.m_elements)
-            {
-              const mesh_data::element_info &einfo = *el.m_element_info;
-              noalias(subrange(result, einfo.m_start, einfo.m_end)) +=
-                subrange(rhs, el.m_start_index, el.m_start_index+m_dofs_per_element);
-            }
-          }
+          map_particle_space_to_mesh_space(rhs, result);
           return result;
         }
 
@@ -320,6 +302,25 @@ namespace pyrticle
 
 
 
+        void map_particle_space_to_mesh_space(hedge::vector const &pspace, hedge::vector &mspace)
+        {
+          mspace.resize(m_dofs_per_element*PIC_THIS->m_mesh_data.m_element_info.size());
+          mspace.clear();
+
+          BOOST_FOREACH(advected_particle &p, m_advected_particles)
+          {
+            BOOST_FOREACH(active_element &el, p.m_elements)
+            {
+              const mesh_data::element_info &einfo = *el.m_element_info;
+              noalias(subrange(mspace, einfo.m_start, einfo.m_end)) +=
+                subrange(pspace, el.m_start_index, el.m_start_index+m_dofs_per_element);
+            }
+          }
+        }
+
+
+
+
         // particle construction ----------------------------------------------
         void add_shape_on_element(
             advected_particle &new_particle,
@@ -358,12 +359,17 @@ namespace pyrticle
 
           // make connections
           BOOST_FOREACH(active_element &el, new_particle.m_elements)
-            for (int f = 0; f < m_faces_per_element; f++)
+          {
+            const mesh_data::element_info &einfo = *el.m_element_info;
+
+            unsigned fn = 0;
+            BOOST_FOREACH(mesh_data::element_number neighbor, einfo.m_neighbors)
             {
-              mesh_data::element_number connected_el = el.m_connections[f];
-              if (new_particle.find_element(connected_el))
-                el.m_connections[f] = connected_el;
+              if (new_particle.find_element(neighbor))
+                el.m_connections[fn] = neighbor;
+              ++fn;
             }
+          }
 
           // scale so the amount of charge is correct
           std::vector<double> unscaled_masses;
@@ -444,7 +450,7 @@ namespace pyrticle
                 {
                   double coeff = 0;
                   for (unsigned glob_axis = 0; glob_axis < dimensions_mesh; ++glob_axis)
-                    coeff += v[glob_axis] *
+                    coeff += -v[glob_axis] *
                       el.m_element_info->m_inverse_map.matrix()(loc_axis, glob_axis);
 
                   subrange(local_div,
@@ -514,7 +520,12 @@ namespace pyrticle
                   const bool inflow = n_dot_v <= 0;
                   const bool active = el.m_connections[fn] != mesh_data::INVALID_ELEMENT;
 
-                  if (active && inflow)
+                  /*
+                  std::cout << "EINF " << en << ' ' << fn << ' ' 
+                    << inflow << ' ' << active << std::endl;
+                    */
+
+                  if (active)
                   {
                     hedge::index_list &idx_list(is_opposite ?
                         m_face_group->index_lists[fp.opp_face_index_list_number]
@@ -535,9 +546,9 @@ namespace pyrticle
                     assert(face_length == opp_idx_list.size());
 
                     const double int_coeff = 
-                      flux_face.face_jacobian*0.5*(n_dot_v + norm_v);
+                      flux_face.face_jacobian*0.5*(-n_dot_v + norm_v);
                     const double ext_coeff = 
-                      flux_face.face_jacobian*0.5*-(n_dot_v + norm_v);
+                      flux_face.face_jacobian*0.5*-(-n_dot_v + norm_v);
 
                     for (unsigned i = 0; i < face_length; i++)
                     {
@@ -606,6 +617,14 @@ namespace pyrticle
           }
 
           // end result -------------------------------------------------------
+          std::cout 
+            << "RHS "
+            << norm_2(subrange(fluxes, 
+                0, active_contiguous_elements*m_dofs_per_element)) 
+            << ' ' 
+            << norm_2(subrange(local_div-minv_fluxes, 
+                0, active_contiguous_elements*m_dofs_per_element)) 
+            << std::endl;
           return local_div - minv_fluxes;
         }
         
@@ -614,6 +633,16 @@ namespace pyrticle
 
         void apply_advective_particle_rhs(hedge::vector const &rhs)
         {
+          std::cout 
+            << "APPLY "
+            << norm_2(subrange(rhs, 
+                0, (m_active_elements+m_freelist.size())*m_dofs_per_element)) 
+            << " "
+            << norm_inf(subrange(rhs, 
+                0, (m_active_elements+m_freelist.size())*m_dofs_per_element)) 
+            << " "
+            << norm_2(rhs)
+            << std::endl;
           m_rho += rhs;
         }
 

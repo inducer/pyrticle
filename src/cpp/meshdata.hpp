@@ -66,10 +66,11 @@ namespace pyrticle
 
         vtx_id_vector                  m_vertices;
 
-        // the indices for the following two lists match up:
-        // say at matching indices you find normal n
-        // and element index i, then n is the normal
-        // of the face leading to element i.
+        /** The indices for the following two lists match up: say at matching
+         * indices you find normal n and element index i, then n is the normal
+         * of the face leading to element i. By corollary, if there is no 
+         * neighbor past that face, INVALID_ELEMENT is stored in that entry.
+         */
 
         std::vector<hedge::vector>      m_normals;
         std::vector<element_number>     m_neighbors;

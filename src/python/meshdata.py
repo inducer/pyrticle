@@ -67,9 +67,7 @@ def _add_mesh_data_methods():
             ei.start, ei.end = discr.find_el_range(el.id)
             ei.vertices.extend([vi for vi in el.vertex_indices])
             ei.normals.extend(el.face_normals)
-            ei.neighbors.extend(
-                    list(set(neighbor_map[el,fi] 
-                        for fi in xrange(len(el.faces)))))
+            ei.neighbors[:] = [neighbor_map[el,fi] for fi in xrange(len(el.faces))]
 
             self.element_info.append(ei)
 

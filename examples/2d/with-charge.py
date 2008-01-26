@@ -178,7 +178,14 @@ def main():
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
-            rhorhs2 = dot(cloud.velocities()[0], discr.nabla*cloud.reconstruct_rho())
+            from hedge.operators import StrongAdvectionOperator
+            from hedge.mesh import TAG_ALL, TAG_NONE
+            advop = StrongAdvectionOperator(
+                    discr, v=-cloud.velocities()[0],
+                    inflow_tag=TAG_ALL, outflow_tag=TAG_NONE,
+                    flux_type="lf")
+            rhorhs2 = dot(-cloud.velocities()[0], discr.nabla*cloud.reconstruct_rho())
+            rhorhs3 = advop.rhs(t, cloud.reconstruct_rho())
             cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
@@ -186,6 +193,7 @@ def main():
                         ("h", fields.h), 
                         ("rho", cloud.reconstruct_rho()), 
                         ("rhorhs2", rhorhs2), 
+                        ("rhorhs3", rhorhs3), 
                         ("rhorhs", cloud.pic_algorithm.rhs_mesh_field(cloud.raw_velocities())), 
                         ("j", cloud.reconstruct_j()), 
                         ],
