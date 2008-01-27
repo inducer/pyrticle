@@ -478,30 +478,6 @@ namespace pyrticle
                     subrange(rst_derivs,
                         loc_axis*dofs + el.m_start_index,
                         loc_axis*dofs + el.m_start_index + m_dofs_per_element);
-                  /*
-                std::cout 
-                  << "MINV "
-                  << el.m_element_info->m_id
-                  << ' '
-                  << el.m_start_index
-                  << ' '
-                  << loc_axis
-                  << ' '
-                  << coeff
-                  << " norms "
-                  << norm_2(subrange(m_rho, 
-                      el.m_start_index, 
-                      el.m_start_index+m_dofs_per_element))
-                  << ' '
-                  << norm_2(subrange(rst_derivs, 
-                      loc_axis*dofs + el.m_start_index, 
-                      loc_axis*dofs + el.m_start_index+m_dofs_per_element))
-                  << ' '
-                  << norm_2(subrange(local_div, 
-                      el.m_start_index, 
-                      el.m_start_index+m_dofs_per_element))
-                  << std::endl;
-                  */
                 }
               }
               ++pn;
@@ -555,17 +531,10 @@ namespace pyrticle
                 const bool inflow = n_dot_v <= 0;
                 const bool active = el.m_connections[fn] != mesh_data::INVALID_ELEMENT;
 
-                /*
-                   std::cout << "EINF " << en << ' ' << fn << ' ' 
-                   << inflow << ' ' << active << std::endl;
-                   */
-
                 const double int_coeff = 
                   flux_face.face_jacobian*0.5*(-n_dot_v + norm_v);
-                  //flux_face.face_jacobian*0.5*(-n_dot_v);
                 const double ext_coeff = 
                   flux_face.face_jacobian*0.5*-(-n_dot_v + norm_v);
-                  //flux_face.face_jacobian*0.5*-(-n_dot_v);
 
                 if (active)
                 {
@@ -613,8 +582,6 @@ namespace pyrticle
                 }
                 else if (!active && inflow)
                 {
-                  // std::cout << "AI" << flux_face.normal << int_coeff << ' ' << ext_coeff << std::endl;
-
                   hedge::index_list &idx_list(is_opposite ?
                       m_face_group->index_lists[fp.opp_face_index_list_number]
                       : m_face_group->index_lists[fp.face_index_list_number]);
@@ -695,22 +662,6 @@ namespace pyrticle
                   el.m_start_index, 
                   el.m_start_index+m_dofs_per_element) *= 
               1/el.m_element_info->m_jacobian;
-              /*
-              std::cout 
-                << "MINV "
-                << el.m_element_info->m_id
-                << ' '
-                << el.m_start_index
-                << ' '
-                << norm_2(subrange(operand, 
-                    el.m_start_index, 
-                    el.m_start_index+m_dofs_per_element))
-                << ' '
-                << norm_2(subrange(result, 
-                    el.m_start_index, 
-                    el.m_start_index+m_dofs_per_element))
-                << std::endl;
-              */
             }
 
           return result;
@@ -730,22 +681,6 @@ namespace pyrticle
 
         void apply_advective_particle_rhs(hedge::vector const &rhs)
         {
-          /*
-          std::cout 
-            << "APPLY "
-            << norm_2(subrange(rhs, 
-                0, (m_active_elements+m_freelist.size())*m_dofs_per_element)) 
-            << " "
-            << norm_inf(subrange(rhs, 
-                0, (m_active_elements+m_freelist.size())*m_dofs_per_element)) 
-            << " "
-            << norm_2(rhs)
-            << " "
-            << norm_2(m_rho)
-            << " "
-            << norm_2(m_rho+rhs)
-            << std::endl;
-            */
           m_rho += rhs;
         }
 
