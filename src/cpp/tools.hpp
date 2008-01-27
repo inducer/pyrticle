@@ -35,6 +35,22 @@
 
 namespace pyrticle 
 {
+  // utilities ----------------------------------------------------------------
+  template <class Map>
+  typename Map::mapped_type const &map_get(
+      Map const &map, 
+      typename Map::key_type const &key)
+  {
+    typename Map::const_iterator it = map.find(key);
+    if (it == map.end())
+      throw std::logic_error("item not found in map");
+    else
+      return it->second;
+  }
+
+
+
+
   // common types -------------------------------------------------------------
   typedef unsigned particle_number;
 

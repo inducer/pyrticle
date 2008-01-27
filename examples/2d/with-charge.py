@@ -79,7 +79,7 @@ def main():
             upwind_alpha=1)
     div_op = DivergenceOperator(discr)
 
-    dt = discr.dt_factor(max_op.c) / 2
+    dt = discr.dt_factor(max_op.max_eigenvalue())
     final_time = 2*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
@@ -171,38 +171,81 @@ def main():
     # timestepping ------------------------------------------------------------
     t = 0
 
+    augfields = ArithmeticList([
+        fields,
+        cloud.reconstruct_rho()
+        ])
+
+    substep = [0]
     for step in xrange(nsteps):
         logmgr.tick()
 
-        if True:
-            vis_timer.start()
-            visf = vis.make_file("pic-%04d" % step)
-
-            from hedge.operators import StrongAdvectionOperator
+        def rhs(t, (f_and_c, adv_rho)):
             from hedge.mesh import TAG_ALL, TAG_NONE
+            from hedge.operators import StrongAdvectionOperator
             advop = StrongAdvectionOperator(
                     discr, v=-cloud.velocities()[0],
                     inflow_tag=TAG_ALL, outflow_tag=TAG_NONE,
-                    flux_type="lf")
-            rhorhs2 = dot(-cloud.velocities()[0], discr.nabla*cloud.reconstruct_rho())
-            rhorhs3 = advop.rhs(t, cloud.reconstruct_rho())
-            cloud.add_to_vis(vis, visf, time=t, step=step)
-            vis.add_data(visf, [
-                        ("divD", max_op.epsilon*div_op(fields.e)),
-                        ("e", fields.e), 
-                        ("h", fields.h), 
-                        ("rho", cloud.reconstruct_rho()), 
-                        ("rhorhs2", rhorhs2), 
-                        ("rhorhs3", rhorhs3), 
-                        ("rhorhs", cloud.pic_algorithm.rhs_mesh_field(cloud.raw_velocities())), 
-                        ("j", cloud.reconstruct_j()), 
-                        ],
-                    time=t, step=step)
-            visf.close()
-            vis_timer.stop()
+                    flux_type="central")
 
+            if True:
+                #print "SUBSTEP", substep[0]
+                vis_timer.start()
+                visf = vis.make_file("pic-%04d" % substep[0])
+                substep[0] += 1
+
+                raw_vel = cloud.raw_velocities()
+
+                rho_rhs = cloud.pic_algorithm.get_debug_quantity_on_mesh("rhs", raw_vel)
+                rho_local_div = cloud.pic_algorithm.get_debug_quantity_on_mesh("local_div", raw_vel)
+                rho_fluxes = cloud.pic_algorithm.get_debug_quantity_on_mesh("fluxes", raw_vel)
+                rho_minv_fluxes = -cloud.pic_algorithm.get_debug_quantity_on_mesh("minv_fluxes", raw_vel)
+
+                rho = cloud.reconstruct_rho()
+
+                rho_adv_rhs = advop.rhs(t, rho)
+                rho_adv_local_div = dot(-cloud.velocities()[0], discr.nabla*rho)
+                rho_adv_fluxes = advop.flux * rho
+                rho_adv_minv_fluxes = -discr.inverse_mass_operator * rho_adv_fluxes
+
+                cloud.add_to_vis(vis, visf, time=t, step=step)
+
+                #print "FERR", comp.norm_2(-discr.mass_operator*(rho_rhs-rho_adv_local_rhs) - rho_fluxes)
+                vis.add_data(visf, [
+                            ("divD", max_op.epsilon*div_op(f_and_c.e)),
+                            ("e", f_and_c.e), 
+                            ("h", f_and_c.h), 
+
+                            ("rho", rho),
+
+                            ("rho_rhs", rho_rhs),
+                            ("rho_local_div", rho_local_div),
+                            ("rho_fluxes", rho_fluxes),
+                            ("rho_minv_fluxes", rho_minv_fluxes),
+
+                            ("rho_adv_rhs", rho_adv_rhs),
+                            ("rho_adv_local_div", rho_adv_local_div),
+                            ("rho_adv_fluxes", rho_adv_fluxes),
+                            ("rho_adv_minv_fluxes", rho_adv_minv_fluxes),
+
+                            ("j", cloud.reconstruct_j()), 
+
+                            ("err_rhs", rho_rhs-rho_adv_rhs),
+                            ("err_local_div", rho_local_div-rho_adv_local_div),
+                            ("err_fluxes", rho_fluxes-rho_adv_fluxes),
+                            ("err_minv_fluxes", rho_minv_fluxes-rho_adv_minv_fluxes),
+                            ],
+                        time=t, step=step,
+                        expressions=[
+                            ])
+                visf.close()
+                vis_timer.stop()
+            return ArithmeticList([
+                f_and_c.rhs(t, f_and_c),
+                advop.rhs(t, adv_rho)
+                ])
         cloud.upkeep()
-        fields = stepper(fields, t, dt, fields.rhs)
+        augfields = stepper(augfields, t, dt, rhs)
 
         t += dt
 

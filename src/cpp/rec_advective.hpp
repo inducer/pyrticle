@@ -78,11 +78,11 @@ namespace pyrticle
           std::vector<active_element>   m_elements;
           double                        m_radius;
 
-          active_element *find_element(mesh_data::element_number en)
+          const active_element *find_element(mesh_data::element_number en) const
           {
             if (en == mesh_data::INVALID_ELEMENT)
               return 0;
-            BOOST_FOREACH(active_element &el, m_elements)
+            BOOST_FOREACH(const active_element &el, m_elements)
             {
               if (el.m_element_info->m_id == en)
                 return &el;
@@ -175,18 +175,31 @@ namespace pyrticle
 
         void reconstruct_rho(hedge::vector &rho)
         {
-          map_particle_space_to_mesh_space(m_rho, rho);
+          rho = map_particle_space_to_mesh_space(m_rho);
         }
 
 
 
 
-        hedge::vector rhs_mesh_field(hedge::vector const &velocities)
+        hedge::vector get_debug_quantity_on_mesh(
+            const std::string &qty, 
+            hedge::vector const &velocities)
         {
-          hedge::vector result;
-          hedge::vector rhs = get_advective_particle_rhs(velocities);
-          map_particle_space_to_mesh_space(rhs, result);
-          return result;
+          if (qty == "rhs")
+            return map_particle_space_to_mesh_space(
+              get_advective_particle_rhs(velocities));
+          else if (qty == "fluxes")
+            return map_particle_space_to_mesh_space(
+                calculate_fluxes(velocities));
+          else if (qty == "minv_fluxes")
+            return map_particle_space_to_mesh_space(
+                apply_elementwise_inverse_mass_matrix(
+                calculate_fluxes(velocities)));
+          else if (qty == "local_div")
+            return map_particle_space_to_mesh_space(
+                calculate_local_div(velocities));
+          else
+            throw std::runtime_error("invalid debug quantity");
         }
 
 
@@ -216,6 +229,7 @@ namespace pyrticle
 
           m_mass_matrix = mass_matrix;
           m_inverse_mass_matrix = inverse_mass_matrix;
+
           m_face_mass_matrix = face_mass_matrix;
 
           m_face_group = fg;
@@ -302,20 +316,23 @@ namespace pyrticle
 
 
 
-        void map_particle_space_to_mesh_space(hedge::vector const &pspace, hedge::vector &mspace)
+        hedge::vector map_particle_space_to_mesh_space(hedge::vector const &pspace) const
         {
-          mspace.resize(m_dofs_per_element*PIC_THIS->m_mesh_data.m_element_info.size());
-          mspace.clear();
+          hedge::vector result(
+              m_dofs_per_element*CONST_PIC_THIS->m_mesh_data.m_element_info.size());
+          result.clear();
 
-          BOOST_FOREACH(advected_particle &p, m_advected_particles)
+          BOOST_FOREACH(const advected_particle &p, m_advected_particles)
           {
-            BOOST_FOREACH(active_element &el, p.m_elements)
+            BOOST_FOREACH(const active_element &el, p.m_elements)
             {
               const mesh_data::element_info &einfo = *el.m_element_info;
-              noalias(subrange(mspace, einfo.m_start, einfo.m_end)) +=
+              noalias(subrange(result, einfo.m_start, einfo.m_end)) +=
                 subrange(pspace, el.m_start_index, el.m_start_index+m_dofs_per_element);
             }
           }
+          
+          return result;
         }
 
 
@@ -401,22 +418,24 @@ namespace pyrticle
 
 
         // rhs calculation ----------------------------------------------------
-        hedge::vector get_advective_particle_rhs(hedge::vector const &velocities)
+        hedge::vector calculate_local_div(hedge::vector const &velocities) const
         {
           const unsigned dofs = m_rho.size();
           const unsigned active_contiguous_elements = 
             m_active_elements + m_freelist.size();
+
           hedge::vector local_div(dofs);
           local_div.clear();
 
           // calculate local rst derivatives ----------------------------------
           hedge::vector rst_derivs(dimensions_mesh*dofs);
+          rst_derivs.clear();
           using namespace boost::numeric::bindings;
           using blas::detail::gemm;
 
           for (unsigned loc_axis = 0; loc_axis < dimensions_mesh; ++loc_axis)
           {
-            hedge::matrix &matrix = m_local_diff_matrices.at(loc_axis);
+            const hedge::matrix &matrix = m_local_diff_matrices.at(loc_axis);
 
             gemm(
                 'T', // "matrix" is row-major
@@ -438,13 +457,13 @@ namespace pyrticle
           // combine them into local part of dot(v, grad rho) -----------------
           {
             particle_number pn = 0;
-            BOOST_FOREACH(advected_particle &p, m_advected_particles)
+            BOOST_FOREACH(const advected_particle &p, m_advected_particles)
             {
               hedge::vector v = subrange(velocities, 
                   PICAlgorithm::dimensions_velocity*pn,
                   PICAlgorithm::dimensions_velocity*(pn+1));
 
-              BOOST_FOREACH(active_element &el, p.m_elements)
+              BOOST_FOREACH(const active_element &el, p.m_elements)
               {
                 for (unsigned loc_axis = 0; loc_axis < dimensions_mesh; ++loc_axis)
                 {
@@ -459,173 +478,251 @@ namespace pyrticle
                     subrange(rst_derivs,
                         loc_axis*dofs + el.m_start_index,
                         loc_axis*dofs + el.m_start_index + m_dofs_per_element);
+                  /*
+                std::cout 
+                  << "MINV "
+                  << el.m_element_info->m_id
+                  << ' '
+                  << el.m_start_index
+                  << ' '
+                  << loc_axis
+                  << ' '
+                  << coeff
+                  << " norms "
+                  << norm_2(subrange(m_rho, 
+                      el.m_start_index, 
+                      el.m_start_index+m_dofs_per_element))
+                  << ' '
+                  << norm_2(subrange(rst_derivs, 
+                      loc_axis*dofs + el.m_start_index, 
+                      loc_axis*dofs + el.m_start_index+m_dofs_per_element))
+                  << ' '
+                  << norm_2(subrange(local_div, 
+                      el.m_start_index, 
+                      el.m_start_index+m_dofs_per_element))
+                  << std::endl;
+                  */
                 }
               }
               ++pn;
             }
           }
 
-          // compute fluxes ---------------------------------------------------
-          hedge::vector fluxes(dofs);
+          return local_div;
+        }
+
+
+
+
+        hedge::vector calculate_fluxes(hedge::vector const &velocities) const
+        {
+          hedge::vector fluxes(m_rho.size());
           fluxes.clear();
+
+          typedef hedge::vector::value_type scalar_t;
+          particle_number pn = 0;
+          BOOST_FOREACH(const advected_particle &p, m_advected_particles)
           {
-            typedef hedge::vector::value_type scalar_t;
-            particle_number pn = 0;
-            BOOST_FOREACH(advected_particle &p, m_advected_particles)
+            const hedge::vector v = subrange(velocities, 
+                PICAlgorithm::dimensions_velocity*pn,
+                PICAlgorithm::dimensions_velocity*(pn+1));
+
+            scalar_t norm_v = norm_2(v);
+
+            // perform fluxes
+            BOOST_FOREACH(const active_element &el, p.m_elements)
             {
-              const hedge::vector v = subrange(velocities, 
-                  PICAlgorithm::dimensions_velocity*pn,
-                  PICAlgorithm::dimensions_velocity*(pn+1));
-
-              scalar_t norm_v = norm_2(v);
-
-              // perform fluxes
-              BOOST_FOREACH(active_element &el, p.m_elements)
+              for (mesh_data::face_number fn = 0; fn < m_faces_per_element; ++fn)
               {
-                /* Here, we look for active inbound and inactive outbound connections.
-                 * Thanks to the chosen DG strong form and upwind flux, only these 
-                 * require any action on our part.
-                 *
-                 * Consider:
-                 * INFLOW: If there's an active neighbor past that inflow boundary,
-                 * then of course we need to advect his data in--active inflow needs
-                 * to be treated, hence. If we don't treat inactive inflow elements,
-                 * we're pretending u+ == u-; this will probably be unstable, we'll 
-                 * see.
-                 *
-                 * OUTLFOW: For a strong form DG with an upwind flux, and assuming that
-                 * u+ == u- along outflow boundaries, outflow fluxes contribute
-                 * nothing, and so can be ignored. Inactive outflow boundaries need 
-                 * to be checked if we need to activate the past-interface element.
-                 */
-                for (mesh_data::face_number fn = 0; fn < m_faces_per_element; ++fn)
+                const mesh_data::element_number en = el.m_element_info->m_id;
+
+                const hedge::face_pair &fp = *map_get(
+                    m_el_face_to_face_pair,
+                    std::make_pair(en, fn));
+                const hedge::fluxes::face &this_f = m_face_group->flux_faces[
+                  fp.flux_face_index];
+                const hedge::fluxes::face &opp_f = m_face_group->flux_faces[
+                  fp.opp_flux_face_index];
+
+                bool is_opposite = en != this_f.element_id;
+
+                if (is_opposite && en != opp_f.element_id)
+                  throw std::runtime_error("el/face lookup failed");
+
+                const hedge::fluxes::face &flux_face(is_opposite ? opp_f : this_f);
+
+                const scalar_t n_dot_v = inner_prod(v, flux_face.normal);
+                const bool inflow = n_dot_v <= 0;
+                const bool active = el.m_connections[fn] != mesh_data::INVALID_ELEMENT;
+
+                /*
+                   std::cout << "EINF " << en << ' ' << fn << ' ' 
+                   << inflow << ' ' << active << std::endl;
+                   */
+
+                const double int_coeff = 
+                  flux_face.face_jacobian*0.5*(-n_dot_v + norm_v);
+                  //flux_face.face_jacobian*0.5*(-n_dot_v);
+                const double ext_coeff = 
+                  flux_face.face_jacobian*0.5*-(-n_dot_v + norm_v);
+                  //flux_face.face_jacobian*0.5*-(-n_dot_v);
+
+                if (active)
                 {
-                  const mesh_data::element_number en = el.m_element_info->m_id;
+                  hedge::index_list &idx_list(is_opposite ?
+                      m_face_group->index_lists[fp.opp_face_index_list_number]
+                      : m_face_group->index_lists[fp.face_index_list_number]);
+                  hedge::index_list &opp_idx_list(is_opposite ?
+                      m_face_group->index_lists[fp.face_index_list_number]
+                      : m_face_group->index_lists[fp.opp_face_index_list_number]);
 
-                  const hedge::face_pair &fp = *m_el_face_to_face_pair[
-                    std::make_pair(en, fn)];
-                  const hedge::fluxes::face &this_f = m_face_group->flux_faces[
-                    fp.flux_face_index];
-                  const hedge::fluxes::face &opp_f = m_face_group->flux_faces[
-                    fp.opp_flux_face_index];
+                  const mesh_data::node_index this_base_idx = el.m_start_index;
+                  const active_element *opp_el = p.find_element(el.m_connections[fn]);
+                  const mesh_data::node_index opp_base_idx = opp_el->m_start_index;
 
-                  bool is_opposite = en != this_f.element_id;
+                  if (opp_el == 0)
+                    throw std::runtime_error("opposite element for active connection not found");
 
-                  if (is_opposite && en != opp_f.element_id)
-                    throw std::runtime_error("el/face lookup failed");
+                  const unsigned face_length = m_face_mass_matrix.size1();
+                  assert(face_length == idx_list.size());
+                  assert(face_length == opp_idx_list.size());
 
-                  const hedge::fluxes::face &flux_face(is_opposite ? opp_f : this_f);
-
-                  const scalar_t n_dot_v = inner_prod(v, flux_face.normal);
-                  const bool inflow = n_dot_v <= 0;
-                  const bool active = el.m_connections[fn] != mesh_data::INVALID_ELEMENT;
-
-                  /*
-                  std::cout << "EINF " << en << ' ' << fn << ' ' 
-                    << inflow << ' ' << active << std::endl;
-                    */
-
-                  if (active)
+                  for (unsigned i = 0; i < face_length; i++)
                   {
-                    hedge::index_list &idx_list(is_opposite ?
-                        m_face_group->index_lists[fp.opp_face_index_list_number]
-                        : m_face_group->index_lists[fp.face_index_list_number]);
-                    hedge::index_list &opp_idx_list(is_opposite ?
-                        m_face_group->index_lists[fp.face_index_list_number]
-                        : m_face_group->index_lists[fp.opp_face_index_list_number]);
+                    const int ili = this_base_idx+idx_list[i];
 
-                    const mesh_data::node_index this_base_idx = el.m_start_index;
-                    const active_element *opp_el = p.find_element(el.m_connections[fn]);
-                    const mesh_data::node_index opp_base_idx = opp_el->m_start_index;
-                    
-                    if (opp_el == 0)
-                      throw std::runtime_error("opposite element for active connection not found");
+                    hedge::index_list::const_iterator ilj_iterator = idx_list.begin();
+                    hedge::index_list::const_iterator oilj_iterator = opp_idx_list.begin();
 
-                    const unsigned face_length = m_face_mass_matrix.size1();
-                    assert(face_length == idx_list.size());
-                    assert(face_length == opp_idx_list.size());
+                    scalar_t res_ili_addition = 0;
 
-                    const double int_coeff = 
-                      flux_face.face_jacobian*0.5*(-n_dot_v + norm_v);
-                    const double ext_coeff = 
-                      flux_face.face_jacobian*0.5*-(-n_dot_v + norm_v);
-
-                    for (unsigned i = 0; i < face_length; i++)
+                    for (unsigned j = 0; j < face_length; j++)
                     {
-                      const int ili = this_base_idx+idx_list[i];
+                      const scalar_t fmm_entry = m_face_mass_matrix(i, j);
 
-                      hedge::index_list::const_iterator ilj_iterator = idx_list.begin();
-                      hedge::index_list::const_iterator oilj_iterator = opp_idx_list.begin();
+                      const int ilj = this_base_idx+*ilj_iterator++;
+                      const int oilj = opp_base_idx+*oilj_iterator++;
 
-                      scalar_t res_ili_addition = 0;
-
-                      for (unsigned j = 0; j < face_length; j++)
-                      {
-                        const scalar_t fmm_entry = m_face_mass_matrix(i, j);
-
-                        const int ilj = this_base_idx+*ilj_iterator++;
-                        const int oilj = opp_base_idx+*oilj_iterator++;
-
-                        res_ili_addition += 
-                          m_rho[ilj]*int_coeff*fmm_entry
-                          +m_rho[oilj]*ext_coeff*fmm_entry;
-                      }
-
-                      fluxes[ili] += res_ili_addition;
+                      res_ili_addition += 
+                        m_rho[ilj]*int_coeff*fmm_entry
+                        +m_rho[oilj]*ext_coeff*fmm_entry;
                     }
-                  }
-                  else if (!active && inflow)
-                  {
 
+                    fluxes[ili] += res_ili_addition;
                   }
-                  else if (!active && !inflow)
-                  {
+                }
+                else if (!active && inflow)
+                {
+                  // std::cout << "AI" << flux_face.normal << int_coeff << ' ' << ext_coeff << std::endl;
 
+                  hedge::index_list &idx_list(is_opposite ?
+                      m_face_group->index_lists[fp.opp_face_index_list_number]
+                      : m_face_group->index_lists[fp.face_index_list_number]);
+
+                  const mesh_data::node_index this_base_idx = el.m_start_index;
+
+                  const unsigned face_length = m_face_mass_matrix.size1();
+                  assert(face_length == idx_list.size());
+
+                  for (unsigned i = 0; i < face_length; i++)
+                  {
+                    const int ili = this_base_idx+idx_list[i];
+
+                    hedge::index_list::const_iterator ilj_iterator = idx_list.begin();
+
+                    scalar_t res_ili_addition = 0;
+
+                    for (unsigned j = 0; j < face_length; j++)
+                    {
+                      const scalar_t fmm_entry = m_face_mass_matrix(i, j);
+
+                      const int ilj = this_base_idx+*ilj_iterator++;
+
+                      res_ili_addition += m_rho[ilj]*int_coeff*fmm_entry;
+                    }
+
+                    fluxes[ili] += res_ili_addition;
                   }
+                }
+                else if (!active && !inflow)
+                {
+
                 }
               }
             }
             ++pn;
           }
 
-          // apply inverse mass matrix to fluxes ------------------------------
-          hedge::vector minv_fluxes(dofs);
-          {
-            hedge::matrix &matrix = m_inverse_mass_matrix;
-            gemm(
-                'T', // "matrix" is row-major
-                'N', // a contiguous array of vectors is column-major
-                matrix.size1(),
-                active_contiguous_elements,
-                matrix.size2(),
-                /*alpha*/ 1,
-                /*a*/ traits::matrix_storage(matrix), 
-                /*lda*/ matrix.size2(),
-                /*b*/ traits::vector_storage(fluxes), 
-                /*ldb*/ m_dofs_per_element,
-                /*beta*/ 1,
-                /*c*/ traits::vector_storage(minv_fluxes),
-                /*ldc*/ m_dofs_per_element
-                );
+          return fluxes;
+        }
 
-            // perform jacobian scaling
-            BOOST_FOREACH(advected_particle &p, m_advected_particles)
-              BOOST_FOREACH(active_element &el, p.m_elements)
-                subrange(minv_fluxes, 
+
+
+
+        hedge::vector apply_elementwise_inverse_mass_matrix(hedge::vector const &operand) const
+        {
+          hedge::vector result(m_rho.size());
+          result.clear();
+
+          const unsigned active_contiguous_elements = 
+            m_active_elements + m_freelist.size();
+
+          using namespace boost::numeric::bindings;
+          using blas::detail::gemm;
+
+          const hedge::matrix &matrix = m_inverse_mass_matrix;
+          gemm(
+              'T', // "matrix" is row-major
+              'N', // a contiguous array of vectors is column-major
+              matrix.size1(),
+              active_contiguous_elements,
+              matrix.size2(),
+              /*alpha*/ 1,
+              /*a*/ traits::matrix_storage(matrix), 
+              /*lda*/ matrix.size2(),
+              /*b*/ traits::vector_storage(operand), 
+              /*ldb*/ m_dofs_per_element,
+              /*beta*/ 1,
+              /*c*/ traits::vector_storage(result),
+              /*ldc*/ m_dofs_per_element
+              );
+
+          // perform jacobian scaling
+          BOOST_FOREACH(const advected_particle &p, m_advected_particles)
+            BOOST_FOREACH(const active_element &el, p.m_elements)
+            {
+              subrange(result, 
+                  el.m_start_index, 
+                  el.m_start_index+m_dofs_per_element) *= 
+              1/el.m_element_info->m_jacobian;
+              /*
+              std::cout 
+                << "MINV "
+                << el.m_element_info->m_id
+                << ' '
+                << el.m_start_index
+                << ' '
+                << norm_2(subrange(operand, 
                     el.m_start_index, 
-                    el.m_start_index+m_dofs_per_element) *= 1/el.m_element_info->m_jacobian;
-          }
+                    el.m_start_index+m_dofs_per_element))
+                << ' '
+                << norm_2(subrange(result, 
+                    el.m_start_index, 
+                    el.m_start_index+m_dofs_per_element))
+                << std::endl;
+              */
+            }
 
-          // end result -------------------------------------------------------
-          std::cout 
-            << "RHS "
-            << norm_2(subrange(fluxes, 
-                0, active_contiguous_elements*m_dofs_per_element)) 
-            << ' ' 
-            << norm_2(subrange(local_div-minv_fluxes, 
-                0, active_contiguous_elements*m_dofs_per_element)) 
-            << std::endl;
-          return local_div - minv_fluxes;
+          return result;
+        }
+
+
+
+
+        hedge::vector get_advective_particle_rhs(hedge::vector const &velocities) const
+        {
+          return calculate_local_div(velocities) 
+          - apply_elementwise_inverse_mass_matrix(calculate_fluxes(velocities));
         }
         
 
@@ -633,6 +730,7 @@ namespace pyrticle
 
         void apply_advective_particle_rhs(hedge::vector const &rhs)
         {
+          /*
           std::cout 
             << "APPLY "
             << norm_2(subrange(rhs, 
@@ -642,7 +740,12 @@ namespace pyrticle
                 0, (m_active_elements+m_freelist.size())*m_dofs_per_element)) 
             << " "
             << norm_2(rhs)
+            << " "
+            << norm_2(m_rho)
+            << " "
+            << norm_2(m_rho+rhs)
             << std::endl;
+            */
           m_rho += rhs;
         }
 
