@@ -54,12 +54,14 @@ class AdvectiveReconstructor(object):
         self.cloud = cloud
         discr = cloud.mesh_data.discr
         
-        assert len(discr.face_groups) == 1
-        assert len(discr.element_groups) == 1
-
-        eg = discr.element_groups[0]
-        fg, fmm = discr.face_groups[0]
+        eg, = discr.element_groups
+        (fg, fmm), = discr.face_groups
         ldis = eg.local_discretization
+
+        from hedge.mesh import TAG_ALL
+        bdry = discr._get_boundary(TAG_ALL)
+
+        (bdry_fg, _), = bdry.face_groups_and_ldis
 
         cloud.pic_algorithm.setup_advective_reconstructor(
                 len(ldis.face_indices()),
@@ -67,7 +69,8 @@ class AdvectiveReconstructor(object):
                 ldis.mass_matrix(),
                 ldis.inverse_mass_matrix(),
                 fmm,
-                fg)
+                fg,
+                bdry_fg)
 
         for i, diffmat in enumerate(ldis.differentiation_matrices()):
             cloud.pic_algorithm.add_local_diff_matrix(i, diffmat)

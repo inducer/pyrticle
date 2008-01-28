@@ -184,6 +184,9 @@ def main():
                         ("e", fields.e), 
                         ("h", fields.h), 
 
+                        ("active_elements", 
+                            cloud.pic_algorithm.get_debug_quantity_on_mesh(
+                                "active_elements", cloud.raw_velocities())),
                         ("rho", cloud.reconstruct_rho()),
                         ("j", cloud.reconstruct_j()), 
                         ],
