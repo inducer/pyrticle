@@ -244,6 +244,51 @@ namespace pyrticle
         void perform_reconstructor_upkeep()
         {
           // retire empty particle subelements 
+          particle_number pn = 0;
+          BOOST_FOREACH(advected_particle &p, m_advected_particles)
+          {
+            double particle_charge = fabs(CONST_PIC_THIS->m_charges[pn]);
+            for (unsigned i_el = 0; i_el < p.m_elements.size(); ++i_el)
+            {
+              const active_element &el = p.m_elements[i_el];
+
+              const double element_charge = element_l1(
+                  el.m_element_info->m_jacobian,
+                  subrange(
+                    m_rho,
+                    el.m_start_index,
+                    el.m_start_index+m_dofs_per_element));
+
+              if (element_charge / particle_charge < 0.01)
+              {
+                // retire this element
+                const hedge::element_number en = el.m_element_info->m_id;
+
+                // kill connections
+                for (hedge::face_number fn = 0; fn < m_faces_per_element; ++fn)
+                {
+                  hedge::element_number connected_en = el.m_connections[fn];
+                  if (connected_en != hedge::INVALID_ELEMENT)
+                  {
+                    active_element &connected_el = *p.find_element(connected_en);
+
+                    for (hedge::face_number cfn = 0; cfn < m_faces_per_element; ++cfn)
+                    {
+                      if (connected_el.m_connections[cfn] == en)
+                        connected_el.m_connections[cfn] = hedge::INVALID_ELEMENT;
+                    }
+                  }
+                }
+
+                // kill the element
+                p.m_elements.erase(p.m_elements.begin()+i_el);
+              }
+              else
+                ++i_el;
+            }
+
+            ++pn;
+          }
         }
 
 
@@ -878,7 +923,19 @@ namespace pyrticle
         template <class VectorExpression>
         double element_integral(double jacobian, const VectorExpression &ve)
         {
-          return jacobian * inner_prod(m_face_integral_weights, prod(m_mass_matrix, ve));
+          return jacobian * inner_prod(m_integral_weights, ve);
+        }
+
+
+
+
+        template <class VectorExpression>
+        double element_l1(double jacobian, const VectorExpression &ve)
+        {
+          hedge::vector u(ve.size());
+          for (unsigned i = 0; i < ve.size(); ++i)
+            u(i) = fabs(ve(i));
+          return jacobian * inner_prod(m_integral_weights, u);
         }
     };
   };
