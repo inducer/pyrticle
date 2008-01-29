@@ -69,7 +69,7 @@ class ActiveAdvectiveElements (pytools.log.LogQuantity):
 class AdvectiveReconstructor(object):
     name = "Advective"
 
-    def __init__(self):
+    def __init__(self, activation_threshold, kill_threshold):
         from pyrticle.tools import DOFShiftForwarder
         self.rho_shift_signaller = DOFShiftForwarder()
 
@@ -84,6 +84,9 @@ class AdvectiveReconstructor(object):
                 "t_advective_rhs",
                 "Time spent evaluating advective RHS")
         self.active_elements_log = ActiveAdvectiveElements(self)
+
+        self.activation_threshold = activation_threshold
+        self.kill_threshold = kill_threshold
 
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.element_activation_counter)
@@ -111,7 +114,9 @@ class AdvectiveReconstructor(object):
                 ldis.inverse_mass_matrix(),
                 fmm,
                 fg,
-                bdry_fg)
+                bdry_fg,
+                self.activation_threshold,
+                self.kill_threshold)
 
         for i, diffmat in enumerate(ldis.differentiation_matrices()):
             cloud.pic_algorithm.add_local_diff_matrix(i, diffmat)

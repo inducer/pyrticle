@@ -101,7 +101,9 @@ def main():
             AdvectiveReconstructor
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
-            AdvectiveReconstructor(),
+            AdvectiveReconstructor(
+                activation_threshold=0.01,
+                kill_threshold=0.001),
             MonomialParticlePusher(),
             dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)

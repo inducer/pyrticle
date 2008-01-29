@@ -153,12 +153,16 @@ namespace pyrticle
 
         event_counter m_element_activation_counter, m_element_kill_counter;
 
+        double m_activation_threshold;
+        double m_kill_threshold;
+
 
 
 
         // public interface ---------------------------------------------------
         type()
-          : m_faces_per_element(0), m_dofs_per_element(0), m_active_elements(0)
+          : m_faces_per_element(0), m_dofs_per_element(0), m_active_elements(0),
+          m_activation_threshold(0), m_kill_threshold(0)
         { }
 
 
@@ -250,6 +254,9 @@ namespace pyrticle
         void perform_reconstructor_upkeep()
         {
           // retire empty particle subelements 
+          if (m_kill_threshold == 0)
+            throw std::runtime_error("zero kill threshold");
+
           particle_number pn = 0;
           BOOST_FOREACH(advected_particle &p, m_advected_particles)
           {
@@ -268,7 +275,7 @@ namespace pyrticle
                     el.m_start_index,
                     el.m_start_index+m_dofs_per_element));
 
-              if (el.m_min_life == 0  && element_charge / particle_charge < 0.001)
+              if (el.m_min_life == 0  && element_charge / particle_charge < m_kill_threshold)
               {
                 // retire this element
                 const hedge::element_number en = el.m_element_info->m_id;
@@ -313,7 +320,9 @@ namespace pyrticle
             const hedge::matrix &inverse_mass_matrix,
             const hedge::matrix &face_mass_matrix,
             boost::shared_ptr<hedge::face_group> int_face_group,
-            boost::shared_ptr<hedge::face_group> bdry_face_group
+            boost::shared_ptr<hedge::face_group> bdry_face_group,
+            double activation_threshold,
+            double kill_threshold
             )
         {
           m_faces_per_element = faces_per_element;
@@ -355,6 +364,9 @@ namespace pyrticle
               [std::make_pair(f.element_id, f.face_id)] = 
               face_pair_locator(*bdry_face_group, fp);
           }
+
+          m_activation_threshold = activation_threshold;
+          m_kill_threshold = kill_threshold;
         }
 
 
@@ -654,6 +666,9 @@ namespace pyrticle
 
         hedge::vector calculate_fluxes(hedge::vector const &velocities)
         {
+          if (m_activation_threshold == 0)
+            throw std::runtime_error("zero activation threshold");
+
           const double upwind_alpha = 1;
 
           hedge::vector fluxes(m_rho.size());
@@ -764,7 +779,7 @@ namespace pyrticle
                         fabs(m_rho[this_base_idx+(*idx_list)[i]]));
 
                   // std::cout << max_density << ' ' << shape_peak << std::endl;
-                  if (max_density > 0.01*fabs(shape_peak))
+                  if (max_density > m_activation_threshold*fabs(shape_peak))
                   {
                     // yes, activate the opposite element
 
