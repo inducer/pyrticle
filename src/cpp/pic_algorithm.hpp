@@ -60,7 +60,6 @@ namespace pyrticle
         mutable event_counter             m_find_by_vertex;
         mutable event_counter             m_find_global;
 
-      private:
         boost::shared_ptr<dof_shift_listener> m_pos_dof_shift_listener;
         boost::shared_ptr<dof_shift_listener> m_velocity_dof_shift_listener;
 
@@ -71,15 +70,6 @@ namespace pyrticle
           m_particle_count(0),
           m_vacuum_c(vacuum_c)
         { }
-
-        void set_dof_shift_listeners(
-            boost::shared_ptr<dof_shift_listener> pos_listener,
-            boost::shared_ptr<dof_shift_listener> velocity_listener
-            )
-        {
-          m_pos_dof_shift_listener = pos_listener;
-          m_velocity_dof_shift_listener = velocity_listener;
-        }
 
         // dimensions ---------------------------------------------------------
         static const unsigned dimensions_pos = DimensionsPos;
@@ -329,20 +319,15 @@ namespace pyrticle
           m_containing_elements[to] = m_containing_elements[from];
 
           for (unsigned i = 0; i < xdim; i++)
-          {
             m_positions[to*xdim+i] = m_positions[from*xdim+i];
-
-            if (m_pos_dof_shift_listener.get())
-              m_pos_dof_shift_listener->note_move_dof(from*xdim+i, to*xdim+i);
-          }
+          if (m_pos_dof_shift_listener.get())
+            m_pos_dof_shift_listener->note_move_dof(from*xdim, to*xdim, xdim);
 
           for (unsigned i = 0; i < vdim; i++)
-          {
             m_momenta[to*vdim+i] = m_momenta[from*vdim+i];
 
-            if (m_velocity_dof_shift_listener.get())
-              m_velocity_dof_shift_listener->note_move_dof(from*vdim+i, to*vdim+i);
-          }
+          if (m_velocity_dof_shift_listener.get())
+            m_velocity_dof_shift_listener->note_move_dof(from*vdim, to*vdim, vdim);
 
           m_charges[to] = m_charges[from];
           m_masses[to] = m_masses[from];

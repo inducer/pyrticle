@@ -51,9 +51,13 @@ class DOFShiftSignaller:
         for subscriber in self.subscribers.iterkeys():
             subscriber.change_size(new_size)
 
-    def move_dof(self, orig, dest):
+    def move_dof(self, orig, dest, size):
         for subscriber in self.subscribers.iterkeys():
-            subscriber.move_dof(orig, dest)
+            subscriber.move_dof(orig, dest, size)
+
+    def zap_dof(self, start, size):
+        for subscriber in self.subscribers.iterkeys():
+            subscriber.zap_dof(start, size)
 
 
 
@@ -65,8 +69,11 @@ class DOFShiftForwarder(_internal.DOFShiftListener, DOFShiftSignaller):
     def note_change_size(self, new_size):
         self.change_size(new_size)
 
-    def note_move_dof(self, orig, dest):
-        self.move_dof(orig, dest)
+    def note_move_dof(self, orig, dest, size):
+        self.move_dof(orig, dest, size)
+
+    def note_zap_dof(self, start, size):
+        self.zap_dof(start, size)
 
 
 
@@ -131,5 +138,8 @@ class DOFShiftableVector(object):
         elif new_size < old_size:
             self.vector = self.vector[:new_size]
 
-    def move_dof(self, orig, dest):
-        self.vector[dest] = self.vector[orig]
+    def move_dof(self, orig, dest, size):
+        self.vector[dest:dest+size] = self.vector[orig:orig+size]
+
+    def zap_dof(self, start, size):
+        self.vector[start:start+size] = 0

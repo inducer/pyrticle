@@ -92,6 +92,9 @@ namespace
       .DEF_RO_MEMBER(find_by_vertex)
       .DEF_RO_MEMBER(find_global)
 
+      .DEF_RW_MEMBER(pos_dof_shift_listener)
+      .DEF_RW_MEMBER(velocity_dof_shift_listener)
+
       .DEF_SIMPLE_METHOD(velocities)
 
       .DEF_SIMPLE_METHOD(move_particle)
@@ -101,8 +104,6 @@ namespace
       .DEF_SIMPLE_METHOD(update_containing_elements)
 
       .DEF_SIMPLE_METHOD(kill_particle)
-
-      .DEF_SIMPLE_METHOD(set_dof_shift_listeners)
       ;
 
     if (PICAlgorithm::get_dimensions_velocity() == 3)

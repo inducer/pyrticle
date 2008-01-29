@@ -175,28 +175,37 @@ def main():
     for step in xrange(nsteps):
         logmgr.tick()
 
-        if True:
-            vis_timer.start()
-            visf = vis.make_file("pic-%04d" % step)
+        def rhs(t, y):
+            print "SUBSTEP %d" % substep[0]
+            if True:
+                vis_timer.start()
+                visf = vis.make_file("pic-%04d" % substep[0])
+                substep[0] += 1
 
-            vis.add_data(visf, [
-                        ("divD", max_op.epsilon*div_op(fields.e)),
-                        ("e", fields.e), 
-                        ("h", fields.h), 
+                vis.add_data(visf, [
+                            ("divD", max_op.epsilon*div_op(fields.e)),
+                            ("e", fields.e), 
+                            ("h", fields.h), 
 
-                        ("active_elements", 
-                            cloud.pic_algorithm.get_debug_quantity_on_mesh(
-                                "active_elements", cloud.raw_velocities())),
-                        ("rho", cloud.reconstruct_rho()),
-                        ("j", cloud.reconstruct_j()), 
-                        ],
-                        time=t, step=step,
-                        expressions=[
-                            ])
-            visf.close()
-            vis_timer.stop()
+                            ("active_elements", 
+                                cloud.pic_algorithm.get_debug_quantity_on_mesh(
+                                    "active_elements", cloud.raw_velocities())),
+                            ("rhorhs", 
+                                cloud.pic_algorithm.get_debug_quantity_on_mesh(
+                                    "rhs", cloud.raw_velocities())),
+                            ("rho", cloud.reconstruct_rho()),
+                            ("j", cloud.reconstruct_j()), 
+                            ],
+                            time=t, step=step,
+                            expressions=[
+                                ])
+                visf.close()
+                vis_timer.stop()
+
+            return fields.rhs(t, y)
+
         cloud.upkeep()
-        fields = stepper(fields, t, dt, fields.rhs)
+        fields = stepper(fields, t, dt, rhs)
 
         t += dt
 

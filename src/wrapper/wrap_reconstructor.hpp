@@ -58,6 +58,7 @@ namespace pyrticle
       .def("setup_advective_reconstructor", 
           &cl::setup_advective_reconstructor,
           (arg("dofs_per_element")))
+      .DEF_RW_MEMBER(rho_dof_shift_listener)
       .DEF_SIMPLE_METHOD(add_local_diff_matrix)
       .DEF_SIMPLE_METHOD(add_advective_particle)
       .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)

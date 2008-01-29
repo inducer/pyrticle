@@ -50,6 +50,10 @@ class ShapeFunctionReconstructor(object):
 class AdvectiveReconstructor(object):
     name = "Advective"
 
+    def __init__(self):
+        from pyrticle.tools import DOFShiftForwarder
+        self.rho_shift_signaller = DOFShiftForwarder()
+
     def initialize(self, cloud):
         self.cloud = cloud
         discr = cloud.mesh_data.discr
@@ -77,6 +81,8 @@ class AdvectiveReconstructor(object):
 
         self.radius = 0.5*cloud.mesh_data.min_vertex_distance()
 
+        cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
+
     def add_instrumentation(self, mgr):
         pass
 
@@ -84,7 +90,13 @@ class AdvectiveReconstructor(object):
         self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
 
     def rhs(self):
-        return self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.raw_velocities())
+        from pyrticle.tools import DOFShiftableVector
+        return DOFShiftableVector(
+                self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.raw_velocities()),
+                self.rho_shift_signaller
+                )
 
     def add_rhs(self, rhs):
-        self.cloud.pic_algorithm.apply_advective_particle_rhs(rhs)
+        from pyrticle.tools import DOFShiftableVector
+        self.cloud.pic_algorithm.apply_advective_particle_rhs(
+                DOFShiftableVector.unwrap(rhs))

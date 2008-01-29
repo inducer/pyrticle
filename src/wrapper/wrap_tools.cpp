@@ -61,9 +61,14 @@ namespace
       this->get_override("note_change_size")(new_size);
     }
 
-    void note_move_dof(unsigned orig, unsigned dest) const
+    void note_move_dof(unsigned orig, unsigned dest, unsigned size) const
     {
-      this->get_override("note_move_dof")(orig, dest);
+      this->get_override("note_move_dof")(orig, dest, size);
+    }
+
+    void note_zap_dof(unsigned start, unsigned size) const
+    {
+      this->get_override("note_zap_dof")(start, size);
     }
   };
 }

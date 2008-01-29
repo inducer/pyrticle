@@ -28,6 +28,7 @@
 #include <vector>
 #include <numeric>
 #include <boost/array.hpp>
+#include <boost/format.hpp>
 #include <boost/foreach.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
@@ -64,6 +65,7 @@ namespace pyrticle
           const mesh_data::element_info *m_element_info;
           boost::array<mesh_data::element_number, type::max_faces> m_connections;
           unsigned m_start_index;
+          unsigned m_min_life;
 
           active_element()
             : m_element_info(0)
@@ -101,6 +103,7 @@ namespace pyrticle
             }
             return 0;
           }
+
         };
 
 
@@ -146,6 +149,7 @@ namespace pyrticle
 
         hedge::vector                   m_rho;
 
+        boost::shared_ptr<dof_shift_listener> m_rho_dof_shift_listener;
 
 
 
@@ -250,7 +254,12 @@ namespace pyrticle
             double particle_charge = fabs(CONST_PIC_THIS->m_charges[pn]);
             for (unsigned i_el = 0; i_el < p.m_elements.size(); ++i_el)
             {
-              const active_element &el = p.m_elements[i_el];
+              active_element &el = p.m_elements[i_el];
+
+              /*
+              if (el.m_min_life)
+                --el.m_min_life;
+                */
 
               const double element_charge = element_l1(
                   el.m_element_info->m_jacobian,
@@ -259,7 +268,7 @@ namespace pyrticle
                     el.m_start_index,
                     el.m_start_index+m_dofs_per_element));
 
-              if (element_charge / particle_charge < 0.01)
+              if (/*el.m_min_life == 0  &&*/ element_charge / particle_charge < 0.01)
               {
                 // retire this element
                 const hedge::element_number en = el.m_element_info->m_id;
@@ -279,6 +288,12 @@ namespace pyrticle
                     }
                   }
                 }
+
+                std::cout 
+                  << boost::format("KILL %d @ %d") % el.m_element_info->m_id % el.m_start_index
+                  << std::endl;
+
+                deallocate_element(el.m_start_index);
 
                 // kill the element
                 p.m_elements.erase(p.m_elements.begin()+i_el);
@@ -360,6 +375,25 @@ namespace pyrticle
 
 
 
+          void dump_particle(advected_particle const &p) const
+          {
+            std::cout << "particle, radius " << p.m_radius << std::endl;
+            unsigned i_el = 0;
+            BOOST_FOREACH(const active_element &el, p.m_elements)
+            {
+              std::cout << "#" << el.m_element_info->m_id << " cnx:(";
+              for (unsigned fn = 0; fn < m_faces_per_element; ++fn)
+                if (el.m_connections[fn] == hedge::INVALID_ELEMENT)
+                  std::cout << "X" << ',';
+                else
+                  std::cout << el.m_connections[fn]  << ',';
+
+              std::cout << ")" << std::endl;
+
+              ++i_el;
+            }
+
+          }
         // vectors space administration ---------------------------------------
         /* Each element occupies a certain index range in the global state
          * vector m_rho (as well as elsewhere). These functions perform
@@ -386,8 +420,12 @@ namespace pyrticle
 
           if (m_freelist.size())
           {
+            ++m_active_elements;
             unsigned result = m_freelist.back();
             m_freelist.pop_back();
+            std::cout 
+              << boost::format("alloc %d") % (result*m_dofs_per_element)
+              << std::endl; 
             return result*m_dofs_per_element;
           }
 
@@ -398,6 +436,9 @@ namespace pyrticle
           if (m_active_elements == avl_space)
             resize_state(2*m_rho.size());
 
+            std::cout 
+              << boost::format("alloc %d") % ((m_active_elements)*m_dofs_per_element)
+              << std::endl; 
           return (m_active_elements++)*m_dofs_per_element;
         }
 
@@ -412,6 +453,13 @@ namespace pyrticle
           // unless we're deallocating the last element, add it to the freelist.
           if (el_index != m_active_elements+m_freelist.size())
             m_freelist.push_back(el_index);
+
+          if (m_rho_dof_shift_listener.get())
+            m_rho_dof_shift_listener->note_zap_dof(start_index, m_dofs_per_element);
+
+          std::cout 
+            << boost::format("dealloc %d") % start_index
+            << std::endl; 
         }
 
 
@@ -474,12 +522,13 @@ namespace pyrticle
           active_element new_element;
           new_element.m_element_info = &einfo;
           unsigned start = new_element.m_start_index = allocate_element();
+          new_element.m_min_life = 0;
 
           shape_function sf(new_particle.m_radius, dimensions_mesh);
 
           for (unsigned i = 0; i < m_dofs_per_element; ++i)
             m_rho[start+i] =
-                sf(CONST_PIC_THIS->m_mesh_data.m_nodes[einfo.m_start+i]-center);
+              sf(CONST_PIC_THIS->m_mesh_data.m_nodes[einfo.m_start+i]-center);
 
           new_particle.m_elements.push_back(new_element);
         }
@@ -635,11 +684,11 @@ namespace pyrticle
 
             for (unsigned i_el = 0; i_el < p.m_elements.size(); ++i_el)
             {
-              const active_element &el = p.m_elements[i_el];
+              active_element const *el = &p.m_elements[i_el];
 
               for (hedge::face_number fn = 0; fn < m_faces_per_element; ++fn)
               {
-                const mesh_data::element_number en = el.m_element_info->m_id;
+                const mesh_data::element_number en = el->m_element_info->m_id;
 
                 /* Find correct fluxes::face instance
                  *
@@ -699,7 +748,7 @@ namespace pyrticle
                 // Find information about this face
                 const scalar_t n_dot_v = inner_prod(v, flux_face->normal);
                 const bool inflow = n_dot_v <= 0;
-                bool active = el.m_connections[fn] != mesh_data::INVALID_ELEMENT;
+                bool active = el->m_connections[fn] != mesh_data::INVALID_ELEMENT;
 
                 if (is_boundary && active)
                   throw std::runtime_error("detected boundary non-connection as active");
@@ -709,7 +758,7 @@ namespace pyrticle
                 const double ext_coeff = 
                   flux_face->face_jacobian*0.5*-(-n_dot_v + norm_v);
 
-                const mesh_data::node_index this_base_idx = el.m_start_index;
+                const mesh_data::node_index this_base_idx = el->m_start_index;
 
                 // activate outflow, if necessary -----------------------------
                 if (!is_boundary && !active && !inflow)
@@ -728,6 +777,7 @@ namespace pyrticle
                     // yes, activate the opposite element
 
                     const hedge::element_number opp_en = opposite_flux_face->element_id;
+
                     const mesh_data::element_info &opp_einfo(
                         CONST_PIC_THIS->m_mesh_data.m_element_info[opp_en]);
 
@@ -737,6 +787,12 @@ namespace pyrticle
                     unsigned start = opp_element.m_start_index = allocate_element();
                     subrange(m_rho, start, start+m_dofs_per_element) = 
                       boost::numeric::ublas::zero_vector<double>(m_dofs_per_element);
+
+                    opp_element.m_min_life = 10;
+
+                    std::cout 
+                      << boost::format("ACTIVATE %d @ %d") % opp_en % start
+                      << std::endl;
 
                     // update connections
                     hedge::face_number opp_fn = 0;
@@ -783,6 +839,11 @@ namespace pyrticle
 
                     p.m_elements.push_back(opp_element);
 
+                    // modification of m_elements might have invalidated el,
+                    // refresh it
+
+                    el = &p.m_elements[i_el];
+
                     active = true;
                   }
                 }
@@ -790,11 +851,16 @@ namespace pyrticle
                 // treat fluxes between active elements -----------------------
                 if (active)
                 {
-                  const active_element *opp_el = p.find_element(el.m_connections[fn]);
+                  const active_element *opp_el = p.find_element(el->m_connections[fn]);
                   const mesh_data::node_index opp_base_idx = opp_el->m_start_index;
 
                   if (opp_el == 0)
-                    throw std::runtime_error("opposite element for active connection not found");
+                  {
+                    dump_particle(p);
+                    throw std::runtime_error(
+                        str(boost::format("opposite element %d of (el:%d,face:%d) for active connection not found")
+                        % el->m_connections[fn] % en % fn).c_str());
+                  }
 
                   const unsigned face_length = m_face_mass_matrix.size1();
                   assert(face_length == idx_list->size());

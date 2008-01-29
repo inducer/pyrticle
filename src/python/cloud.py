@@ -125,9 +125,8 @@ class ParticleCloud:
         from pyrticle.tools import DOFShiftForwarder
         self.pos_shift_signaller = DOFShiftForwarder()
         self.velocity_shift_signaller = DOFShiftForwarder()
-        self.pic_algorithm.set_dof_shift_listeners(
-                self.pos_shift_signaller,
-                self.velocity_shift_signaller)
+        self.pic_algorithm.pos_dof_shift_listener = self.pos_shift_signaller
+        self.pic_algorithm.velocity_dof_shift_listener = self.velocity_shift_signaller
 
     def __len__(self):
         return self.pic_algorithm.particle_count
