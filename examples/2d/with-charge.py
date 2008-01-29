@@ -69,7 +69,7 @@ def main():
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TriangularElement(5))
+    discr = pcon.make_discretization(mesh, TriangularElement(7))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
@@ -80,7 +80,7 @@ def main():
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.max_eigenvalue())
-    final_time = 2*units.M/max_op.c
+    final_time = 15*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -147,7 +147,7 @@ def main():
     add_general_quantities(logmgr)
     add_simulation_quantities(logmgr, dt)
     add_particle_quantities(logmgr, cloud)
-    add_field_quantities(logmgr, fields)
+    add_field_quantities(logmgr, fields, reconstruct_interval=1)
     add_beam_quantities(logmgr, cloud, axis=1, beam_axis=0)
     add_currents(logmgr, fields, (1,0), tube_length)
 
@@ -171,41 +171,34 @@ def main():
     # timestepping ------------------------------------------------------------
     t = 0
 
-    substep = [0]
     for step in xrange(nsteps):
         logmgr.tick()
 
-        def rhs(t, y):
-            print "SUBSTEP %d" % substep[0]
-            if True:
-                vis_timer.start()
-                visf = vis.make_file("pic-%04d" % substep[0])
-                substep[0] += 1
-
-                vis.add_data(visf, [
-                            ("divD", max_op.epsilon*div_op(fields.e)),
-                            ("e", fields.e), 
-                            ("h", fields.h), 
-
-                            ("active_elements", 
-                                cloud.pic_algorithm.get_debug_quantity_on_mesh(
-                                    "active_elements", cloud.raw_velocities())),
-                            ("rhorhs", 
-                                cloud.pic_algorithm.get_debug_quantity_on_mesh(
-                                    "rhs", cloud.raw_velocities())),
-                            ("rho", cloud.reconstruct_rho()),
-                            ("j", cloud.reconstruct_j()), 
-                            ],
-                            time=t, step=step,
-                            expressions=[
-                                ])
-                visf.close()
-                vis_timer.stop()
-
-            return fields.rhs(t, y)
-
         cloud.upkeep()
-        fields = stepper(fields, t, dt, rhs)
+        fields = stepper(fields, t, dt, fields.rhs)
+
+        if True:
+            vis_timer.start()
+            visf = vis.make_file("pic-%04d" % step)
+
+            cloud.add_to_vis(vis, visf, time=t, step=step)
+            vis.add_data(visf, [
+                        ("divD", max_op.epsilon*div_op(fields.e)),
+                        ("e", fields.e), 
+                        ("h", fields.h), 
+
+                        ("active_elements", 
+                            cloud.pic_algorithm.get_debug_quantity_on_mesh(
+                                "active_elements", cloud.raw_velocities())),
+                        ("rho", cloud.reconstruct_rho()),
+                        ("j", cloud.reconstruct_j()), 
+                        ],
+                        time=t, step=step,
+                        expressions=[
+                            ])
+            visf.close()
+            vis_timer.stop()
+
 
         t += dt
 

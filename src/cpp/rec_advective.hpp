@@ -151,6 +151,8 @@ namespace pyrticle
 
         boost::shared_ptr<dof_shift_listener> m_rho_dof_shift_listener;
 
+        event_counter m_element_activation_counter, m_element_kill_counter;
+
 
 
 
@@ -256,10 +258,8 @@ namespace pyrticle
             {
               active_element &el = p.m_elements[i_el];
 
-              /*
               if (el.m_min_life)
                 --el.m_min_life;
-                */
 
               const double element_charge = element_l1(
                   el.m_element_info->m_jacobian,
@@ -268,7 +268,7 @@ namespace pyrticle
                     el.m_start_index,
                     el.m_start_index+m_dofs_per_element));
 
-              if (/*el.m_min_life == 0  &&*/ element_charge / particle_charge < 0.01)
+              if (el.m_min_life == 0  && element_charge / particle_charge < 0.001)
               {
                 // retire this element
                 const hedge::element_number en = el.m_element_info->m_id;
@@ -288,10 +288,6 @@ namespace pyrticle
                     }
                   }
                 }
-
-                std::cout 
-                  << boost::format("KILL %d @ %d") % el.m_element_info->m_id % el.m_start_index
-                  << std::endl;
 
                 deallocate_element(el.m_start_index);
 
@@ -418,14 +414,13 @@ namespace pyrticle
           if (m_dofs_per_element == 0)
             throw std::runtime_error("tried to allocate element on uninitialized advection reconstructor");
 
+          m_element_activation_counter.tick();
+
           if (m_freelist.size())
           {
             ++m_active_elements;
             unsigned result = m_freelist.back();
             m_freelist.pop_back();
-            std::cout 
-              << boost::format("alloc %d") % (result*m_dofs_per_element)
-              << std::endl; 
             return result*m_dofs_per_element;
           }
 
@@ -436,9 +431,6 @@ namespace pyrticle
           if (m_active_elements == avl_space)
             resize_state(2*m_rho.size());
 
-            std::cout 
-              << boost::format("alloc %d") % ((m_active_elements)*m_dofs_per_element)
-              << std::endl; 
           return (m_active_elements++)*m_dofs_per_element;
         }
 
@@ -450,16 +442,14 @@ namespace pyrticle
           const unsigned el_index = start_index/m_dofs_per_element;
           --m_active_elements;
 
+          m_element_kill_counter.tick();
+
           // unless we're deallocating the last element, add it to the freelist.
           if (el_index != m_active_elements+m_freelist.size())
             m_freelist.push_back(el_index);
 
           if (m_rho_dof_shift_listener.get())
             m_rho_dof_shift_listener->note_zap_dof(start_index, m_dofs_per_element);
-
-          std::cout 
-            << boost::format("dealloc %d") % start_index
-            << std::endl; 
         }
 
 
@@ -664,6 +654,8 @@ namespace pyrticle
 
         hedge::vector calculate_fluxes(hedge::vector const &velocities)
         {
+          const double upwind_alpha = 1;
+
           hedge::vector fluxes(m_rho.size());
           fluxes.clear();
 
@@ -754,9 +746,9 @@ namespace pyrticle
                   throw std::runtime_error("detected boundary non-connection as active");
 
                 const double int_coeff = 
-                  flux_face->face_jacobian*0.5*(-n_dot_v + norm_v);
+                  flux_face->face_jacobian*0.5*(-n_dot_v + upwind_alpha*norm_v);
                 const double ext_coeff = 
-                  flux_face->face_jacobian*0.5*-(-n_dot_v + norm_v);
+                  flux_face->face_jacobian*0.5*-(-n_dot_v + upwind_alpha*norm_v);
 
                 const mesh_data::node_index this_base_idx = el->m_start_index;
 
@@ -772,7 +764,7 @@ namespace pyrticle
                         fabs(m_rho[this_base_idx+(*idx_list)[i]]));
 
                   // std::cout << max_density << ' ' << shape_peak << std::endl;
-                  if (max_density > 0.1*fabs(shape_peak))
+                  if (max_density > 0.01*fabs(shape_peak))
                   {
                     // yes, activate the opposite element
 
@@ -789,10 +781,6 @@ namespace pyrticle
                       boost::numeric::ublas::zero_vector<double>(m_dofs_per_element);
 
                     opp_element.m_min_life = 10;
-
-                    std::cout 
-                      << boost::format("ACTIVATE %d @ %d") % opp_en % start
-                      << std::endl;
 
                     // update connections
                     hedge::face_number opp_fn = 0;

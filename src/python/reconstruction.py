@@ -22,6 +22,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
+import pytools.log
 import pylinear.array as num
 import pylinear.computation as comp
 
@@ -47,12 +48,48 @@ class ShapeFunctionReconstructor(object):
         return 0
 
 
+
+
+
+
+
+
+
+class ActiveAdvectiveElements (pytools.log.LogQuantity):
+    def __init__(self, reconstructor, name="n_advec"):
+        pytools.log.LogQuantity.__init__(self, name, "1", "#active advective_elements")
+        self.reconstructor = reconstructor
+
+    def __call__(self):
+        return self.reconstructor.cloud.pic_algorithm.active_elements
+
+
+
+
 class AdvectiveReconstructor(object):
     name = "Advective"
 
     def __init__(self):
         from pyrticle.tools import DOFShiftForwarder
         self.rho_shift_signaller = DOFShiftForwarder()
+
+        from pytools.log import IntervalTimer, EventCounter
+        self.element_activation_counter = EventCounter(
+                "n_el_activations",
+                "#Advective rec. elements activated this timestep")
+        self.element_kill_counter = EventCounter(
+                "n_el_kills",
+                "#Advective rec. elements retired this timestep")
+        self.advective_rhs_timer = IntervalTimer(
+                "t_advective_rhs",
+                "Time spent evaluating advective RHS")
+        self.active_elements_log = ActiveAdvectiveElements(self)
+
+    def add_instrumentation(self, mgr):
+        mgr.add_quantity(self.element_activation_counter)
+        mgr.add_quantity(self.element_kill_counter)
+        mgr.add_quantity(self.advective_rhs_timer)
+        mgr.add_quantity(self.active_elements_log)
 
     def initialize(self, cloud):
         self.cloud = cloud
@@ -83,18 +120,23 @@ class AdvectiveReconstructor(object):
 
         cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
 
-    def add_instrumentation(self, mgr):
-        pass
-
     def add_particle_hook(self, pn):
         self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
 
     def rhs(self):
         from pyrticle.tools import DOFShiftableVector
-        return DOFShiftableVector(
+        self.advective_rhs_timer.start()
+        result =  DOFShiftableVector(
                 self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.raw_velocities()),
                 self.rho_shift_signaller
                 )
+        self.advective_rhs_timer.stop()
+        self.element_activation_counter.transfer(
+                self.cloud.pic_algorithm.element_activation_counter)
+        self.element_kill_counter.transfer(
+                self.cloud.pic_algorithm.element_kill_counter)
+
+        return result
 
     def add_rhs(self, rhs):
         from pyrticle.tools import DOFShiftableVector
