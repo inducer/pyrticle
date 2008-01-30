@@ -155,6 +155,7 @@ namespace pyrticle
 
         double m_activation_threshold;
         double m_kill_threshold;
+        double m_upwind_alpha;
 
 
 
@@ -322,7 +323,8 @@ namespace pyrticle
             boost::shared_ptr<hedge::face_group> int_face_group,
             boost::shared_ptr<hedge::face_group> bdry_face_group,
             double activation_threshold,
-            double kill_threshold
+            double kill_threshold,
+            double upwind_alpha
             )
         {
           m_faces_per_element = faces_per_element;
@@ -367,6 +369,7 @@ namespace pyrticle
 
           m_activation_threshold = activation_threshold;
           m_kill_threshold = kill_threshold;
+          m_upwind_alpha = upwind_alpha;
         }
 
 
@@ -669,8 +672,6 @@ namespace pyrticle
           if (m_activation_threshold == 0)
             throw std::runtime_error("zero activation threshold");
 
-          const double upwind_alpha = 1;
-
           hedge::vector fluxes(m_rho.size());
           fluxes.clear();
 
@@ -761,9 +762,9 @@ namespace pyrticle
                   throw std::runtime_error("detected boundary non-connection as active");
 
                 const double int_coeff = 
-                  flux_face->face_jacobian*0.5*(-n_dot_v + upwind_alpha*norm_v);
+                  flux_face->face_jacobian*0.5*(-n_dot_v + m_upwind_alpha*norm_v);
                 const double ext_coeff = 
-                  flux_face->face_jacobian*0.5*-(-n_dot_v + upwind_alpha*norm_v);
+                  flux_face->face_jacobian*0.5*-(-n_dot_v + m_upwind_alpha*norm_v);
 
                 const mesh_data::node_index this_base_idx = el->m_start_index;
 

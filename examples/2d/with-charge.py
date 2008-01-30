@@ -32,7 +32,8 @@ def main():
     from hedge.mesh import \
             make_square_mesh, \
             make_regular_square_mesh, \
-            make_regular_rect_mesh
+            make_regular_rect_mesh, \
+            make_rect_mesh
     from hedge.discretization import \
             Discretization, \
             pair_with_boundary
@@ -51,12 +52,12 @@ def main():
 
     # discretization setup ----------------------------------------------------
     tube_length = 2
-    full_mesh = make_regular_rect_mesh(
+    full_mesh = make_rect_mesh(
             a=(-0.5, -0.5),
             b=(-0.5+tube_length, 0.5),
-            #n=(30, 10), 
-            n=(10, 5), 
-            periodicity=(True, False))
+            periodicity=(True, False),
+            subdivisions=(10,5),
+            max_area=0.02)
 
     #full_mesh = make_regular_square_mesh(n=2, periodicity=(True, False))
 
@@ -102,8 +103,10 @@ def main():
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
             AdvectiveReconstructor(
-                activation_threshold=0.01,
-                kill_threshold=0.001),
+                activation_threshold=0.001,
+                kill_threshold=0.0001,
+                upwind_alpha=0.5),
+            #ShapeFunctionReconstructor(),
             MonomialParticlePusher(),
             dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)

@@ -56,8 +56,8 @@ class ShapeFunctionReconstructor(object):
 
 
 class ActiveAdvectiveElements (pytools.log.LogQuantity):
-    def __init__(self, reconstructor, name="n_advec"):
-        pytools.log.LogQuantity.__init__(self, name, "1", "#active advective_elements")
+    def __init__(self, reconstructor, name="n_advec_elements"):
+        pytools.log.LogQuantity.__init__(self, name, "1", "#active advective elements")
         self.reconstructor = reconstructor
 
     def __call__(self):
@@ -69,7 +69,7 @@ class ActiveAdvectiveElements (pytools.log.LogQuantity):
 class AdvectiveReconstructor(object):
     name = "Advective"
 
-    def __init__(self, activation_threshold, kill_threshold):
+    def __init__(self, activation_threshold, kill_threshold, upwind_alpha):
         from pyrticle.tools import DOFShiftForwarder
         self.rho_shift_signaller = DOFShiftForwarder()
 
@@ -87,6 +87,7 @@ class AdvectiveReconstructor(object):
 
         self.activation_threshold = activation_threshold
         self.kill_threshold = kill_threshold
+        self.upwind_alpha = upwind_alpha
 
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.element_activation_counter)
@@ -116,7 +117,8 @@ class AdvectiveReconstructor(object):
                 fg,
                 bdry_fg,
                 self.activation_threshold,
-                self.kill_threshold)
+                self.kill_threshold,
+                self.upwind_alpha)
 
         for i, diffmat in enumerate(ldis.differentiation_matrices()):
             cloud.pic_algorithm.add_local_diff_matrix(i, diffmat)
