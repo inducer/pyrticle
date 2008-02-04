@@ -654,32 +654,20 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         d_tilde = max_op.epsilon*e_tilde
         d_prime = max_op.epsilon*e_prime
 
-        divD_tilde_ldg = poisson_op.div(d_tilde)
-        divD_tilde_ldg2 = poisson_op.div(d_tilde, max_op.epsilon*phi_tilde)
-        divD_tilde_central = div_op(d_tilde)
-
         divD_prime_ldg = poisson_op.div(d_prime)
         divD_prime_ldg2 = poisson_op.div(d_prime, max_op.epsilon*gamma*phi_tilde)
         divD_prime_ldg3 = max_op.epsilon*\
                 (discr.inverse_mass_operator*poisson_op.op(gamma*phi_tilde))
         divD_prime_central = div_op(d_prime)
 
-        print "l2 div D_tilde error central: %g" % \
-                rel_l2_error(divD_tilde_central, rho_tilde)
-        print "l2 div D_tilde error ldg: %g" % \
-                rel_l2_error(divD_tilde_ldg, rho_tilde)
-        print "l2 div D_tilde error ldg2: %g" % \
-                rel_l2_error(divD_tilde_ldg2, rho_tilde)
-
-        if False:
-            print "l2 div D_prime error central: %g" % \
-                    rel_l2_error(divD_prime_central, rho_prime)
-            print "l2 div D_prime error ldg: %g" % \
-                    rel_l2_error(divD_prime_ldg, rho_prime)
-            print "l2 div D_prime error ldg with phi: %g" % \
-                    rel_l2_error(divD_prime_ldg2, rho_prime)
-            print "l2 div D_prime error ldg with phi 3: %g" % \
-                    rel_l2_error(divD_prime_ldg3, rho_prime)
+        print "l2 div D_prime error central: %g" % \
+                rel_l2_error(divD_prime_central, rho_prime)
+        print "l2 div D_prime error ldg: %g" % \
+                rel_l2_error(divD_prime_ldg, rho_prime)
+        print "l2 div D_prime error ldg with phi: %g" % \
+                rel_l2_error(divD_prime_ldg2, rho_prime)
+        print "l2 div D_prime error ldg with phi 3: %g" % \
+                rel_l2_error(divD_prime_ldg3, rho_prime)
 
         from hedge.visualization import SiloVisualizer
         vis = SiloVisualizer(discr)
@@ -687,9 +675,6 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         vis.add_data(visf, [ 
             ("phi_tilde", phi_tilde),
             ("rho_tilde", rho_tilde), 
-            ("divD_tilde_central", divD_tilde_central),
-            ("divD_tilde_ldg", divD_tilde_ldg),
-            ("divD_tilde_ldg2", divD_tilde_ldg2),
             ("e_tilde", e_tilde), 
 
             ("rho_prime", rho_prime), 

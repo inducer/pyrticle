@@ -182,7 +182,7 @@ def main():
         cloud.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
 
-        if True:
+        if step % 5 == 0:
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
