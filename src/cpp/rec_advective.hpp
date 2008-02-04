@@ -688,8 +688,6 @@ namespace pyrticle
                 PICAlgorithm::dimensions_velocity*pn,
                 PICAlgorithm::dimensions_velocity*(pn+1));
 
-            scalar_t norm_v = norm_2(v);
-
             for (unsigned i_el = 0; i_el < p.m_elements.size(); ++i_el)
             {
               active_element const *el = &p.m_elements[i_el];
@@ -762,9 +760,10 @@ namespace pyrticle
                   throw std::runtime_error("detected boundary non-connection as active");
 
                 const double int_coeff = 
-                  flux_face->face_jacobian*0.5*(-n_dot_v + m_upwind_alpha*norm_v);
+                  flux_face->face_jacobian*(-n_dot_v)*(1 - (inflow ? 0 : m_upwind_alpha));
                 const double ext_coeff = 
-                  flux_face->face_jacobian*0.5*-(-n_dot_v + m_upwind_alpha*norm_v);
+                  flux_face->face_jacobian*(-n_dot_v)*(- (inflow ? m_upwind_alpha : 0));
+
 
                 const mesh_data::node_index this_base_idx = el->m_start_index;
 

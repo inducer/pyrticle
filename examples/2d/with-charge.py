@@ -104,8 +104,8 @@ def main():
     cloud = ParticleCloud(discr, units, 
             AdvectiveReconstructor(
                 activation_threshold=0.001,
-                kill_threshold=0.0001,
-                upwind_alpha=0.5),
+                kill_threshold=0.0000,
+                upwind_alpha=1),
             #ShapeFunctionReconstructor(),
             MonomialParticlePusher(),
             dimensions_pos=2, dimensions_velocity=2,
