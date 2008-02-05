@@ -81,7 +81,8 @@ def main():
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.max_eigenvalue())
-    final_time = 15*units.M/max_op.c
+    #final_time = 15*units.M/max_op.c
+    final_time = 50*units.M/max_op.c
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -103,8 +104,8 @@ def main():
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
             AdvectiveReconstructor(
-                activation_threshold=0.001,
-                kill_threshold=0.0000,
+                activation_threshold=1e-8,
+                kill_threshold=1e-15,
                 upwind_alpha=1),
             #ShapeFunctionReconstructor(),
             MonomialParticlePusher(),
@@ -129,8 +130,10 @@ def main():
             mass=pmass,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
-            sigma_x=0.01*num.ones((2,)),
-            sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.05,
+            #sigma_x=0.01*num.ones((2,)),
+            #sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.05,
+            sigma_x=num.zeros((2,)),
+            sigma_p=num.zeros((2,)),
             )
 
     # intial condition --------------------------------------------------------
@@ -171,10 +174,11 @@ def main():
 
     logmgr.add_quantity(ETA(nsteps))
 
-    logmgr.add_watches(["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"])
+    logmgr.add_watches(["step", "t_sim", "W_field", "t_step", "t_eta", "n_part", "n_advec_elements"])
 
     # timestepping ------------------------------------------------------------
     t = 0
+
 
     for step in xrange(nsteps):
         logmgr.tick()
@@ -182,20 +186,34 @@ def main():
         cloud.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
 
-        if step % 5 == 0:
+        if step % 20 == 0:
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
             cloud.add_to_vis(vis, visf, time=t, step=step)
+            raw_vel = cloud.raw_velocities()
+            rho = cloud.reconstruct_rho()
+            from hedge.operators import StrongAdvectionOperator
+            from hedge.data import TimeConstantGivenFunction, ConstantGivenFunction
+            from hedge.mesh import TAG_ALL, TAG_NONE
+            advop = StrongAdvectionOperator(discr, cloud.velocities()[0], 
+                    inflow_u=TimeConstantGivenFunction(ConstantGivenFunction()),
+                    inflow_tag=TAG_NONE, outflow_tag=TAG_ALL,
+                    flux_type="upwind")
+            truerhs = advop.rhs(t, rho)
+            rhorhs = cloud.pic_algorithm.get_debug_quantity_on_mesh("rhs", raw_vel)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
                         ("e", fields.e), 
                         ("h", fields.h), 
+                        ("rhorhs", rhorhs), 
+                        ("truerhs", truerhs), 
+                        ("rhsdiff", rhorhs-truerhs),
 
                         ("active_elements", 
                             cloud.pic_algorithm.get_debug_quantity_on_mesh(
                                 "active_elements", cloud.raw_velocities())),
-                        ("rho", cloud.reconstruct_rho()),
+                        ("rho", rho),
                         ("j", cloud.reconstruct_j()), 
                         ],
                         time=t, step=step,

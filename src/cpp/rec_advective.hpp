@@ -760,8 +760,10 @@ namespace pyrticle
                   throw std::runtime_error("detected boundary non-connection as active");
 
                 const double int_coeff = 
+                  // flux_face->face_jacobian*(-n_dot_v)*(0.5);
                   flux_face->face_jacobian*(-n_dot_v)*(1 - (inflow ? 0 : m_upwind_alpha));
                 const double ext_coeff = 
+                  // flux_face->face_jacobian*(-n_dot_v)*(-0.5);
                   flux_face->face_jacobian*(-n_dot_v)*(- (inflow ? m_upwind_alpha : 0));
 
 
