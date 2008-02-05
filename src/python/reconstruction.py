@@ -95,6 +95,10 @@ class AdvectiveReconstructor(object):
         mgr.add_quantity(self.advective_rhs_timer)
         mgr.add_quantity(self.active_elements_log)
 
+        mgr.set_constant("el_activation_threshold", self.activation_threshold)
+        mgr.set_constant("el_kill_threshold", self.kill_threshold)
+        mgr.set_constant("adv_upwind_alpha", self.upwind_alpha)
+
     def initialize(self, cloud):
         self.cloud = cloud
         discr = cloud.mesh_data.discr
