@@ -23,7 +23,6 @@ def main():
             ArithmeticList, join_fields
     from hedge.operators import MaxwellOperator, DivergenceOperator
     from kv import KVZIntervalBeam
-    from tubemesh import make_cylinder_with_fine_core
     from random import seed
     from pytools.stopwatch import Job
 
@@ -36,7 +35,7 @@ def main():
     from optparse import OptionParser
     parser = OptionParser()
     parser.add_option(
-            "--radial-subdiv", dest="radial_subdiv", default="10",
+            "--radial-subdiv", dest="radial_subdiv", default="15",
             help="how many angular subdivisions in the surface mesh")
     parser.add_option(
             "--tube-length", dest="tube_length", default="0.1",
@@ -73,13 +72,32 @@ def main():
             #max_volume=1000*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
-    full_mesh = make_cylinder_with_fine_core(
-            r=10*beam_radius, inner_r=1*beam_radius, 
-            min_z=0, max_z=tube_length,
-            max_volume_inner=10*units.MM**3,
-            max_volume_outer=100*units.MM**3,
-            radial_subdiv=radial_subdiv,
-            )
+    if False:
+        from tubemesh import make_cylinder_with_fine_core
+        full_mesh = make_cylinder_with_fine_core(
+                r=10*beam_radius, inner_r=1*beam_radius, 
+                min_z=0, max_z=tube_length,
+                max_volume_inner=10*units.MM**3,
+                max_volume_outer=100*units.MM**3,
+                radial_subdiv=radial_subdiv,
+                )
+    if True:
+        # pillbox cavity
+        from tubemesh import make_extrusion_with_fine_core
+        full_mesh = make_extrusion_with_fine_core(
+                rz=[
+                    (10*beam_radius,0),
+                    (10*beam_radius,tube_length*0.333),
+                    (20*beam_radius,tube_length*0.333),
+                    (20*beam_radius,tube_length*0.666),
+                    (10*beam_radius,tube_length*0.666),
+                    (10*beam_radius,tube_length),
+                    ],
+                inner_r=1*beam_radius, 
+                max_volume_inner=10*units.MM**3,
+                max_volume_outer=100*units.MM**3,
+                radial_subdiv=radial_subdiv,
+                )
     job.done()
 
     from hedge.parallel import guess_parallelization_context
