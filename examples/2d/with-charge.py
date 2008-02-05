@@ -191,29 +191,15 @@ def main():
             visf = vis.make_file("pic-%04d" % step)
 
             cloud.add_to_vis(vis, visf, time=t, step=step)
-            raw_vel = cloud.raw_velocities()
-            rho = cloud.reconstruct_rho()
-            from hedge.operators import StrongAdvectionOperator
-            from hedge.data import TimeConstantGivenFunction, ConstantGivenFunction
-            from hedge.mesh import TAG_ALL, TAG_NONE
-            advop = StrongAdvectionOperator(discr, cloud.velocities()[0], 
-                    inflow_u=TimeConstantGivenFunction(ConstantGivenFunction()),
-                    inflow_tag=TAG_NONE, outflow_tag=TAG_ALL,
-                    flux_type="upwind")
-            truerhs = advop.rhs(t, rho)
-            rhorhs = cloud.pic_algorithm.get_debug_quantity_on_mesh("rhs", raw_vel)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
                         ("e", fields.e), 
                         ("h", fields.h), 
-                        ("rhorhs", rhorhs), 
-                        ("truerhs", truerhs), 
-                        ("rhsdiff", rhorhs-truerhs),
 
                         ("active_elements", 
                             cloud.pic_algorithm.get_debug_quantity_on_mesh(
                                 "active_elements", cloud.raw_velocities())),
-                        ("rho", rho),
+                        ("rho", cloud.reconstruct_rho()),
                         ("j", cloud.reconstruct_j()), 
                         ],
                         time=t, step=step,

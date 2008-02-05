@@ -760,12 +760,15 @@ namespace pyrticle
                   throw std::runtime_error("detected boundary non-connection as active");
 
                 const double int_coeff = 
-                  // flux_face->face_jacobian*(-n_dot_v)*(0.5);
-                  flux_face->face_jacobian*(-n_dot_v)*(1 - (inflow ? 0 : m_upwind_alpha));
+                  flux_face->face_jacobian*(-n_dot_v)*(
+                      m_upwind_alpha*(1 - (inflow ? 0 : 1))
+                      +
+                      (1-m_upwind_alpha)*0.5);
                 const double ext_coeff = 
-                  // flux_face->face_jacobian*(-n_dot_v)*(-0.5);
-                  flux_face->face_jacobian*(-n_dot_v)*(- (inflow ? m_upwind_alpha : 0));
-
+                  flux_face->face_jacobian*(-n_dot_v)*(
+                      m_upwind_alpha*-(inflow ? 1 : 0)
+                      +
+                      (1-m_upwind_alpha)*-0.5);
 
                 const mesh_data::node_index this_base_idx = el->m_start_index;
 
