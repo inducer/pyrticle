@@ -104,8 +104,8 @@ def main():
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
             AdvectiveReconstructor(
-                activation_threshold=1e-8,
-                kill_threshold=1e-15,
+                activation_threshold=1e-5,
+                kill_threshold=1e-3,
                 upwind_alpha=1),
             #ShapeFunctionReconstructor(),
             MonomialParticlePusher(),
@@ -204,6 +204,7 @@ def main():
                         ],
                         time=t, step=step,
                         expressions=[
+                            ("rpa", "6e-9*active_elements+rho")
                             ])
             visf.close()
             vis_timer.stop()
