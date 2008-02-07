@@ -71,8 +71,8 @@ def make_extrusion_with_fine_core(rz, inner_r,
     pbcg.set_transform(translation=[0,0,max_z-min_z])
 
     mesh = build(mesh_info, verbose=True, volume_constraints=True)
-    print "%d elements" % len(mesh.elements)
-    mesh.write_vtk("gun.vtk")
+    #print "%d elements" % len(mesh.elements)
+    #mesh.write_vtk("gun.vtk")
 
     fvi2fm = mesh.face_vertex_indices_to_face_marker
         

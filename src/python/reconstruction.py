@@ -33,7 +33,7 @@ class ShapeFunctionReconstructor(object):
     name = "Shape"
 
     def initialize(self, cloud):
-        cloud.pic_algorithm.set_radius(0.5*cloud.mesh_data.min_vertex_distance())
+        cloud.pic_algorithm.set_radius(cloud.mesh_data.advisable_particle_radius())
 
     def add_instrumentation(self, mgr):
         pass
@@ -127,7 +127,7 @@ class AdvectiveReconstructor(object):
         for i, diffmat in enumerate(ldis.differentiation_matrices()):
             cloud.pic_algorithm.add_local_diff_matrix(i, diffmat)
 
-        self.radius = 0.5*cloud.mesh_data.min_vertex_distance()
+        self.radius = cloud.mesh_data.advisable_particle_radius()
 
         cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
 

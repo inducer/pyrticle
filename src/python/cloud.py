@@ -589,7 +589,7 @@ class FieldsAndCloud:
 
 
 def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
-        debug=False):
+        debug=False, force_zero=False):
     from hedge.operators import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
@@ -626,11 +626,14 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
     rho_prime = cloud.reconstruct_rho() 
     rho_tilde = rho_prime/gamma
 
-    from hedge.tools import parallel_cg
-    phi_tilde = -parallel_cg(pcon, -poisson_op, 
-            poisson_op.prepare_rhs(
-                GivenVolumeInterpolant(discr, rho_tilde/max_op.epsilon)), 
-            debug=True, tol=1e-10)
+    if force_zero:
+        phi_tilde = discr.volume_zeros()
+    else:
+        from hedge.tools import parallel_cg
+        phi_tilde = -parallel_cg(pcon, -poisson_op, 
+                poisson_op.prepare_rhs(
+                    GivenVolumeInterpolant(discr, rho_tilde/max_op.epsilon)), 
+                debug=True, tol=1e-10)
 
     from pytools.arithmetic_container import ArithmeticListMatrix
     ALM = ArithmeticListMatrix
@@ -673,9 +676,9 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         vis = SiloVisualizer(discr)
         visf = vis.make_file("ic")
         vis.add_data(visf, [ 
-            ("phi_tilde", phi_tilde),
-            ("rho_tilde", rho_tilde), 
-            ("e_tilde", e_tilde), 
+            #("phi_tilde", phi_tilde),
+            #("rho_tilde", rho_tilde), 
+            #("e_tilde", e_tilde), 
 
             ("rho_prime", rho_prime), 
             ("divD_prime_ldg", divD_prime_ldg),

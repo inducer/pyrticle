@@ -86,16 +86,16 @@ def main():
         from tubemesh import make_extrusion_with_fine_core
         full_mesh = make_extrusion_with_fine_core(
                 rz=[
-                    (10*beam_radius,0),
+                    (5*beam_radius,0),
+                    (5*beam_radius,tube_length*0.333),
                     (10*beam_radius,tube_length*0.333),
-                    (20*beam_radius,tube_length*0.333),
-                    (20*beam_radius,tube_length*0.666),
                     (10*beam_radius,tube_length*0.666),
-                    (10*beam_radius,tube_length),
+                    (5*beam_radius,tube_length*0.666),
+                    (5*beam_radius,tube_length),
                     ],
-                inner_r=1*beam_radius, 
-                max_volume_inner=10*units.MM**3,
-                max_volume_outer=100*units.MM**3,
+                inner_r=2*beam_radius, 
+                max_volume_inner=2.5*units.MM**3,
+                max_volume_outer=50*units.MM**3,
                 radial_subdiv=radial_subdiv,
                 )
     job.done()
@@ -136,9 +136,15 @@ def main():
 
     # particles setup ---------------------------------------------------------
     from pyrticle.cloud import ParticleCloud
-    from pyrticle.reconstruction import ShapeFunctionReconstructor
+    from pyrticle.reconstruction import \
+            ShapeFunctionReconstructor, \
+            AdvectiveReconstructor
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
+            #AdvectiveReconstructor(
+                #activation_threshold=1e-5,
+                #kill_threshold=1e-3,
+                #upwind_alpha=1),
             ShapeFunctionReconstructor(),
             MonomialParticlePusher(),
             3, 3, verbose_vis=True)
@@ -168,7 +174,8 @@ def main():
     from pyrticle.cloud import compute_initial_condition
     job = Job("initial condition")
     fields = compute_initial_condition(pcon, discr, cloud, 
-            mean_beta=num.array([0, 0, mean_beta]), max_op=max_op, debug=True)
+            mean_beta=num.array([0, 0, mean_beta]), max_op=max_op, debug=True,
+            force_zero=False)
     job.done()
 
     # timestepping setup ------------------------------------------------------

@@ -21,6 +21,7 @@
 import pyrticle._internal as _internal
 import pylinear.array as num
 import pylinear.computation as comp
+from pytools import monkeypatch_class
 
 
 
@@ -30,7 +31,10 @@ MeshData = _internal.MeshData
 
 
 
-def _add_mesh_data_methods():
+
+class MeshData(_internal.MeshData):
+    __metaclass__ = monkeypatch_class
+
     def fill_from_hedge(self, discr):
         self.discr = discr
 
@@ -98,25 +102,21 @@ def _add_mesh_data_methods():
         self.nodes.reserve(len(discr.nodes))
         self.nodes.extend(discr.nodes)
 
-    def find_containing_element(self, point):
-        for el in self.discr.mesh.elements:
-            if el.contains_point(point):
-                return el
-        return None
+    def min_vertex_distance_for_el(self, el):
+        vertices = [self.discr.mesh.points[vi] 
+                for vi in el.vertex_indices]
+
+        return min(min(comp.norm_2(vi-vj)
+                for i, vi in enumerate(vertices)
+                if i != j)
+                for j, vj in enumerate(vertices))
+
+    def advisable_particle_radius(self):
+        vertex_distances = [self.min_vertex_distance_for_el(el) 
+                for el in self.discr.mesh.elements]
+        vertex_distances.sort()
+        return 0.6 * vertex_distances[int(0.25*len(vertex_distances))]
 
     def min_vertex_distance(self):
-        def min_vertex_distance_for_el(el):
-            vertices = [self.discr.mesh.points[vi] 
-                    for vi in el.vertex_indices]
-
-            return min(min(comp.norm_2(vi-vj)
-                    for i, vi in enumerate(vertices)
-                    if i != j)
-                    for j, vj in enumerate(vertices))
-
-        return min(min_vertex_distance_for_el(el) 
+        return min(self.min_vertex_distance_for_el(el) 
                 for el in self.discr.mesh.elements)
-
-    MeshData.fill_from_hedge = fill_from_hedge
-    MeshData.min_vertex_distance = min_vertex_distance
-_add_mesh_data_methods()

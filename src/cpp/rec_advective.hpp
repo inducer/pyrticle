@@ -608,13 +608,14 @@ namespace pyrticle
                     el.m_start_index, 
                     el.m_start_index+m_dofs_per_element)));
 
-
           const double charge = CONST_PIC_THIS->m_charges[pn];
           const double total_unscaled_mass = std::accumulate(
               unscaled_masses.begin(), unscaled_masses.end(), double(0));
 
           if (total_unscaled_mass == 0)
-            throw std::runtime_error("total reconstructed mass is zero");
+            throw std::runtime_error(
+                str(boost::format("reconstructed initial particle mass is zero"
+                  "(particle %d, #elements=%d)") % pn % new_particle.m_elements.size()).c_str());
 
           BOOST_FOREACH(active_element &el, new_particle.m_elements)
             subrange(m_rho, 
