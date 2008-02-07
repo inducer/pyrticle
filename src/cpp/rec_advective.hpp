@@ -469,12 +469,16 @@ namespace pyrticle
             return result*m_dofs_per_element;
           }
 
-          // we're all full, no gaps available.
+          // there are no gaps available.
           // return the past-end spot in the array, reallocate if necessary.
           unsigned avl_space = m_rho.size() / m_dofs_per_element;
 
           if (m_active_elements == avl_space)
+          {
             resize_state(2*m_rho.size());
+            if (m_rho_dof_shift_listener.get())
+              m_rho_dof_shift_listener->note_change_size(m_rho.size());
+          }
 
           return (m_active_elements++)*m_dofs_per_element;
         }
@@ -830,6 +834,16 @@ namespace pyrticle
                     subrange(m_rho, start, start+m_dofs_per_element) = 
                       boost::numeric::ublas::zero_vector<double>(m_dofs_per_element);
 
+                    if (m_rho.size() != fluxes.size())
+                    {
+                      // allocate_element enlarged the size of the state vector
+                      // fluxes needs to be changed as well.
+                      hedge::vector new_fluxes(m_rho.size());
+                      new_fluxes.clear();
+                      noalias(subrange(new_fluxes, 0, fluxes.size())) = fluxes;
+                      fluxes.swap(new_fluxes);
+                    }
+
                     opp_element.m_min_life = 10;
 
                     // update connections
@@ -1009,8 +1023,12 @@ namespace pyrticle
 
         hedge::vector get_advective_particle_rhs(hedge::vector const &velocities)
         {
+          // calculate_fluxes may resize the state vector--calculate it first,
+          // everything else later.
+          hedge::vector fluxes = calculate_fluxes(velocities);
+
           return calculate_local_div(velocities) 
-          - apply_elementwise_inverse_mass_matrix(calculate_fluxes(velocities));
+          - apply_elementwise_inverse_mass_matrix(fluxes);
         }
         
 

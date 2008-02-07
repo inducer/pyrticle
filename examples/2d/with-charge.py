@@ -95,7 +95,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1
+    nparticles = 100
 
     from pyrticle.cloud import ParticleCloud
     from pyrticle.reconstruction import \
@@ -131,10 +131,8 @@ def main():
             mass=pmass,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
-            #sigma_x=0.01*num.ones((2,)),
-            #sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.05,
-            sigma_x=num.zeros((2,)),
-            sigma_p=num.zeros((2,)),
+            sigma_x=0.01*num.ones((2,)),
+            sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.05,
             )
 
     # intial condition --------------------------------------------------------
