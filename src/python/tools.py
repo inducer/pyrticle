@@ -39,7 +39,7 @@ ZeroVector = _internal.ZeroVector
 
 
 
-class DOFShiftSignaller:
+class NumberShiftSignaller:
     def __init__(self):
         from weakref import WeakKeyDictionary
         self.subscribers = WeakKeyDictionary()
@@ -51,34 +51,34 @@ class DOFShiftSignaller:
         for subscriber in self.subscribers.iterkeys():
             subscriber.change_size(new_size)
 
-    def move_dof(self, orig, dest, size):
+    def move(self, orig, dest, size):
         for subscriber in self.subscribers.iterkeys():
-            subscriber.move_dof(orig, dest, size)
+            subscriber.move(orig, dest, size)
 
-    def zap_dof(self, start, size):
+    def reset(self, start, size):
         for subscriber in self.subscribers.iterkeys():
-            subscriber.zap_dof(start, size)
+            subscriber.reset(start, size)
 
 
 
-class DOFShiftForwarder(_internal.DOFShiftListener, DOFShiftSignaller):
+class NumberShiftForwarder(_internal.NumberShiftListener, NumberShiftSignaller):
     def __init__(self):
-        _internal.DOFShiftListener.__init__(self)
-        DOFShiftSignaller.__init__(self)
+        _internal.NumberShiftListener.__init__(self)
+        NumberShiftSignaller.__init__(self)
 
     def note_change_size(self, new_size):
         self.change_size(new_size)
 
-    def note_move_dof(self, orig, dest, size):
-        self.move_dof(orig, dest, size)
+    def note_move(self, orig, dest, size):
+        self.move(orig, dest, size)
 
-    def note_zap_dof(self, start, size):
-        self.zap_dof(start, size)
-
-
+    def note_reset(self, start, size):
+        self.reset(start, size)
 
 
-class DOFShiftableVector(object):
+
+
+class NumberShiftableVector(object):
     """A vector that may be notified of shifts in the DOFs it contains.
 
     This solves the following problem: Particles in 
@@ -86,17 +86,20 @@ class DOFShiftableVector(object):
     during a Runge-Kutta timestep. The state vector inside Runge-Kutta,
     needs to be notified that degrees of freedom may have shifted and/or
     been deleted. This class, together with the corresponding
-    L{DOFShiftSignaller}, fulfills that purpose.
+    L{NumberShiftSignaller}, fulfills that purpose.
     """
 
-    def __init__(self, vector, signaller):
+    __slots__ = ["vector", "multiplier", "signaller", "__weakref__"]
+
+    def __init__(self, vector, multiplier, signaller):
         self.vector = vector
+        self.multiplier = multiplier
         self.signaller = signaller
         signaller.subscribe(self)
 
     @staticmethod
     def unwrap(instance):
-        if isinstance(instance, DOFShiftableVector):
+        if isinstance(instance, NumberShiftableVector):
             return instance.vector
         else:
             return instance
@@ -108,8 +111,9 @@ class DOFShiftableVector(object):
             print self.signaller, other.signaller
             print other in other.signaller.subscribers
             print "---------------------------------------------"
-        return DOFShiftableVector(
+        return NumberShiftableVector(
                 self.vector + self.unwrap(other),
+                self.multiplier,
                 self.signaller)
 
     __radd__ = __add__
@@ -119,8 +123,9 @@ class DOFShiftableVector(object):
         return self
 
     def __mul__(self, other):
-        result = DOFShiftableVector(
+        result = NumberShiftableVector(
                 self.vector * self.unwrap(other),
+                self.multiplier,
                 self.signaller)
         return result
 
@@ -129,6 +134,7 @@ class DOFShiftableVector(object):
     # shiftiness --------------------------------------------------------------
     def change_size(self, new_size):
         old_size = len(self.vector)
+        new_size *= self.multiplier
 
         if new_size > old_size:
             self.vector = num.hstack((
@@ -138,8 +144,10 @@ class DOFShiftableVector(object):
         elif new_size < old_size:
             self.vector = self.vector[:new_size]
 
-    def move_dof(self, orig, dest, size):
-        self.vector[dest:dest+size] = self.vector[orig:orig+size]
+    def move(self, orig, dest, size):
+        m = self.multiplier
+        self.vector[m*dest:m*(dest+size)] = self.vector[m*orig:m*(orig+size)]
 
-    def zap_dof(self, start, size):
-        self.vector[start:start+size] = 0
+    def reset(self, start, size):
+        m = self.multiplier
+        self.vector[start*m:(start+size)*m] = 0

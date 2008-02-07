@@ -37,7 +37,7 @@ namespace pyrticle
   template <class PIC>
   const hedge::vector kinetic_energies(PIC const &pic)
   {
-    const unsigned vdim = pic.dimensions_velocity;
+    const unsigned vdim = pic.get_dimensions_velocity();
 
     hedge::vector result(pic.m_particle_count);
 
@@ -73,7 +73,7 @@ namespace pyrticle
   template <class PIC>
   const hedge::vector particle_momentum(PIC const &pic)
   {
-    const unsigned vdim = pic.dimensions_velocity;
+    const unsigned vdim = pic.get_dimensions_velocity();
     hedge::vector result(vdim);
     result.clear();
 
@@ -90,9 +90,12 @@ namespace pyrticle
   template <class PIC>
   const double rms_beam_size(PIC const &pic, unsigned axis)
   {
+    if (pic.m_particle_count == 0)
+      return 0;
+
     double result = 0;
     for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
-      result += square(pic.m_positions[pn*pic.dimensions_pos + axis]);
+      result += square(pic.m_positions[pn*pic.get_dimensions_pos() + axis]);
 
     return sqrt(result/pic.m_particle_count);
   }
@@ -103,18 +106,21 @@ namespace pyrticle
   template <class PIC>
   const double rms_beam_emittance(PIC const &pic, unsigned axis, unsigned beam_axis)
   {
+    if (pic.m_particle_count == 0)
+      return 0;
+
     double mean_x_squared = 0;
     double mean_p_squared = 0;
     double squared_mean_xxp = 0;
 
     for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
     {
-      const double x = pic.m_positions[pn*pic.dimensions_pos + axis];
+      const double x = pic.m_positions[pn*pic.get_dimensions_pos() + axis];
 
       mean_x_squared += square(x);
 
-      const double px = pic.m_momenta[pn*pic.dimensions_velocity + axis];
-      const double pz = pic.m_momenta[pn*pic.dimensions_velocity + beam_axis];
+      const double px = pic.m_momenta[pn*pic.get_dimensions_velocity() + axis];
+      const double pz = pic.m_momenta[pn*pic.get_dimensions_velocity() + beam_axis];
 
       const double xprime = pz ? px/pz : 0;
 
@@ -136,6 +142,8 @@ namespace pyrticle
   template <class PIC>
   const double rms_energy_spread(PIC const &pic)
   {
+    if (pic.m_particle_count == 0)
+      return 0;
     hedge::vector energies = kinetic_energies(pic);
     return std_dev(energies.begin(), energies.end());
   }
@@ -147,7 +155,7 @@ namespace pyrticle
   const hedge::vector particle_current(PIC const &pic, hedge::vector const &velocities,
       double length)
   {
-    const unsigned vdim = pic.dimensions_velocity;
+    const unsigned vdim = pic.get_dimensions_velocity();
     hedge::vector result(vdim);
     result.clear();
 

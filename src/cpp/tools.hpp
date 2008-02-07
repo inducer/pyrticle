@@ -208,12 +208,15 @@ namespace pyrticle
 
 
 
-  class dof_shift_listener
+  class number_shift_listener
   {
     public:
-      virtual void note_change_size(unsigned new_size) const = 0;
-      virtual void note_move_dof(unsigned orig, unsigned dest, unsigned size) const = 0;
-      virtual void note_zap_dof(unsigned start, unsigned size) const = 0;
+      virtual void note_change_size(unsigned new_size) const 
+      { }
+      virtual void note_move(unsigned orig, unsigned dest, unsigned size) const 
+      { }
+      virtual void note_reset(unsigned start, unsigned size) const 
+      { }
   };
 
 

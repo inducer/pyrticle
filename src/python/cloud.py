@@ -122,11 +122,9 @@ class ParticleCloud:
                 "t_force",
                 "Time spent calculating forces")
 
-        from pyrticle.tools import DOFShiftForwarder
-        self.pos_shift_signaller = DOFShiftForwarder()
-        self.velocity_shift_signaller = DOFShiftForwarder()
-        self.pic_algorithm.pos_dof_shift_listener = self.pos_shift_signaller
-        self.pic_algorithm.velocity_dof_shift_listener = self.velocity_shift_signaller
+        from pyrticle.tools import NumberShiftForwarder
+        self.particle_number_shift_signaller = NumberShiftForwarder()
+        self.pic_algorithm.particle_number_shift_listener = self.particle_number_shift_signaller
 
     def __len__(self):
         return self.pic_algorithm.particle_count
@@ -369,10 +367,14 @@ class ParticleCloud:
                 )
         self.force_timer.stop()
 
-        from pyrticle.tools import DOFShiftableVector
+        from pyrticle.tools import NumberShiftableVector
         result = ArithmeticList([
-            DOFShiftableVector(velocities, self.pos_shift_signaller),
-            DOFShiftableVector(forces, self.velocity_shift_signaller),
+            NumberShiftableVector(velocities, 
+                multiplier=self.dimensions_pos,
+                signaller=self.particle_number_shift_signaller),
+            NumberShiftableVector(forces, 
+                multiplier=self.dimensions_velocity,
+                signaller=self.particle_number_shift_signaller),
             self.reconstructor.rhs()
             ])
         return result
@@ -382,11 +384,11 @@ class ParticleCloud:
 
         assert isinstance(rhs, ArithmeticList)
 
-        from pyrticle.tools import DOFShiftableVector
+        from pyrticle.tools import NumberShiftableVector
 
         dx, dp, drecon = rhs
-        dx = DOFShiftableVector.unwrap(dx)
-        dp = DOFShiftableVector.unwrap(dp)
+        dx = NumberShiftableVector.unwrap(dx)
+        dp = NumberShiftableVector.unwrap(dp)
         assert len(dx) == self.dimensions_pos*len(self)
         assert len(dp) == self.dimensions_velocity*len(self)
         self.pic_algorithm.add_rhs(dx, dp)
@@ -483,19 +485,8 @@ class ParticleCloud:
         if step is not None:
             optlist[DBOPT_CYCLE] = step
 
-        coords = num.hstack([
-            self.pic_algorithm.positions[i::self.dimensions_pos] 
-            for i in range(self.dimensions_pos)])
-        db.put_pointmesh("particles", self.dimensions_pos, coords, optlist)
+        pcount = len(self)
 
-        db.put_pointvar("momenta", "particles", 
-                [self.pic_algorithm.momenta[i::self.dimensions_velocity] 
-                    for i in range(self.dimensions_velocity)])
-
-        db.put_pointvar("velocity", "particles", 
-                self.velocities().get_alist_of_components())
-
-        pcount = len(self.pic_algorithm.containing_elements)
         def add_particle_vis(name, dim):
             if name in self.vis_info:
                 db.put_pointvar(name, "particles", 
@@ -505,11 +496,20 @@ class ParticleCloud:
                 db.put_pointvar(name, "particles", 
                         [num.zeros((pcount,)) for i in range(dim)])
 
-        if verbose:
-            add_particle_vis("pt_e", 3)
-            add_particle_vis("pt_b", 3)
-            add_particle_vis("el_force", 3)
-            add_particle_vis("lorentz_force", 3)
+        if pcount:
+            db.put_pointmesh("particles", self.dimensions_pos, 
+                    num.hstack(self.positions.get_alist_of_components()), optlist)
+
+            db.put_pointvar("momenta", "particles", self.momenta.get_alist_of_components())
+
+            db.put_pointvar("velocity", "particles", 
+                    self.velocities().get_alist_of_components())
+
+            if verbose:
+                add_particle_vis("pt_e", 3)
+                add_particle_vis("pt_b", 3)
+                add_particle_vis("el_force", 3)
+                add_particle_vis("lorentz_force", 3)
 
 
 

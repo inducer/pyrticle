@@ -1,12 +1,12 @@
 // Pyrticle - Particle in Cell in Python
-// Python wrapper for PIC algorithm
+// Base classes for reconstructors/pushers
 // Copyright (C) 2007 Andreas Kloeckner
 // 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or 
-// (at your option) any later version.  
-//  
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+// 
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -19,26 +19,24 @@
 
 
 
-#include "wrap_pic.hpp"
+#ifndef _AFAYYTAA_PYRTICLE_BASES_HPP_INCLUDED
+#define _AFAYYTAA_PYRTICLE_BASES_HPP_INCLUDED
 
 
 
 
-void expose_advective_pic()
+namespace pyrticle
 {
-  expose_pic_algorithm<
-      pic<
-        pic_data<3,3>,
-        advective_reconstructor,
-        monomial_particle_pusher
-        >
-      >();
-  expose_pic_algorithm<
-      pic<
-        pic_data<2,2>,
-        advective_reconstructor,
-        monomial_particle_pusher
-        >
-      >();
+  class pusher_base : public number_shift_listener
+  {
+  };
+
+  class reconstructor_base : public number_shift_listener
+  {
+  };
 }
 
+
+
+
+#endif

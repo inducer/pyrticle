@@ -52,23 +52,32 @@ namespace
 
 
 
-  struct dof_shift_listener_wrap : 
-    dof_shift_listener,
-    python::wrapper<dof_shift_listener>
+  struct number_shift_listener_wrap : 
+    number_shift_listener,
+    python::wrapper<number_shift_listener>
   {
     void note_change_size(unsigned new_size) const
     {
-      this->get_override("note_change_size")(new_size);
+      if (python::override f = this->get_override("note_change_size"))
+        f(new_size);
+      else
+        number_shift_listener::note_change_size(new_size);
     }
 
-    void note_move_dof(unsigned orig, unsigned dest, unsigned size) const
+    void note_move(unsigned orig, unsigned dest, unsigned size) const
     {
-      this->get_override("note_move_dof")(orig, dest, size);
+      if (python::override f = this->get_override("note_move"))
+        f(orig, dest, size);
+      else
+        number_shift_listener::note_move(orig, dest, size);
     }
 
-    void note_zap_dof(unsigned start, unsigned size) const
+    void note_reset(unsigned start, unsigned size) const
     {
-      this->get_override("note_zap_dof")(start, size);
+      if (python::override f = this->get_override("note_reset"))
+        f(start, size);
+      else
+        number_shift_listener::note_reset(start, size);
     }
   };
 }
@@ -115,13 +124,15 @@ void expose_tools()
   }
 
   {
-    typedef dof_shift_listener cl;
-    python::class_<dof_shift_listener_wrap, 
-      boost::shared_ptr<dof_shift_listener_wrap>,
+    typedef number_shift_listener cl;
+    typedef number_shift_listener_wrap wrp;
+    python::class_<number_shift_listener_wrap, 
+      boost::shared_ptr<number_shift_listener_wrap>,
       boost::noncopyable>
-      ("DOFShiftListener")
-      .DEF_PURE_VIRTUAL_METHOD(note_change_size)
-      .DEF_PURE_VIRTUAL_METHOD(note_move_dof)
+      ("NumberShiftListener")
+      .def("note_change_size", &cl::note_change_size, &wrp::note_change_size)
+      .def("note_move", &cl::note_move, &wrp::note_move)
+      .def("note_reset", &cl::note_reset, &wrp::note_reset)
       ;
   }
 

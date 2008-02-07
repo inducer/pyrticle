@@ -50,14 +50,12 @@ namespace pyrticle
   struct advective_reconstructor 
   {
     template <class PICAlgorithm>
-    class type : public shape_element_finder<PICAlgorithm>
+    class type : 
+      public shape_element_finder<PICAlgorithm>,
+      public reconstructor_base
     {
       public:
         static const unsigned max_faces = 4;
-
-        // FIXME This should be a safe assumption, but it is nonetheless just
-        // that: an assumption.
-        static const unsigned dimensions_mesh = PICAlgorithm::dimensions_pos;
 
         // member types -------------------------------------------------------
         struct active_element
@@ -110,6 +108,8 @@ namespace pyrticle
 
 
         // member data --------------------------------------------------------
+        unsigned                        m_dimensions_mesh;
+
         unsigned                        m_faces_per_element;
         unsigned                        m_dofs_per_element;
         unsigned                        m_active_elements;
@@ -149,7 +149,7 @@ namespace pyrticle
 
         hedge::vector                   m_rho;
 
-        boost::shared_ptr<dof_shift_listener> m_rho_dof_shift_listener;
+        boost::shared_ptr<number_shift_listener> m_rho_dof_shift_listener;
 
         event_counter m_element_activation_counter, m_element_kill_counter;
 
@@ -162,9 +162,16 @@ namespace pyrticle
 
         // public interface ---------------------------------------------------
         type()
-          : m_faces_per_element(0), m_dofs_per_element(0), m_active_elements(0),
+          : m_faces_per_element(0), 
+          m_dofs_per_element(0), m_active_elements(0),
           m_activation_threshold(0), m_kill_threshold(0)
         { }
+
+
+
+
+        unsigned get_dimensions_mesh() const
+        { return CONST_PIC_THIS->m_mesh_data.m_dimensions; }
 
 
 
@@ -188,13 +195,13 @@ namespace pyrticle
 
         void reconstruct_j(hedge::vector &j, const hedge::vector &velocities)
         {
-          const unsigned dim = dimensions_mesh;
+          const unsigned dim = get_dimensions_mesh();
           particle_number pn = 0;
           BOOST_FOREACH(advected_particle &p, m_advected_particles)
           {
             hedge::vector v = subrange(velocities, 
-                PICAlgorithm::dimensions_velocity*pn,
-                PICAlgorithm::dimensions_velocity*(pn+1));
+                PICAlgorithm::get_dimensions_velocity()*pn,
+                PICAlgorithm::get_dimensions_velocity()*(pn+1));
 
             BOOST_FOREACH(active_element &el, p.m_elements)
             {
@@ -308,6 +315,29 @@ namespace pyrticle
 
             ++pn;
           }
+        }
+
+
+
+
+        void note_move(particle_number from, particle_number to, unsigned size)
+        {
+          for (unsigned i = 0; i < size; ++i)
+          {
+            BOOST_FOREACH(active_element &el, m_advected_particles[to+i].m_elements)
+              deallocate_element(el.m_start_index);
+
+            m_advected_particles[to+i] = m_advected_particles[from+i];
+
+          }
+        }
+
+
+
+
+        void note_change_size(unsigned particle_count)
+        {
+          m_advected_particles.resize(particle_count);
         }
 
 
@@ -464,7 +494,7 @@ namespace pyrticle
             m_freelist.push_back(el_index);
 
           if (m_rho_dof_shift_listener.get())
-            m_rho_dof_shift_listener->note_zap_dof(start_index, m_dofs_per_element);
+            m_rho_dof_shift_listener->note_reset(start_index, m_dofs_per_element);
         }
 
 
@@ -529,7 +559,7 @@ namespace pyrticle
           unsigned start = new_element.m_start_index = allocate_element();
           new_element.m_min_life = 0;
 
-          shape_function sf(new_particle.m_radius, dimensions_mesh);
+          shape_function sf(new_particle.m_radius, get_dimensions_mesh());
 
           for (unsigned i = 0; i < m_dofs_per_element; ++i)
             m_rho[start+i] =
@@ -605,12 +635,12 @@ namespace pyrticle
           local_div.clear();
 
           // calculate local rst derivatives ----------------------------------
-          hedge::vector rst_derivs(dimensions_mesh*dofs);
+          hedge::vector rst_derivs(get_dimensions_mesh()*dofs);
           rst_derivs.clear();
           using namespace boost::numeric::bindings;
           using blas::detail::gemm;
 
-          for (unsigned loc_axis = 0; loc_axis < dimensions_mesh; ++loc_axis)
+          for (unsigned loc_axis = 0; loc_axis < get_dimensions_mesh(); ++loc_axis)
           {
             const hedge::matrix &matrix = m_local_diff_matrices.at(loc_axis);
 
@@ -642,10 +672,10 @@ namespace pyrticle
 
               BOOST_FOREACH(const active_element &el, p.m_elements)
               {
-                for (unsigned loc_axis = 0; loc_axis < dimensions_mesh; ++loc_axis)
+                for (unsigned loc_axis = 0; loc_axis < get_dimensions_mesh(); ++loc_axis)
                 {
                   double coeff = 0;
-                  for (unsigned glob_axis = 0; glob_axis < dimensions_mesh; ++glob_axis)
+                  for (unsigned glob_axis = 0; glob_axis < get_dimensions_mesh(); ++glob_axis)
                     coeff += -v[glob_axis] *
                       el.m_element_info->m_inverse_map.matrix()(loc_axis, glob_axis);
 
@@ -679,9 +709,9 @@ namespace pyrticle
           particle_number pn = 0;
           BOOST_FOREACH(advected_particle &p, m_advected_particles)
           {
-            const shape_function sf(p.m_radius, dimensions_mesh);
+            const shape_function sf(p.m_radius, get_dimensions_mesh());
             const double shape_peak = sf(
-                boost::numeric::ublas::zero_vector<double>(dimensions_mesh))
+                boost::numeric::ublas::zero_vector<double>(get_dimensions_mesh()))
               *CONST_PIC_THIS->m_charges[pn];
 
             const hedge::vector v = subrange(velocities, 

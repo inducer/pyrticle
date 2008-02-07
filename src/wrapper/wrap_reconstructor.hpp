@@ -49,11 +49,11 @@ namespace pyrticle
 
   template <class Wrapper, class PIC>
   void expose_typed_reconstructor(Wrapper &wrp, 
-      advective_reconstructor::type<PIC> *)
+      typename advective_reconstructor::type<PIC> *)
   { 
     using boost::python::arg;
 
-    typedef advective_reconstructor::type<PIC> cl;
+    typedef typename advective_reconstructor::template type<PIC> cl;
     wrp
       .def("setup_advective_reconstructor", 
           &cl::setup_advective_reconstructor,

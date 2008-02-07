@@ -70,8 +70,8 @@ class AdvectiveReconstructor(object):
     name = "Advective"
 
     def __init__(self, activation_threshold, kill_threshold, upwind_alpha):
-        from pyrticle.tools import DOFShiftForwarder
-        self.rho_shift_signaller = DOFShiftForwarder()
+        from pyrticle.tools import NumberShiftForwarder
+        self.rho_shift_signaller = NumberShiftForwarder()
 
         from pytools.log import IntervalTimer, EventCounter
         self.element_activation_counter = EventCounter(
@@ -135,11 +135,12 @@ class AdvectiveReconstructor(object):
         self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
 
     def rhs(self):
-        from pyrticle.tools import DOFShiftableVector
+        from pyrticle.tools import NumberShiftableVector
         self.advective_rhs_timer.start()
-        result =  DOFShiftableVector(
+        result =  NumberShiftableVector(
                 self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.raw_velocities()),
-                self.rho_shift_signaller
+                multiplier=1,
+                signaller=self.rho_shift_signaller
                 )
         self.advective_rhs_timer.stop()
         self.element_activation_counter.transfer(
@@ -150,6 +151,6 @@ class AdvectiveReconstructor(object):
         return result
 
     def add_rhs(self, rhs):
-        from pyrticle.tools import DOFShiftableVector
+        from pyrticle.tools import NumberShiftableVector
         self.cloud.pic_algorithm.apply_advective_particle_rhs(
-                DOFShiftableVector.unwrap(rhs))
+                NumberShiftableVector.unwrap(rhs))

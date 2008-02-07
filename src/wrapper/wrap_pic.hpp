@@ -61,8 +61,8 @@ namespace
     std::string name = "PIC";
     name += PICAlgorithm::reconstructor::get_name();
     name += PICAlgorithm::particle_pusher::get_name();
-    name += boost::lexical_cast<std::string>(PICAlgorithm::dimensions_pos);
-    name += boost::lexical_cast<std::string>(PICAlgorithm::dimensions_velocity);
+    name += boost::lexical_cast<std::string>(PICAlgorithm::get_dimensions_pos());
+    name += boost::lexical_cast<std::string>(PICAlgorithm::get_dimensions_velocity());
 
     using python::arg;
 
@@ -92,8 +92,7 @@ namespace
       .DEF_RO_MEMBER(find_by_vertex)
       .DEF_RO_MEMBER(find_global)
 
-      .DEF_RW_MEMBER(pos_dof_shift_listener)
-      .DEF_RW_MEMBER(velocity_dof_shift_listener)
+      .DEF_RW_MEMBER(particle_number_shift_listener)
 
       .DEF_SIMPLE_METHOD(velocities)
 

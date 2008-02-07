@@ -29,6 +29,7 @@
 #include <boost/numeric/ublas/vector_proxy.hpp>
 #include <boost/typeof/std/utility.hpp>
 #include "tools.hpp"
+#include "bases.hpp"
 #include "meshdata.hpp"
 
 
@@ -110,14 +111,14 @@ namespace pyrticle
 
   /** Reconstruction Target for the current density.
    */
-  template<unsigned dimensions_velocity>
+  template<unsigned DimensionsVelocity>
   class j_reconstruction_target
   {
     private:
       hedge::vector &m_target_vector;
       const hedge::vector &m_charges;
       const hedge::vector &m_velocities;
-      double m_scale_factors[dimensions_velocity];
+      double m_scale_factors[DimensionsVelocity];
 
     public:
       j_reconstruction_target(
@@ -133,14 +134,14 @@ namespace pyrticle
       void begin_particle(particle_number pn)
       {
         const double charge = m_charges[pn];
-        for (unsigned axis = 0; axis < dimensions_velocity; axis++)
-          m_scale_factors[axis] = charge * m_velocities[pn*dimensions_velocity+axis];
+        for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
+          m_scale_factors[axis] = charge * m_velocities[pn*DimensionsVelocity+axis];
       }
 
       void add_shape_at_point(unsigned i, double shape_factor)
       {
-        const unsigned base = i*dimensions_velocity;
-        for (unsigned axis = 0; axis < dimensions_velocity; axis++)
+        const unsigned base = i*DimensionsVelocity;
+        for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
           m_target_vector[base+axis] += shape_factor * m_scale_factors[axis];
       }
 
@@ -366,10 +367,12 @@ namespace pyrticle
 
 
 
-  struct shape_function_reconstructor 
+  struct shape_function_reconstructor
   {
     template <class PICAlgorithm>
-    class type : public shape_element_finder<PICAlgorithm>
+    class type : 
+      public shape_element_finder<PICAlgorithm>, 
+      public reconstructor_base
     {
       public:
         // member data --------------------------------------------------------

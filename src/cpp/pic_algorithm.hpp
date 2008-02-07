@@ -60,8 +60,7 @@ namespace pyrticle
         mutable event_counter             m_find_by_vertex;
         mutable event_counter             m_find_global;
 
-        boost::shared_ptr<dof_shift_listener> m_pos_dof_shift_listener;
-        boost::shared_ptr<dof_shift_listener> m_velocity_dof_shift_listener;
+        boost::shared_ptr<number_shift_listener> m_particle_number_shift_listener;
 
       public:
         // administrative stuff -----------------------------------------------
@@ -72,21 +71,28 @@ namespace pyrticle
         { }
 
         // dimensions ---------------------------------------------------------
+        /* CAVEAT: Use the get_dimensions_XXX functions whenever possible.
+         * Otherwise, you will get spurious linker errors about undefined
+         * references to these constants.
+         *
+         * In particular, these expressions should only be used where they're
+         * evaluated at compile time.
+         */
         static const unsigned dimensions_pos = DimensionsPos;
         static const unsigned dimensions_velocity = DimensionsVelocity;
 
         static unsigned get_dimensions_pos()
-        { return dimensions_pos; }
+        { return DimensionsPos; }
 
         static unsigned get_dimensions_velocity()
-        { return dimensions_velocity; }
+        { return DimensionsVelocity; }
 
         // heavy-lifting routines ---------------------------------------------
         const hedge::vector velocities() const
         {
-          const unsigned vdim = dimensions_velocity;
+          const unsigned vdim = DimensionsVelocity;
 
-          hedge::vector result(m_particle_count * dimensions_velocity);
+          hedge::vector result(m_particle_count * DimensionsVelocity);
 
           for (particle_number pn = 0; pn < m_particle_count; pn++)
           {
@@ -108,9 +114,9 @@ namespace pyrticle
             hedge::vector const &dx, 
             hedge::vector const &dp)
         {
-          noalias(subrange(m_positions, 0, dimensions_pos*m_particle_count))
+          noalias(subrange(m_positions, 0, DimensionsPos*m_particle_count))
             += dx;
-          noalias(subrange(m_momenta, 0, dimensions_velocity*m_particle_count))
+          noalias(subrange(m_momenta, 0, DimensionsVelocity*m_particle_count))
             += dp;
         }
 
@@ -120,7 +126,7 @@ namespace pyrticle
         mesh_data::element_number find_new_containing_element(particle_number i,
             mesh_data::element_number prev) const
         {
-          const unsigned xdim = dimensions_pos;
+          const unsigned xdim = DimensionsPos;
 
           const unsigned x_pstart = i*xdim;
           const unsigned x_pend = (i+1)*xdim;
@@ -256,8 +262,8 @@ namespace pyrticle
 
         void boundary_hit(particle_number pn)
         {
-          unsigned x_pstart = pn*dimensions_pos;
-          unsigned x_pend = (pn+1)*dimensions_pos;
+          unsigned x_pstart = pn*DimensionsPos;
+          unsigned x_pend = (pn+1)*DimensionsPos;
 
           bool periodicity_trip = false;
 
@@ -293,6 +299,9 @@ namespace pyrticle
           kill_particle(pn);
         }
 
+
+
+
         void kill_particle(particle_number pn)
         {
           std::cout << "KILL " << pn << std::endl;
@@ -300,12 +309,10 @@ namespace pyrticle
           --m_particle_count;
           move_particle(m_particle_count, pn);
 
-          if (m_pos_dof_shift_listener.get())
-            m_pos_dof_shift_listener->note_change_size(
-                dimensions_pos*m_particle_count);
-          if (m_velocity_dof_shift_listener.get())
-            m_velocity_dof_shift_listener->note_change_size(
-                dimensions_velocity*m_particle_count);
+          if (m_particle_number_shift_listener.get())
+            m_particle_number_shift_listener->note_change_size(m_particle_count);
+          PIC_THIS->PICAlgorithm::reconstructor::note_change_size(m_particle_count);
+          PIC_THIS->PICAlgorithm::particle_pusher::note_change_size(m_particle_count);
         }
 
 
@@ -313,21 +320,21 @@ namespace pyrticle
 
         void move_particle(particle_number from, particle_number to)
         {
-          const unsigned xdim = dimensions_pos;
-          const unsigned vdim = dimensions_velocity;
+          const unsigned xdim = DimensionsPos;
+          const unsigned vdim = DimensionsVelocity;
 
           m_containing_elements[to] = m_containing_elements[from];
 
+          if (m_particle_number_shift_listener.get())
+            m_particle_number_shift_listener->note_move(from, to, 1);
+          PIC_THIS->PICAlgorithm::reconstructor::note_move(from, to, 1);
+          PIC_THIS->PICAlgorithm::particle_pusher::note_move(from, to, 1);
+
           for (unsigned i = 0; i < xdim; i++)
             m_positions[to*xdim+i] = m_positions[from*xdim+i];
-          if (m_pos_dof_shift_listener.get())
-            m_pos_dof_shift_listener->note_move_dof(from*xdim, to*xdim, xdim);
 
           for (unsigned i = 0; i < vdim; i++)
             m_momenta[to*vdim+i] = m_momenta[from*vdim+i];
-
-          if (m_velocity_dof_shift_listener.get())
-            m_velocity_dof_shift_listener->note_move_dof(from*vdim, to*vdim, vdim);
 
           m_charges[to] = m_charges[from];
           m_masses[to] = m_masses[from];

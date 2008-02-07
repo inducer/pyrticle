@@ -31,6 +31,7 @@
 #include <boost/numeric/ublas/vector_proxy.hpp>
 #include <boost/numeric/ublas/triangular.hpp>
 #include "tools.hpp"
+#include "bases.hpp"
 #include "meshdata.hpp"
 
 
@@ -106,7 +107,7 @@ namespace pyrticle
   struct monomial_particle_pusher
   {
     template <class PICAlgorithm>
-    class type
+    class type : public pusher_base
     {
       public:
         static const char *get_name()
@@ -166,8 +167,8 @@ namespace pyrticle
             bool verbose_vis
             )
         {
-          const unsigned xdim = CONST_PIC_THIS->dimensions_pos;
-          const unsigned vdim = CONST_PIC_THIS->dimensions_velocity;
+          const unsigned xdim = CONST_PIC_THIS->get_dimensions_pos();
+          const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
 
           hedge::vector result(CONST_PIC_THIS->m_particle_count * vdim);
           std::auto_ptr<hedge::vector> 
@@ -218,7 +219,7 @@ namespace pyrticle
 
             // truncate forces to dimensions_velocity entries
             subrange(result, v_pstart, v_pend) = subrange(
-                el_force + lorentz_force, 0, PIC_THIS->dimensions_velocity);
+                el_force + lorentz_force, 0, PIC_THIS->get_dimensions_velocity());
 
             if (verbose_vis)
             {

@@ -117,7 +117,8 @@ def main():
     print "e-/particle = ", electrons_per_particle 
 
     avg_x_vel = 0.99*units.VACUUM_LIGHT_SPEED
-    mean_v = num.array([avg_x_vel, 0])
+    #mean_v = num.array([avg_x_vel, 0])
+    mean_v = num.array([avg_x_vel*0.5, avg_x_vel*0.8])
     mean_beta = mean_v/units.VACUUM_LIGHT_SPEED
     gamma = units.gamma(mean_v)
     pmass = electrons_per_particle*units.EL_MASS
