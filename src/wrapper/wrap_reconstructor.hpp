@@ -27,6 +27,7 @@
 
 #include "wrap_helpers.hpp"
 #include "rec_shape.hpp"
+#include "rec_normshape.hpp"
 #include "rec_advective.hpp"
 
 
@@ -39,6 +40,19 @@ namespace pyrticle
       shape_function_reconstructor::type<PIC> *)
   { 
     typedef shape_function_reconstructor::type<PIC> cl;
+    wrp
+      .DEF_SIMPLE_METHOD(set_radius)
+      ;
+  }
+
+
+
+
+  template <class Wrapper, class PIC>
+  void expose_typed_reconstructor(Wrapper &wrp, 
+      normalized_shape_function_reconstructor::type<PIC> *)
+  { 
+    typedef normalized_shape_function_reconstructor::type<PIC> cl;
     wrp
       .DEF_SIMPLE_METHOD(set_radius)
       ;

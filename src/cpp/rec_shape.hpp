@@ -70,6 +70,7 @@ namespace pyrticle
    * {
    *   void begin_particle(particle_number pn);
    *   void add_shape_at_point(unsigned i, double shape_factor)
+   *   void end_particle(particle_number pn)
    * };
    *
    * Note: this is a stateful protocol.
@@ -99,6 +100,9 @@ namespace pyrticle
       {
         m_target_vector[i] += shape_factor * m_scale_factor;
       }
+
+      void end_particle(particle_number pn)
+      { }
 
       const hedge::vector &result() const
       {
@@ -145,6 +149,9 @@ namespace pyrticle
           m_target_vector[base+axis] += shape_factor * m_scale_factors[axis];
       }
 
+      void end_particle(particle_number pn)
+      { }
+
       const hedge::vector &result() const
       {
         return m_target_vector;
@@ -158,8 +165,8 @@ namespace pyrticle
   class chained_reconstruction_target
   {
     private:
-      T1 &m_target1;
-      T2 &m_target2;
+      T1 m_target1;
+      T2 m_target2;
 
     public:
       chained_reconstruction_target(T1 &target1, T2 &target2)
@@ -177,6 +184,14 @@ namespace pyrticle
         m_target1.add_shape_at_point(i, shape_factor);
         m_target2.add_shape_at_point(i, shape_factor);
       }
+
+      void end_particle(particle_number pn)
+      {
+        m_target1.end_particle(pn);
+        m_target2.end_particle(pn);
+      }
+
+      void end_particle(particle_number pn)
   };
 
 
@@ -184,7 +199,7 @@ namespace pyrticle
   template <class T1, class T2>
   inline
   chained_reconstruction_target<T1, T2> 
-  make_chained_reconstruction_target(T1 target1, T2 target2)
+  make_chained_reconstruction_target(T1 &target1, T2 &target2)
   {
     return chained_reconstruction_target<T1, T2>(target1, target2);
   }
@@ -476,6 +491,7 @@ namespace pyrticle
           {
             tgt.begin_particle(pn);
             add_shape(tgt, pn, m_shape_function->radius());
+            tgt.end_particle(pn);
           }
         }
     };

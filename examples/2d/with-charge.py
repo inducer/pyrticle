@@ -10,16 +10,14 @@ import cProfile as profile
 def add_gauss_particles(nparticles, cloud, discr, charge, mass, 
         mean_x, mean_p, sigma_x, sigma_p):
     from random import gauss
-    from pyrticle.tools import v_from_p
 
     cloud.add_particles(
             positions=[
                 num.array([gauss(m, s) for m, s in zip(mean_x, sigma_x)]) 
                 for i in range(nparticles)
                 ],
-            velocities=[v_from_p(
-                num.array([gauss(m, s) for m, s in zip(mean_p, sigma_p)]),
-                mass, cloud.units.VACUUM_LIGHT_SPEED) 
+            velocities=[cloud.units.v_from_p(mass, 
+                num.array([gauss(m, s) for m, s in zip(mean_p, sigma_p)])) 
                 for i in range(nparticles)
                 ],
             charges=charge, masses=mass)
@@ -116,7 +114,7 @@ def main():
     electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
-    avg_x_vel = 0.99*units.VACUUM_LIGHT_SPEED
+    avg_x_vel = 0.90*units.VACUUM_LIGHT_SPEED
     mean_v = num.array([avg_x_vel, 0])
     #mean_v = num.array([avg_x_vel*0.5, avg_x_vel*0.8])
     mean_beta = mean_v/units.VACUUM_LIGHT_SPEED
@@ -124,6 +122,7 @@ def main():
     pmass = electrons_per_particle*units.EL_MASS
     mean_p = gamma*pmass*mean_v
 
+    sigma_v = num.array([avg_x_vel*1e-3, avg_x_vel*1e-6])
     print "beta=%g, gamma=%g" % (comp.norm_2(mean_beta), gamma)
 
     add_gauss_particles(nparticles, cloud, discr, 
@@ -131,8 +130,8 @@ def main():
             mass=pmass,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
-            sigma_x=0.01*num.ones((2,)),
-            sigma_p=units.gamma(mean_v)*pmass*num.ones((2,))*avg_x_vel*0.05,
+            sigma_x=0.1*num.ones((2,)),
+            sigma_p=units.gamma(mean_v)*pmass*sigma_v,
             )
 
     # intial condition --------------------------------------------------------
