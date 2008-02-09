@@ -103,11 +103,11 @@ def main():
             AdvectiveReconstructor
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
-            AdvectiveReconstructor(
-                activation_threshold=1e-5,
-                kill_threshold=1e-3,
-                upwind_alpha=1),
-            #ShapeFunctionReconstructor(),
+            #AdvectiveReconstructor(
+                #activation_threshold=1e-5,
+                #kill_threshold=1e-3,
+                #upwind_alpha=1),
+            ShapeFunctionReconstructor(),
             MonomialParticlePusher(),
             dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
@@ -117,8 +117,8 @@ def main():
     print "e-/particle = ", electrons_per_particle 
 
     avg_x_vel = 0.99*units.VACUUM_LIGHT_SPEED
-    #mean_v = num.array([avg_x_vel, 0])
-    mean_v = num.array([avg_x_vel*0.5, avg_x_vel*0.8])
+    mean_v = num.array([avg_x_vel, 0])
+    #mean_v = num.array([avg_x_vel*0.5, avg_x_vel*0.8])
     mean_beta = mean_v/units.VACUUM_LIGHT_SPEED
     gamma = units.gamma(mean_v)
     pmass = electrons_per_particle*units.EL_MASS
@@ -173,7 +173,7 @@ def main():
 
     logmgr.add_quantity(ETA(nsteps))
 
-    logmgr.add_watches(["step", "t_sim", "W_field", "t_step", "t_eta", "n_part", "n_advec_elements"])
+    logmgr.add_watches(["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"])
 
     # timestepping ------------------------------------------------------------
     t = 0
@@ -195,9 +195,9 @@ def main():
                         ("e", fields.e), 
                         ("h", fields.h), 
 
-                        ("active_elements", 
-                            cloud.pic_algorithm.get_debug_quantity_on_mesh(
-                                "active_elements", cloud.raw_velocities())),
+                        #("active_elements", 
+                            #cloud.pic_algorithm.get_debug_quantity_on_mesh(
+                                #"active_elements", cloud.raw_velocities())),
                         ("rho", cloud.reconstruct_rho()),
                         ("j", cloud.reconstruct_j()), 
                         ],
