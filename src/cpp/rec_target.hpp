@@ -66,8 +66,8 @@ namespace pyrticle
       { }
 
       template <class VectorExpression>
-      void add_shape_on_element(mesh_data::element_number en, 
-          mesh_data::node_number start_idx, 
+      void add_shape_on_element(const mesh_data::element_number en, 
+          const mesh_data::node_number start_idx, 
           VectorExpression const &rho_contrib)
       {
         noalias(subrange(m_target_vector, start_idx, start_idx+rho_contrib.size()))
@@ -114,8 +114,8 @@ namespace pyrticle
       }
 
       template <class VectorExpression>
-      void add_shape_on_element(mesh_data::element_number en, 
-          mesh_data::node_number start_idx, 
+      void add_shape_on_element(const mesh_data::element_number en, 
+          const mesh_data::node_number start_idx, 
           VectorExpression const &rho_contrib)
       {
         for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
@@ -138,6 +138,7 @@ namespace pyrticle
 
 
 
+
   template <class T1, class T2>
   class chained_reconstruction_target
   {
@@ -150,22 +151,22 @@ namespace pyrticle
         : m_target1(target1), m_target2(target2)
       { }
 
-      void begin_particle(particle_number pn)
+      void begin_particle(const particle_number pn)
       {
         m_target1.begin_particle(pn);
         m_target2.begin_particle(pn);
       }
 
       template <class VectorExpression>
-      void add_shape_on_element(mesh_data::element_number en, 
-          mesh_data::node_number start_idx, 
+      void add_shape_on_element(const mesh_data::element_number en, 
+          const mesh_data::node_number start_idx, 
           VectorExpression const &rho_contrib)
       {
         m_target1.add_shape_on_element(en, start_idx, rho_contrib);
         m_target2.add_shape_on_element(en, start_idx, rho_contrib);
       }
 
-      void end_particle(particle_number pn)
+      void end_particle(const particle_number pn)
       {
         m_target1.end_particle(pn);
         m_target2.end_particle(pn);

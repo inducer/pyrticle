@@ -93,7 +93,7 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 100
+    nparticles = 1
 
     from pyrticle.cloud import ParticleCloud
     from pyrticle.reconstruction import \
@@ -106,8 +106,8 @@ def main():
                 #activation_threshold=1e-5,
                 #kill_threshold=1e-3,
                 #upwind_alpha=1),
-            ShapeFunctionReconstructor(),
-            #NormalizedShapeFunctionReconstructor(),
+            #ShapeFunctionReconstructor(),
+            NormalizedShapeFunctionReconstructor(),
             MonomialParticlePusher(),
             dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)

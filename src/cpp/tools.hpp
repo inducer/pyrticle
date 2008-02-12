@@ -53,6 +53,8 @@ namespace pyrticle
 
   // common types -------------------------------------------------------------
   typedef unsigned particle_number;
+  static const particle_number INVALID_PARTICLE = UINT_MAX;
+
 
 #define PIC_THIS static_cast<PICAlgorithm *>(this)
 #define CONST_PIC_THIS static_cast<const PICAlgorithm *>(this)

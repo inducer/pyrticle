@@ -55,6 +55,12 @@ class NormalizedShapeFunctionReconstructor(object):
 
     def initialize(self, cloud):
         cloud.pic_algorithm.set_radius(cloud.mesh_data.advisable_particle_radius())
+        
+        eg, = cloud.mesh_data.discr.element_groups
+        ldis = eg.local_discretization
+
+        cloud.pic_algorithm.setup_normalized_shape_reconstructor(
+                ldis.mass_matrix())
 
     def add_instrumentation(self, mgr):
         pass

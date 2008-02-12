@@ -314,7 +314,6 @@ namespace pyrticle
     };
 
   };
-
 }
 
 

@@ -128,12 +128,12 @@ namespace pyrticle
         double el_integral = 0;
         for (unsigned i = 0; i < element_length; i++)
         {
-          double shapeval = sf(m_mesh_data.m_nodes[i]-center);
+          double shapeval = sf(m_mesh_data.m_nodes[i+einfo.m_start]-center);
           m_shape_interpolant[new_shape_element.m_my_start_index+i] 
             = shapeval;
           el_integral += shapeval * m_integral_weights[i];
         }
-        m_integral += el_integral;
+        m_integral += el_integral*einfo.m_jacobian;
         
         m_particle_shape_elements.push_back(new_shape_element);
       }
