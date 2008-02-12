@@ -29,3 +29,4 @@ dump.py
 *.bak
 *-gdbcommands
 bin/logtool
+*.orig

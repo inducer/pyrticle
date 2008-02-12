@@ -182,52 +182,25 @@ namespace pyrticle
 
 
 
-        void reconstruct_densities(
-            hedge::vector &rho, 
-            hedge::vector &j,
-            const hedge::vector &velocities)
+        template<class Target>
+        void reconstruct_densities_on_target(Target &tgt)
         {
+          hedge::vector result(
+              m_dofs_per_element*CONST_PIC_THIS->m_mesh_data.m_element_info.size());
+          result.clear();
 
-        }
-
-
-
-
-        void reconstruct_j(hedge::vector &j, const hedge::vector &velocities)
-        {
-          const unsigned dim = get_dimensions_mesh();
           particle_number pn = 0;
-          BOOST_FOREACH(advected_particle &p, m_advected_particles)
+          BOOST_FOREACH(const advected_particle &p, m_advected_particles)
           {
-            hedge::vector v = subrange(velocities, 
-                PICAlgorithm::get_dimensions_velocity()*pn,
-                PICAlgorithm::get_dimensions_velocity()*(pn+1));
-
-            BOOST_FOREACH(active_element &el, p.m_elements)
-            {
-              const mesh_data::element_info &einfo = *el.m_element_info;
-              for (unsigned i = 0; i < dim; ++i)
-              {
-                noalias(subslice(j, 
-                      dim*einfo.m_start, 
-                      dim,
-                      m_dofs_per_element)) += v[i] *
-                  subrange(m_rho, 
-                      el.m_start_index, 
-                      el.m_start_index+m_dofs_per_element);
-
-              }
-            }
+            tgt.begin_particle(pn);
+            BOOST_FOREACH(const active_element &el, p.m_elements)
+              tgt.add_shape_on_element(
+                  el.m_element_info->m_id,
+                  el.m_element_info->m_start,
+                  subrange(m_rho, el.m_start_index, el.m_start_index+m_dofs_per_element));
+            tgt.end_particle(pn);
             ++pn;
           }
-        }
-
-
-
-
-        void reconstruct_rho(hedge::vector &rho)
-        {
-          rho = map_particle_space_to_mesh_space(m_rho);
         }
 
 
@@ -416,25 +389,28 @@ namespace pyrticle
 
 
 
-          void dump_particle(advected_particle const &p) const
+        void dump_particle(advected_particle const &p) const
+        {
+          std::cout << "particle, radius " << p.m_radius << std::endl;
+          unsigned i_el = 0;
+          BOOST_FOREACH(const active_element &el, p.m_elements)
           {
-            std::cout << "particle, radius " << p.m_radius << std::endl;
-            unsigned i_el = 0;
-            BOOST_FOREACH(const active_element &el, p.m_elements)
-            {
-              std::cout << "#" << el.m_element_info->m_id << " cnx:(";
-              for (unsigned fn = 0; fn < m_faces_per_element; ++fn)
-                if (el.m_connections[fn] == hedge::INVALID_ELEMENT)
-                  std::cout << "X" << ',';
-                else
-                  std::cout << el.m_connections[fn]  << ',';
+            std::cout << "#" << el.m_element_info->m_id << " cnx:(";
+            for (unsigned fn = 0; fn < m_faces_per_element; ++fn)
+              if (el.m_connections[fn] == hedge::INVALID_ELEMENT)
+                std::cout << "X" << ',';
+              else
+                std::cout << el.m_connections[fn]  << ',';
 
-              std::cout << ")" << std::endl;
+            std::cout << ")" << std::endl;
 
-              ++i_el;
-            }
-
+            ++i_el;
           }
+        }
+
+
+
+
         // vectors space administration ---------------------------------------
         /* Each element occupies a certain index range in the global state
          * vector m_rho (as well as elsewhere). These functions perform
@@ -805,7 +781,7 @@ namespace pyrticle
                       +
                       (1-m_upwind_alpha)*-0.5);
 
-                const mesh_data::node_index this_base_idx = el->m_start_index;
+                const mesh_data::node_number this_base_idx = el->m_start_index;
 
                 // activate outflow, if necessary -----------------------------
                 if (!is_boundary && !active && !inflow)
@@ -905,7 +881,7 @@ namespace pyrticle
                 if (active)
                 {
                   const active_element *opp_el = p.find_element(el->m_connections[fn]);
-                  const mesh_data::node_index opp_base_idx = opp_el->m_start_index;
+                  const mesh_data::node_number opp_base_idx = opp_el->m_start_index;
 
                   if (opp_el == 0)
                   {

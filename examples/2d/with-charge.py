@@ -98,6 +98,7 @@ def main():
     from pyrticle.cloud import ParticleCloud
     from pyrticle.reconstruction import \
             ShapeFunctionReconstructor, \
+            NormalizedShapeFunctionReconstructor, \
             AdvectiveReconstructor
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
@@ -106,6 +107,7 @@ def main():
                 #kill_threshold=1e-3,
                 #upwind_alpha=1),
             ShapeFunctionReconstructor(),
+            #NormalizedShapeFunctionReconstructor(),
             MonomialParticlePusher(),
             dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)

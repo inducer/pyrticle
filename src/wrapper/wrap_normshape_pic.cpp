@@ -22,7 +22,7 @@
 
 
 
-void expose_shape_pic()
+void expose_normshape_pic()
 {
   expose_pic_algorithm<
       pic<

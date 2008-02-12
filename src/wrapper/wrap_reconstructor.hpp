@@ -54,6 +54,7 @@ namespace pyrticle
   { 
     typedef normalized_shape_function_reconstructor::type<PIC> cl;
     wrp
+      .DEF_SIMPLE_METHOD(setup_normalized_shape_reconstructor)
       .DEF_SIMPLE_METHOD(set_radius)
       ;
   }
@@ -69,9 +70,7 @@ namespace pyrticle
 
     typedef typename advective_reconstructor::template type<PIC> cl;
     wrp
-      .def("setup_advective_reconstructor", 
-          &cl::setup_advective_reconstructor,
-          (arg("dofs_per_element")))
+      .DEF_SIMPLE_METHOD(setup_advective_reconstructor)
       .DEF_RW_MEMBER(rho_dof_shift_listener)
 
       .DEF_RO_MEMBER(active_elements)

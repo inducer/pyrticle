@@ -30,6 +30,7 @@
 #include <boost/shared_ptr.hpp> 
 #include <boost/numeric/ublas/vector_proxy.hpp>
 #include "meshdata.hpp"
+#include "rec_target.hpp"
 
 
 
@@ -318,6 +319,10 @@ namespace pyrticle
 
 
 
+        /** Move a particle to a different number.
+         *
+         * (this has nothing to do with actual particle motion.)
+         */
         void move_particle(particle_number from, particle_number to)
         {
           const unsigned xdim = DimensionsPos;
@@ -339,6 +344,10 @@ namespace pyrticle
           m_charges[to] = m_charges[from];
           m_masses[to] = m_masses[from];
         }
+
+
+
+
     };
 
   };
@@ -380,6 +389,59 @@ namespace pyrticle
           boost::shared_ptr<visualization_listener> listener)
       {
         m_vis_listener = listener;
+      }
+
+
+
+
+      // reconstruction -----------------------------------------------------
+      void reconstruct_densities(
+          hedge::vector &rho, 
+          hedge::vector &j,
+          const hedge::vector &velocities)
+      {
+        if (rho.size() != this->m_mesh_data.m_nodes.size())
+          throw std::runtime_error("rho field does not have the correct size");
+        if (j.size() != this->m_mesh_data.m_nodes.size() *
+            this->get_dimensions_velocity())
+          throw std::runtime_error("j field does not have the correct size");
+
+        rho_reconstruction_target rho_tgt(rho);
+        typedef j_reconstruction_target<pic::dimensions_velocity> j_tgt_t;
+        j_tgt_t j_tgt(j, velocities);
+
+        chained_reconstruction_target<rho_reconstruction_target, j_tgt_t>
+            tgt(rho_tgt, j_tgt);
+        this->reconstruct_densities_on_target(tgt);
+
+        rho = rho_tgt.result();
+      }
+
+
+
+
+      void reconstruct_j(hedge::vector &j, const hedge::vector &velocities)
+      {
+        if (j.size() != this->m_mesh_data.m_nodes.size() *
+            this->get_dimensions_velocity())
+          throw std::runtime_error("j field does not have the correct size");
+
+        j_reconstruction_target<pic::dimensions_velocity> j_tgt(
+            j, velocities);
+
+        this->reconstruct_densities_on_target(j_tgt);
+      }
+
+
+
+
+      void reconstruct_rho(hedge::vector &rho)
+      {
+        if (rho.size() != this->m_mesh_data.m_nodes.size())
+          throw std::runtime_error("rho field does not have the correct size");
+        rho_reconstruction_target rho_tgt(rho);
+
+        this->reconstruct_densities_on_target(rho_tgt);
       }
   };
 }

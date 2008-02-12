@@ -50,6 +50,27 @@ class ShapeFunctionReconstructor(object):
 
 
 
+class NormalizedShapeFunctionReconstructor(object):
+    name = "NormShape"
+
+    def initialize(self, cloud):
+        cloud.pic_algorithm.set_radius(cloud.mesh_data.advisable_particle_radius())
+
+    def add_instrumentation(self, mgr):
+        pass
+
+    def add_particle_hook(self, pn):
+        pass
+
+    def rhs(self):
+        return 0
+
+    def add_rhs(self, rhs):
+        return 0
+
+
+
+
 
 
 

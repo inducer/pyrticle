@@ -25,6 +25,7 @@
 
 
 
+#include <boost/ref.hpp>
 #include <boost/foreach.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
 #include <boost/typeof/std/utility.hpp>
@@ -40,7 +41,7 @@ namespace pyrticle
   class shape_function
   {
     public:
-      shape_function(double radius, unsigned dimensions, double alpha=2);
+      shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
 
       const double operator()(const hedge::vector &r) const
       {
@@ -60,149 +61,6 @@ namespace pyrticle
       double m_l, m_l_squared;
   };
 
-
-
-
-  /** The ReconstructionTarget protocol:
-   *
-   * template <class Scaler>
-   * class reconstruction_target
-   * {
-   *   void begin_particle(particle_number pn);
-   *   void add_shape_at_point(unsigned i, double shape_factor)
-   *   void end_particle(particle_number pn)
-   * };
-   *
-   * Note: this is a stateful protocol.
-   */
-
-  class rho_reconstruction_target
-  {
-    private:
-      hedge::vector &m_target_vector;
-      const hedge::vector &m_charges;
-      double m_scale_factor;
-
-    public:
-      rho_reconstruction_target(
-          hedge::vector &target_vector, const hedge::vector &charges)
-        : m_target_vector(target_vector), m_charges(charges)
-      { 
-        m_target_vector.clear();
-      }
-
-      void begin_particle(particle_number pn)
-      {
-        m_scale_factor = m_charges[pn];
-      }
-
-      void add_shape_at_point(unsigned i, double shape_factor)
-      {
-        m_target_vector[i] += shape_factor * m_scale_factor;
-      }
-
-      void end_particle(particle_number pn)
-      { }
-
-      const hedge::vector &result() const
-      {
-        return m_target_vector;
-      }
-  };
-
-
-
-
-  /** Reconstruction Target for the current density.
-   */
-  template<unsigned DimensionsVelocity>
-  class j_reconstruction_target
-  {
-    private:
-      hedge::vector &m_target_vector;
-      const hedge::vector &m_charges;
-      const hedge::vector &m_velocities;
-      double m_scale_factors[DimensionsVelocity];
-
-    public:
-      j_reconstruction_target(
-          hedge::vector &target_vector, 
-          const hedge::vector &charges,
-          const hedge::vector &velocities)
-        : m_target_vector(target_vector), 
-        m_charges(charges), m_velocities(velocities)
-      { 
-        m_target_vector.clear();
-      }
-
-      void begin_particle(particle_number pn)
-      {
-        const double charge = m_charges[pn];
-        for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-          m_scale_factors[axis] = charge * m_velocities[pn*DimensionsVelocity+axis];
-      }
-
-      void add_shape_at_point(unsigned i, double shape_factor)
-      {
-        const unsigned base = i*DimensionsVelocity;
-        for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-          m_target_vector[base+axis] += shape_factor * m_scale_factors[axis];
-      }
-
-      void end_particle(particle_number pn)
-      { }
-
-      const hedge::vector &result() const
-      {
-        return m_target_vector;
-      }
-  };
-
-
-
-
-  template <class T1, class T2>
-  class chained_reconstruction_target
-  {
-    private:
-      T1 m_target1;
-      T2 m_target2;
-
-    public:
-      chained_reconstruction_target(T1 &target1, T2 &target2)
-        : m_target1(target1), m_target2(target2)
-      { }
-
-      void begin_particle(particle_number pn)
-      {
-        m_target1.begin_particle(pn);
-        m_target2.begin_particle(pn);
-      }
-
-      void add_shape_at_point(unsigned i, double shape_factor)
-      {
-        m_target1.add_shape_at_point(i, shape_factor);
-        m_target2.add_shape_at_point(i, shape_factor);
-      }
-
-      void end_particle(particle_number pn)
-      {
-        m_target1.end_particle(pn);
-        m_target2.end_particle(pn);
-      }
-
-      void end_particle(particle_number pn)
-  };
-
-
-
-  template <class T1, class T2>
-  inline
-  chained_reconstruction_target<T1, T2> 
-  make_chained_reconstruction_target(T1 &target1, T2 &target2)
-  {
-    return chained_reconstruction_target<T1, T2>(target1, target2);
-  }
 
 
 
@@ -391,7 +249,7 @@ namespace pyrticle
     {
       public:
         // member data --------------------------------------------------------
-        std::auto_ptr<shape_function>   m_shape_function;
+        shape_function   m_shape_function;
 
         // public interface ---------------------------------------------------
         static const char *get_name()
@@ -399,62 +257,8 @@ namespace pyrticle
 
         void set_radius(double radius)
         {
-          m_shape_function = std::auto_ptr<shape_function>(
-              new shape_function(radius, CONST_PIC_THIS->m_mesh_data.m_dimensions));
-        }
-
-
-
-
-        void reconstruct_densities(
-            hedge::vector &rho, 
-            hedge::vector &j,
-            const hedge::vector &velocities)
-        {
-          if (rho.size() != CONST_PIC_THIS->m_mesh_data.m_nodes.size())
-            throw std::runtime_error("rho field does not have the correct size");
-          if (j.size() != CONST_PIC_THIS->m_mesh_data.m_nodes.size() *
-              CONST_PIC_THIS->get_dimensions_velocity())
-            throw std::runtime_error("j field does not have the correct size");
-
-          rho_reconstruction_target rho_tgt(rho, CONST_PIC_THIS->m_charges);
-          j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt(
-              j, CONST_PIC_THIS->m_charges, velocities);
-
-          chained_reconstruction_target
-            <rho_reconstruction_target, 
-            j_reconstruction_target<PICAlgorithm::dimensions_velocity> >
-            tgt(rho_tgt, j_tgt);
-          reconstruct_densities_on_target(tgt);
-
-          rho = rho_tgt.result();
-        }
-
-
-
-
-        void reconstruct_j(hedge::vector &j, const hedge::vector &velocities)
-        {
-          if (j.size() != CONST_PIC_THIS->m_mesh_data.m_nodes.size() *
-              CONST_PIC_THIS->get_dimensions_velocity())
-            throw std::runtime_error("j field does not have the correct size");
-
-          j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt(
-              j, CONST_PIC_THIS->m_charges, velocities);
-
-          reconstruct_densities_on_target(j_tgt);
-        }
-
-
-
-
-        void reconstruct_rho(hedge::vector &rho)
-        {
-          if (rho.size() != CONST_PIC_THIS->m_mesh_data.m_nodes.size())
-            throw std::runtime_error("rho field does not have the correct size");
-          rho_reconstruction_target rho_tgt(rho, CONST_PIC_THIS->m_charges);
-
-          reconstruct_densities_on_target(rho_tgt);
+          m_shape_function = 
+            shape_function(radius, CONST_PIC_THIS->m_mesh_data.m_dimensions);
         }
 
 
@@ -476,9 +280,19 @@ namespace pyrticle
         {
           const mesh_data::element_info &einfo(
               CONST_PIC_THIS->m_mesh_data.m_element_info[en]);
-          for (unsigned i = einfo.m_start; i < einfo.m_end; i++)
-            tgt.add_shape_at_point(i, 
-                (*m_shape_function)(CONST_PIC_THIS->m_mesh_data.m_nodes[i]-center));
+
+          const unsigned el_length = einfo.m_end-einfo.m_start;
+          hedge::vector el_rho(el_length);
+
+          const double charge = tgt.first;
+
+          for (unsigned i = 0; i < el_length; i++)
+            el_rho[i] = 
+              charge * m_shape_function(
+                  CONST_PIC_THIS->m_mesh_data.m_nodes[einfo.m_start+i]
+                  -center);
+
+          tgt.second.get().add_shape_on_element(en, einfo.m_start, el_rho);
         }
 
 
@@ -489,8 +303,11 @@ namespace pyrticle
         {
           for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {
+            std::pair<double, boost::reference_wrapper<Target> > subtgt
+              (CONST_PIC_THIS->m_charges[pn], boost::ref(tgt));
+
             tgt.begin_particle(pn);
-            add_shape(tgt, pn, m_shape_function->radius());
+            add_shape(subtgt, pn, m_shape_function.radius());
             tgt.end_particle(pn);
           }
         }

@@ -25,6 +25,7 @@
 
 
 #include <boost/foreach.hpp>
+#include <boost/format.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
 #include <boost/typeof/std/utility.hpp>
 #include "tools.hpp"
@@ -37,24 +38,39 @@
 
 namespace pyrticle 
 {
-  // Note: this does not adhere to the ReconstructionTarget protocol.
+  /* This does not adhere to the ReconstructionTarget protocol.
+   * Instead, it is a layer that sits between the 
+   * normalized_shape_function_reconstructor, below, and the 
+   * real ReconstructionTarget.
+   */
+  template <class Target>
   class normalizing_target
   {
     public:
-      const hedge::mesh_data &m_mesh_data;
-      hedge::vector &m_rho_target_vector;
-      hedge::vector &m_j_target_vector;
-
+      const mesh_data &m_mesh_data;
+      const hedge::vector &m_integral_weights;
+      Target m_target;
       hedge::vector m_shape_interpolant;
       unsigned m_used_shape_dofs;
 
-      struct shape_element {
-        unsigned m_my_start_index;
-        node_number m_global_start_index;
-        element_number m_element_number;
 
-        shape_element(unsigned my_start_index, element_number en)
-          : m_my_start_index(my_start_index), m_element_number(en)
+
+      struct shape_element {
+        mesh_data::element_number m_el_number;
+        unsigned m_el_length;
+        unsigned m_my_start_index;
+        mesh_data::node_number m_global_start_index;
+
+        shape_element(
+            mesh_data::element_number el_number,
+            unsigned el_length,
+            unsigned my_start_index, 
+            mesh_data::node_number global_start_index)
+          : 
+            m_el_number(el_number),
+            m_el_length(el_length),
+            m_my_start_index(my_start_index), 
+            m_global_start_index(global_start_index)
         { }
       };
 
@@ -62,15 +78,18 @@ namespace pyrticle
       double                            m_integral;
 
       normalizing_target(
-          const mesh_data &md,
-          hedge::vector &rho_target_vector, 
-          hedge::vector &j_target_vector)
-        : m_rho_target_vector(rho_target_vector), 
-        m_mesh_data(md), m_j_target_vector(j_target_vector),
-        m_shape_interpolant(100)
-      { 
-        m_target_vector.clear();
-      }
+         const mesh_data &mesh_data,
+         const hedge::vector &integral_weights,
+         Target &target)
+        : 
+          m_mesh_data(mesh_data),
+          m_integral_weights(integral_weights),
+          m_target(target), 
+          m_shape_interpolant(100)
+      { }
+
+
+
 
       void begin_particle()
       {
@@ -78,6 +97,9 @@ namespace pyrticle
         m_particle_shape_elements.clear();
         m_integral = 0;
       }
+
+
+
 
       void add_shape_on_element(
           const mesh_data::element_info &einfo,
@@ -96,23 +118,50 @@ namespace pyrticle
           new_shape_interpolant.swap(m_shape_interpolant);
         }
 
-        shape_element new_shape_element(m_used_shape_dofs, einfo.m_id);
+        shape_element new_shape_element(
+            einfo.m_id,
+            element_length,
+            m_used_shape_dofs, 
+            einfo.m_start);
         m_used_shape_dofs += element_length;
 
+        double el_integral = 0;
         for (unsigned i = 0; i < element_length; i++)
+        {
+          double shapeval = sf(m_mesh_data.m_nodes[i]-center);
           m_shape_interpolant[new_shape_element.m_my_start_index+i] 
-            = sf(m_mesh_data.m_nodes[i]-center);
+            = shapeval;
+          el_integral += shapeval * m_integral_weights[i];
+        }
+        m_integral += el_integral;
         
         m_particle_shape_elements.push_back(new_shape_element);
       }
 
-      template <class VelocityVectorExpression>
-      void end_particle(
-          const double charge,
-          const VelocityVectorExpression &p_velocity,
-          )
-      {
 
+
+
+      void end_particle(
+          particle_number pn,
+          const double charge)
+      {
+        if (m_integral == 0)
+            throw std::runtime_error(
+                str(boost::format("reconstructed particle mass is zero"
+                  "(particle %d, #elements=%d)") 
+                  % pn 
+                  % m_particle_shape_elements.size()).c_str());
+
+        const double scale = charge/m_integral;
+
+        m_target.begin_particle(pn);
+        BOOST_FOREACH(const shape_element &sel, m_particle_shape_elements)
+          m_target.add_shape_on_element(sel.m_el_number,
+              sel.m_global_start_index,
+              scale * subrange(m_shape_interpolant, 
+                sel.m_my_start_index,
+                sel.m_my_start_index+sel.m_el_length));
+        m_target.end_particle(pn);
       }
 
   };
@@ -129,7 +178,22 @@ namespace pyrticle
     {
       public:
         // member data --------------------------------------------------------
-        shape_function   m_shape_function;
+        shape_function                  m_shape_function;
+        hedge::vector                   m_integral_weights;
+
+
+
+      
+        // initialization -----------------------------------------------------
+        void setup_normalized_shape_reconstructor(const hedge::matrix &mass_matrix)
+        {
+          m_integral_weights = prod(mass_matrix, 
+              boost::numeric::ublas::scalar_vector<double>
+              (mass_matrix.size1(), 1));
+        }
+
+
+
 
         // public interface ---------------------------------------------------
         static const char *get_name()
@@ -144,78 +208,8 @@ namespace pyrticle
 
 
 
-        void reconstruct_densities(
-            hedge::vector &rho, 
-            hedge::vector &j,
-            const hedge::vector &velocities)
-        {
-          if (rho.size() != CONST_PIC_THIS->m_mesh_data.m_nodes.size())
-            throw std::runtime_error("rho field does not have the correct size");
-          if (j.size() != CONST_PIC_THIS->m_mesh_data.m_nodes.size() *
-              CONST_PIC_THIS->get_dimensions_velocity())
-            throw std::runtime_error("j field does not have the correct size");
-
-          rho_reconstruction_target rho_tgt(rho, CONST_PIC_THIS->m_charges);
-          j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt(
-              j, CONST_PIC_THIS->m_charges, velocities);
-
-          chained_reconstruction_target
-            <rho_reconstruction_target, 
-            j_reconstruction_target<PICAlgorithm::dimensions_velocity> >
-            tgt(rho_tgt, j_tgt);
-          reconstruct_densities_on_target(tgt);
-
-          rho = rho_tgt.result();
-        }
-
-
-
-
-        void reconstruct_j(hedge::vector &j, const hedge::vector &velocities)
-        {
-          if (j.size() != CONST_PIC_THIS->m_mesh_data.m_nodes.size() *
-              CONST_PIC_THIS->get_dimensions_velocity())
-            throw std::runtime_error("j field does not have the correct size");
-
-          j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt(
-              j, CONST_PIC_THIS->m_charges, velocities);
-
-          reconstruct_densities_on_target(j_tgt);
-        }
-
-
-
-
-        void reconstruct_rho(hedge::vector &rho)
-        {
-          if
-          if (rho.size() != CONST_PIC_THIS->m_mesh_data.m_nodes.size())
-            throw std::runtime_error("rho field does not have the correct size");
-          rho_reconstruction_target rho_tgt(rho, CONST_PIC_THIS->m_charges);
-
-          reconstruct_densities_on_target(rho_tgt);
-        }
-
-
-
-
         void perform_reconstructor_upkeep()
         { }
-
-
-
-
-        // inner workings -----------------------------------------------------
-        template <class Target>
-        void add_shape_on_element(
-            Target &tgt, 
-            const hedge::vector &center,
-            const mesh_data::element_number en
-            ) const
-        {
-          const mesh_data::element_info &einfo(
-              CONST_PIC_THIS->m_mesh_data.m_element_info[en]);
-        }
 
 
 
@@ -223,16 +217,37 @@ namespace pyrticle
         template<class Target>
         void reconstruct_densities_on_target(Target &tgt)
         {
+          normalizing_target<Target> norm_tgt(
+              CONST_PIC_THIS->m_mesh_data,
+              m_integral_weights,
+              tgt);
+
           for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {
-            tgt.begin_particle(pn);
-            add_shape(tgt, pn, m_shape_function->radius());
+            norm_tgt.begin_particle();
+            add_shape(norm_tgt, pn, m_shape_function.radius());
+            norm_tgt.end_particle(pn, CONST_PIC_THIS->m_charges[pn]);
           }
         }
+
+
+
+
+        // inner workings -----------------------------------------------------
+        template <class NormTarget>
+        void add_shape_on_element(
+            NormTarget &norm_tgt, 
+            const hedge::vector &center,
+            const mesh_data::element_number en
+            ) const
+        {
+          norm_tgt.add_shape_on_element(
+              CONST_PIC_THIS->m_mesh_data.m_element_info[en],
+              center,
+              m_shape_function);
+        }
     };
-
   };
-
 }
 
 
