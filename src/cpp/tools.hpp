@@ -125,6 +125,14 @@ namespace pyrticle
 
 
 
+  inline hedge::vector::value_type entry_or_zero(const hedge::vector::value_type *v, int i)
+  {
+    return v[i];
+  }
+
+
+
+
   template <class VecType1, class VecType2>
   inline
   const hedge::vector cross(
@@ -220,10 +228,6 @@ namespace pyrticle
       virtual void note_reset(unsigned start, unsigned size) const 
       { }
   };
-
-
-
-
 }
 
 

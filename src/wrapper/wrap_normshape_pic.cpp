@@ -35,7 +35,7 @@ void expose_normshape_pic()
       pic<
         pic_data<2,2>,
         normalized_shape_function_reconstructor,
-        monomial_particle_pusher
+        averaging_particle_pusher
         >
       >();
 }

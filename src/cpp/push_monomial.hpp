@@ -172,7 +172,7 @@ namespace pyrticle
 
           hedge::vector result(CONST_PIC_THIS->m_particle_count * vdim);
           std::auto_ptr<hedge::vector> 
-            vis_e, vis_b, vis_el_force, vis_lorentz_force;
+            vis_e, vis_b, vis_el_force, vis_mag_force;
 
           if (verbose_vis)
           {
@@ -182,7 +182,7 @@ namespace pyrticle
                 new hedge::vector(3*PIC_THIS->m_particle_count));
             vis_el_force = std::auto_ptr<hedge::vector>(
                 new hedge::vector(3*PIC_THIS->m_particle_count));
-            vis_lorentz_force = std::auto_ptr<hedge::vector>(
+            vis_mag_force = std::auto_ptr<hedge::vector>(
                 new hedge::vector(3*PIC_THIS->m_particle_count));
           }
 
@@ -215,18 +215,18 @@ namespace pyrticle
             el_force[2] = charge*e[2];
 
             const hedge::vector v = subrange(velocities, v_pstart, v_pend);
-            hedge::vector lorentz_force = cross(v, charge*b);
+            hedge::vector mag_force = cross(v, charge*b);
 
             // truncate forces to dimensions_velocity entries
             subrange(result, v_pstart, v_pend) = subrange(
-                el_force + lorentz_force, 0, PIC_THIS->get_dimensions_velocity());
+                el_force + mag_force, 0, PIC_THIS->get_dimensions_velocity());
 
             if (verbose_vis)
             {
               subrange(*vis_e, 3*i, 3*(i+1)) = e;
               subrange(*vis_b, 3*i, 3*(i+1)) = b;
               subrange(*vis_el_force, 3*i, 3*(i+1)) = el_force;
-              subrange(*vis_lorentz_force, 3*i, 3*(i+1)) = lorentz_force;
+              subrange(*vis_mag_force, 3*i, 3*(i+1)) = mag_force;
             }
           }
 
@@ -235,7 +235,7 @@ namespace pyrticle
             PIC_THIS->store_vis_vector("pt_e", *vis_e);
             PIC_THIS->store_vis_vector("pt_b", *vis_b);
             PIC_THIS->store_vis_vector("el_force", *vis_el_force);
-            PIC_THIS->store_vis_vector("lorentz_force", *vis_lorentz_force);
+            PIC_THIS->store_vis_vector("mag_force", *vis_mag_force);
           }
 
           return result;

@@ -27,6 +27,7 @@
 
 #include "wrap_helpers.hpp"
 #include "push_monomial.hpp"
+#include "push_average.hpp"
 
 
 
@@ -44,6 +45,16 @@ namespace pyrticle
       .DEF_RW_MEMBER(local_discretizations)
       .DEF_RW_MEMBER(ldis_indices)
       ;
+  }
+  
+
+
+
+  template <class Wrapper, class PIC>
+  void expose_typed_pusher(
+      Wrapper &wrp, 
+      averaging_particle_pusher::type<PIC> *)
+  {
   }
 }
 

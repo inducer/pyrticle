@@ -462,7 +462,7 @@ class ParticleCloud:
             add_vis_vector("pt_e")
             add_vis_vector("pt_b")
             add_vis_vector("el_force")
-            add_vis_vector("lorentz_force")
+            add_vis_vector("mag_force")
 
         from os.path import splitext
         pathname = splitext(vis_file.pathname)[0] + "-particles.vtu"
@@ -509,7 +509,7 @@ class ParticleCloud:
                 add_particle_vis("pt_e", 3)
                 add_particle_vis("pt_b", 3)
                 add_particle_vis("el_force", 3)
-                add_particle_vis("lorentz_force", 3)
+                add_particle_vis("mag_force", 3)
 
 
 

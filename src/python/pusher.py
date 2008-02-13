@@ -51,3 +51,13 @@ class MonomialParticlePusher:
             cloud.pic_algorithm.local_discretizations.append(lmd)
 
             cloud.pic_algorithm.ldis_indices.extend([i]*len(eg.members))
+
+
+
+
+
+class AverageParticlePusher:
+    name = "Average"
+
+    def initialize(self, cloud):
+        pass
