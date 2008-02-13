@@ -64,14 +64,8 @@ namespace pyrticle
           const hedge::vector &field, 
           const RhoExpression &rho_contrib)
       {
-        std::cout 
-          << "WEIGH"
-          << ' ' << start_idx 
-          << ' ' << field.size()
-          << ' ' << rho_contrib.size()
-          << std::endl;
         return inner_prod(
-              subrange(field, start_idx, rho_contrib.size()),
+              subrange(field, start_idx, start_idx+rho_contrib.size()),
               rho_contrib);
       }
 
@@ -112,9 +106,6 @@ namespace pyrticle
           const mesh_data::node_number start_idx, 
           const RhoExpression &rho_contrib)
       {
-        std::cout 
-          << "EENTER " 
-          << this->m_current_particle << std::endl;
         unsigned base_idx = this->m_current_particle*DimensionsVelocity;
 
         if (DimensionsVelocity >= 1)
@@ -126,7 +117,6 @@ namespace pyrticle
         if (DimensionsVelocity >= 3)
           this->m_result[base_idx+2] += 
             this->weigh_force_along_axis(2, start_idx, this->m_fz, rho_contrib);
-        std::cout << "ELEAVE" << std::endl;
       }
   };
 
@@ -156,7 +146,6 @@ namespace pyrticle
           const mesh_data::node_number start_idx, 
           const RhoExpression &rho_contrib)
       {
-        std::cout << "MENTER" << std::endl;
         double qB[3] = {
           this->weigh_force_along_axis(0, start_idx, this->m_fx, rho_contrib),
           this->weigh_force_along_axis(1, start_idx, this->m_fy, rho_contrib),
@@ -169,7 +158,6 @@ namespace pyrticle
 
         noalias(subrange(this->m_result, pstart, pend)) += 
           cross(subrange(m_velocities, pstart, pend), qB);
-        std::cout << "MLEAVE" << std::endl;
       }
   };
 
