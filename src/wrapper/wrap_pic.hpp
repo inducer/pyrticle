@@ -174,6 +174,7 @@ namespace
           >
         >();
 
+    /*
     expose_pic_algorithm<
         pic<
           pic_data<3,3>,
@@ -181,6 +182,7 @@ namespace
           Pusher
           >
         >();
+        */
   }
 
 

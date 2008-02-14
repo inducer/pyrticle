@@ -161,7 +161,7 @@ namespace pyrticle
       { 
         if (m_particlewise_field)
         {
-          double charge = m_charges[pn];
+          const double charge = m_charges[pn];
 
           boost::numeric::ublas::vector_range<hedge::vector>
             particle_field(*m_particlewise_field, 
@@ -172,9 +172,22 @@ namespace pyrticle
           particle_field /= charge;
 
           if (m_field_stddev)
-            (*m_field_stddev)[pn] = sqrt(
-              m_qfield_square_accumulator/square(charge)
-              - inner_prod(particle_field, particle_field));
+          {
+            const double squared_mean = m_qfield_square_accumulator/charge;
+            const double mean_squared = inner_prod(particle_field, particle_field);
+
+            if (squared_mean < mean_squared)
+            {
+            std::cout
+              << squared_mean
+              << ' '<< mean_squared
+              << std::endl;
+
+              throw std::runtime_error("squared_mean > mean_squared in calculating stddev");
+            }
+
+            (*m_field_stddev)[pn] = sqrt(squared_mean-mean_squared);
+          }
         }
       }
 
@@ -340,10 +353,8 @@ namespace pyrticle
           const unsigned field_components = el_tgt_t::field_components;
           const unsigned pcount = PIC_THIS->m_particle_count;
 
-          hedge::vector el_force = 
-            zero_vector(pcount * vdim);
-          hedge::vector mag_force = 
-            zero_vector(pcount * vdim);
+          hedge::vector el_force = zero_vector(pcount * vdim);
+          hedge::vector mag_force = zero_vector(pcount * vdim);
 
           std::auto_ptr<hedge::vector> 
             vis_e, vis_b, vis_e_stddev, vis_b_stddev;
@@ -351,13 +362,13 @@ namespace pyrticle
           if (verbose_vis)
           {
             vis_e = std::auto_ptr<hedge::vector>(
-                new hedge::vector(field_components*pcount));
+                new hedge::vector(zero_vector(field_components*pcount)));
             vis_b = std::auto_ptr<hedge::vector>(
-                new hedge::vector(field_components*pcount));
+                new hedge::vector(zero_vector(field_components*pcount)));
             vis_e_stddev = std::auto_ptr<hedge::vector>(
-                new hedge::vector(pcount));
+                new hedge::vector(zero_vector(pcount)));
             vis_b_stddev = std::auto_ptr<hedge::vector>(
-                new hedge::vector(pcount));
+                new hedge::vector(zero_vector(pcount)));
           }
 
           el_tgt_t el_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,

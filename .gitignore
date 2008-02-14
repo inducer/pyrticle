@@ -30,3 +30,4 @@ dump.py
 *-gdbcommands
 bin/logtool
 *.orig
+*-journal
