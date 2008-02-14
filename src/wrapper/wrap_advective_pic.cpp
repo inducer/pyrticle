@@ -26,19 +26,6 @@
 
 void expose_advective_pic()
 {
-  expose_pic_algorithm<
-      pic<
-        pic_data<3,3>,
-        advective_reconstructor,
-        monomial_particle_pusher
-        >
-      >();
-  expose_pic_algorithm<
-      pic<
-        pic_data<2,2>,
-        advective_reconstructor,
-        monomial_particle_pusher
-        >
-      >();
+  expose_pic_all_pushers_all_dim<advective_reconstructor>();
 }
 

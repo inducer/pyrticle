@@ -24,19 +24,6 @@
 
 void expose_normshape_pic()
 {
-  expose_pic_algorithm<
-      pic<
-        pic_data<3,3>,
-        normalized_shape_function_reconstructor,
-        monomial_particle_pusher
-        >
-      >();
-  expose_pic_algorithm<
-      pic<
-        pic_data<2,2>,
-        normalized_shape_function_reconstructor,
-        averaging_particle_pusher
-        >
-      >();
+  expose_pic_all_pushers_all_dim<normalized_shape_function_reconstructor>();
 }
 

@@ -158,6 +158,41 @@ namespace
 
     expose_diagnostics<PICAlgorithm>();
   }
+
+
+
+
+  template <class Reconstructor, class Pusher>
+  inline
+  void expose_pic_all_dim()
+  {
+    expose_pic_algorithm<
+        pic<
+          pic_data<2,2>,
+          Reconstructor,
+          Pusher
+          >
+        >();
+
+    expose_pic_algorithm<
+        pic<
+          pic_data<3,3>,
+          Reconstructor,
+          Pusher
+          >
+        >();
+  }
+
+
+
+
+  template <class Reconstructor>
+  inline
+  void expose_pic_all_pushers_all_dim()
+  {
+    expose_pic_all_dim<Reconstructor, monomial_particle_pusher>();
+    expose_pic_all_dim<Reconstructor, averaging_particle_pusher>();
+  }
 }
 
 

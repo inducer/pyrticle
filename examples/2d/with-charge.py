@@ -38,8 +38,7 @@ def main():
     from hedge.visualization import VtkVisualizer, SiloVisualizer
     from hedge.tools import dot
     from math import sqrt, pi
-    from pytools.arithmetic_container import \
-            ArithmeticList, join_fields
+    from pytools.arithmetic_container import join_fields
     from hedge.operators import TEMaxwellOperator, DivergenceOperator
 
     from random import seed
@@ -93,27 +92,46 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 1
+    def make_cloud():
+        from pyrticle.cloud import ParticleCloud
+        from pyrticle.reconstruction import \
+                ShapeFunctionReconstructor, \
+                NormalizedShapeFunctionReconstructor, \
+                AdvectiveReconstructor
+        from pyrticle.pusher import \
+                MonomialParticlePusher, \
+                AverageParticlePusher
 
-    from pyrticle.cloud import ParticleCloud
-    from pyrticle.reconstruction import \
-            ShapeFunctionReconstructor, \
-            NormalizedShapeFunctionReconstructor, \
-            AdvectiveReconstructor
-    from pyrticle.pusher import \
-            MonomialParticlePusher, \
-            AverageParticlePusher
-    cloud = ParticleCloud(discr, units, 
-            #AdvectiveReconstructor(
-                #activation_threshold=1e-5,
-                #kill_threshold=1e-3,
-                #upwind_alpha=1),
-            #ShapeFunctionReconstructor(),
-            NormalizedShapeFunctionReconstructor(),
-            #MonomialParticlePusher(),
-            AverageParticlePusher(),
-            dimensions_pos=2, dimensions_velocity=2,
-            verbose_vis=True)
+        import sys
+        reconstructor_str = sys.argv[1]
+        pusher_str = sys.argv[2]
+
+        if reconstructor_str == "advective":
+            reconstructor = AdvectiveReconstructor(
+                    activation_threshold=1e-5,
+                    kill_threshold=1e-3,
+                    upwind_alpha=1)
+        elif reconstructor_str == "shape":
+            reconstructor = ShapeFunctionReconstructor()
+        elif reconstructor_str == "normshape":
+            reconstructor = NormalizedShapeFunctionReconstructor()
+        else:
+            raise ValueError, "invalid reconstructor"
+
+        if pusher_str == "monomial":
+            pusher = MonomialParticlePusher()
+        elif pusher_str == "average":
+            pusher = AverageParticlePusher()
+        else:
+            raise ValueError, "invalid pusher"
+
+        return ParticleCloud(discr, units, reconstructor, pusher,
+                dimensions_pos=2, dimensions_velocity=2,
+                verbose_vis=True)
+
+    cloud = make_cloud()
+
+    nparticles = 1000
 
     cloud_charge = -1e-9 * units.C
     electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)

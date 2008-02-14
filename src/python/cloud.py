@@ -143,6 +143,9 @@ class ParticleCloud:
 
         self.reconstructor.add_instrumentation(mgr)
 
+        mgr.set_constant("reconstructor", self.reconstructor.name)
+        mgr.set_constant("pusher", self.pusher.name)
+
     @property
     def positions(self):
         from hedge.tools import FixedSizeSliceAdapter
@@ -487,29 +490,20 @@ class ParticleCloud:
 
         pcount = len(self)
 
-        def add_particle_vis(name, dim):
-            if name in self.vis_info:
-                db.put_pointvar(name, "particles", 
-                        [self.vis_info[name][i::dim] for i in range(dim)])
-            else:
-                warn("writing zero for particle visualization variable '%s'" % name)
-                db.put_pointvar(name, "particles", 
-                        [num.zeros((pcount,)) for i in range(dim)])
-
         if pcount:
             db.put_pointmesh("particles", self.dimensions_pos, 
                     num.hstack(self.positions.get_alist_of_components()), optlist)
-
-            db.put_pointvar("momenta", "particles", self.momenta.get_alist_of_components())
-
+            db.put_pointvar("momenta", "particles", 
+                    self.momenta.get_alist_of_components())
             db.put_pointvar("velocity", "particles", 
                     self.velocities().get_alist_of_components())
 
-            if verbose:
-                add_particle_vis("pt_e", 3)
-                add_particle_vis("pt_b", 3)
-                add_particle_vis("el_force", 3)
-                add_particle_vis("mag_force", 3)
+            for name, value in self.vis_info.iteritems():
+                dim = len(value)/pcount
+                if dim == 1:
+                    db.put_pointvar1(name, "particles", value)
+                else:
+                    db.put_pointvar(name, "particles", [value[i::dim] for i in range(dim)])
 
 
 
