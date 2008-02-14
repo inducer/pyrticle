@@ -41,11 +41,12 @@ namespace
     visualization_listener,
     python::wrapper<visualization_listener>
   {
-    void store_vis_vector(
+    void store_particle_vis_vector(
         const char *name,
-        const hedge::vector &vec) const
+        const hedge::vector &vec,
+        unsigned entries_per_particle) const
     {
-      this->get_override("store_vis_vector")(name, vec);
+      this->get_override("store_particle_vis_vector")(name, vec, entries_per_particle);
     }
   };
 
@@ -119,7 +120,7 @@ void expose_tools()
       boost::shared_ptr<visualization_listener_wrap>,
       boost::noncopyable>
       ("VisualizationListener")
-      .DEF_PURE_VIRTUAL_METHOD(store_vis_vector)
+      .DEF_PURE_VIRTUAL_METHOD(store_particle_vis_vector)
       ;
   }
 

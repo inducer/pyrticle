@@ -210,9 +210,11 @@ namespace pyrticle
   class visualization_listener
   {
     public:
-      virtual void store_vis_vector(
+      virtual void store_particle_vis_vector(
           const char *name,
-          const hedge::vector &vec) const = 0;
+          const hedge::vector &vec,
+          unsigned entries_per_particle
+          ) const = 0;
   };
 
 

@@ -60,4 +60,8 @@ class AverageParticlePusher:
     name = "Average"
 
     def initialize(self, cloud):
-        pass
+        eg, = cloud.mesh_data.discr.element_groups
+        ldis = eg.local_discretization
+
+        cloud.pic_algorithm.setup_averaging_particle_pusher(
+                ldis.mass_matrix())

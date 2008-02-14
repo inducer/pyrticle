@@ -8,6 +8,6 @@ for rec in advective shape normshape; do
     echo $rec-$push
     screen -t "$rec-$push" /bin/bash -l start-computation methodtest-$rec-$push -- \
       python2.5 ../with-charge.py $rec $push
-    sleep 5
+    sleep 1
   done
 done

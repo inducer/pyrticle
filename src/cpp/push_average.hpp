@@ -37,12 +37,14 @@ namespace pyrticle
   {
     protected:
       particle_number m_current_particle;
+      const mesh_data &m_mesh_data;
+      const hedge::vector &m_integral_weights;
       const hedge::vector &m_charges;
       const FX       &m_fx;
       const FY       &m_fy;
       const FZ       &m_fz;
       hedge::vector  *m_particlewise_field;
-      hedge::vector  *m_field_variance;
+      hedge::vector  *m_field_stddev;
       double         m_qfield_square_accumulator;
 
     public:
@@ -52,21 +54,25 @@ namespace pyrticle
                 field_vector_t;
 
       force_averaging_target(
+          const mesh_data &md,
+          const hedge::vector &integral_weights,
           const hedge::vector &charges,
           const FX &fx, const FY &fy, const FZ &fz,
           hedge::vector *particlewise_field,
-          hedge::vector *field_variance
+          hedge::vector *field_stddev
           )
         : 
           m_current_particle(INVALID_PARTICLE), 
+          m_mesh_data(md),
+          m_integral_weights(integral_weights),
           m_charges(charges),
           m_fx(fx), m_fy(fy), m_fz(fz),
           m_particlewise_field(particlewise_field),
-          m_field_variance(field_variance),
+          m_field_stddev(field_stddev),
           m_qfield_square_accumulator(0)
       { 
-        if (m_field_variance && !m_particlewise_field)
-          throw std::runtime_error("cannot acquire field variance without acquiring mean field");
+        if (m_field_stddev && !m_particlewise_field)
+          throw std::runtime_error("cannot acquire field stddev without acquiring mean field");
       }
 
       void begin_particle(particle_number pn)
@@ -83,7 +89,7 @@ namespace pyrticle
       {
         return inner_prod(
               subrange(field, start_idx, start_idx+rho_contrib.size()),
-              rho_contrib);
+              element_prod(rho_contrib, m_integral_weights));
       }
 
       template <class RhoExpression>
@@ -96,28 +102,56 @@ namespace pyrticle
       }
 
       template <class RhoExpression>
+      double weigh_field_component_squared(
+          const hedge::vector &field, 
+          const mesh_data::node_number start_idx, 
+          const RhoExpression &rho_contrib)
+      {
+        boost::numeric::ublas::vector_range<const hedge::vector>
+          field_range(field, 
+              boost::numeric::ublas::range(start_idx, start_idx+rho_contrib.size()));
+
+        return inner_prod(
+            element_prod(field_range, field_range),
+            element_prod(rho_contrib, m_integral_weights));
+      }
+
+      template <class RhoExpression>
+      double weigh_field_component_squared(
+          const zero_vector &field, 
+          const mesh_data::node_number start_idx, 
+          const RhoExpression &rho_contrib)
+      {
+        return 0;
+      }
+
+      template <class RhoExpression>
       field_vector_t get_qavg_field(
+          const mesh_data::element_number en, 
           const mesh_data::node_number start_idx, 
           const RhoExpression &rho_contrib
           )
       {
+        const double jacobian = m_mesh_data.m_element_info[en].m_jacobian;
+
         // Important: recall that these result in an average normalized
         // to the particle's charge.
-        field_vector_t qfield(3);
-        qfield[0] = weigh_field_component(m_fx, start_idx, rho_contrib);
-        qfield[1] = weigh_field_component(m_fy, start_idx, rho_contrib);
-        qfield[2] = weigh_field_component(m_fz, start_idx, rho_contrib);
+        field_vector_t qfield(field_components);
+        qfield[0] = jacobian*weigh_field_component(m_fx, start_idx, rho_contrib);
+        qfield[1] = jacobian*weigh_field_component(m_fy, start_idx, rho_contrib);
+        qfield[2] = jacobian*weigh_field_component(m_fz, start_idx, rho_contrib);
 
         if (m_particlewise_field)
+          subrange(*m_particlewise_field, 
+              m_current_particle*field_components, 
+              (m_current_particle+1)*field_components) += qfield;
+        if (m_field_stddev)
         {
-          const unsigned fld_base = m_current_particle*3;
-          for (unsigned i = 0; i < field_components; ++i)
-            (*m_particlewise_field)[fld_base+i] += qfield[i];
-        }
-        if (m_field_variance)
-        {
-          for (unsigned i = 0; i < field_components; ++i)
-            m_qfield_square_accumulator += qfield[i]*qfield[i];
+          m_qfield_square_accumulator += 
+            jacobian*(
+            weigh_field_component_squared(m_fx, start_idx, rho_contrib)
+            + weigh_field_component_squared(m_fy, start_idx, rho_contrib)
+            + weigh_field_component_squared(m_fz, start_idx, rho_contrib));
         }
 
         return qfield;
@@ -137,10 +171,10 @@ namespace pyrticle
 
           particle_field /= charge;
 
-          if (m_field_variance)
-            (*m_field_variance)[pn] = 
-              inner_prod(particle_field, particle_field)
-              - m_qfield_square_accumulator/square(charge);
+          if (m_field_stddev)
+            (*m_field_stddev)[pn] = sqrt(
+              m_qfield_square_accumulator/square(charge)
+              - inner_prod(particle_field, particle_field));
         }
       }
 
@@ -159,14 +193,18 @@ namespace pyrticle
 
     public:
       el_force_averaging_target(
+          const mesh_data &md,
+          const hedge::vector &integral_weights,
           const hedge::vector &charges,
           const FX &fx, const FY &fy, const FZ &fz,
           hedge::vector *particlewise_field,
-          hedge::vector *field_variance,
+          hedge::vector *field_stddev,
           hedge::vector &result
           )
         : 
-          super(charges, fx, fy, fz, particlewise_field, field_variance),
+          super(md, integral_weights, charges, 
+              fx, fy, fz, 
+              particlewise_field, field_stddev),
           m_result(result)
       { }
 
@@ -179,7 +217,7 @@ namespace pyrticle
             this->m_current_particle*DimensionsVelocity,
             (1+this->m_current_particle)*DimensionsVelocity)
           += subrange(
-              this->get_qavg_field(start_idx, rho_contrib),
+              this->get_qavg_field(en, start_idx, rho_contrib),
               0, DimensionsVelocity);
       }
   };
@@ -200,15 +238,19 @@ namespace pyrticle
 
     public:
       mag_force_averaging_target(
+          const mesh_data &md,
+          const hedge::vector &integral_weights,
           const hedge::vector &charges,
           const FX &fx, const FY &fy, const FZ &fz,
           const hedge::vector &velocities,
           hedge::vector *particlewise_field,
-          hedge::vector *field_variance,
+          hedge::vector *field_stddev,
           hedge::vector &result
           )
         : 
-          super(charges, fx, fy, fz, particlewise_field, field_variance), 
+          super(md, integral_weights, charges, 
+              fx, fy, fz, 
+              particlewise_field, field_stddev), 
           m_velocities(velocities),
           m_result(result),
           m_particle_qB_accumulator(super::field_components)
@@ -221,12 +263,13 @@ namespace pyrticle
       }
 
       template <class RhoExpression>
-      void add_shape_on_element(const mesh_data::element_number en, 
+      void add_shape_on_element(
+          const mesh_data::element_number en, 
           const mesh_data::node_number start_idx, 
           const RhoExpression &rho_contrib)
       {
         m_particle_qB_accumulator +=
-          this->get_qavg_field(start_idx, rho_contrib);
+          this->get_qavg_field(en, start_idx, rho_contrib);
       }
 
       void end_particle(particle_number pn)
@@ -254,10 +297,25 @@ namespace pyrticle
     template <class PICAlgorithm>
     class type : public pusher_base
     {
+      private:
+        hedge::vector   m_integral_weights;
+
       public:
         static const char *get_name()
         { return "Average"; }
 
+        // initialization -----------------------------------------------------
+        void setup_averaging_particle_pusher(const hedge::matrix &mass_matrix)
+        {
+          m_integral_weights = prod(mass_matrix, 
+              boost::numeric::ublas::scalar_vector<double>
+              (mass_matrix.size1(), 1));
+        }
+
+
+
+
+        // force calculation --------------------------------------------------
         // why all these template arguments? In 2D and 1D,
         // instead of passing a hedge::vector, you may simply
         // pass a zero_vector, and the field averaging machinery
@@ -279,17 +337,16 @@ namespace pyrticle
           typedef mag_force_averaging_target
             <PICAlgorithm::dimensions_velocity, BX, BY, BZ> mag_tgt_t;
 
-          static const unsigned field_components = el_tgt_t::field_components;
-          static const unsigned pcount = PIC_THIS->m_particle_count;
-
+          const unsigned field_components = el_tgt_t::field_components;
+          const unsigned pcount = PIC_THIS->m_particle_count;
 
           hedge::vector el_force = 
-            zero_vector(CONST_PIC_THIS->m_particle_count * vdim);
+            zero_vector(pcount * vdim);
           hedge::vector mag_force = 
-            zero_vector(CONST_PIC_THIS->m_particle_count * vdim);
+            zero_vector(pcount * vdim);
 
           std::auto_ptr<hedge::vector> 
-            vis_e, vis_b, vis_e_var, vis_b_var;
+            vis_e, vis_b, vis_e_stddev, vis_b_stddev;
 
           if (verbose_vis)
           {
@@ -297,28 +354,30 @@ namespace pyrticle
                 new hedge::vector(field_components*pcount));
             vis_b = std::auto_ptr<hedge::vector>(
                 new hedge::vector(field_components*pcount));
-            vis_e_var = std::auto_ptr<hedge::vector>(
+            vis_e_stddev = std::auto_ptr<hedge::vector>(
                 new hedge::vector(pcount));
-            vis_b_var = std::auto_ptr<hedge::vector>(
+            vis_b_stddev = std::auto_ptr<hedge::vector>(
                 new hedge::vector(pcount));
           }
 
-          el_tgt_t el_tgt(CONST_PIC_THIS->m_charges,
-              ex, ey, ez, vis_e.get(), vis_e_var.get(), el_force);
-          mag_tgt_t mag_tgt(CONST_PIC_THIS->m_charges,
-              bx, by, bz, velocities, vis_b.get(), vis_b_var.get(), mag_force);
+          el_tgt_t el_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,
+              CONST_PIC_THIS->m_charges,
+              ex, ey, ez, vis_e.get(), vis_e_stddev.get(), el_force);
+          mag_tgt_t mag_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,
+              CONST_PIC_THIS->m_charges,
+              bx, by, bz, velocities, vis_b.get(), vis_b_stddev.get(), mag_force);
 
           chained_reconstruction_target<el_tgt_t, mag_tgt_t> force_tgt(el_tgt, mag_tgt);
           CONST_PIC_THIS->reconstruct_densities_on_target(force_tgt);
 
           if (verbose_vis)
           {
-            PIC_THIS->store_vis_vector("el_force", el_force);
-            PIC_THIS->store_vis_vector("mag_force", mag_force);
-            PIC_THIS->store_vis_vector("pt_e", *vis_e);
-            PIC_THIS->store_vis_vector("pt_b", *vis_b);
-            PIC_THIS->store_vis_vector("pt_e_var", *vis_e_var);
-            PIC_THIS->store_vis_vector("pt_b_var", *vis_b_var);
+            PIC_THIS->store_particle_vis_vector("el_force", el_force, vdim);
+            PIC_THIS->store_particle_vis_vector("mag_force", mag_force, vdim);
+            PIC_THIS->store_particle_vis_vector("pt_e", *vis_e, field_components);
+            PIC_THIS->store_particle_vis_vector("pt_b", *vis_b, field_components);
+            PIC_THIS->store_particle_vis_vector("pt_e_stddev", *vis_e_stddev, 1);
+            PIC_THIS->store_particle_vis_vector("pt_b_stddev", *vis_b_stddev, 1);
           }
 
           return el_force+mag_force;

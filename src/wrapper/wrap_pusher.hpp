@@ -55,6 +55,11 @@ namespace pyrticle
       Wrapper &wrp, 
       averaging_particle_pusher::type<PIC> *)
   {
+    typedef PIC cl;
+
+    wrp
+      .DEF_SIMPLE_METHOD(setup_averaging_particle_pusher)
+      ;
   }
 }
 

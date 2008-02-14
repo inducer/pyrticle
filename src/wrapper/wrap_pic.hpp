@@ -143,8 +143,8 @@ namespace
       ;
     
     pic_wrap
-      .DEF_SIMPLE_METHOD(store_vis_vector)
-      .DEF_SIMPLE_METHOD(set_vis_listener)
+      .DEF_SIMPLE_METHOD(store_particle_vis_vector)
+      .DEF_RW_MEMBER(vis_listener)
       ;
 
     expose_typed_pusher(

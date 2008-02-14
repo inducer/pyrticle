@@ -364,9 +364,6 @@ namespace pyrticle
     public Reconstructor::template type<pic<PICData, Reconstructor, ParticlePusher> >,
     public ParticlePusher::template type<pic<PICData, Reconstructor, ParticlePusher> >
   {
-    private:
-      boost::shared_ptr<visualization_listener> m_vis_listener;
-
     public:
       typedef typename PICData::template type<pic> pic_data;
       typedef typename Reconstructor::template type<pic> reconstructor;
@@ -377,18 +374,16 @@ namespace pyrticle
       { }
 
       // visualization-related ------------------------------------------------
-      void store_vis_vector(
+      boost::shared_ptr<visualization_listener> m_vis_listener;
+
+      void store_particle_vis_vector(
           const char *name,
-          const hedge::vector &vec)
+          const hedge::vector &vec,
+          unsigned entries_per_particle
+          )
       {
         if (m_vis_listener.get())
-          m_vis_listener->store_vis_vector(name, vec);
-      }
-
-      void set_vis_listener(
-          boost::shared_ptr<visualization_listener> listener)
-      {
-        m_vis_listener = listener;
+          m_vis_listener->store_particle_vis_vector(name, vec, entries_per_particle);
       }
 
 

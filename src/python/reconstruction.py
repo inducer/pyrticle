@@ -77,11 +77,6 @@ class NormalizedShapeFunctionReconstructor(object):
 
 
 
-
-
-
-
-
 class ActiveAdvectiveElements (pytools.log.LogQuantity):
     def __init__(self, reconstructor, name="n_advec_elements"):
         pytools.log.LogQuantity.__init__(self, name, "1", "#active advective elements")

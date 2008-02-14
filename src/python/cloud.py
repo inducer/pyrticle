@@ -33,12 +33,16 @@ from pyrticle.meshdata import MeshData
 
 
 class MapStorageVisualizationListener(_internal.VisualizationListener):
-    def __init__(self, storage_map):
+    def __init__(self, storage_map, particle_number_shift_signaller):
         _internal.VisualizationListener.__init__(self)
         self.storage_map = storage_map
+        self.particle_number_shift_signaller = particle_number_shift_signaller
 
-    def store_vis_vector(self, name, vec):
-        self.storage_map[name] = vec
+    def store_particle_vis_vector(self, name, vec, entries_per_particle):
+        from pyrticle.tools import NumberShiftableVector
+        self.storage_map[name] = NumberShiftableVector(vec, 
+                multiplier=entries_per_particle,
+                signaller=self.particle_number_shift_signaller)
 
 
 
@@ -83,10 +87,18 @@ class ParticleCloud:
         self.mesh_data = self.pic_algorithm.mesh_data
         self.mesh_data.fill_from_hedge(discr)
 
-        self.vis_info = {}
-        self.pic_algorithm.set_vis_listener(
-                MapStorageVisualizationListener(self.vis_info))
+        # size change messaging
+        from pyrticle.tools import NumberShiftForwarder
+        self.particle_number_shift_signaller = NumberShiftForwarder()
+        self.pic_algorithm.particle_number_shift_listener = self.particle_number_shift_signaller
 
+        # visualization
+        self.vis_info = {}
+        self.pic_algorithm.vis_listener = MapStorageVisualizationListener(
+                    self.vis_info,
+                    self.particle_number_shift_signaller)
+
+        # subsystem init
         self.reconstructor.initialize(self)
         self.pusher.initialize(self)
 
@@ -121,10 +133,6 @@ class ParticleCloud:
         self.force_timer = IntervalTimer(
                 "t_force",
                 "Time spent calculating forces")
-
-        from pyrticle.tools import NumberShiftForwarder
-        self.particle_number_shift_signaller = NumberShiftForwarder()
-        self.pic_algorithm.particle_number_shift_listener = self.particle_number_shift_signaller
 
     def __len__(self):
         return self.pic_algorithm.particle_count
@@ -499,7 +507,12 @@ class ParticleCloud:
                     self.velocities().get_alist_of_components())
 
             for name, value in self.vis_info.iteritems():
-                dim = len(value)/pcount
+                from pyrticle.tools import NumberShiftableVector
+                value = NumberShiftableVector.unwrap(value)
+                dim, remainder = divmod(len(value), pcount)
+                assert remainder == 0, (
+                        "particle vis value '%s' had invalid number of entries: "
+                        "%d (#particles=%d)" % (name, len(value), pcount))
                 if dim == 1:
                     db.put_pointvar1(name, "particles", value)
                 else:

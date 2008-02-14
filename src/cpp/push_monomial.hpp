@@ -232,10 +232,10 @@ namespace pyrticle
 
           if (verbose_vis)
           {
-            PIC_THIS->store_vis_vector("pt_e", *vis_e);
-            PIC_THIS->store_vis_vector("pt_b", *vis_b);
-            PIC_THIS->store_vis_vector("el_force", *vis_el_force);
-            PIC_THIS->store_vis_vector("mag_force", *vis_mag_force);
+            PIC_THIS->store_particle_vis_vector("pt_e", *vis_e, 3);
+            PIC_THIS->store_particle_vis_vector("pt_b", *vis_b, 3);
+            PIC_THIS->store_particle_vis_vector("el_force", *vis_el_force, 3);
+            PIC_THIS->store_particle_vis_vector("mag_force", *vis_mag_force, 3);
           }
 
           return result;
