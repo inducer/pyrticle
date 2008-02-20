@@ -29,16 +29,20 @@ import pylinear.computation as comp
 
 
 
-class ShapeFunctionReconstructor(object):
-    name = "Shape"
-
+class Reconstructor(object):
     def initialize(self, cloud):
-        cloud.pic_algorithm.set_radius(cloud.mesh_data.advisable_particle_radius())
+        pass
+
+    def set_radius(self, radius):
+        cloud.pic_algorithm.set_radius(radius)
 
     def add_instrumentation(self, mgr):
         pass
 
     def add_particle_hook(self, pn):
+        pass
+
+    def reconstruct_hook(self):
         pass
 
     def rhs(self):
@@ -50,29 +54,43 @@ class ShapeFunctionReconstructor(object):
 
 
 
-class NormalizedShapeFunctionReconstructor(object):
+class ShapeFunctionReconstructor(Reconstructor):
+    name = "Shape"
+
+    def initialize(self, cloud):
+        self.radius = None
+
+    def set_radius(self, radius):
+        cloud.pic_algorithm.radius = radius
+        self.radius = radius
+
+    def reconstruct_hook(self):
+        if self.radius is None:
+            raise RuntimeError, "shape radius never set"
+
+
+
+
+class NormalizedShapeFunctionReconstructor(Reconstructor):
     name = "NormShape"
 
     def initialize(self, cloud):
-        cloud.pic_algorithm.set_radius(cloud.mesh_data.advisable_particle_radius())
-        
         eg, = cloud.mesh_data.discr.element_groups
         ldis = eg.local_discretization
 
         cloud.pic_algorithm.setup_normalized_shape_reconstructor(
                 ldis.mass_matrix())
 
-    def add_instrumentation(self, mgr):
-        pass
+        self.radius = None
 
-    def add_particle_hook(self, pn):
-        pass
+    def set_radius(self, radius):
+        cloud.pic_algorithm.radius = radius
+        self.radius = radius
 
-    def rhs(self):
-        return 0
+    def reconstruct_hook(self):
+        if self.radius is None:
+            raise RuntimeError, "shape radius never set"
 
-    def add_rhs(self, rhs):
-        return 0
 
 
 
@@ -88,7 +106,7 @@ class ActiveAdvectiveElements (pytools.log.LogQuantity):
 
 
 
-class AdvectiveReconstructor(object):
+class AdvectiveReconstructor(Reconstructor):
     name = "Advective"
 
     def __init__(self, activation_threshold, kill_threshold, upwind_alpha):
@@ -110,6 +128,8 @@ class AdvectiveReconstructor(object):
         self.activation_threshold = activation_threshold
         self.kill_threshold = kill_threshold
         self.upwind_alpha = upwind_alpha
+
+        self.radius = None
 
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.element_activation_counter)
@@ -149,12 +169,21 @@ class AdvectiveReconstructor(object):
         for i, diffmat in enumerate(ldis.differentiation_matrices()):
             cloud.pic_algorithm.add_local_diff_matrix(i, diffmat)
 
-        self.radius = cloud.mesh_data.advisable_particle_radius()
-
         cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
 
+    def set_radius(self, radius):
+        self.radius = cloud.mesh_data.advisable_particle_radius()
+        self.cloud.pic_algorithm.clear_advective_particles()
+        for pn in xrange(len(self.cloud)):
+            self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
+
     def add_particle_hook(self, pn):
-        self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
+        if self.radius is not None:
+            self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
+
+    def reconstruct_hook(self):
+        if len(self.cloud) != self.cloud.pic_algorithm.count_advective_particles():
+            raise RuntimeError, "no advective particles--did you set the shape radius?"
 
     def rhs(self):
         from pyrticle.tools import NumberShiftableVector

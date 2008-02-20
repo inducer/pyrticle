@@ -199,6 +199,11 @@ namespace pyrticle
         static const char *get_name()
         { return "NormShape"; }
 
+        double get_radius() const
+        {
+          return m_shape_function.radius();
+        }
+
         void set_radius(double radius)
         {
           m_shape_function = shape_function(

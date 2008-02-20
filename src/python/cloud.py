@@ -304,6 +304,7 @@ class ParticleCloud:
                     self.dimensions_velocity)
 
                 self.reconstruct_timer.start()
+                self.reconstructor.reconstruct_hook()
                 self.pic_algorithm.reconstruct_densities(rho, j, self.raw_velocities())
                 j = j.get_alist_of_components()
                 self.reconstruct_timer.stop()
@@ -328,6 +329,7 @@ class ParticleCloud:
             self.dimensions_velocity)
 
         self.reconstruct_timer.start()
+        self.reconstructor.reconstruct_hook()
         self.pic_algorithm.reconstruct_j(j.adaptee, self.raw_velocities())
         j = j.get_alist_of_components()
         self.reconstruct_timer.stop()
@@ -347,6 +349,7 @@ class ParticleCloud:
         rho = self.discretization.volume_zeros()
 
         self.reconstruct_timer.start()
+        self.reconstructor.reconstruct_hook()
         self.pic_algorithm.reconstruct_rho(rho)
         self.reconstruct_timer.stop()
         self.reconstruct_counter.add(1)
@@ -595,6 +598,40 @@ class FieldsAndCloud:
 
 
 
+# shape bandwidth -------------------------------------------------------------
+def guess_shape_bandwidth(cloud):
+    self.cloud.reconstructor.set_radius(mesh_data.advisable_particle_radius())
+
+
+
+
+def optimize_shape_bandwidth(cloud, discr, analytic_rho):
+    radii = [2**exponent for exponent in num.linspace(-4, 4, 20)]
+
+    from hedge.discretization import integral
+
+    l1_errors = []
+    for radius in radii:
+        self.cloud.reconstructor.set_radius(radius)
+        rec_rho = self.cloud.reconstruct_rho()
+        l1_errors.append(integral(discr, num.abs(rec_rho-analytic_rho)))
+
+    from pytools import argmin
+    good_rad = radii[argmin(l1_errors)]
+
+    print radii
+    print l1_errors
+
+    from matplotlib import plot
+    plot(radii, l1_errors)
+    show()
+
+    self.cloud.reconstructor.set_radius(radius)
+
+
+
+
+# initial condition -----------------------------------------------------------
 def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         debug=False, force_zero=False):
     from hedge.operators import WeakPoissonOperator

@@ -551,6 +551,14 @@ namespace pyrticle
 
 
 
+        unsigned count_advective_particles() const
+        {
+          return m_advected_particles.size();
+        }
+
+
+
+
         void add_advective_particle(double radius, particle_number pn)
         {
           if (pn != m_advected_particles.size())
@@ -600,6 +608,16 @@ namespace pyrticle
             *= charge / total_unscaled_mass;
 
           m_advected_particles.push_back(new_particle);
+        }
+
+
+
+
+        void clear_advective_particles()
+        {
+          m_advected_particles.clear();
+          m_freelist.clear();
+          m_active_elements = 0;
         }
 
 

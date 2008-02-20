@@ -18,7 +18,6 @@
 
 
 
-
 #ifndef _AYYTYAH_PYRTICLE_WRAP_RECONSTRUCTOR_HPP_INCLUDED
 #define _AYYTYAH_PYRTICLE_WRAP_RECONSTRUCTOR_HPP_INCLUDED
 
@@ -41,7 +40,7 @@ namespace pyrticle
   { 
     typedef shape_function_reconstructor::type<PIC> cl;
     wrp
-      .DEF_SIMPLE_METHOD(set_radius)
+      .add_property("radius", &cl::get_radius, &cl::set_radius)
       ;
   }
 
@@ -54,8 +53,8 @@ namespace pyrticle
   { 
     typedef normalized_shape_function_reconstructor::type<PIC> cl;
     wrp
+      .add_property("radius", &cl::get_radius, &cl::set_radius)
       .DEF_SIMPLE_METHOD(setup_normalized_shape_reconstructor)
-      .DEF_SIMPLE_METHOD(set_radius)
       ;
   }
 
@@ -79,7 +78,9 @@ namespace pyrticle
       .DEF_RO_MEMBER(element_kill_counter)
 
       .DEF_SIMPLE_METHOD(add_local_diff_matrix)
+      .DEF_SIMPLE_METHOD(count_advective_particles)
       .DEF_SIMPLE_METHOD(add_advective_particle)
+      .DEF_SIMPLE_METHOD(clear_advective_particles)
       .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
       .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
       .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)

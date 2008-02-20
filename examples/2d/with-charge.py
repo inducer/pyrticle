@@ -3,24 +3,51 @@ import pylinear.array as num
 import pylinear.computation as comp
 import pylinear.operator as op
 import cProfile as profile
+import pytools
 
 
 
 
-def add_gauss_particles(nparticles, cloud, discr, charge, mass, 
-        mean_x, mean_p, sigma_x, sigma_p):
-    from random import gauss
+class GaussParticleDistribution(pytools.Record):
+    def __init__(self, total_charge, total_mass, mean_x, mean_p, sigma_x, sigma_p):
+        pytools.Record.__init__(self, locals())
 
-    cloud.add_particles(
-            positions=[
-                num.array([gauss(m, s) for m, s in zip(mean_x, sigma_x)]) 
-                for i in range(nparticles)
-                ],
-            velocities=[cloud.units.v_from_p(mass, 
-                num.array([gauss(m, s) for m, s in zip(mean_p, sigma_p)])) 
-                for i in range(nparticles)
-                ],
-            charges=charge, masses=mass)
+    def add_to(self, cloud, nparticles):
+        from random import gauss
+
+        pmass = self.total_mass/nparticles
+        cloud.add_particles(
+                positions=[
+                    num.array([gauss(m, s) for m, s in zip(self.mean_x, self.sigma_x)]) 
+                    for i in range(nparticles)
+                    ],
+                velocities=[cloud.units.v_from_p(pmass, 
+                    num.array([gauss(m, s) for m, s in zip(self.mean_p, self.sigma_p)])) 
+                    for i in range(nparticles)
+                    ],
+                charges=self.total_charge/nparticles, 
+                masses=pmass)
+
+    def analytic_rho(self, discr):
+        from math import exp, pi
+
+        sigma_mat = num.diagonal_matrix(num.power(self.sigma_x, 2))
+        inv_sigma_mat = num.diagonal_matrix(num.power(self.sigma_x, -2))
+
+        def distrib(x):
+            return 1/((2*pi)**(len(x)/2) * comp.determinant(sigma_mat)**0.5) \
+                    * exp(-0.5*(x-self.mean_x)*inv_sigma_mat*(x-self.mean_x))
+
+        rho = self.total_charge * discr.interpolate_volume_function(distrib)
+
+        # check for correctness
+        from hedge.discretization import integral
+        int_rho = integral(discr, rho)
+        rel_err = (int_rho-self.total_charge)/self.total_charge
+        assert rel_err < 1e-6
+
+        return rho
+
 
 
 
@@ -148,14 +175,15 @@ def main():
     sigma_v = num.array([avg_x_vel*1e-3, avg_x_vel*1e-6])
     print "beta=%g, gamma=%g" % (comp.norm_2(mean_beta), gamma)
 
-    add_gauss_particles(nparticles, cloud, discr, 
-            charge=cloud_charge/nparticles, 
-            mass=pmass,
+    gauss_p = GaussParticleDistribution(
+            total_charge=cloud_charge, 
+            total_mass=pmass*nparticles,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
             sigma_x=0.1*num.ones((2,)),
-            sigma_p=units.gamma(mean_v)*pmass*sigma_v,
-            )
+            sigma_p=units.gamma(mean_v)*pmass*sigma_v)
+    gauss_p.add_to(cloud, nparticles)
+    ana_rho = gauss_p.analytic_rho(discr)
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
