@@ -272,7 +272,9 @@ def run_setup(casename, setup, discr, pusher):
     #vis = VtkVisualizer(discr, "pic")
 
     from pyrticle.cloud import ParticleCloud
-    from pyrticle.reconstruction import ShapeFunctionReconstructor
+    from pyrticle.reconstruction import \
+            ShapeFunctionReconstructor, \
+            NormalizedShapeFunctionReconstructor
     cloud = ParticleCloud(discr, units, 
             ShapeFunctionReconstructor(),
             pusher(),
@@ -339,6 +341,8 @@ def run_setup(casename, setup, discr, pusher):
         from pyrticle.tools import NumberShiftableVector
         all_sim_f = NumberShiftableVector.unwrap(
                 cloud.vis_info["mag_force"] + cloud.vis_info["el_force"])
+        all_el_sim_f = NumberShiftableVector.unwrap(cloud.vis_info["el_force"])
+        all_mag_sim_f = NumberShiftableVector.unwrap(cloud.vis_info["mag_force"])
 
         local_e = setup.e()
         local_b = units.MU0 * setup.h()
@@ -349,23 +353,28 @@ def run_setup(casename, setup, discr, pusher):
 
         for i in range(len(cloud)):
             x = all_x[i]
-            sim_x = cloud.positions.adaptee[i*dim:(i+1)*dim]
+            sim_x = cloud.positions[i]
             v = all_v[i]
-            sim_v = cloud.velocities().adaptee[i*dim:(i+1)*dim]
+            sim_v = cloud.velocities()[i]
             f = all_f[i]
             sim_f = all_sim_f[i*dim:(i+1)*dim]
+            el_sim_f = all_el_sim_f[i*dim:(i+1)*dim]
+            mag_sim_f = all_mag_sim_f[i*dim:(i+1)*dim]
 
             real_f = num.array(cross(sim_v, setup.charge*local_b)) + setup.charge*local_e
 
-            print "pos%d:" % i, comp.norm_2(x-sim_x)
-
-            print "vel%d:" % i, comp.norm_2(v-sim_v)
-            print "vel%d:..." % i, v, sim_v
-
-            #print "acc%d:" % i, comp.norm_2(a-sim_a)
-            #u = num.vstack((v, sim_v, f, sim_f, real_f))
-            #print "acc%d:\n%s" % (i, u)
-            #raw_input()
+            if False:
+                print "particle %d" % i
+                print "pos:", comp.norm_2(x-sim_x)/comp.norm_2(x)
+                print "vel:", comp.norm_2(v-sim_v)/comp.norm_2(v)
+                print "force:", comp.norm_2(f-sim_f)/comp.norm_2(f)
+                print "vel:", v, sim_v
+                print "force%d:..." % i, f, sim_f
+                print "forces%d:..." % i, el_sim_f, mag_sim_f
+                #print "acc%d:" % i, comp.norm_2(a-sim_a)
+                #u = num.vstack((v, sim_v, f, sim_f, real_f))
+                #print "acc%d:\n%s" % (i, u)
+                #raw_input()
 
             x_err = max(x_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
             v_err = max(v_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
@@ -386,14 +395,12 @@ def run_setup(casename, setup, discr, pusher):
     for step in xrange(nsteps):
         logmgr.tick()
         
-        #if step % (setup.nsteps()/100) == 0:
-        if True:
+        if step % (setup.nsteps()/100) == 0:
             check_timer.start()
             errors = tuple(
                     max(old_err, new_err) 
                     for old_err, new_err in zip(errors, check_result()))
             check_timer.stop()
-            raw_input()
 
             last_tstep = time()
             vis_timer.start()
@@ -402,9 +409,8 @@ def run_setup(casename, setup, discr, pusher):
 
                 cloud.add_to_vis(vis, visf, time=t, step=step)
 
-                if False:
+                if True:
                     vis.add_data(visf, [ ("e", e), ("h", h), ],
-                            write_coarse_mesh=True,
                             time=t, step=step)
                 else:
                     vis.add_data(visf, [], time=t, step=step)
@@ -467,10 +473,8 @@ def main():
             MonomialParticlePusher, \
             AverageParticlePusher
 
-    #for pusher in [MonomialParticlePusher, AverageParticlePusher]:
-    for pusher in [AverageParticlePusher]:
-        #for case in ["screw", "epb"]:
-        for case in ["screw"]:
+    for pusher in [MonomialParticlePusher, AverageParticlePusher]:
+        for case in ["screw", "epb"]:
             casename = "%s-%s" % (case, pusher.name.lower())
             print "----------------------------------------------"
             print casename.upper()

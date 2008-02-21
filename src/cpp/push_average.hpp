@@ -35,6 +35,12 @@ namespace pyrticle
   template <unsigned DimensionsVelocity, class FX, class FY, class FZ>
   class force_averaging_target
   {
+    public:
+      static const unsigned field_components = 3;
+      typedef boost::numeric::ublas::vector<double,
+              boost::numeric::ublas::bounded_array<double, field_components> >
+                field_vector_t;
+
     protected:
       particle_number m_current_particle;
       const mesh_data &m_mesh_data;
@@ -44,15 +50,11 @@ namespace pyrticle
       const FZ       &m_fz;
       hedge::vector  *m_particlewise_field;
       hedge::vector  *m_field_stddev;
+      field_vector_t m_qfield_accumulator;
       double         m_qfield_square_accumulator;
       double         m_particle_charge;
 
     public:
-      static const unsigned field_components = 3;
-      typedef boost::numeric::ublas::vector<double,
-              boost::numeric::ublas::bounded_array<double, field_components> >
-                field_vector_t;
-
       force_averaging_target(
           const mesh_data &md,
           const hedge::vector &integral_weights,
@@ -67,6 +69,7 @@ namespace pyrticle
           m_fx(fx), m_fy(fy), m_fz(fz),
           m_particlewise_field(particlewise_field),
           m_field_stddev(field_stddev),
+          m_qfield_accumulator(field_components),
           m_qfield_square_accumulator(0),
           m_particle_charge(0)
       { 
@@ -77,6 +80,7 @@ namespace pyrticle
       void begin_particle(particle_number pn)
       {
         m_current_particle = pn;
+        m_qfield_accumulator.clear();
         m_qfield_square_accumulator = 0;
         m_particle_charge = 0;
       }
@@ -126,7 +130,7 @@ namespace pyrticle
       }
 
       template <class RhoExpression>
-      field_vector_t get_qavg_field(
+      void add_shape_on_element(
           const mesh_data::element_number en, 
           const mesh_data::node_number start_idx, 
           const RhoExpression &rho_contrib
@@ -141,6 +145,10 @@ namespace pyrticle
         qfield[1] = jacobian*weigh_field_component(m_fy, start_idx, rho_contrib);
         qfield[2] = jacobian*weigh_field_component(m_fz, start_idx, rho_contrib);
 
+        m_qfield_accumulator += qfield;
+
+        m_particle_charge += jacobian * inner_prod(rho_contrib, m_integral_weights);
+
         if (m_particlewise_field)
         {
           subrange(*m_particlewise_field, 
@@ -154,11 +162,7 @@ namespace pyrticle
                   + weigh_field_component_squared(m_fy, start_idx, rho_contrib)
                   + weigh_field_component_squared(m_fz, start_idx, rho_contrib));
           }
-
-          m_particle_charge += jacobian * inner_prod(rho_contrib, m_integral_weights);
         }
-
-        return qfield;
       }
 
       void end_particle(particle_number pn)
@@ -207,6 +211,7 @@ namespace pyrticle
   {
     private:
       typedef force_averaging_target<DimensionsVelocity, FX, FY, FZ> super;
+      const hedge::vector  &m_charges;
       hedge::vector  &m_result;
 
     public:
@@ -216,25 +221,33 @@ namespace pyrticle
           const FX &fx, const FY &fy, const FZ &fz,
           hedge::vector *particlewise_field,
           hedge::vector *field_stddev,
+          const hedge::vector &charges,
           hedge::vector &result
           )
         : 
           super(md, integral_weights, 
               fx, fy, fz, 
               particlewise_field, field_stddev),
+          m_charges(charges),
           m_result(result)
       { }
 
-      template <class RhoExpression>
-      void add_shape_on_element(const mesh_data::element_number en, 
-          const mesh_data::node_number start_idx, 
-          const RhoExpression &rho_contrib)
+      void end_particle(particle_number pn)
       {
-        subrange(m_result, 
-            this->m_current_particle*DimensionsVelocity,
-            (1+this->m_current_particle)*DimensionsVelocity)
-          += subrange(
-              this->get_qavg_field(en, start_idx, rho_contrib),
+        super::end_particle(pn);
+
+        unsigned 
+          pstart = pn*DimensionsVelocity,
+          pend = (pn+1)*DimensionsVelocity;
+
+        if (this->m_particle_charge == 0)
+          return;
+
+        const double scale = m_charges[pn]/this->m_particle_charge;
+
+        noalias(subrange(this->m_result, pstart, pend)) += 
+          scale*subrange(
+              this->m_qfield_accumulator,
               0, DimensionsVelocity);
       }
   };
@@ -250,8 +263,8 @@ namespace pyrticle
       typedef force_averaging_target<DimensionsVelocity, FX, FY, FZ> super;
       const hedge::vector               &m_velocities;
       
+      const hedge::vector  &m_charges;
       hedge::vector  &m_result;
-      hedge::vector m_particle_qB_accumulator;
 
     public:
       mag_force_averaging_target(
@@ -261,6 +274,7 @@ namespace pyrticle
           const hedge::vector &velocities,
           hedge::vector *particlewise_field,
           hedge::vector *field_stddev,
+          const hedge::vector &charges,
           hedge::vector &result
           )
         : 
@@ -268,25 +282,9 @@ namespace pyrticle
               fx, fy, fz, 
               particlewise_field, field_stddev), 
           m_velocities(velocities),
-          m_result(result),
-          m_particle_qB_accumulator(super::field_components)
+          m_charges(charges),
+          m_result(result)
       { }
-
-      void begin_particle(particle_number pn)
-      {
-        super::begin_particle(pn);
-        m_particle_qB_accumulator.clear();
-      }
-
-      template <class RhoExpression>
-      void add_shape_on_element(
-          const mesh_data::element_number en, 
-          const mesh_data::node_number start_idx, 
-          const RhoExpression &rho_contrib)
-      {
-        m_particle_qB_accumulator +=
-          this->get_qavg_field(en, start_idx, rho_contrib);
-      }
 
       void end_particle(particle_number pn)
       {
@@ -296,11 +294,16 @@ namespace pyrticle
           pstart = pn*DimensionsVelocity,
           pend = (pn+1)*DimensionsVelocity;
 
+        if (this->m_particle_charge == 0)
+          return;
+
+        const double scale = m_charges[pn]/this->m_particle_charge;
+
         noalias(subrange(this->m_result, pstart, pend)) += 
           subrange(
-              cross(
+              scale*cross(
                 subrange(m_velocities, pstart, pend), 
-                m_particle_qB_accumulator),
+                this->m_qfield_accumulator),
               0, DimensionsVelocity);
       }
   };
@@ -375,9 +378,11 @@ namespace pyrticle
           }
 
           el_tgt_t el_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,
-              ex, ey, ez, vis_e.get(), vis_e_stddev.get(), el_force);
+              ex, ey, ez, vis_e.get(), vis_e_stddev.get(), 
+              CONST_PIC_THIS->m_charges, el_force);
           mag_tgt_t mag_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,
-              bx, by, bz, velocities, vis_b.get(), vis_b_stddev.get(), mag_force);
+              bx, by, bz, velocities, vis_b.get(), vis_b_stddev.get(), 
+              CONST_PIC_THIS->m_charges, mag_force);
 
           chained_reconstruction_target<el_tgt_t, mag_tgt_t> force_tgt(el_tgt, mag_tgt);
           CONST_PIC_THIS->reconstruct_densities_on_target(force_tgt);
