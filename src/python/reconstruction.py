@@ -31,7 +31,7 @@ import pylinear.computation as comp
 
 class Reconstructor(object):
     def initialize(self, cloud):
-        pass
+        self.cloud = cloud
 
     def set_radius(self, radius):
         cloud.pic_algorithm.set_radius(radius)
@@ -58,10 +58,11 @@ class ShapeFunctionReconstructor(Reconstructor):
     name = "Shape"
 
     def initialize(self, cloud):
+        Reconstructor.initialize(self, cloud)
         self.radius = None
 
     def set_radius(self, radius):
-        cloud.pic_algorithm.radius = radius
+        self.cloud.pic_algorithm.radius = radius
         self.radius = radius
 
     def reconstruct_hook(self):
@@ -75,6 +76,8 @@ class NormalizedShapeFunctionReconstructor(Reconstructor):
     name = "NormShape"
 
     def initialize(self, cloud):
+        Reconstructor.initialize(self, cloud)
+
         eg, = cloud.mesh_data.discr.element_groups
         ldis = eg.local_discretization
 
@@ -84,7 +87,7 @@ class NormalizedShapeFunctionReconstructor(Reconstructor):
         self.radius = None
 
     def set_radius(self, radius):
-        cloud.pic_algorithm.radius = radius
+        self.cloud.pic_algorithm.radius = radius
         self.radius = radius
 
     def reconstruct_hook(self):
@@ -142,7 +145,8 @@ class AdvectiveReconstructor(Reconstructor):
         mgr.set_constant("adv_upwind_alpha", self.upwind_alpha)
 
     def initialize(self, cloud):
-        self.cloud = cloud
+        Reconstructor.initialize(self, cloud)
+
         discr = cloud.mesh_data.discr
         
         eg, = discr.element_groups
@@ -172,7 +176,8 @@ class AdvectiveReconstructor(Reconstructor):
         cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
 
     def set_radius(self, radius):
-        self.radius = cloud.mesh_data.advisable_particle_radius()
+        self.radius = radius
+
         self.cloud.pic_algorithm.clear_advective_particles()
         for pn in xrange(len(self.cloud)):
             self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)

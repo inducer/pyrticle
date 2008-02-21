@@ -72,7 +72,7 @@ def main():
             #max_volume=1000*units.MM**3, radial_subdivisions=10)
     #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
-    if False:
+    if True:
         from tubemesh import make_cylinder_with_fine_core
         full_mesh = make_cylinder_with_fine_core(
                 r=10*beam_radius, inner_r=1*beam_radius, 
@@ -81,7 +81,7 @@ def main():
                 max_volume_outer=100*units.MM**3,
                 radial_subdiv=radial_subdiv,
                 )
-    if True:
+    if False:
         # pillbox cavity
         from tubemesh import make_extrusion_with_fine_core
         full_mesh = make_extrusion_with_fine_core(
@@ -169,6 +169,10 @@ def main():
             z_pos=10*units.MM,
             beta=mean_beta)
     beam.add_to(cloud, discr)
+
+    from pyrticle.cloud import optimize_shape_bandwidth
+    optimize_shape_bandwidth(cloud, discr, beam.analytic_rho(discr),
+            plot_l1_errors=True)
 
     # initial condition -------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition

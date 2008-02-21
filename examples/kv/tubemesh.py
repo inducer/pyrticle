@@ -98,7 +98,7 @@ def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
         radial_subdiv=20):
 
     return make_extrusion_with_fine_core(
-            [ (r, min_z), (r, max_z), ],
+            [ (r, min_z), (r, max_z), ], inner_r,
             max_volume_inner=max_volume_inner,
             max_volume_outer=max_volume_outer,
             radial_subdiv=radial_subdiv)

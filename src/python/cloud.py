@@ -605,28 +605,54 @@ def guess_shape_bandwidth(cloud):
 
 
 
-def optimize_shape_bandwidth(cloud, discr, analytic_rho):
-    radii = [2**exponent for exponent in num.linspace(-4, 4, 20)]
+def optimize_shape_bandwidth(cloud, discr, analytic_rho, rhovis=False, plot_l1_errors=False):
+    adv_radius = cloud.mesh_data.advisable_particle_radius()
+    radii = [adv_radius*2**exponent 
+            for exponent in num.linspace(-4, 2, 50)]
+
+    if rhovis:
+        from hedge.visualization import SiloVisualizer
+        vis = SiloVisualizer(discr)
 
     from hedge.discretization import integral
 
+    tried_radii = []
     l1_errors = []
-    for radius in radii:
-        self.cloud.reconstructor.set_radius(radius)
-        rec_rho = self.cloud.reconstruct_rho()
+    for step, radius in enumerate(radii):
+        cloud.reconstructor.set_radius(radius)
+        cloud.derived_quantity_cache.clear()
+        try:
+            rec_rho = cloud.reconstruct_rho()
+        except RuntimeError:
+            continue
+
+        tried_radii.append(radius)
         l1_errors.append(integral(discr, num.abs(rec_rho-analytic_rho)))
 
+        if rhovis:
+            visf = vis.make_file("rho-%04d" % step)
+            cloud.add_to_vis(vis, visf, time=radius, step=step)
+            vis.add_data(visf, [ 
+                ("rho", rec_rho), 
+                ("anarho", analytic_rho), 
+                ],
+                time=radius, step=step)
+            visf.close()
+
+    if rhovis:
+        vis.close()
+
     from pytools import argmin
-    good_rad = radii[argmin(l1_errors)]
+    good_rad = tried_radii[argmin(l1_errors)]
 
-    print radii
-    print l1_errors
+    print "radius: guessed optimum=%g, found optimum=%g" % (adv_radius, good_rad)
 
-    from matplotlib import plot
-    plot(radii, l1_errors)
-    show()
+    if plot_l1_errors:
+        from pylab import plot, show
+        plot(tried_radii, l1_errors)
+        show()
 
-    self.cloud.reconstructor.set_radius(radius)
+    cloud.reconstructor.set_radius(good_rad)
 
 
 

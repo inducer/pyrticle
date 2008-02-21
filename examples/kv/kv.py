@@ -142,6 +142,37 @@ class KVZIntervalBeam:
         cloud.add_particles(positions, velocities, 
                 self.p_charge, self.p_mass)
 
+    def analytic_rho(self, discr):
+        from pytools import product
+
+        z_min = self.z_pos - self.z_length/2
+        z_max = self.z_pos + self.z_length/2
+
+        def distrib(x):
+            if (z_min < x[2] < z_max and
+                    sum((xi/ri)**2 for xi, ri in zip(x, self.radii)) <= 1):
+                return 1
+            else:
+                return 0
+
+        from math import pi
+        from pyrticle._internal import gamma
+        n = len(self.radii)
+        distr_vol = (2*pi)**(n/2) / (gamma(n/2)*n) * product(self.radii) * self.z_length
+
+        total_charge = self.p_charge * self.nparticles 
+        unscaled_rho = discr.interpolate_volume_function(distrib)
+        rho = total_charge * unscaled_rho / distr_vol
+
+        # check for correctness
+        from hedge.discretization import integral
+        int_rho = integral(discr, rho)
+        vol = integral(discr, unscaled_rho)
+        rel_err = (int_rho-total_charge)/total_charge
+        assert rel_err < 0.2
+
+        return rho
+
     def get_total_space_charge_parameter(self):
         from math import pi
 

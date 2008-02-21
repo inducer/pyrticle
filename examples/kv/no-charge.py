@@ -41,7 +41,7 @@ def main():
             len(discr.mesh.elements), dt, nsteps)
 
     # particles setup ---------------------------------------------------------
-    nparticles = 100000
+    nparticles = 10000
 
     from pyrticle.cloud import ParticleCloud
     from pyrticle.reconstruction import ShapeFunctionReconstructor
@@ -79,6 +79,7 @@ def main():
         return ArithmeticList([
             vel, 
             0*vel, 
+            0, # drecon
             ])
 
     stepper = RK4TimeStepper()

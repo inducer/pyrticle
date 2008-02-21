@@ -90,6 +90,7 @@ void expose_tools()
 {
   python::def("asinh", (double (*)(double)) boost::math::asinh);
   python::def("acosh", (double (*)(double)) boost::math::acosh);
+  python::def("gamma", (double (*)(double)) boost::math::tgamma);
 
   {
     typedef event_counter cl;

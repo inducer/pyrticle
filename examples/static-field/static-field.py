@@ -263,7 +263,7 @@ class EBParallel(StaticFieldSetup):
 
 
 
-def run_setup(casename, setup, discr):
+def run_setup(casename, setup, discr, pusher):
     from hedge.timestep import RK4TimeStepper
     from hedge.visualization import VtkVisualizer, SiloVisualizer
     from hedge.operators import MaxwellOperator
@@ -273,10 +273,9 @@ def run_setup(casename, setup, discr):
 
     from pyrticle.cloud import ParticleCloud
     from pyrticle.reconstruction import ShapeFunctionReconstructor
-    from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
             ShapeFunctionReconstructor(),
-            MonomialParticlePusher(),
+            pusher(),
             3, 3, verbose_vis=True)
 
     e, h = setup.fields(discr)
@@ -300,12 +299,21 @@ def run_setup(casename, setup, discr):
     print "#elements=%d, dt=%s, #steps=%d" % (
             len(discr.mesh.elements), dt, nsteps)
 
-    from pytools.log import LogManager, add_general_quantities
+    from pytools.log import LogManager, \
+            add_simulation_quantities, \
+            add_general_quantities, \
+            add_run_info, ETA
     from pyrticle.log import add_particle_quantities
-    logmgr = LogManager()
-    add_general_quantities(logmgr, dt)
+    logmgr = LogManager("%s.dat" % casename)
+    add_run_info(logmgr)
+    add_general_quantities(logmgr)
+    add_simulation_quantities(logmgr, dt)
     add_particle_quantities(logmgr, cloud)
     cloud.add_instrumentation(logmgr)
+
+    logmgr.add_quantity(ETA(nsteps))
+
+    logmgr.add_watches(["step", "t_sim", "t_step", "t_eta", "n_part"])
 
     # timestepping ------------------------------------------------------------
     def rhs(t, y):
@@ -328,7 +336,9 @@ def run_setup(casename, setup, discr):
         all_f = [(p2-p1)/(2*deriv_dt)
                 for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
 
-        all_sim_f = cloud.vis_info["lorentz_force"] + cloud.vis_info["el_force"]
+        from pyrticle.tools import NumberShiftableVector
+        all_sim_f = NumberShiftableVector.unwrap(
+                cloud.vis_info["mag_force"] + cloud.vis_info["el_force"])
 
         local_e = setup.e()
         local_b = units.MU0 * setup.h()
@@ -347,10 +357,10 @@ def run_setup(casename, setup, discr):
 
             real_f = num.array(cross(sim_v, setup.charge*local_b)) + setup.charge*local_e
 
-            #print "pos%d:" % i, comp.norm_2(x-sim_x)
+            print "pos%d:" % i, comp.norm_2(x-sim_x)
 
-            #print "vel%d:" % i, comp.norm_2(v-sim_v)
-            #print "vel%d:..." % i, v, sim_v
+            print "vel%d:" % i, comp.norm_2(v-sim_v)
+            print "vel%d:..." % i, v, sim_v
 
             #print "acc%d:" % i, comp.norm_2(a-sim_a)
             #u = num.vstack((v, sim_v, f, sim_f, real_f))
@@ -376,29 +386,25 @@ def run_setup(casename, setup, discr):
     for step in xrange(nsteps):
         logmgr.tick()
         
-        if step % (setup.nsteps()/100) == 0:
-            print "timestep %d, t=%g secs=%f particles=%d" % (
-                    step, t, time()-last_tstep, len(cloud))
-
+        #if step % (setup.nsteps()/100) == 0:
+        if True:
             check_timer.start()
             errors = tuple(
                     max(old_err, new_err) 
                     for old_err, new_err in zip(errors, check_result()))
             check_timer.stop()
+            raw_input()
 
             last_tstep = time()
             vis_timer.start()
             if True:
                 visf = vis.make_file("%s-%04d" % (casename, step))
 
-                mesh_scalars, mesh_vectors = \
-                        cloud.add_to_vis(vis, visf, time=t, step=step)
+                cloud.add_to_vis(vis, visf, time=t, step=step)
 
                 if False:
-                    vis.add_data(visf, [ ("e", e), ("h", h), ]
-                            + mesh_scalars + mesh_vectors,
+                    vis.add_data(visf, [ ("e", e), ("h", h), ],
                             write_coarse_mesh=True,
-
                             time=t, step=step)
                 else:
                     vis.add_data(visf, [], time=t, step=step)
@@ -411,7 +417,7 @@ def run_setup(casename, setup, discr):
         t += dt
 
     logmgr.tick()
-    logmgr.save("%s.dat" % casename)
+    logmgr.save()
 
     print
     print "l_inf errors (pos,vel,acc):", errors
@@ -457,11 +463,19 @@ def main():
         else:
             raise ValueError, "invalid test case"
 
-    for case in ["screw", "epb"]:
-        print "----------------------------------------------"
-        print case.upper()
-        print "----------------------------------------------"
-        run_setup(case, get_setup(case), discr)
+    from pyrticle.pusher import \
+            MonomialParticlePusher, \
+            AverageParticlePusher
+
+    #for pusher in [MonomialParticlePusher, AverageParticlePusher]:
+    for pusher in [AverageParticlePusher]:
+        #for case in ["screw", "epb"]:
+        for case in ["screw"]:
+            casename = "%s-%s" % (case, pusher.name.lower())
+            print "----------------------------------------------"
+            print casename.upper()
+            print "----------------------------------------------"
+            run_setup(casename, get_setup(case), discr, pusher)
 
 
 

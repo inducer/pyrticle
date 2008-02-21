@@ -183,7 +183,8 @@ def main():
             sigma_x=0.1*num.ones((2,)),
             sigma_p=units.gamma(mean_v)*pmass*sigma_v)
     gauss_p.add_to(cloud, nparticles)
-    ana_rho = gauss_p.analytic_rho(discr)
+    from pyrticle.cloud import optimize_shape_bandwidth
+    optimize_shape_bandwidth(cloud, discr, gauss_p.analytic_rho(discr))
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
