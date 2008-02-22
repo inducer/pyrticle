@@ -67,6 +67,7 @@ def main():
     from math import sqrt, pi
     from pytools.arithmetic_container import join_fields
     from hedge.operators import TEMaxwellOperator, DivergenceOperator
+    from pyrticle.hyperbolic import CleaningMaxwellOperator
 
     from random import seed
     seed(0)
@@ -102,6 +103,7 @@ def main():
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
+    max_op = CleaningMaxwellOperator(max_op, chi=1)
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.max_eigenvalue())
@@ -236,7 +238,7 @@ def main():
         cloud.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
 
-        if step % 20 == 0:
+        if step % 1 == 0:
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
@@ -245,6 +247,7 @@ def main():
                         ("divD", max_op.epsilon*div_op(fields.e)),
                         ("e", fields.e), 
                         ("h", fields.h), 
+                        ("phi", fields.phi), 
 
                         #("active_elements", 
                             #cloud.pic_algorithm.get_debug_quantity_on_mesh(
