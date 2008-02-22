@@ -5,11 +5,13 @@
 <\body>
   <section|Hyperbolic Cleaning>
 
-  The PDE solved in hyperbolic cleaning is as follows:
+  Maxwell's in conservation form reads:
 
   <\eqnarray*>
-    <tformat|<table|<row|<cell|\<partial\><rsub|t>E-<frac|1|\<varepsilon\>>\<nabla\>\<times\>H+c<rsup|2>\<nabla\>\<Phi\>>|<cell|=>|<cell|-<frac|j|\<varepsilon\><rsub|0>>>>|<row|<cell|\<partial\><rsub|t>H+<frac|1|\<mu\>>\<nabla\>\<times\>E>|<cell|=>|<cell|0>>|<row|<cell|\<partial\><rsub|t>\<Phi\>+\<chi\><rsup|2>\<nabla\>\<cdot\>E>|<cell|=>|<cell|\<chi\><rsup|2><frac|\<rho\>|\<varepsilon\><rsub|0>>>>>>
+    <tformat|<table|<row|<cell|\<partial\><rsub|t>E-<frac|1|\<varepsilon\>>\<nabla\>\<times\>H>|<cell|=>|<cell|-<frac|j|\<varepsilon\><rsub|0>>>>|<row|<cell|\<partial\><rsub|t>H+<frac|1|\<mu\>>\<nabla\>\<times\>E>|<cell|=>|<cell|0>>>>
   </eqnarray*>
+
+  \;
 
   <with|prog-language|maxima|prog-session|default|<\session>
     <\input|<with|color|red|(<with|math-font-family|rm|%i>1)
@@ -241,15 +243,19 @@
       <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o27>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<with|math-font-family|rm|s3m>>>|<row|<cell|-<with|math-font-family|rm|s4m>>>|<row|<cell|-<with|math-font-family|rm|s1m>>>|<row|<cell|-<with|math-font-family|rm|s2m>>>|<row|<cell|-<with|math-font-family|rm|s5m>>>|<row|<cell|<with|math-font-family|rm|s6m>>>>>><right|)>>
     </output>
+  </session>>
 
+  <section|Hyperbolic cleaning of <math|div E>>
+
+  Maxwell's with hyperbolic cleaning is:
+
+  <\eqnarray*>
+    <tformat|<table|<row|<cell|\<partial\><rsub|t>E-<frac|1|\<varepsilon\>>\<nabla\>\<times\>H+c<rsup|2>\<nabla\>\<Phi\>>|<cell|=>|<cell|-<frac|j|\<varepsilon\><rsub|0>>>>|<row|<cell|\<partial\><rsub|t>H+<frac|1|\<mu\>>\<nabla\>\<times\>E>|<cell|=>|<cell|0>>|<row|<cell|\<partial\><rsub|t>\<Phi\>+\<chi\><rsup|2>\<nabla\>\<cdot\>E>|<cell|=>|<cell|\<chi\><rsup|2><frac|\<rho\>|\<varepsilon\><rsub|0>>>>>>
+  </eqnarray*>
+
+  <with|prog-language|maxima|prog-session|default|<\session>
     <\input|<with|color|red|(<with|math-font-family|rm|%i>28)
     <with|color|black|>>>
-      /* ------------------------------------------- */
-
-      /* Begin treatment of hyp. cleaning system */
-
-      /* ------------------------------------------- */
-
       assume(chi\<gtr\>0);
     </input>
 
@@ -487,11 +493,94 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o53>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o49>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|<with|math-font-family|rm|nx>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(>3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><rsup|2>-2*<with|math-font-family|rm|Em><rsub|1>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|ny>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(>3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny><rsup|2>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>-2*<with|math-font-family|rm|Em><rsub|2>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|nz>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><left|(>3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>-3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|ny><rsup|2>-3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nx><rsup|2>+<with|math-font-family|rm|Em><rsub|3>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|1>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|2>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|3>>>|<row|<cell|<frac|\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>|2>>>>>><right|)>>
     </output>
+  </session>>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>54)
+  <section|Hyperbolic Cleaning of <math|div E> and <math|div H>>
+
+  <with|prog-language|maxima|prog-session|default|<\session>
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>50)
+    <with|color|black|>>>
+      assume(eta\<gtr\>0);
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o51>)
+      <with|color|black|>><left|[><with|math-font-family|rm|redundant><right|]>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>52)
+    <with|color|black|>>>
+      Abothsimp:blockmat(
+
+      \ \ Amaxsimp,
+
+      \ \ hstack(
+
+      \ \ \ \ vstack(epsinv*muinv*covect(n),zeromatrix(3,1)),
+
+      \ \ \ \ vstack(zeromatrix(3,1),epsinv*muinv*covect(n))
+
+      \ \ ),
+
+      \ \ vstack(
+
+      \ \ \ \ hstack(chi^2*n,zeromatrix(1,3)),
+
+      \ \ \ \ hstack(zeromatrix(1,3),eta^2*n)
+
+      \ \ ),
+
+      \ \ zeromatrix(2,2)
+
+      )$
+
+      Aboth:subst([epsinv=1/epsilon, muinv=1/mu], Abothsimp)
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o55>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|-<frac|<with|math-font-family|rm|nz>|\<varepsilon\>>>|<cell|<frac|<with|math-font-family|rm|ny>|\<varepsilon\>>>|<cell|<frac|<with|math-font-family|rm|nx>|\<varepsilon\>*\<mu\>>>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|<with|math-font-family|rm|nz>|\<varepsilon\>>>|<cell|0>|<cell|-<frac|<with|math-font-family|rm|nx>|\<varepsilon\>>>|<cell|<frac|<with|math-font-family|rm|ny>|\<varepsilon\>*\<mu\>>>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|-<frac|<with|math-font-family|rm|ny>|\<varepsilon\>>>|<cell|<frac|<with|math-font-family|rm|nx>|\<varepsilon\>>>|<cell|0>|<cell|<frac|<with|math-font-family|rm|nz>|\<varepsilon\>*\<mu\>>>|<cell|0>>|<row|<cell|0>|<cell|<frac|<with|math-font-family|rm|nz>|\<mu\>>>|<cell|-<frac|<with|math-font-family|rm|ny>|\<mu\>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|<with|math-font-family|rm|nx>|\<varepsilon\>*\<mu\>>>>|<row|<cell|-<frac|<with|math-font-family|rm|nz>|\<mu\>>>|<cell|0>|<cell|<frac|<with|math-font-family|rm|nx>|\<mu\>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|<with|math-font-family|rm|ny>|\<varepsilon\>*\<mu\>>>>|<row|<cell|<frac|<with|math-font-family|rm|ny>|\<mu\>>>|<cell|-<frac|<with|math-font-family|rm|nx>|\<mu\>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|<with|math-font-family|rm|nz>|\<varepsilon\>*\<mu\>>>>|<row|<cell|\<chi\><rsup|2>*<with|math-font-family|rm|nx>>|<cell|\<chi\><rsup|2>*<with|math-font-family|rm|ny>>|<cell|\<chi\><rsup|2>*<with|math-font-family|rm|nz>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|\<eta\><rsup|2>*<with|math-font-family|rm|nx>>|<cell|\<eta\><rsup|2>*<with|math-font-family|rm|ny>>|<cell|\<eta\><rsup|2>*<with|math-font-family|rm|nz>>|<cell|0>|<cell|0>>>>><right|)>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>57)
+    <with|color|black|>>>
+      evAboth:subst(
+
+      [epsinv=1/epsilon, muinv=1/mu],
+
+      ratsubst(1,n.n,
+
+      eigenvectors(Abothsimp)))$
+    </input>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>65)
+    <with|color|black|>>>
+      Vboth:transpose(apply(matrix, makelist(evAboth[i],i,2,9)))$
+
+      invVboth:ratsubst(1,n.n,ratsimp(invert(Vboth)))$
+
+      ratsubst(1,n.n,Vboth.invVboth)
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o67>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|1>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|1>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|1>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|1>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|1>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|1>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|1>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|1>>>>><right|)>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>68)
+    <with|color|black|>>>
+      Dboth:ratsubst(1,n.n,invVboth.Aboth.Vboth)
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o68>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<frac|1|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|-<frac|1|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|<frac|1|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|1|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|-<frac|\<chi\>|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|\<chi\>|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|-<frac|\<eta\>|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|\<eta\>|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>>>><right|)>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>69)
     <with|color|black|>>>
       \;
     </input>
@@ -501,6 +590,8 @@
 <\references>
   <\collection>
     <associate|auto-1|<tuple|1|1>>
+    <associate|auto-2|<tuple|2|?>>
+    <associate|auto-3|<tuple|3|?>>
   </collection>
 </references>
 
