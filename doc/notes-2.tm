@@ -389,11 +389,11 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o55>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o43>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<with|math-font-family|rm|sm><rsub|3>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|4>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|1>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|2>>>|<row|<cell|-<frac|<with|math-font-family|rm|sm><rsub|6>+<with|math-font-family|rm|sm><rsub|5>|2>>>|<row|<cell|-<frac|<with|math-font-family|rm|sm><rsub|6>+<with|math-font-family|rm|sm><rsub|5>|2>>>|<row|<cell|<with|math-font-family|rm|sm><rsub|7>>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>56)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>44)
     <with|color|black|>>>
       cleanpecbdrywpins:
 
@@ -417,11 +417,39 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o57>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o45>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<with|math-font-family|rm|sm><rsub|3>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|4>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|1>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|2>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|6>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|5>>>|<row|<cell|<with|math-font-family|rm|sm><rsub|7>>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>58)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>46)
+    <with|color|black|>>>
+      cleanpecbdrywpins:
+
+      \ \ [-cleanwmins[1,1], /* E1..3 */
+
+      \ \ \ -cleanwmins[2,1],
+
+      \ \ \ -cleanwmins[3,1],
+
+      \ \ \ \ cleanwmins[4,1], /* H1..3 */
+
+      \ \ \ \ cleanwmins[5,1],
+
+      \ \ \ \ cleanwmins[6,1],
+
+      \ \ \ \ -cleanwmins[7,1] /* phi */
+
+      \ \ \ \ ]$
+
+      cleanpecbdryspinw:ratsimp(ratsubst(1,n.n,invVclean.cleanpecbdrywpins))
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o55>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<with|math-font-family|rm|sm><rsub|3>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|4>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|1>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|2>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|5>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|6>>>|<row|<cell|<with|math-font-family|rm|sm><rsub|7>>>>>><right|)>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>56)
     <with|color|black|>>>
       /* ------------------------------------------- */
 
