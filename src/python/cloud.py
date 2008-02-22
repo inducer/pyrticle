@@ -528,16 +528,32 @@ class FieldsAndCloud:
     def __init__(self, maxwell_op, e, h, cloud):
         from pytools.arithmetic_container import join_fields
         self.maxwell_op = maxwell_op
-        self.e = e
-        self.h = h
+        self.em_fields = maxwell_op.assemble_fields(e=e, h=h)
         self.cloud = cloud
-
-        self.eh_components = maxwell_op.component_count()
 
         from pytools.log import IntervalTimer
         self.field_solve_timer = IntervalTimer(
                 "t_field",
                 "Time spent in field solver")
+
+    @property
+    def e(self):
+        e, h = self.maxwell_op.split_eh(self.em_fields)
+        return e
+
+    @property
+    def h(self):
+        e, h = self.maxwell_op.split_eh(self.em_fields)
+        return h
+
+    @property
+    def phi(self):
+        from pyrticle.hyperbolic import CleaningMaxwellOperator
+        if isinstance(self.maxwell_op, CleaningMaxwellOperator):
+            e, h, phi = self.maxwell_op.split_ehphi(self.em_fields)
+            return phi
+        else:
+            return self.maxwell_op.discr.volume_zeros()
 
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.field_solve_timer)
@@ -546,27 +562,24 @@ class FieldsAndCloud:
         self.maxwell_op.discr.add_instrumentation(mgr)
 
     def __iadd__(self, other):
-        assert len(other) == self.eh_components + 1
-        rhs_e, rhs_h = self.maxwell_op.split_fields(other[:self.eh_components])
-        rhs_cloud = other[self.eh_components]
+        d_em_fields, d_cloud = other
 
-        self.e += rhs_e
-        self.h += rhs_h
-        self.cloud += rhs_cloud
+        self.em_fields += d_em_fields
+        self.cloud += d_cloud
 
         return self
 
     def rhs(self, t, y):
         assert y is self
 
-        from pytools.arithmetic_container import join_fields
+        from pytools.arithmetic_container import join_fields, ArithmeticList
         from pyrticle._internal import ZeroVector
 
         # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
         # inserting ZeroVectors where necessary.
         idx = 0
         e_arg = []
-        for use_component in self.maxwell_op.get_subset()[0:3]:
+        for use_component in self.maxwell_op.get_eh_subset()[0:3]:
             if use_component:
                 e_arg.append(self.e[idx])
                 idx += 1
@@ -575,25 +588,32 @@ class FieldsAndCloud:
 
         idx = 0
         b_arg = []
-        for use_component in self.maxwell_op.get_subset()[3:6]:
+        for use_component in self.maxwell_op.get_eh_subset()[3:6]:
             if use_component:
                 b_arg.append(self.maxwell_op.mu * self.h[idx])
                 idx += 1
             else:
                 b_arg.append(ZeroVector())
 
-        cloud_rhs = self.cloud.rhs(t, e_arg, b_arg)
+        rhs_cloud = self.cloud.rhs(t, e_arg, b_arg)
 
+        # calculate EM right-hand side 
         self.field_solve_timer.start()
-        rhs_e, rhs_h = self.maxwell_op.split_fields(
-                self.maxwell_op.rhs(t, join_fields(self.e, self.h))
-                )
+        from pyrticle.hyperbolic import CleaningMaxwellOperator
+        if isinstance(self.maxwell_op, CleaningMaxwellOperator):
+            rhs_em = self.maxwell_op.rhs(t, self.em_fields, 
+                    self.cloud.reconstruct_rho())
+        else:
+            rhs_em = self.maxwell_op.rhs(t, self.em_fields)
+
         self.field_solve_timer.stop()
 
-        return join_fields(
-                rhs_e - 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j(),
-                rhs_h,
-                ).plus([cloud_rhs])
+        # add current
+        e_components = self.maxwell_op.count_subset(
+                self.maxwell_op.get_eh_subset()[0:3])
+        rhs_em[:e_components] -= 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j()
+
+        return ArithmeticList([rhs_em, rhs_cloud])
 
 
 
