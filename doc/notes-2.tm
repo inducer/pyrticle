@@ -483,7 +483,7 @@
 
       \;
 
-      ratsimp(
+      cleanchiradwp:ratsimp(
 
       ratsubst(1,n.n,
 
@@ -493,9 +493,30 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o49>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o87>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|<with|math-font-family|rm|nx>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(>3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><rsup|2>-2*<with|math-font-family|rm|Em><rsub|1>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|ny>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(>3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny><rsup|2>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>-2*<with|math-font-family|rm|Em><rsub|2>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|nz>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><left|(>3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>-3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|ny><rsup|2>-3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nx><rsup|2>+<with|math-font-family|rm|Em><rsub|3>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|1>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|2>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|3>>>|<row|<cell|<frac|\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>|2>>>>>><right|)>>
     </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>88)
+    <with|color|black|>>>
+      ratsimp(ratsubst(1,n.n,
+
+      limit(limit(cleanchiradwp,phi,0),chi,0)
+
+      -
+
+      [-Em[1],-Em[2],-Em[3],Hm[1],Hm[2],Hm[3],0]))
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o85>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|3*<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+3*<with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+3*<with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|nx><rsup|2>|2>>>|<row|<cell|<frac|3*<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+3*<with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|ny><rsup|2>+3*<with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>|2>>>|<row|<cell|<frac|<left|(>3*<with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|ny>+3*<with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>-3*<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|ny><rsup|2>-3*<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|nx><rsup|2>+3*<with|math-font-family|rm|Em><rsub|3>|2>>>|<row|<cell|0>>|<row|<cell|0>>|<row|<cell|0>>|<row|<cell|0>>>>><right|)>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>86)
+    <with|color|black|>>>
+      \;
+    </input>
   </session>>
 
   <section|Hyperbolic Cleaning of <math|div E> and <math|div H>>
