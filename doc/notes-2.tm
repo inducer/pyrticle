@@ -349,11 +349,11 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o41>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o39>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|<with|math-font-family|rm|nx>*\<varphi\>-<with|math-font-family|rm|Hm><rsub|2>*\<chi\>*\<mu\>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Hm><rsub|3>*\<chi\>*\<mu\>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|ny>*\<varphi\>+<with|math-font-family|rm|Hm><rsub|1>*\<chi\>*\<mu\>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Hm><rsub|3>*\<chi\>*\<mu\>*<with|math-font-family|rm|nx>+<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|nz>*\<varphi\>-<with|math-font-family|rm|Hm><rsub|1>*\<chi\>*\<mu\>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Hm><rsub|2>*\<chi\>*\<mu\>*<with|math-font-family|rm|nx>+<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Hm><rsub|1>*<with|math-font-family|rm|nx><rsup|2>+<with|math-font-family|rm|Hm><rsub|1><right|)>+<sqrt|\<varepsilon\>>*<left|(><with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|ny><right|)>|2*<sqrt|\<mu\>>>>>|<row|<cell|-<frac|<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|nz><rsup|2>-<with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Hm><rsub|1>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|nx><rsup|2>-2*<with|math-font-family|rm|Hm><rsub|2><right|)>+<sqrt|\<varepsilon\>>*<left|(><with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|nx><right|)>|2*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|nz><rsup|2>+<left|(><with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Hm><rsub|1>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Hm><rsub|3><right|)>+<sqrt|\<varepsilon\>>*<left|(><with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|nx><right|)>|2*<sqrt|\<mu\>>>>>|<row|<cell|<frac|\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>|2>>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>42)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>40)
     <with|color|black|>>>
       /* ------------------------------------------- */
 
@@ -385,15 +385,43 @@
 
       \ \ \ \ ]$
 
-      cleanpecbdryspinw:ratsubst(1,n.n,invVclean.cleanpecbdrywpins)
+      cleanpecbdryspinw:ratsimp(ratsubst(1,n.n,invVclean.cleanpecbdrywpins))
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o53>)
-      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|<left|(><left|(><with|math-font-family|rm|sm><rsub|3>-<with|math-font-family|rm|sm><rsub|1><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|1>-<with|math-font-family|rm|sm><rsub|3><right|)>*\<varepsilon\><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|sm><rsub|1>-<with|math-font-family|rm|sm><rsub|3><right|)>*\<varepsilon\>+<left|(>-<with|math-font-family|rm|sm><rsub|3>-<with|math-font-family|rm|sm><rsub|1><right|)>*\<varepsilon\>|2*\<varepsilon\>>>>|<row|<cell|<frac|<left|(><left|(><with|math-font-family|rm|sm><rsub|4>-<with|math-font-family|rm|sm><rsub|2><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|2>-<with|math-font-family|rm|sm><rsub|4><right|)>*\<varepsilon\><right|)>*<with|math-font-family|rm|nx><rsup|2>+<left|(><with|math-font-family|rm|sm><rsub|2>-<with|math-font-family|rm|sm><rsub|4><right|)>*\<varepsilon\>+<left|(>-<with|math-font-family|rm|sm><rsub|4>-<with|math-font-family|rm|sm><rsub|2><right|)>*\<varepsilon\>|2*\<varepsilon\>>>>|<row|<cell|-<frac|<left|(><left|(><with|math-font-family|rm|sm><rsub|3>-<with|math-font-family|rm|sm><rsub|1><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|1>-<with|math-font-family|rm|sm><rsub|3><right|)>*\<varepsilon\><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|sm><rsub|3>+<with|math-font-family|rm|sm><rsub|1><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|1>-<with|math-font-family|rm|sm><rsub|3><right|)>*\<varepsilon\>|2*\<varepsilon\>>>>|<row|<cell|-<frac|<left|(><left|(><with|math-font-family|rm|sm><rsub|4>-<with|math-font-family|rm|sm><rsub|2><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|2>-<with|math-font-family|rm|sm><rsub|4><right|)>*\<varepsilon\><right|)>*<with|math-font-family|rm|nx><rsup|2>+<left|(><with|math-font-family|rm|sm><rsub|4>+<with|math-font-family|rm|sm><rsub|2><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|2>-<with|math-font-family|rm|sm><rsub|4><right|)>*\<varepsilon\>|2*\<varepsilon\>>>>|<row|<cell|-<frac|<with|math-font-family|rm|sm><rsub|6>+<with|math-font-family|rm|sm><rsub|5>|2>>>|<row|<cell|-<frac|<with|math-font-family|rm|sm><rsub|6>+<with|math-font-family|rm|sm><rsub|5>|2>>>|<row|<cell|<frac|<with|math-font-family|rm|sm><rsub|7>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<with|math-font-family|rm|nz>+<left|(><left|(><with|math-font-family|rm|sm><rsub|3>-<with|math-font-family|rm|sm><rsub|1><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|1>-<with|math-font-family|rm|sm><rsub|3><right|)>*\<varepsilon\><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny><rsup|3>+<left|(><left|(><with|math-font-family|rm|sm><rsub|3>-<with|math-font-family|rm|sm><rsub|1><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|1>-<with|math-font-family|rm|sm><rsub|3><right|)>*\<varepsilon\><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<left|(><left|(><with|math-font-family|rm|sm><rsub|4>-<with|math-font-family|rm|sm><rsub|2><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|2>-<with|math-font-family|rm|sm><rsub|4><right|)>*\<varepsilon\><right|)>*<with|math-font-family|rm|nx><rsup|4>+<left|(><left|(><with|math-font-family|rm|sm><rsub|4>-<with|math-font-family|rm|sm><rsub|2><right|)>*\<varepsilon\>+<left|(><with|math-font-family|rm|sm><rsub|2>-<with|math-font-family|rm|sm><rsub|4><right|)>*\<varepsilon\><right|)>*<with|math-font-family|rm|nx><rsup|2>|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<with|math-font-family|rm|nz>>>>>>><right|)>>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o55>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<with|math-font-family|rm|sm><rsub|3>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|4>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|1>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|2>>>|<row|<cell|-<frac|<with|math-font-family|rm|sm><rsub|6>+<with|math-font-family|rm|sm><rsub|5>|2>>>|<row|<cell|-<frac|<with|math-font-family|rm|sm><rsub|6>+<with|math-font-family|rm|sm><rsub|5>|2>>>|<row|<cell|<with|math-font-family|rm|sm><rsub|7>>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>54)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>56)
+    <with|color|black|>>>
+      cleanpecbdrywpins:
+
+      \ \ [-cleanwmins[1,1], /* E1..3 */
+
+      \ \ \ -cleanwmins[2,1],
+
+      \ \ \ -cleanwmins[3,1],
+
+      \ \ \ \ cleanwmins[4,1], /* H1..3 */
+
+      \ \ \ \ cleanwmins[5,1],
+
+      \ \ \ \ cleanwmins[6,1],
+
+      \ \ \ \ cleanwmins[7,1] /* phi */
+
+      \ \ \ \ ]$
+
+      cleanpecbdryspinw:ratsimp(ratsubst(1,n.n,invVclean.cleanpecbdrywpins))
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o57>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<with|math-font-family|rm|sm><rsub|3>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|4>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|1>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|2>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|6>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|5>>>|<row|<cell|<with|math-font-family|rm|sm><rsub|7>>>>>><right|)>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>58)
     <with|color|black|>>>
       /* ------------------------------------------- */
 
@@ -437,7 +465,7 @@
 
 <\references>
   <\collection>
-    <associate|auto-1|<tuple|1|?>>
+    <associate|auto-1|<tuple|1|1>>
   </collection>
 </references>
 
