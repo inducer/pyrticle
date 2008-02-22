@@ -445,11 +445,11 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o55>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o47>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<with|math-font-family|rm|sm><rsub|3>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|4>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|1>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|2>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|5>>>|<row|<cell|-<with|math-font-family|rm|sm><rsub|6>>>|<row|<cell|<with|math-font-family|rm|sm><rsub|7>>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>56)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>48)
     <with|color|black|>>>
       /* ------------------------------------------- */
 
@@ -457,18 +457,23 @@
 
       /* ------------------------------------------- */
 
-      cleanchiradbdryspinw:makelist(
+      cleanchiradbdryspinw:[
 
-      \ \ if Dclean[i,i] \<gtr\>= 0 and not
-      (ratsimp(diff(Dclean[i,i],chi))=0) then\ 
+      \ \ -cleansminw[3,1],
 
-      \ \ \ \ cleansminw[i,1]\ 
+      \ \ -cleansminw[4,1],
 
-      \ \ else\ 
+      \ \ -cleansminw[1,1],
 
-      \ \ \ \ 0,
+      \ \ -cleansminw[2,1],
 
-      i, 1, 7)$
+      \ \ 0,
+
+      \ \ cleansminw[6,1],
+
+      \ \ cleansminw[7,1]
+
+      \ \ ]$
 
       \;
 
@@ -476,15 +481,17 @@
 
       ratsubst(1,n.n,
 
-      Vclean.cleanchiradbdryspinw))
+      ratsubst(nz^2,1-nx^2-ny^2,
+
+      Vclean.cleanchiradbdryspinw)))
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o73>)
-      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|<with|math-font-family|rm|nx>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><rsup|2><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|ny>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny><rsup|2>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|nz>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|ny><rsup|2>-<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nx><rsup|2>+<with|math-font-family|rm|Em><rsub|3>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|0>>|<row|<cell|0>>|<row|<cell|0>>|<row|<cell|<frac|\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>|2>>>>>><right|)>>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o53>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|<with|math-font-family|rm|nx>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(>3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><rsup|2>-2*<with|math-font-family|rm|Em><rsub|1>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|ny>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(>3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny><rsup|2>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>-2*<with|math-font-family|rm|Em><rsub|2>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<with|math-font-family|rm|nz>*\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><left|(>3*<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+3*<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>-3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|ny><rsup|2>-3*<with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nx><rsup|2>+<with|math-font-family|rm|Em><rsub|3>*\<chi\><right|)>|2*\<chi\>*<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|1>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|2>>>|<row|<cell|<with|math-font-family|rm|Hm><rsub|3>>>|<row|<cell|<frac|\<varphi\>+<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*\<chi\>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|2>*\<chi\>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<chi\>*<with|math-font-family|rm|nx><right|)>|2>>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>74)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>54)
     <with|color|black|>>>
       \;
     </input>
