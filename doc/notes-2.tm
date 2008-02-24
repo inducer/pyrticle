@@ -91,9 +91,19 @@
       hstack(a,b):=transpose(append(transpose(a),transpose(b)))$
 
       blockmat(a11,a12,a21,a22):=vstack(hstack(a11,a12),hstack(a21,a22))$
+
+      \;
+
+      crossprod(a,b):=makelist(
+
+      \ \ sum(sum(
+
+      \ \ \ \ levi_civita([i,j,k])*a[j]*b[k],
+
+      \ \ j,1,3),k,1,3),i,1,3)$
     </input>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>11)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>12)
     <with|color|black|>>>
       /* ------------------------------------------- */
 
@@ -125,11 +135,11 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o14>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o15>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|-<frac|<with|math-font-family|rm|nz>|\<varepsilon\>>>|<cell|<frac|<with|math-font-family|rm|ny>|\<varepsilon\>>>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|<with|math-font-family|rm|nz>|\<varepsilon\>>>|<cell|0>|<cell|-<frac|<with|math-font-family|rm|nx>|\<varepsilon\>>>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|-<frac|<with|math-font-family|rm|ny>|\<varepsilon\>>>|<cell|<frac|<with|math-font-family|rm|nx>|\<varepsilon\>>>|<cell|0>>|<row|<cell|0>|<cell|<frac|<with|math-font-family|rm|nz>|\<mu\>>>|<cell|-<frac|<with|math-font-family|rm|ny>|\<mu\>>>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|-<frac|<with|math-font-family|rm|nz>|\<mu\>>>|<cell|0>|<cell|<frac|<with|math-font-family|rm|nx>|\<mu\>>>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|<frac|<with|math-font-family|rm|ny>|\<mu\>>>|<cell|-<frac|<with|math-font-family|rm|nx>|\<mu\>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>15)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>16)
     <with|color|black|>>>
       evAmax:subst(
 
@@ -140,7 +150,7 @@
       )$
     </input>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>16)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>17)
     <with|color|black|>>>
       Vmax:transpose(apply(matrix, makelist(evAmax[i],i,2,7)))$
 
@@ -150,21 +160,21 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o18>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o19>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|1>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|1>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|1>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|1>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|1>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|1>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>19)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>20)
     <with|color|black|>>>
       Dmax:ratsubst(1,n.n,invVmax.Amax.Vmax)
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o19>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o20>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<frac|1|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|-<frac|1|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|<frac|1|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|<frac|1|<sqrt|\<varepsilon\>>*<sqrt|\<mu\>>>>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>|<row|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>|<cell|0>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>20)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>21)
     <with|color|black|>>>
       maxwm:[Em[1],Em[2],Em[3],Hm[1],Hm[2],Hm[3]];
 
@@ -172,11 +182,11 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o20>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o21>)
       <with|color|black|>><left|[><with|math-font-family|rm|Em><rsub|1>,<with|math-font-family|rm|Em><rsub|2>,<with|math-font-family|rm|Em><rsub|3>,<with|math-font-family|rm|Hm><rsub|1>,<with|math-font-family|rm|Hm><rsub|2>,<with|math-font-family|rm|Hm><rsub|3><right|]>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>22)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>23)
     <with|color|black|>>>
       /* ------------------------------------------- */
 
@@ -202,11 +212,11 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o23>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o24>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<frac|<sqrt|\<varepsilon\>>*<left|(>-<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|nx><rsup|2>-<with|math-font-family|rm|Em><rsub|1><right|)>+<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|ny><right|)>|2*<sqrt|\<varepsilon\>>>>>|<row|<cell|<frac|<sqrt|\<varepsilon\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|ny><rsup|2>+<with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|2><right|)>+<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Hm><rsub|1>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|nx><right|)>|2*<sqrt|\<varepsilon\>>>>>|<row|<cell|-<frac|<sqrt|\<varepsilon\>>*<left|(><left|(>-<with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|ny><rsup|2>+<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|nx><rsup|2>-2*<with|math-font-family|rm|Em><rsub|3><right|)>+<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Hm><rsub|1>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|nx><right|)>|2*<sqrt|\<varepsilon\>>>>>|<row|<cell|<frac|<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Hm><rsub|1>*<with|math-font-family|rm|nx><rsup|2>+<with|math-font-family|rm|Hm><rsub|1><right|)>+<sqrt|\<varepsilon\>>*<left|(><with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|ny><right|)>|2*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<sqrt|\<mu\>>*<left|(><with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+<with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|ny><rsup|2>+<with|math-font-family|rm|Hm><rsub|1>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Hm><rsub|2><right|)>+<sqrt|\<varepsilon\>>*<left|(><with|math-font-family|rm|Em><rsub|3>*<with|math-font-family|rm|nx>-<with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|nz><right|)>|2*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hm><rsub|2>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Hm><rsub|1>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|ny><rsup|2>-<with|math-font-family|rm|Hm><rsub|3>*<with|math-font-family|rm|nx><rsup|2>+2*<with|math-font-family|rm|Hm><rsub|3><right|)>+<sqrt|\<varepsilon\>>*<left|(><with|math-font-family|rm|Em><rsub|1>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Em><rsub|2>*<with|math-font-family|rm|nx><right|)>|2*<sqrt|\<mu\>>>>>>>><right|)>>
     </output>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>24)
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>25)
     <with|color|black|>>>
       /* ------------------------------------------- */
 
@@ -240,9 +250,145 @@
     </input>
 
     <\output>
-      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o27>)
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o28>)
       <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<with|math-font-family|rm|s3m>>>|<row|<cell|-<with|math-font-family|rm|s4m>>>|<row|<cell|-<with|math-font-family|rm|s1m>>>|<row|<cell|-<with|math-font-family|rm|s2m>>>|<row|<cell|-<with|math-font-family|rm|s5m>>>|<row|<cell|<with|math-font-family|rm|s6m>>>>>><right|)>>
     </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>29)
+    <with|color|black|>>>
+      /* ------------------------------------------- */
+
+      /* derive upwind flux */
+
+      /* ------------------------------------------- */
+
+      maxEm:[Em[1],Em[2],Em[3]]$
+
+      maxEp:[Ep[1],Ep[2],Ep[3]]$
+
+      maxHm:[Hm[1],Hm[2],Hm[3]]$
+
+      maxHp:[Hp[1],Hp[2],Hp[3]]$
+
+      \;
+
+      maxwm:vstack(maxEm,maxHm)$
+
+      maxwp:vstack(maxEp,maxHp)$
+
+      maxsminw:invVmax.maxwm$
+
+      maxspinw:invVmax.maxwp$
+
+      \;
+
+      maxDfluxinw:
+
+      ratsimp(ratsubst(1,n.n,ratsubst(nz^2,1-nx^2-ny^2,
+
+      Vmax.makelist(
+
+      \ \ Dmax[i,i]*(if Dmax[i,i] \<gtr\>= 0 then\ 
+
+      \ \ \ \ maxsminw[i,1]
+
+      \ \ else
+
+      \ \ \ \ maxspinw[i,1]),\ 
+
+      i, 1, 6))))
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o37>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|-<frac|<sqrt|\<varepsilon\>>*<left|(><left|(><with|math-font-family|rm|Em><rsub|3>-<with|math-font-family|rm|Ep><rsub|3><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Em><rsub|2>-<with|math-font-family|rm|Ep><rsub|2><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<left|(><with|math-font-family|rm|Em><rsub|1>-<with|math-font-family|rm|Ep><rsub|1><right|)>*<with|math-font-family|rm|nx><rsup|2>+<with|math-font-family|rm|Ep><rsub|1>-<with|math-font-family|rm|Em><rsub|1><right|)>+<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|2>+<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|nz>+<left|(>-<with|math-font-family|rm|Hp><rsub|3>-<with|math-font-family|rm|Hm><rsub|3><right|)>*<with|math-font-family|rm|ny><right|)>|2*\<varepsilon\>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<sqrt|\<varepsilon\>>*<left|(><left|(><with|math-font-family|rm|Ep><rsub|3>-<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Ep><rsub|2>-<with|math-font-family|rm|Em><rsub|2><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|Ep><rsub|1>-<with|math-font-family|rm|Em><rsub|1><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Ep><rsub|2>+<with|math-font-family|rm|Em><rsub|2><right|)>+<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|1>+<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|nz>+<left|(>-<with|math-font-family|rm|Hp><rsub|3>-<with|math-font-family|rm|Hm><rsub|3><right|)>*<with|math-font-family|rm|nx><right|)>|2*\<varepsilon\>*<sqrt|\<mu\>>>>>|<row|<cell|-<frac|<sqrt|\<varepsilon\>>*<left|(><left|(><left|(><with|math-font-family|rm|Em><rsub|2>-<with|math-font-family|rm|Ep><rsub|2><right|)>*<with|math-font-family|rm|ny>+<left|(><with|math-font-family|rm|Em><rsub|1>-<with|math-font-family|rm|Ep><rsub|1><right|)>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Ep><rsub|3>-<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|Ep><rsub|3>-<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|nx><rsup|2><right|)>+<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|1>+<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|ny>+<left|(>-<with|math-font-family|rm|Hp><rsub|2>-<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|nx><right|)>|2*\<varepsilon\>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|3>-<with|math-font-family|rm|Hm><rsub|3><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Hp><rsub|2>-<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<left|(><with|math-font-family|rm|Hp><rsub|1>-<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|nx><rsup|2>-<with|math-font-family|rm|Hp><rsub|1>+<with|math-font-family|rm|Hm><rsub|1><right|)>+<sqrt|\<varepsilon\>>*<left|(><left|(><with|math-font-family|rm|Ep><rsub|2>+<with|math-font-family|rm|Em><rsub|2><right|)>*<with|math-font-family|rm|nz>+<left|(>-<with|math-font-family|rm|Ep><rsub|3>-<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|ny><right|)>|2*<sqrt|\<varepsilon\>>*\<mu\>>>>|<row|<cell|<frac|<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|3>-<with|math-font-family|rm|Hm><rsub|3><right|)>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Hp><rsub|2>-<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|Hp><rsub|1>-<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Hp><rsub|2>+<with|math-font-family|rm|Hm><rsub|2><right|)>+<sqrt|\<varepsilon\>>*<left|(><left|(>-<with|math-font-family|rm|Ep><rsub|1>-<with|math-font-family|rm|Em><rsub|1><right|)>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Ep><rsub|3>+<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|nx><right|)>|2*<sqrt|\<varepsilon\>>*\<mu\>>>>|<row|<cell|<frac|<sqrt|\<mu\>>*<left|(><left|(><left|(><with|math-font-family|rm|Hp><rsub|2>-<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|ny>+<left|(><with|math-font-family|rm|Hp><rsub|1>-<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Hm><rsub|3>-<with|math-font-family|rm|Hp><rsub|3><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|Hm><rsub|3>-<with|math-font-family|rm|Hp><rsub|3><right|)>*<with|math-font-family|rm|nx><rsup|2><right|)>+<sqrt|\<varepsilon\>>*<left|(><left|(><with|math-font-family|rm|Ep><rsub|1>+<with|math-font-family|rm|Em><rsub|1><right|)>*<with|math-font-family|rm|ny>+<left|(>-<with|math-font-family|rm|Ep><rsub|2>-<with|math-font-family|rm|Em><rsub|2><right|)>*<with|math-font-family|rm|nx><right|)>|2*<sqrt|\<varepsilon\>>*\<mu\>>>>>>><right|)>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>38)
+    <with|color|black|>>>
+      Dmaxp:subst([epsilon=epsilon[p],mu=mu[p]],Dmax)$
+
+      Dmaxm:subst([epsilon=epsilon[m],mu=mu[m]],Dmax)$
+
+      eqns:makelist(
+
+      \;
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o40>)
+      <with|color|black|>><left|[>1,23<right|]>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>41)
+    <with|color|black|>>>
+      \;
+    </input>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>68)
+    <with|color|black|>>>
+      /* ------------------------------------------------------------ */
+
+      /* verify Maxwell flux against known value */
+
+      /* ------------------------------------------------------------ */
+
+      maxZ:sqrt(mu/epsilon)$
+
+      maxY:sqrt(epsilon/mu)$
+
+      \;
+
+      knownmaxstrongDfluxinw:ratsimp(vstack(
+
+      \ \ -1/(2*epsilon)
+
+      \ \ *(crossprod(n,(maxHm-maxHp)-1/maxZ*crossprod(n,maxEm-maxEp))),
+
+      \ \ 1/(2*mu)
+
+      \ \ *(crossprod(n,(maxEm-maxEp)+1/maxY*crossprod(n,maxHm-maxHp)))
+
+      \ \ ))$
+
+      known2maxstrongDfluxinw:ratsimp(vstack(
+
+      \ \ 1/(2*epsilon)
+
+      \ \ *(crossprod(n,(maxHm+maxHp)-1/maxZ*crossprod(n,maxEm-maxEp))),
+
+      \ \ -1/(2*mu)
+
+      \ \ *(crossprod(n,(maxEm+maxEp)+1/maxY*crossprod(n,maxHm-maxHp)))
+
+      \ \ ))$
+
+      ratsimp(maxwm-maxDfluxinw);
+
+      ratsimp(ratsubst(1,n.n,
+
+      (maxwm-maxDfluxinw)-knownmaxstrongDfluxinw));
+
+      ratsimp(ratsubst(1,n.n,
+
+      (maxDfluxinw)-known2maxstrongDfluxinw));
+    </input>
+
+    <\output>
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o62>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|<sqrt|\<varepsilon\>>*<left|(><left|(><with|math-font-family|rm|Em><rsub|3>-<with|math-font-family|rm|Ep><rsub|3><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Em><rsub|2>-<with|math-font-family|rm|Ep><rsub|2><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<left|(><with|math-font-family|rm|Em><rsub|1>-<with|math-font-family|rm|Ep><rsub|1><right|)>*<with|math-font-family|rm|nx><rsup|2>+<with|math-font-family|rm|Ep><rsub|1>-<with|math-font-family|rm|Em><rsub|1><right|)>+<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|2>+<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|nz>+<left|(>-<with|math-font-family|rm|Hp><rsub|3>-<with|math-font-family|rm|Hm><rsub|3><right|)>*<with|math-font-family|rm|ny>+2*<with|math-font-family|rm|Em><rsub|1>*\<varepsilon\><right|)>|2*\<varepsilon\>*<sqrt|\<mu\>>>>>|<row|<cell|-<frac|<sqrt|\<varepsilon\>>*<left|(><left|(><with|math-font-family|rm|Ep><rsub|3>-<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Ep><rsub|2>-<with|math-font-family|rm|Em><rsub|2><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|Ep><rsub|1>-<with|math-font-family|rm|Em><rsub|1><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Ep><rsub|2>+<with|math-font-family|rm|Em><rsub|2><right|)>+<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|1>+<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|nz>+<left|(>-<with|math-font-family|rm|Hp><rsub|3>-<with|math-font-family|rm|Hm><rsub|3><right|)>*<with|math-font-family|rm|nx>-2*<with|math-font-family|rm|Em><rsub|2>*\<varepsilon\><right|)>|2*\<varepsilon\>*<sqrt|\<mu\>>>>>|<row|<cell|<frac|<sqrt|\<varepsilon\>>*<left|(><left|(><left|(><with|math-font-family|rm|Em><rsub|2>-<with|math-font-family|rm|Ep><rsub|2><right|)>*<with|math-font-family|rm|ny>+<left|(><with|math-font-family|rm|Em><rsub|1>-<with|math-font-family|rm|Ep><rsub|1><right|)>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Ep><rsub|3>-<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|Ep><rsub|3>-<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|nx><rsup|2><right|)>+<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|1>+<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|ny>+<left|(>-<with|math-font-family|rm|Hp><rsub|2>-<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|nx>+2*<with|math-font-family|rm|Em><rsub|3>*\<varepsilon\><right|)>|2*\<varepsilon\>*<sqrt|\<mu\>>>>>|<row|<cell|-<frac|<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|3>-<with|math-font-family|rm|Hm><rsub|3><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Hp><rsub|2>-<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>+<left|(><with|math-font-family|rm|Hp><rsub|1>-<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|nx><rsup|2>-<with|math-font-family|rm|Hp><rsub|1>+<with|math-font-family|rm|Hm><rsub|1><right|)>+<sqrt|\<varepsilon\>>*<left|(><left|(><with|math-font-family|rm|Ep><rsub|2>+<with|math-font-family|rm|Em><rsub|2><right|)>*<with|math-font-family|rm|nz>+<left|(>-<with|math-font-family|rm|Ep><rsub|3>-<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|ny>-2*<with|math-font-family|rm|Hm><rsub|1>*\<mu\><right|)>|2*<sqrt|\<varepsilon\>>*\<mu\>>>>|<row|<cell|-<frac|<sqrt|\<mu\>>*<left|(><left|(><with|math-font-family|rm|Hp><rsub|3>-<with|math-font-family|rm|Hm><rsub|3><right|)>*<with|math-font-family|rm|ny>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Hp><rsub|2>-<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|Hp><rsub|1>-<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|nx>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Hp><rsub|2>+<with|math-font-family|rm|Hm><rsub|2><right|)>+<sqrt|\<varepsilon\>>*<left|(><left|(>-<with|math-font-family|rm|Ep><rsub|1>-<with|math-font-family|rm|Em><rsub|1><right|)>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Ep><rsub|3>+<with|math-font-family|rm|Em><rsub|3><right|)>*<with|math-font-family|rm|nx>-2*<with|math-font-family|rm|Hm><rsub|2>*\<mu\><right|)>|2*<sqrt|\<varepsilon\>>*\<mu\>>>>|<row|<cell|-<frac|<sqrt|\<mu\>>*<left|(><left|(><left|(><with|math-font-family|rm|Hp><rsub|2>-<with|math-font-family|rm|Hm><rsub|2><right|)>*<with|math-font-family|rm|ny>+<left|(><with|math-font-family|rm|Hp><rsub|1>-<with|math-font-family|rm|Hm><rsub|1><right|)>*<with|math-font-family|rm|nx><right|)>*<with|math-font-family|rm|nz>+<left|(><with|math-font-family|rm|Hm><rsub|3>-<with|math-font-family|rm|Hp><rsub|3><right|)>*<with|math-font-family|rm|ny><rsup|2>+<left|(><with|math-font-family|rm|Hm><rsub|3>-<with|math-font-family|rm|Hp><rsub|3><right|)>*<with|math-font-family|rm|nx><rsup|2><right|)>+<sqrt|\<varepsilon\>>*<left|(><left|(><with|math-font-family|rm|Ep><rsub|1>+<with|math-font-family|rm|Em><rsub|1><right|)>*<with|math-font-family|rm|ny>+<left|(>-<with|math-font-family|rm|Ep><rsub|2>-<with|math-font-family|rm|Em><rsub|2><right|)>*<with|math-font-family|rm|nx>-2*<with|math-font-family|rm|Hm><rsub|3>*\<mu\><right|)>|2*<sqrt|\<varepsilon\>>*\<mu\>>>>>>><right|)>>
+
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o63>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|<frac|<with|math-font-family|rm|Hp><rsub|2>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Hp><rsub|3>*<with|math-font-family|rm|ny>+<with|math-font-family|rm|Em><rsub|1>*\<varepsilon\>|\<varepsilon\>>>>|<row|<cell|-<frac|<with|math-font-family|rm|Hp><rsub|1>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Hp><rsub|3>*<with|math-font-family|rm|nx>-<with|math-font-family|rm|Em><rsub|2>*\<varepsilon\>|\<varepsilon\>>>>|<row|<cell|<frac|<with|math-font-family|rm|Hp><rsub|1>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Hp><rsub|2>*<with|math-font-family|rm|nx>+<with|math-font-family|rm|Em><rsub|3>*\<varepsilon\>|\<varepsilon\>>>>|<row|<cell|-<frac|<with|math-font-family|rm|Ep><rsub|2>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Ep><rsub|3>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Hm><rsub|1>*\<mu\>|\<mu\>>>>|<row|<cell|<frac|<with|math-font-family|rm|Ep><rsub|1>*<with|math-font-family|rm|nz>-<with|math-font-family|rm|Ep><rsub|3>*<with|math-font-family|rm|nx>+<with|math-font-family|rm|Hm><rsub|2>*\<mu\>|\<mu\>>>>|<row|<cell|-<frac|<with|math-font-family|rm|Ep><rsub|1>*<with|math-font-family|rm|ny>-<with|math-font-family|rm|Ep><rsub|2>*<with|math-font-family|rm|nx>-<with|math-font-family|rm|Hm><rsub|3>*\<mu\>|\<mu\>>>>>>><right|)>>
+
+      <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o64>)
+      <with|color|black|>><left|(><tabular*|<tformat|<table|<row|<cell|0>>|<row|<cell|0>>|<row|<cell|0>>|<row|<cell|0>>|<row|<cell|0>>|<row|<cell|0>>>>><right|)>>
+    </output>
+
+    <\input|<with|color|red|(<with|math-font-family|rm|%i>65)
+    <with|color|black|>>>
+      \;
+    </input>
   </session>>
 
   <section|Hyperbolic cleaning of <math|div E>>
@@ -608,11 +754,18 @@
   </session>>
 </body>
 
+<\initial>
+  <\collection>
+    <associate|page-orientation|landscape>
+    <associate|page-type|letter>
+  </collection>
+</initial>
+
 <\references>
   <\collection>
     <associate|auto-1|<tuple|1|1>>
-    <associate|auto-2|<tuple|2|?>>
-    <associate|auto-3|<tuple|3|?>>
+    <associate|auto-2|<tuple|2|7>>
+    <associate|auto-3|<tuple|3|14>>
   </collection>
 </references>
 
@@ -622,6 +775,16 @@
       <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|1<space|2spc>Hyperbolic
       Cleaning> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
       <no-break><pageref|auto-1><vspace|0.5fn>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|2<space|2spc>Hyperbolic
+      cleaning of <with|mode|<quote|math>|div E>>
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-2><vspace|0.5fn>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|3<space|2spc>Hyperbolic
+      Cleaning of <with|mode|<quote|math>|div E> and
+      <with|mode|<quote|math>|div H>> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-3><vspace|0.5fn>
     </associate>
   </collection>
 </auxiliary>
