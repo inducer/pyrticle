@@ -175,6 +175,12 @@ namespace pyrticle
                   pn*field_components, 
                   (pn+1)*field_components));
 
+          if (m_particle_charge == 0)
+            throw std::runtime_error(
+                str(boost::format(
+                    "average pusher: particle %d had zero reconstructed charge") % pn
+                  ).c_str());
+
           particle_field /= m_particle_charge;
 
           if (m_field_stddev)

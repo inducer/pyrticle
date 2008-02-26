@@ -66,8 +66,6 @@ def main():
     from hedge.tools import dot
     from math import sqrt, pi
     from pytools.arithmetic_container import join_fields
-    from hedge.operators import TEMaxwellOperator, DivergenceOperator
-    from pyrticle.hyperbolic import CleaningMaxwellOperator
 
     from random import seed
     seed(0)
@@ -99,11 +97,24 @@ def main():
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
+    from hedge.operators import \
+            TEMaxwellOperator, \
+            DivergenceOperator, \
+            StrongWaveOperator
+    from pyrticle.hyperbolic import \
+            CleaningMaxwellOperator, \
+            BoneHeadedCleaningMaxwellOperator
+    from hedge.mesh import TAG_ALL, TAG_NONE
+
     max_op = TEMaxwellOperator(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    max_op = CleaningMaxwellOperator(max_op, chi=1)
+    #max_op = CleaningMaxwellOperator(max_op, chi=2)
+    wave_op = StrongWaveOperator(c=max_op.c*2, discr=discr,
+            dirichlet_tag=TAG_NONE, radiation_tag=TAG_ALL)
+
+    max_op = BoneHeadedCleaningMaxwellOperator(max_op, wave_op)
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.max_eigenvalue())
@@ -231,18 +242,19 @@ def main():
     # timestepping ------------------------------------------------------------
     t = 0
 
+    substep = [0]
 
     for step in xrange(nsteps):
         logmgr.tick()
 
-        cloud.upkeep()
-        fields = stepper(fields, t, dt, fields.rhs)
+        #if step % 1 == 0:
 
-        if step % 1 == 0:
+        def rhs(t, y):
+            fields = y
             vis_timer.start()
-            visf = vis.make_file("pic-%04d" % step)
+            visf = vis.make_file("pic-%04d" % substep[0])
 
-            cloud.add_to_vis(vis, visf, time=t, step=step)
+            cloud.add_to_vis(vis, visf, time=t, step=substep[0])
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
                         ("e", fields.e), 
@@ -257,10 +269,18 @@ def main():
                         ],
                         time=t, step=step,
                         expressions=[
-                            #("rpa", "6e-9*active_elements+rho")
                             ])
             visf.close()
             vis_timer.stop()
+
+            substep[0] += 1
+
+
+
+            return fields.rhs(t, y)
+
+        cloud.upkeep()
+        fields = stepper(fields, t, dt, rhs)
 
 
         t += dt

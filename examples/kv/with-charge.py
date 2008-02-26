@@ -120,6 +120,8 @@ def main():
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
+    from pyrticle.hyperbolic import CleaningMaxwellOperator
+    max_op = CleaningMaxwellOperator(max_op, chi=2)
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.c) / 2
@@ -170,9 +172,10 @@ def main():
             beta=mean_beta)
     beam.add_to(cloud, discr)
 
-    from pyrticle.cloud import optimize_shape_bandwidth
-    optimize_shape_bandwidth(cloud, discr, beam.analytic_rho(discr),
-            plot_l1_errors=True)
+    from pyrticle.cloud import optimize_shape_bandwidth, guess_shape_bandwidth
+    #optimize_shape_bandwidth(cloud, discr, beam.analytic_rho(discr),
+            #plot_l1_errors=True)
+    guess_shape_bandwidth(cloud)
 
     # initial condition -------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
