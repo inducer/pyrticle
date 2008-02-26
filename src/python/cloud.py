@@ -620,7 +620,7 @@ class FieldsAndCloud:
 
 # shape bandwidth -------------------------------------------------------------
 def guess_shape_bandwidth(cloud):
-    self.cloud.reconstructor.set_radius(mesh_data.advisable_particle_radius())
+    cloud.reconstructor.set_radius(cloud.mesh_data.advisable_particle_radius())
 
 
 
