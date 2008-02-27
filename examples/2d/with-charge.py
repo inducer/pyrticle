@@ -102,7 +102,7 @@ def main():
             DivergenceOperator, \
             StrongWaveOperator
     from pyrticle.hyperbolic import \
-            CleaningMaxwellOperator, \
+            ECleaningMaxwellOperator, \
             BoneHeadedCleaningMaxwellOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
 
@@ -110,14 +110,14 @@ def main():
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    #max_op = CleaningMaxwellOperator(max_op, chi=2)
-    wave_op = StrongWaveOperator(c=max_op.c*2, discr=discr,
-            dirichlet_tag=TAG_NONE, radiation_tag=TAG_ALL)
+    max_op = ECleaningMaxwellOperator(max_op, chi=2)
+    #wave_op = StrongWaveOperator(c=max_op.c*2, discr=discr,
+            #dirichlet_tag=TAG_NONE, radiation_tag=TAG_ALL)
 
-    max_op = BoneHeadedCleaningMaxwellOperator(max_op, wave_op)
+    #max_op = BoneHeadedCleaningMaxwellOperator(max_op, wave_op)
     div_op = DivergenceOperator(discr)
 
-    dt = discr.dt_factor(max_op.max_eigenvalue())
+    dt = discr.dt_factor(max_op.max_eigenvalue())/ 10
     #final_time = 15*units.M/max_op.c
     final_time = 50*units.M/max_op.c
     nsteps = int(final_time/dt)+1

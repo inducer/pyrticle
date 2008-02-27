@@ -115,10 +115,9 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
             # see hedge/doc/maxima/eclean.mac for derivation
             pec_bc = join_fields(
                     -pec_e
-                    +1/2*ac_multiply(pec_n, dot(pec_n, pec_e, num.multiply)-pec_phi),
+                    +2*ac_multiply(pec_n, dot(pec_n, pec_e, num.multiply)),
                     pec_h,
-                    1/2*(pec_phi+dot(pec_n, pec_e, num.multiply))
-                    )
+                    pec_phi)
         else:
             pec_bc = join_fields(
                     -pec_e,

@@ -673,6 +673,7 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, rhovis=False, plot_l1_e
         show()
 
     cloud.reconstructor.set_radius(good_rad)
+    cloud.derived_quantity_cache.clear()
 
 
 
