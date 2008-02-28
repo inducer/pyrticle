@@ -97,23 +97,14 @@ def main():
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    from hedge.operators import \
-            TEMaxwellOperator, \
-            DivergenceOperator, \
-            StrongWaveOperator
-    from pyrticle.hyperbolic import \
-            ECleaningMaxwellOperator, \
-            BoneHeadedCleaningMaxwellOperator
+    from hedge.operators import TEMaxwellOperator, DivergenceOperator
+    from pyrticle.hyperbolic import ECleaningMaxwellOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
 
     max_op = TEMaxwellOperator(discr, 
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    wave_op = StrongWaveOperator(c=-max_op.c*2, discr=discr,
-            dirichlet_tag=TAG_NONE, radiation_tag=TAG_ALL)
-
-    max_op_2 = BoneHeadedCleaningMaxwellOperator(max_op, wave_op)
     max_op = ECleaningMaxwellOperator(max_op, chi=2)
     div_op = DivergenceOperator(discr)
 
@@ -249,12 +240,6 @@ def main():
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
-            ehphi = join_fields(fields.e, fields.h, fields.phi)
-            rho = cloud.reconstruct_rho()
-            rhsdiff = max_op.rhs(t, ehphi, rho) - max_op_2.rhs(t, ehphi, rho)
-
-            rhsdiffe, rhsdiffh, rhsdiffphi = max_op.split_ehphi(rhsdiff)
-
             cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
@@ -265,9 +250,6 @@ def main():
                         #("active_elements", 
                             #cloud.pic_algorithm.get_debug_quantity_on_mesh(
                                 #"active_elements", cloud.raw_velocities())),
-                        ("rhsdiffe", rhsdiffe),
-                        ("rhsdiffh", rhsdiffh),
-                        ("rhsdiffphi", rhsdiffphi),
 
                         ("rho", cloud.reconstruct_rho()),
                         ("j", cloud.reconstruct_j()), 

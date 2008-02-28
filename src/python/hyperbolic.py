@@ -71,14 +71,9 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
                      dot(e.int-e.ext, normal)-(phi.int-phi.ext)
                     ))
                 )
-        print "hyp", strong_flux[0]
-
         strong_flux += join_fields(maxwell_op.flux, 0)
 
-        print "JETZT", len(strong_flux)
         self.strong_flux_op = self.discr.get_flux_operator(strong_flux)
-        #raise RuntimeError, "fertig"
-        self.strong_flux_op_2 = self.discr.get_flux_operator(join_fields(maxwell_op.flux, 0))
 
         self.pec_normals = self.discr.boundary_normals(self.maxwell_op.pec_tag)
 
@@ -147,9 +142,7 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
 
         return -local_operator + self.maxwell_op.m_inv*(
                     self.strong_flux_op * w
-                    #+self.strong_flux_op_2 * w
                     +self.strong_flux_op * pair_with_boundary(w, pec_bc, pec_tag)
-                    #+self.strong_flux_op_2 * pair_with_boundary(w, pec_bc, pec_tag)
                     )
 
     def assemble_fields(self, e=None, h=None, phi=None):
@@ -173,78 +166,3 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
 
     def max_eigenvalue(self):
         return self.chi*self.maxwell_op.max_eigenvalue()
-
-
-
-
-class BoneHeadedCleaningMaxwellOperator(CleaningMaxwellOperator):
-    """This implements hyperbolic cleaning by simply knitting together a wave-
-    and a Maxwell operator.
-    """
-
-    def __init__(self, maxwell_op, wave_op):
-        self.discr = maxwell_op.discr
-        self.maxwell_op = maxwell_op
-        self.wave_op = wave_op
-
-    @property
-    def count_subset(self): return self.maxwell_op.count_subset
-    @property
-    def epsilon(self): return self.maxwell_op.epsilon
-    @property
-    def mu(self): return self.maxwell_op.mu
-    @property
-    def c(self): return self.maxwell_op.c
-    @property
-    def e_cross(self): return self.maxwell_op.e_cross
-    @property
-    def h_cross(self): return self.maxwell_op.h_cross
-
-    def get_eh_subset(self):
-        return self.maxwell_op.get_eh_subset()
-
-    def rhs(self, t, w, rho):
-        from hedge.tools import dot
-        from hedge.discretization import pair_with_boundary, cache_diff_results
-        from pytools.arithmetic_container import join_fields
-        
-        e, h, phi = self.split_ehphi(w)
-
-        mogrified_max_rhs = join_fields(self.maxwell_op.rhs(t, join_fields(e,h)), 0)
-        wave_rhs = self.wave_op.rhs(t, join_fields(phi, e))
-        mogrified_wave_rhs = join_fields(wave_rhs[1:], 0*h, wave_rhs[0])
-
-        rho_rhs = join_fields(0*e, 0*h, self.wave_op.c*(-rho/self.maxwell_op.epsilon))
-
-        return mogrified_max_rhs + mogrified_wave_rhs + rho_rhs
-
-    def assemble_fields(self, e=None, h=None, phi=None):
-        if phi is None:
-            phi = self.discr.volume_zeros()
-
-        from pytools.arithmetic_container import join_fields
-        return join_fields(
-                self.maxwell_op.assemble_fields(e, h),
-                phi)
-
-    def split_eh(self, w):
-        return self.maxwell_op.split_eh(w)
-
-    def split_ehphi(self, w):
-        e, h = self.split_eh(w)
-                
-        eh_components = self.maxwell_op.count_subset(self.maxwell_op.get_eh_subset())
-        phi = w[eh_components]
-        return e, h, phi
-
-    def max_eigenvalue(self):
-        return max(
-                self.maxwell_op.max_eigenvalue(),
-                self.wave_op.max_eigenvalue(),
-                )
-
-
-
-
-
-
