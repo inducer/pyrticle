@@ -34,12 +34,14 @@ class CleaningMaxwellOperator(object):
 
 
 class ECleaningMaxwellOperator(CleaningMaxwellOperator):
-    def __init__(self, maxwell_op, chi=1):
+    def __init__(self, maxwell_op, chi=1, phi_decay=0):
         self.discr = maxwell_op.discr
         self.maxwell_op = maxwell_op
         self.chi = chi
+        self.phi_decay = phi_decay
 
         assert chi > 0
+        assert phi_decay >= 0
 
         from hedge.flux import make_normal, FluxVectorPlaceholder
 
@@ -56,20 +58,14 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         from pytools.arithmetic_container import join_fields
         from hedge.tools import dot
 
-        c = maxwell_op.c
-
         # see hedge/doc/maxima/eclean.mac for derivation
-        strong_flux = join_fields(
+        strong_flux = 0.5*maxwell_op.c*chi*join_fields(
                 # flux e
-                #0.5*c*chi*normal*(phi.int-phi.ext - dot(normal, e.int-e.ext)),
-                0.5*(c*chi*normal*(phi.int-phi.ext - dot(normal, e.int-e.ext))),
+                normal*(phi.int-phi.ext - dot(normal, e.int-e.ext)),
                 # flux h
                 len(h)*[0],
                 # flux phi
-                #0.5*c*chi*(-(phi.int-phi.ext) + dot(normal, e.int-e.ext))
-                0.5*(c*chi*(
-                     dot(e.int-e.ext, normal)-(phi.int-phi.ext)
-                    ))
+                dot(e.int-e.ext, normal)-(phi.int-phi.ext)
                 )
         strong_flux += join_fields(maxwell_op.flux, 0)
 
@@ -114,19 +110,12 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         from pytools.arithmetic_container import work_with_arithmetic_containers
         ac_multiply = work_with_arithmetic_containers(num.multiply)
 
-        if True:
-            # see hedge/doc/maxima/eclean.mac for derivation
-            pec_bc = join_fields(
-                    -pec_e
-                    +2*ac_multiply(pec_n, dot(pec_n, pec_e, num.multiply)),
-                    pec_h,
-                    -pec_phi)
-        else:
-            pec_bc = join_fields(
-                    -pec_e,
-                    pec_h,
-                    pec_phi
-                    )
+        # see hedge/doc/maxima/eclean.mac for derivation
+        pec_bc = join_fields(
+                -pec_e
+                +2*ac_multiply(pec_n, dot(pec_n, pec_e, num.multiply)),
+                pec_h,
+                -pec_phi)
 
         e_cache = cache_diff_results(e)
         h_cache = cache_diff_results(h)
@@ -137,7 +126,8 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         local_operator = max_local_op + join_fields(
                 c*chi*(nabla*phi_cache),
                 0*h,
-                c*chi*(dot(nabla, e_cache) - rho/self.maxwell_op.epsilon)
+                c*chi*(dot(nabla, e_cache) - rho/self.maxwell_op.epsilon) 
+                - self.phi_decay * phi
                 )
 
         return -local_operator + self.maxwell_op.m_inv*(

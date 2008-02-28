@@ -105,7 +105,7 @@ def main():
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    max_op = ECleaningMaxwellOperator(max_op, chi=2)
+    max_op = ECleaningMaxwellOperator(max_op, chi=2, phi_decay=1e10)
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.max_eigenvalue())
