@@ -110,14 +110,14 @@ def main():
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    max_op = ECleaningMaxwellOperator(max_op, chi=2)
-    #wave_op = StrongWaveOperator(c=max_op.c*2, discr=discr,
-            #dirichlet_tag=TAG_NONE, radiation_tag=TAG_ALL)
+    wave_op = StrongWaveOperator(c=-max_op.c*2, discr=discr,
+            dirichlet_tag=TAG_NONE, radiation_tag=TAG_ALL)
 
-    #max_op = BoneHeadedCleaningMaxwellOperator(max_op, wave_op)
+    max_op_2 = BoneHeadedCleaningMaxwellOperator(max_op, wave_op)
+    max_op = ECleaningMaxwellOperator(max_op, chi=2)
     div_op = DivergenceOperator(discr)
 
-    dt = discr.dt_factor(max_op.max_eigenvalue())/ 10
+    dt = discr.dt_factor(max_op.max_eigenvalue())
     #final_time = 15*units.M/max_op.c
     final_time = 50*units.M/max_op.c
     nsteps = int(final_time/dt)+1
@@ -242,19 +242,20 @@ def main():
     # timestepping ------------------------------------------------------------
     t = 0
 
-    substep = [0]
-
     for step in xrange(nsteps):
         logmgr.tick()
 
-        #if step % 1 == 0:
-
-        def rhs(t, y):
-            fields = y
+        if step % 1 == 0:
             vis_timer.start()
-            visf = vis.make_file("pic-%04d" % substep[0])
+            visf = vis.make_file("pic-%04d" % step)
 
-            cloud.add_to_vis(vis, visf, time=t, step=substep[0])
+            ehphi = join_fields(fields.e, fields.h, fields.phi)
+            rho = cloud.reconstruct_rho()
+            rhsdiff = max_op.rhs(t, ehphi, rho) - max_op_2.rhs(t, ehphi, rho)
+
+            rhsdiffe, rhsdiffh, rhsdiffphi = max_op.split_ehphi(rhsdiff)
+
+            cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
                         ("e", fields.e), 
@@ -264,6 +265,10 @@ def main():
                         #("active_elements", 
                             #cloud.pic_algorithm.get_debug_quantity_on_mesh(
                                 #"active_elements", cloud.raw_velocities())),
+                        ("rhsdiffe", rhsdiffe),
+                        ("rhsdiffh", rhsdiffh),
+                        ("rhsdiffphi", rhsdiffphi),
+
                         ("rho", cloud.reconstruct_rho()),
                         ("j", cloud.reconstruct_j()), 
                         ],
@@ -273,14 +278,8 @@ def main():
             visf.close()
             vis_timer.stop()
 
-            substep[0] += 1
-
-
-
-            return fields.rhs(t, y)
-
         cloud.upkeep()
-        fields = stepper(fields, t, dt, rhs)
+        fields = stepper(fields, t, dt, fields.rhs)
 
 
         t += dt

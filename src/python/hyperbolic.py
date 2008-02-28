@@ -58,19 +58,27 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
 
         c = maxwell_op.c
 
-        max_strong_flux = join_fields(maxwell_op.flux, 0)
-
         # see hedge/doc/maxima/eclean.mac for derivation
-        strong_flux = max_strong_flux + 0.5*join_fields(
+        strong_flux = join_fields(
                 # flux e
-                c*chi*normal*(phi.int-phi.ext - dot(normal, e.int-e.ext)),
+                #0.5*c*chi*normal*(phi.int-phi.ext - dot(normal, e.int-e.ext)),
+                0.5*(c*chi*normal*(phi.int-phi.ext - dot(normal, e.int-e.ext))),
                 # flux h
                 len(h)*[0],
                 # flux phi
-                c*chi*(-(phi.int-phi.ext) + dot(normal, e.int-e.ext))
+                #0.5*c*chi*(-(phi.int-phi.ext) + dot(normal, e.int-e.ext))
+                0.5*(c*chi*(
+                     dot(e.int-e.ext, normal)-(phi.int-phi.ext)
+                    ))
                 )
+        print "hyp", strong_flux[0]
 
+        strong_flux += join_fields(maxwell_op.flux, 0)
+
+        print "JETZT", len(strong_flux)
         self.strong_flux_op = self.discr.get_flux_operator(strong_flux)
+        #raise RuntimeError, "fertig"
+        self.strong_flux_op_2 = self.discr.get_flux_operator(join_fields(maxwell_op.flux, 0))
 
         self.pec_normals = self.discr.boundary_normals(self.maxwell_op.pec_tag)
 
@@ -117,7 +125,7 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
                     -pec_e
                     +2*ac_multiply(pec_n, dot(pec_n, pec_e, num.multiply)),
                     pec_h,
-                    pec_phi)
+                    -pec_phi)
         else:
             pec_bc = join_fields(
                     -pec_e,
@@ -139,7 +147,9 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
 
         return -local_operator + self.maxwell_op.m_inv*(
                     self.strong_flux_op * w
+                    #+self.strong_flux_op_2 * w
                     +self.strong_flux_op * pair_with_boundary(w, pec_bc, pec_tag)
+                    #+self.strong_flux_op_2 * pair_with_boundary(w, pec_bc, pec_tag)
                     )
 
     def assemble_fields(self, e=None, h=None, phi=None):
@@ -204,7 +214,7 @@ class BoneHeadedCleaningMaxwellOperator(CleaningMaxwellOperator):
         wave_rhs = self.wave_op.rhs(t, join_fields(phi, e))
         mogrified_wave_rhs = join_fields(wave_rhs[1:], 0*h, wave_rhs[0])
 
-        rho_rhs = join_fields(0*e, 0*h, -rho)
+        rho_rhs = join_fields(0*e, 0*h, self.wave_op.c*(-rho/self.maxwell_op.epsilon))
 
         return mogrified_max_rhs + mogrified_wave_rhs + rho_rhs
 
