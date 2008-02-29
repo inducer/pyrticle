@@ -8,7 +8,7 @@ import pytools
 
 
 
-class GaussParticleDistribution(pytools.Record):
+class GaussianParticleDistribution(pytools.Record):
     def __init__(self, total_charge, total_mass, mean_x, mean_p, sigma_x, sigma_p):
         pytools.Record.__init__(self, locals())
 
@@ -73,27 +73,92 @@ def main():
     from pyrticle.units import SI
     units = SI()
 
-    # discretization setup ----------------------------------------------------
-    tube_length = 2
-    full_mesh = make_rect_mesh(
-            a=(-0.5, -0.5),
-            b=(-0.5+tube_length, 0.5),
-            periodicity=(True, False),
-            subdivisions=(10,5),
-            max_area=0.02)
+    # parameter setup ---------------------------------------------------------
 
-    #full_mesh = make_regular_square_mesh(n=2, periodicity=(True, False))
+    def make_setup():
+        from pyrticle.reconstruction import \
+                ShapeFunctionReconstructor, \
+                NormalizedShapeFunctionReconstructor, \
+                AdvectiveReconstructor
+        from pyrticle.pusher import \
+                MonomialParticlePusher, \
+                AverageParticlePusher
+
+        c0 = units.VACUUM_LIGHT_SPEED
+
+        setup = {
+                "num": num,
+                "comp": comp,
+                "units": units,
+
+                "RecShape": ShapeFunctionReconstructor,
+                "RecNormShape": NormalizedShapeFunctionReconstructor,
+                "RecAdv": AdvectiveReconstructor,
+
+                "PushMonomial": MonomialParticlePusher,
+                "PushAverage": AverageParticlePusher,
+
+                "make_rect_mesh": make_rect_mesh,
+
+                "tube_length": 2,
+                "tube_width": 1,
+                "tube_periodic": True,
+                "tube_max_tri_area": 0.02,
+
+                "element_order": 7,
+                "shape_exponent": 2,
+
+                "chi": None, # set to None for no hyperbolic cleaning
+                "phi_decay": 0,
+
+                "final_time": 50*units.M/units.VACUUM_LIGHT_SPEED,
+
+                "pusher": None,
+                "reconstructor": None,
+
+                "sigma_x": 0.1*num.ones((2,)),
+                "mean_v": num.array([c0*0.9, 0]),
+                "sigma_v": num.array([c0*0.9*1e-3, c0*0.9*1e-6]),
+                "nparticles": 1000,
+                "cloud_charge": -1e-9 * units.C,
+                }
+
+        pre_setup = setup.copy()
+
+        import sys
+        if len(sys.argv) >= 2:
+            exec sys.argv[1] in setup
+
+        # check if the user set invalid keys 
+        for added_key in set(setup.keys()) - set(pre_setup.keys()):
+            if not (added_key.startswith("user_") or added_key == "__builtins__"):
+                raise ValueError( 
+                        "invalid setup key: '%s' "
+                        "(user variables must start with 'user_')" % added_key)
+
+        return setup
+
+    setup = make_setup()
+
+    # discretization setup ----------------------------------------------------
+    if "mesh" not in setup:
+        setup["mesh"] = make_rect_mesh(
+                a=(-0.5, -setup["tube_width"]/2),
+                b=(-0.5+setup["tube_length"], setup["tube_width"]/2),
+                periodicity=(setup["tube_periodic"], False),
+                subdivisions=(10,5),
+                max_area=setup["tube_max_tri_area"])
 
     from hedge.parallel import guess_parallelization_context
 
     pcon = guess_parallelization_context()
 
     if pcon.is_head_rank:
-        mesh = pcon.distribute_mesh(full_mesh)
+        mesh = pcon.distribute_mesh(setup["mesh"])
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TriangularElement(7))
+    discr = pcon.make_discretization(mesh, TriangularElement(setup["element_order"]))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
@@ -105,14 +170,17 @@ def main():
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    max_op = ECleaningMaxwellOperator(max_op, chi=2, phi_decay=1e10)
+
+    if setup["chi"] is not None:
+        max_op = ECleaningMaxwellOperator(max_op, 
+                chi=setup["chi"], 
+                phi_decay=setup["phi_decay"])
+
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.max_eigenvalue())
-    #final_time = 15*units.M/max_op.c
-    final_time = 50*units.M/max_op.c
-    nsteps = int(final_time/dt)+1
-    dt = final_time/nsteps
+    nsteps = int(setup["final_time"]/dt)+1
+    dt = setup["final_time"]/nsteps
 
     print "#elements=%d, dt=%s, #steps=%d" % (
             len(discr.mesh.elements), dt, nsteps)
@@ -123,72 +191,43 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    def make_cloud():
-        from pyrticle.cloud import ParticleCloud
-        from pyrticle.reconstruction import \
-                ShapeFunctionReconstructor, \
-                NormalizedShapeFunctionReconstructor, \
-                AdvectiveReconstructor
-        from pyrticle.pusher import \
-                MonomialParticlePusher, \
-                AverageParticlePusher
+    from pyrticle.reconstruction import Reconstructor
+    from pyrticle.pusher import Pusher
 
-        import sys
-        reconstructor_str = sys.argv[1]
-        pusher_str = sys.argv[2]
+    assert isinstance(setup["reconstructor"], Reconstructor), \
+            "must specify valid reconstructor"
+    assert isinstance(setup["pusher"], Pusher), \
+            "must specify valid reconstructor"
 
-        if reconstructor_str == "advective":
-            reconstructor = AdvectiveReconstructor(
-                    activation_threshold=1e-5,
-                    kill_threshold=1e-3,
-                    upwind_alpha=1)
-        elif reconstructor_str == "shape":
-            reconstructor = ShapeFunctionReconstructor()
-        elif reconstructor_str == "normshape":
-            reconstructor = NormalizedShapeFunctionReconstructor()
-        else:
-            raise ValueError, "invalid reconstructor"
-
-        if pusher_str == "monomial":
-            pusher = MonomialParticlePusher()
-        elif pusher_str == "average":
-            pusher = AverageParticlePusher()
-        else:
-            raise ValueError, "invalid pusher"
-
-        return ParticleCloud(discr, units, reconstructor, pusher,
+    from pyrticle.cloud import ParticleCloud
+    cloud = ParticleCloud(discr, units, setup["reconstructor"], setup["pusher"],
                 dimensions_pos=2, dimensions_velocity=2,
                 verbose_vis=True)
 
-    cloud = make_cloud()
+    nparticles = setup["nparticles"]
 
-    nparticles = 1000
-
-    cloud_charge = -1e-9 * units.C
-    electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
+    electrons_per_particle = abs(setup["cloud_charge"]/nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
-    avg_x_vel = 0.90*units.VACUUM_LIGHT_SPEED
-    mean_v = num.array([avg_x_vel, 0])
-    #mean_v = num.array([avg_x_vel*0.5, avg_x_vel*0.8])
-    mean_beta = mean_v/units.VACUUM_LIGHT_SPEED
-    gamma = units.gamma(mean_v)
+    mean_beta = setup["mean_v"]/units.VACUUM_LIGHT_SPEED
+    gamma = units.gamma(setup["mean_v"])
     pmass = electrons_per_particle*units.EL_MASS
-    mean_p = gamma*pmass*mean_v
+    mean_p = gamma*pmass*setup["mean_v"]
 
-    sigma_v = num.array([avg_x_vel*1e-3, avg_x_vel*1e-6])
     print "beta=%g, gamma=%g" % (comp.norm_2(mean_beta), gamma)
 
-    gauss_p = GaussParticleDistribution(
-            total_charge=cloud_charge, 
+    gauss_p = GaussianParticleDistribution(
+            total_charge=setup["cloud_charge"], 
             total_mass=pmass*nparticles,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
-            sigma_x=0.1*num.ones((2,)),
-            sigma_p=units.gamma(mean_v)*pmass*sigma_v)
+            sigma_x=setup["sigma_x"],
+            sigma_p=gamma*pmass*setup["sigma_v"])
     gauss_p.add_to(cloud, nparticles)
+
     from pyrticle.cloud import optimize_shape_bandwidth
-    optimize_shape_bandwidth(cloud, discr, gauss_p.analytic_rho(discr))
+    optimize_shape_bandwidth(cloud, discr, gauss_p.analytic_rho(discr),
+            setup["shape_exponent"])
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
@@ -211,16 +250,17 @@ def main():
     add_particle_quantities(logmgr, cloud)
     add_field_quantities(logmgr, fields, reconstruct_interval=1)
     add_beam_quantities(logmgr, cloud, axis=1, beam_axis=0)
-    add_currents(logmgr, fields, (1,0), tube_length)
+    add_currents(logmgr, fields, (1,0), setup["tube_length"])
 
     stepper.add_instrumentation(logmgr)
     fields.add_instrumentation(logmgr)
     logmgr.set_constant("beta", comp.norm_2(mean_beta))
     logmgr.set_constant("gamma", gamma)
-    logmgr.set_constant("vx", avg_x_vel)
-    logmgr.set_constant("Q0", cloud_charge)
+    logmgr.set_constant("mean_v", setup["mean_v"])
+    logmgr.set_constant("Q0", setup["cloud_charge"])
     logmgr.set_constant("n_part_0", nparticles)
     logmgr.set_constant("pmass", electrons_per_particle*units.EL_MASS)
+    logmgr.set_constant("chi", setup["chi"])
 
     from pytools.log import IntervalTimer
     vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
@@ -262,7 +302,6 @@ def main():
 
         cloud.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
-
 
         t += dt
 

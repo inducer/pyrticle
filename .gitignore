@@ -31,3 +31,4 @@ dump.py
 bin/logtool
 *.orig
 *-journal
+temp-*.cpy
