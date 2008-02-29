@@ -40,7 +40,7 @@ namespace pyrticle
   { 
     typedef shape_function_reconstructor::type<PIC> cl;
     wrp
-      .add_property("radius", &cl::get_radius, &cl::set_radius)
+      .DEF_RW_MEMBER(shape_function)
       ;
   }
 
@@ -53,7 +53,7 @@ namespace pyrticle
   { 
     typedef normalized_shape_function_reconstructor::type<PIC> cl;
     wrp
-      .add_property("radius", &cl::get_radius, &cl::set_radius)
+      .DEF_RW_MEMBER(shape_function)
       .DEF_SIMPLE_METHOD(setup_normalized_shape_reconstructor)
       ;
   }

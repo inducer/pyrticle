@@ -26,7 +26,13 @@ import pylinear.computation as comp
 
 
 
-class MonomialParticlePusher:
+class Pusher(object):
+    pass
+
+
+
+
+class MonomialParticlePusher(Pusher):
     name = "Monomial"
 
     def initialize(self, cloud):
@@ -56,7 +62,7 @@ class MonomialParticlePusher:
 
 
 
-class AverageParticlePusher:
+class AverageParticlePusher(Pusher):
     name = "Average"
 
     def initialize(self, cloud):

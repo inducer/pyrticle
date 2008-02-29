@@ -32,9 +32,10 @@ import pylinear.computation as comp
 class Reconstructor(object):
     def initialize(self, cloud):
         self.cloud = cloud
+        self.shape_function = None
 
-    def set_radius(self, radius):
-        cloud.pic_algorithm.set_radius(radius)
+    def set_shape_function(self, sf):
+        self.shape_function = sf
 
     def add_instrumentation(self, mgr):
         pass
@@ -43,7 +44,8 @@ class Reconstructor(object):
         pass
 
     def reconstruct_hook(self):
-        pass
+        if self.shape_function is None:
+            raise RuntimeError, "shape function never set"
 
     def rhs(self):
         return 0
@@ -57,17 +59,10 @@ class Reconstructor(object):
 class ShapeFunctionReconstructor(Reconstructor):
     name = "Shape"
 
-    def initialize(self, cloud):
-        Reconstructor.initialize(self, cloud)
-        self.radius = None
+    def set_shape_function(self, sf):
+        Reconstructor.set_shape_function(self, sf)
+        self.cloud.pic_algorithm.shape_function = sf
 
-    def set_radius(self, radius):
-        self.cloud.pic_algorithm.radius = radius
-        self.radius = radius
-
-    def reconstruct_hook(self):
-        if self.radius is None:
-            raise RuntimeError, "shape radius never set"
 
 
 
@@ -84,15 +79,9 @@ class NormalizedShapeFunctionReconstructor(Reconstructor):
         cloud.pic_algorithm.setup_normalized_shape_reconstructor(
                 ldis.mass_matrix())
 
-        self.radius = None
-
-    def set_radius(self, radius):
-        self.cloud.pic_algorithm.radius = radius
-        self.radius = radius
-
-    def reconstruct_hook(self):
-        if self.radius is None:
-            raise RuntimeError, "shape radius never set"
+    def set_shape_function(self, sf):
+        Reconstructor.set_shape_function(self, sf)
+        self.cloud.pic_algorithm.shape_function = sf
 
 
 
@@ -112,7 +101,9 @@ class ActiveAdvectiveElements (pytools.log.LogQuantity):
 class AdvectiveReconstructor(Reconstructor):
     name = "Advective"
 
-    def __init__(self, activation_threshold, kill_threshold, upwind_alpha):
+    def __init__(self, activation_threshold, kill_threshold, 
+            filter_amp=None, filter_order=None, 
+            upwind_alpha=1):
         from pyrticle.tools import NumberShiftForwarder
         self.rho_shift_signaller = NumberShiftForwarder()
 
@@ -132,7 +123,14 @@ class AdvectiveReconstructor(Reconstructor):
         self.kill_threshold = kill_threshold
         self.upwind_alpha = upwind_alpha
 
-        self.radius = None
+        self.shape_function = None
+
+        if filter_amp is not None:
+            from hedge.discretization import ExponentialFilterResponseFunction
+            self.filter_response = ExponentialFilterResponseFunction(
+                    filter_amp, filter_order)
+        else:
+            self.filter_response = None
 
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.element_activation_counter)
@@ -158,11 +156,19 @@ class AdvectiveReconstructor(Reconstructor):
 
         (bdry_fg, _), = bdry.face_groups_and_ldis
 
+        if self.filter_response:
+            from hedge.discretization import Filter
+            filter = Filter(discr, self.filter_response)
+            filter_mat, = filter.filter_matrices
+        else:
+            filter_mat = num.zeros((0,0))
+
         cloud.pic_algorithm.setup_advective_reconstructor(
                 len(ldis.face_indices()),
                 ldis.node_count(),
                 ldis.mass_matrix(),
                 ldis.inverse_mass_matrix(),
+                filter_mat,
                 fmm,
                 fg,
                 bdry_fg,
@@ -175,20 +181,17 @@ class AdvectiveReconstructor(Reconstructor):
 
         cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
 
-    def set_radius(self, radius):
-        self.radius = radius
+    def set_shape_function(self, sf):
+        Reconstructor.set_shape_function(self, sf)
 
         self.cloud.pic_algorithm.clear_advective_particles()
         for pn in xrange(len(self.cloud)):
-            self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
+            self.cloud.pic_algorithm.add_advective_particle(sf, pn)
 
     def add_particle_hook(self, pn):
-        if self.radius is not None:
-            self.cloud.pic_algorithm.add_advective_particle(self.radius, pn)
-
-    def reconstruct_hook(self):
-        if len(self.cloud) != self.cloud.pic_algorithm.count_advective_particles():
-            raise RuntimeError, "no advective particles--did you set the shape radius?"
+        if self.shape_function is not None:
+            self.cloud.pic_algorithm.add_advective_particle(
+                    self.shape_function, pn)
 
     def rhs(self):
         from pyrticle.tools import NumberShiftableVector

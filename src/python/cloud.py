@@ -619,13 +619,19 @@ class FieldsAndCloud:
 
 
 # shape bandwidth -------------------------------------------------------------
-def guess_shape_bandwidth(cloud):
-    cloud.reconstructor.set_radius(cloud.mesh_data.advisable_particle_radius())
+def guess_shape_bandwidth(cloud, exponent):
+    from pyrticle._internal import ShapeFunction
+    cloud.reconstructor.set_shape_function(
+            ShapeFunction(
+                cloud.mesh_data.advisable_particle_radius(),
+                cloud.mesh_data.dimensions,
+                exponent,
+                ))
 
 
 
 
-def optimize_shape_bandwidth(cloud, discr, analytic_rho, rhovis=False, plot_l1_errors=False):
+def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False, plot_l1_errors=False):
     adv_radius = cloud.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**exponent 
             for exponent in num.linspace(-4, 2, 50)]
@@ -635,11 +641,16 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, rhovis=False, plot_l1_e
         vis = SiloVisualizer(discr)
 
     from hedge.discretization import integral
+    
+    def set_radius(r):
+        from pyrticle._internal import ShapeFunction
+        cloud.reconstructor.set_shape_function(
+                ShapeFunction(r, cloud.mesh_data.dimensions, exponent,))
 
     tried_radii = []
     l1_errors = []
     for step, radius in enumerate(radii):
-        cloud.reconstructor.set_radius(radius)
+        set_radius(radius)
         cloud.derived_quantity_cache.clear()
         try:
             rec_rho = cloud.reconstruct_rho()
@@ -672,7 +683,7 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, rhovis=False, plot_l1_e
         plot(tried_radii, l1_errors)
         show()
 
-    cloud.reconstructor.set_radius(good_rad)
+    set_radius(good_rad)
     cloud.derived_quantity_cache.clear()
 
 

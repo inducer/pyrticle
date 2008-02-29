@@ -76,7 +76,7 @@ namespace pyrticle
         struct advected_particle
         {
           std::vector<active_element>   m_elements;
-          double                        m_radius;
+          shape_function                m_shape_function;
 
           active_element *find_element(mesh_data::element_number en)
           {
@@ -120,6 +120,7 @@ namespace pyrticle
         hedge::matrix                   m_inverse_mass_matrix;
         hedge::matrix                   m_face_mass_matrix;
         hedge::vector                   m_face_integral_weights;
+        hedge::matrix                   m_filter_matrix;
 
         std::vector<hedge::matrix>      m_local_diff_matrices;
 
@@ -164,7 +165,8 @@ namespace pyrticle
         type()
           : m_faces_per_element(0), 
           m_dofs_per_element(0), m_active_elements(0),
-          m_activation_threshold(0), m_kill_threshold(0)
+          m_activation_threshold(0), m_kill_threshold(0),
+          m_upwind_alpha(1)
         { }
 
 
@@ -322,6 +324,7 @@ namespace pyrticle
             unsigned dofs_per_element,
             const hedge::matrix &mass_matrix,
             const hedge::matrix &inverse_mass_matrix,
+            const hedge::matrix &filter_matrix,
             const hedge::matrix &face_mass_matrix,
             boost::shared_ptr<hedge::face_group> int_face_group,
             boost::shared_ptr<hedge::face_group> bdry_face_group,
@@ -339,6 +342,8 @@ namespace pyrticle
               boost::numeric::ublas::scalar_vector<double>
               (m_mass_matrix.size1(), 1));
           m_inverse_mass_matrix = inverse_mass_matrix;
+
+          m_filter_matrix = filter_matrix;
 
           m_face_mass_matrix = face_mass_matrix;
           m_face_integral_weights = prod(m_face_mass_matrix, 
@@ -391,7 +396,7 @@ namespace pyrticle
 
         void dump_particle(advected_particle const &p) const
         {
-          std::cout << "particle, radius " << p.m_radius << std::endl;
+          std::cout << "particle, radius " << p.m_shape_function.radius() << std::endl;
           unsigned i_el = 0;
           BOOST_FOREACH(const active_element &el, p.m_elements)
           {
@@ -539,11 +544,10 @@ namespace pyrticle
           unsigned start = new_element.m_start_index = allocate_element();
           new_element.m_min_life = 0;
 
-          shape_function sf(new_particle.m_radius, get_dimensions_mesh());
-
           for (unsigned i = 0; i < m_dofs_per_element; ++i)
             m_rho[start+i] =
-              sf(CONST_PIC_THIS->m_mesh_data.m_nodes[einfo.m_start+i]-center);
+              new_particle.m_shape_function(
+                  CONST_PIC_THIS->m_mesh_data.m_nodes[einfo.m_start+i]-center);
 
           new_particle.m_elements.push_back(new_element);
         }
@@ -559,15 +563,15 @@ namespace pyrticle
 
 
 
-        void add_advective_particle(double radius, particle_number pn)
+        void add_advective_particle(shape_function sf, particle_number pn)
         {
           if (pn != m_advected_particles.size())
             throw std::runtime_error("advected particle added out of sequence");
 
           advected_particle new_particle;
-          new_particle.m_radius = radius;
+          new_particle.m_shape_function = sf;
 
-          add_shape(new_particle, pn, radius);
+          add_shape(new_particle, pn, sf.radius());
 
           // make connections
           BOOST_FOREACH(active_element &el, new_particle.m_elements)
@@ -708,8 +712,7 @@ namespace pyrticle
           particle_number pn = 0;
           BOOST_FOREACH(advected_particle &p, m_advected_particles)
           {
-            const shape_function sf(p.m_radius, get_dimensions_mesh());
-            const double shape_peak = sf(
+            const double shape_peak = p.m_shape_function(
                 boost::numeric::ublas::zero_vector<double>(get_dimensions_mesh()))
               *CONST_PIC_THIS->m_charges[pn];
 
@@ -1031,7 +1034,33 @@ namespace pyrticle
 
         void apply_advective_particle_rhs(hedge::vector const &rhs)
         {
-          m_rho += rhs;
+          if (m_filter_matrix.size1() && m_filter_matrix.size2())
+          {
+            using namespace boost::numeric::bindings;
+            using blas::detail::gemm;
+
+            const unsigned active_contiguous_elements = 
+              m_active_elements + m_freelist.size();
+
+            const hedge::matrix &matrix = m_filter_matrix;
+            gemm(
+                'T', // "matrix" is row-major
+                'N', // a contiguous array of vectors is column-major
+                matrix.size1(),
+                active_contiguous_elements,
+                matrix.size2(),
+                /*alpha*/ 1,
+                /*a*/ traits::matrix_storage(matrix), 
+                /*lda*/ matrix.size2(),
+                /*b*/ traits::vector_storage(rhs), 
+                /*ldb*/ m_dofs_per_element,
+                /*beta*/ 1,
+                /*c*/ traits::vector_storage(m_rho),
+                /*ldc*/ m_dofs_per_element
+                );
+          }
+          else
+            m_rho += rhs;
         }
 
 
