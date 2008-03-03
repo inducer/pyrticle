@@ -75,6 +75,59 @@ def main():
 
     # parameter setup ---------------------------------------------------------
 
+    def customize_setup(variables, constants={}, doc={},):
+        import sys
+
+        def sorted(iterable):
+            result = list(iterable)
+            result.sort()
+            return result
+
+        def show_usage():
+            print "usage: %s <FILE-OR-STATEMENTS>" % sys.argv[0]
+            print
+            print "FILE-OR-STATEMENTS may either be Python statements of the form"
+            print "'variable1 = value1; variable2 = value2' or the name of a file"
+            print "containing such statements. Any valid Python code may be used"
+            print "on the command line or in a command file. If new variables are"
+            print "used, they must start with 'user_'."
+            print
+            print "The following variables are recognized:"
+            for v in sorted(variables):
+                print "  %s = %s" % (v, variables[v])
+                if v in doc:
+                    print "    %s" % doc[v]
+
+            print
+            print "The following constants are supplied:"
+            for c in sorted(constants):
+                print "  %s = %s" % (c, constants[c])
+                if c in doc:
+                    print "    %s" % doc[c]
+
+            sys.exit(2)
+
+        if len(sys.argv) != 2 or sys.argv[1] in ["-h", "-help", "--help"]:
+            show_usage()
+
+        execenv = variables.copy()
+        execenv.update(constants)
+
+        import os
+        if os.access(sys.argv[1], os.F_OK):
+            exec open(sys.argv[1], "r") in execenv
+        else:
+            exec sys.argv[1] in execenv
+
+        # check if the user set invalid keys 
+        for added_key in set(execenv.keys()) - set(variables.keys()) - set(constants.keys()):
+            if not (added_key.startswith("user_") or added_key == "__builtins__"):
+                raise ValueError( 
+                        "invalid setup key: '%s' "
+                        "(user variables must start with 'user_')" % added_key)
+
+        return dict((key, execenv[key]) for key in variables)
+
     def make_setup():
         from pyrticle.reconstruction import \
                 ShapeFunctionReconstructor, \
@@ -86,7 +139,33 @@ def main():
 
         c0 = units.VACUUM_LIGHT_SPEED
 
-        setup = {
+        variables = {
+                "tube_length": 2,
+                "tube_width": 1,
+                "tube_periodic": True,
+                "tube_max_tri_area": 0.02,
+
+                "element_order": 7,
+                "shape_exponent": 2,
+
+                "chi": None, # 
+                "phi_decay": 0,
+
+                "final_time": 10*units.M/units.VACUUM_LIGHT_SPEED,
+
+                "pusher": None,
+                "reconstructor": None,
+
+                "sigma_x": 0.1*num.ones((2,)),
+                "mean_v": num.array([c0*0.9, 0]),
+                "sigma_v": num.array([c0*0.9*1e-3, c0*0.9*1e-6]),
+                "nparticles": 1000,
+                "cloud_charge": -1e-9 * units.C,
+
+                "vis_interval": 100,
+                }
+        
+        constants = {
                 "num": num,
                 "comp": comp,
                 "units": units,
@@ -99,44 +178,13 @@ def main():
                 "PushAverage": AverageParticlePusher,
 
                 "make_rect_mesh": make_rect_mesh,
-
-                "tube_length": 2,
-                "tube_width": 1,
-                "tube_periodic": True,
-                "tube_max_tri_area": 0.02,
-
-                "element_order": 7,
-                "shape_exponent": 2,
-
-                "chi": None, # set to None for no hyperbolic cleaning
-                "phi_decay": 0,
-
-                "final_time": 50*units.M/units.VACUUM_LIGHT_SPEED,
-
-                "pusher": None,
-                "reconstructor": None,
-
-                "sigma_x": 0.1*num.ones((2,)),
-                "mean_v": num.array([c0*0.9, 0]),
-                "sigma_v": num.array([c0*0.9*1e-3, c0*0.9*1e-6]),
-                "nparticles": 1000,
-                "cloud_charge": -1e-9 * units.C,
                 }
 
-        pre_setup = setup.copy()
+        doc = {
+                "chi": "relative speed of hyp. cleaning (None for no cleaning)"
+                }
 
-        import sys
-        if len(sys.argv) >= 2:
-            exec sys.argv[1] in setup
-
-        # check if the user set invalid keys 
-        for added_key in set(setup.keys()) - set(pre_setup.keys()):
-            if not (added_key.startswith("user_") or added_key == "__builtins__"):
-                raise ValueError( 
-                        "invalid setup key: '%s' "
-                        "(user variables must start with 'user_')" % added_key)
-
-        return setup
+        return customize_setup(variables, constants, doc)
 
     setup = make_setup()
 
@@ -276,7 +324,7 @@ def main():
     for step in xrange(nsteps):
         logmgr.tick()
 
-        if step % 1 == 0:
+        if step % setup["vis_interval"] == 0:
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
