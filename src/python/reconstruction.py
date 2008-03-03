@@ -101,7 +101,7 @@ class ActiveAdvectiveElements (pytools.log.LogQuantity):
 class AdvectiveReconstructor(Reconstructor):
     name = "Advective"
 
-    def __init__(self, activation_threshold, kill_threshold, 
+    def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3, 
             filter_amp=None, filter_order=None, 
             upwind_alpha=1):
         from pyrticle.tools import NumberShiftForwarder
