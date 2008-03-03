@@ -650,7 +650,11 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False,
     tried_radii = []
     l1_errors = []
     for step, radius in enumerate(radii):
-        set_radius(radius)
+        try:
+            set_radius(radius)
+        except RuntimeError:
+            continue
+
         cloud.derived_quantity_cache.clear()
         try:
             rec_rho = cloud.reconstruct_rho()
