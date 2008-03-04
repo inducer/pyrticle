@@ -97,7 +97,7 @@ def add_particle_quantities(mgr, cloud):
 
 
 # EM quantities ---------------------------------------------------------------
-class DivergenceQuantities(MultiLogQuantity):
+class DivergenceEQuantities(MultiLogQuantity):
     def __init__(self, f_and_c, names=["divD", "err_divD_l1"]):
         MultiLogQuantity.__init__(self, names, 
                 units=["C", "C"], 
@@ -106,7 +106,8 @@ class DivergenceQuantities(MultiLogQuantity):
         self.f_and_c = f_and_c
         self.discr = self.f_and_c.maxwell_op.discr
         from hedge.operators import DivergenceOperator
-        self.div_op = DivergenceOperator(self.discr)
+        self.div_op = DivergenceOperator(self.discr,
+                f_and_c.maxwell_op.get_eh_subset()[:3])
 
     def __call__(self):
         rho = self.f_and_c.cloud.reconstruct_rho()
@@ -155,10 +156,14 @@ class FieldCurrent(LogQuantity):
 
 
 def add_field_quantities(mgr, f_and_c, reconstruct_interval=5):
-    from hedge.log import EMFieldEnergy, EMFieldMomentum
+    from hedge.log import \
+            EMFieldEnergy, \
+            EMFieldMomentum, \
+            EMFieldDivergenceB
     mgr.add_quantity(EMFieldEnergy(f_and_c))
     mgr.add_quantity(EMFieldMomentum(f_and_c, f_and_c.cloud.units.VACUUM_LIGHT_SPEED))
-    mgr.add_quantity(DivergenceQuantities(f_and_c), reconstruct_interval)
+    mgr.add_quantity(EMFieldDivergenceB(f_and_c.maxwell_op, f_and_c))
+    mgr.add_quantity(DivergenceEQuantities(f_and_c), reconstruct_interval)
     mgr.add_quantity(ReconstructedCharge(f_and_c), reconstruct_interval)
 
 
