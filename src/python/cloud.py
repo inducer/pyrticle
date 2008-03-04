@@ -633,8 +633,8 @@ def guess_shape_bandwidth(cloud, exponent):
 
 def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False, plot_l1_errors=False):
     adv_radius = cloud.mesh_data.advisable_particle_radius()
-    radii = [adv_radius*2**exponent 
-            for exponent in num.linspace(-4, 2, 50)]
+    radii = [adv_radius*2**i 
+            for i in num.linspace(-4, 2, 50)]
 
     if rhovis:
         from hedge.visualization import SiloVisualizer
