@@ -678,16 +678,42 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False,
         vis.close()
 
     from pytools import argmin
-    good_rad = tried_radii[argmin(l1_errors)]
+    min_idx = argmin(l1_errors)
+    min_rad = tried_radii[min_idx]
+    min_l1_error = l1_errors[min_idx]
 
-    print "radius: guessed optimum=%g, found optimum=%g" % (adv_radius, good_rad)
+    rel_l1_error = abs(min_l1_error / integral(discr, analytic_rho))
+    if rel_l1_error > 0.1:
+        from warnings import warn
+        warn("Charge density is very poorly resolved (rel L1 error=%g)" % rel_l1_error)
+
+    def is_local_minimum(list, i):
+        if i == 0:
+            return False
+        elif i == len(list)-1:
+            return False
+        else:
+            return list[i] < list[i-1] and list[i] < list[i+1]
+        
+    local_minima = [idx for idx in range(len(tried_radii)) 
+            if is_local_minimum(l1_errors, idx)]
+
+    chosen_idx = max(local_minima)
+    chosen_rad = tried_radii[chosen_idx]
+    chosen_l1_error = l1_errors[chosen_idx]
+
+    print "radius: guessed optimum=%g, found optimum=%g, chosen=%g" % (
+            adv_radius, min_rad, chosen_rad)
+
+    print "radius: optimum l1 error=%g, chosen l1 error=%g" % (
+            min_l1_error, chosen_l1_error)
 
     if plot_l1_errors:
         from pylab import plot, show
         plot(tried_radii, l1_errors)
         show()
 
-    set_radius(good_rad)
+    set_radius(chosen_rad)
     cloud.derived_quantity_cache.clear()
 
 
