@@ -150,6 +150,7 @@ class ParticleCloud:
         mgr.add_quantity(self.force_timer)
 
         self.reconstructor.add_instrumentation(mgr)
+        self.pusher.add_instrumentation(mgr)
 
         mgr.set_constant("reconstructor", self.reconstructor.name)
         mgr.set_constant("pusher", self.pusher.name)

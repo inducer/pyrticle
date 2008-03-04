@@ -20,6 +20,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
+import pytools.log
 import pylinear.array as num
 import pylinear.computation as comp
 
@@ -27,7 +28,8 @@ import pylinear.computation as comp
 
 
 class Pusher(object):
-    pass
+    def add_instrumentation(self, mgr):
+        pass
 
 
 
@@ -62,12 +64,62 @@ class MonomialParticlePusher(Pusher):
 
 
 
+class AverageFieldStdDeviation(pytools.log.LogQuantity):
+    def __init__(self, pusher, field, name, unit):
+        if name is None:
+            name = "avg_pt_%s_stddev" % field
+
+        pytools.log.LogQuantity.__init__(self, name, unit, 
+                "Average standard deviation of the %s-field "
+                "recorded by the average pusher" % field)
+
+        self.pusher = pusher
+        self.vis_field = "pt_%s_stddev" % field
+    def __call__(self):
+        vis_info = self.pusher.cloud.vis_info
+        if self.vis_field not in vis_info:
+            return 0
+        sd = vis_info[self.vis_field]
+        if not sd:
+            return 0
+
+        from pyrticle.tools import NumberShiftableVector
+        sd = NumberShiftableVector.unwrap(sd)
+
+        return sd.sum()/len(sd)
+
+
+
+
+class AverageEFieldStdDeviation(AverageFieldStdDeviation):
+    def __init__(self, pusher, name=None):
+        AverageFieldStdDeviation.__init__(self, pusher,
+                "e", name, "V/m")
+
+
+
+
+class AverageBFieldStdDeviation(AverageFieldStdDeviation):
+    def __init__(self, pusher, name=None):
+        AverageFieldStdDeviation.__init__(self, pusher,
+                "b", name, "T")
+
+
+
+
 class AverageParticlePusher(Pusher):
     name = "Average"
 
     def initialize(self, cloud):
+        self.cloud = cloud
+
         eg, = cloud.mesh_data.discr.element_groups
         ldis = eg.local_discretization
 
         cloud.pic_algorithm.setup_averaging_particle_pusher(
                 ldis.mass_matrix())
+
+    def add_instrumentation(self, mgr):
+        mgr.add_quantity(AverageEFieldStdDeviation(self))
+        mgr.add_quantity(AverageBFieldStdDeviation(self))
+

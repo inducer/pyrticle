@@ -46,8 +46,9 @@ def study_advec_filter():
         if filter_amp is None: 
             return [None]
         else:
-            return [3,6]
-    for filter_amp in [None, 0.97, 0.93]:
+            return [3, 6, 7, 9]
+
+    for filter_amp in [None, 0.97, 0.93, 0.88, 0.8, 0.7, 0.5]:
         for filter_order in get_filter_orders(filter_amp):
             job = BatchJob(
                     "filtstudy-amp%s-ord%s" % (filter_amp, filter_order),
@@ -79,6 +80,6 @@ def study_blob_exponent():
                 ])
             job.submit()
 
-study_blob_exponent()
+#study_blob_exponent()
 study_advec_filter()
-study_cleaning()
+#study_cleaning()

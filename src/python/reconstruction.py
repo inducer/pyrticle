@@ -87,7 +87,7 @@ class NormalizedShapeFunctionReconstructor(Reconstructor):
 
 
 
-class ActiveAdvectiveElements (pytools.log.LogQuantity):
+class ActiveAdvectiveElements(pytools.log.LogQuantity):
     def __init__(self, reconstructor, name="n_advec_elements"):
         pytools.log.LogQuantity.__init__(self, name, "1", "#active advective elements")
         self.reconstructor = reconstructor
@@ -107,6 +107,23 @@ class AdvectiveReconstructor(Reconstructor):
         from pyrticle.tools import NumberShiftForwarder
         self.rho_shift_signaller = NumberShiftForwarder()
 
+        self.activation_threshold = activation_threshold
+        self.kill_threshold = kill_threshold
+        self.upwind_alpha = upwind_alpha
+
+        self.shape_function = None
+
+        self.filter_amp = filter_amp
+        self.filter_order = filter_order
+
+        if filter_amp is not None:
+            from hedge.discretization import ExponentialFilterResponseFunction
+            self.filter_response = ExponentialFilterResponseFunction(
+                    filter_amp, filter_order)
+        else:
+            self.filter_response = None
+
+        # instrumentation 
         from pytools.log import IntervalTimer, EventCounter
         self.element_activation_counter = EventCounter(
                 "n_el_activations",
@@ -119,18 +136,6 @@ class AdvectiveReconstructor(Reconstructor):
                 "Time spent evaluating advective RHS")
         self.active_elements_log = ActiveAdvectiveElements(self)
 
-        self.activation_threshold = activation_threshold
-        self.kill_threshold = kill_threshold
-        self.upwind_alpha = upwind_alpha
-
-        self.shape_function = None
-
-        if filter_amp is not None:
-            from hedge.discretization import ExponentialFilterResponseFunction
-            self.filter_response = ExponentialFilterResponseFunction(
-                    filter_amp, filter_order)
-        else:
-            self.filter_response = None
 
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.element_activation_counter)
@@ -141,6 +146,9 @@ class AdvectiveReconstructor(Reconstructor):
         mgr.set_constant("el_activation_threshold", self.activation_threshold)
         mgr.set_constant("el_kill_threshold", self.kill_threshold)
         mgr.set_constant("adv_upwind_alpha", self.upwind_alpha)
+
+        mgr.set_constant("filter_amp", self.filter_amp)
+        mgr.set_constant("filter_amp", self.filter_order)
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
