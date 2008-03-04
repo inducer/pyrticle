@@ -9,8 +9,6 @@ vars = [
     ("BOOST_BINDINGS_INC_DIR", None,
         "The include directory for the Boost bindings library"),
     # -------------------------------------------------------------------------
-    ("HAVE_BLAS", False,
-        "Whether to build with support for BLAS"),
     ("BLAS_LIB_DIR", None,
         "Library directory for BLAS"),
     ("BLAS_LIB_NAMES", "blas",

@@ -79,4 +79,6 @@ def study_blob_exponent():
                 ])
             job.submit()
 
+study_blob_exponent()
 study_advec_filter()
+study_cleaning()
