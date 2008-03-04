@@ -149,7 +149,7 @@ class KVZIntervalBeam:
         z_max = self.z_pos + self.z_length/2
 
         def distrib(x):
-            if (z_min < x[2] < z_max and
+            if (z_min <= x[2] <= z_max and
                     sum((xi/ri)**2 for xi, ri in zip(x, self.radii)) <= 1):
                 return 1
             else:

@@ -54,11 +54,6 @@ class GaussianParticleDistribution(pytools.Record):
 def main():
     from hedge.element import TriangularElement
     from hedge.timestep import RK4TimeStepper
-    from hedge.mesh import \
-            make_square_mesh, \
-            make_regular_square_mesh, \
-            make_regular_rect_mesh, \
-            make_rect_mesh
     from hedge.discretization import \
             Discretization, \
             pair_with_boundary
@@ -73,70 +68,8 @@ def main():
     from pyrticle.units import SI
     units = SI()
 
-    # parameter setup ---------------------------------------------------------
-
-    def customize_setup(variables, constants={}, doc={},):
-        import sys
-
-        def sorted(iterable):
-            result = list(iterable)
-            result.sort()
-            return result
-
-        def show_usage():
-            print "usage: %s <FILE-OR-STATEMENTS>" % sys.argv[0]
-            print
-            print "FILE-OR-STATEMENTS may either be Python statements of the form"
-            print "'variable1 = value1; variable2 = value2' or the name of a file"
-            print "containing such statements. Any valid Python code may be used"
-            print "on the command line or in a command file. If new variables are"
-            print "used, they must start with 'user_'."
-            print
-            print "The following variables are recognized:"
-            for v in sorted(variables):
-                print "  %s = %s" % (v, variables[v])
-                if v in doc:
-                    print "    %s" % doc[v]
-
-            print
-            print "The following constants are supplied:"
-            for c in sorted(constants):
-                print "  %s = %s" % (c, constants[c])
-                if c in doc:
-                    print "    %s" % doc[c]
-
-            sys.exit(2)
-
-        if len(sys.argv) != 2 or sys.argv[1] in ["-h", "-help", "--help"]:
-            show_usage()
-
-        execenv = variables.copy()
-        execenv.update(constants)
-
-        import os
-        if os.access(sys.argv[1], os.F_OK):
-            exec open(sys.argv[1], "r") in execenv
-        else:
-            exec sys.argv[1] in execenv
-
-        # check if the user set invalid keys 
-        for added_key in set(execenv.keys()) - set(variables.keys()) - set(constants.keys()):
-            if not (added_key.startswith("user_") or added_key == "__builtins__"):
-                raise ValueError( 
-                        "invalid setup key: '%s' "
-                        "(user variables must start with 'user_')" % added_key)
-
-        return dict((key, execenv[key]) for key in variables)
-
+    # user interface ----------------------------------------------------------
     def make_setup():
-        from pyrticle.reconstruction import \
-                ShapeFunctionReconstructor, \
-                NormalizedShapeFunctionReconstructor, \
-                AdvectiveReconstructor
-        from pyrticle.pusher import \
-                MonomialParticlePusher, \
-                AverageParticlePusher
-
         c0 = units.VACUUM_LIGHT_SPEED
 
         variables = {
@@ -165,6 +98,15 @@ def main():
                 "vis_interval": 100,
                 }
         
+        from pyrticle.reconstruction import \
+                ShapeFunctionReconstructor, \
+                NormalizedShapeFunctionReconstructor, \
+                AdvectiveReconstructor
+        from pyrticle.pusher import \
+                MonomialParticlePusher, \
+                AverageParticlePusher
+        from hedge.mesh import make_rect_mesh
+
         constants = {
                 "num": num,
                 "comp": comp,
@@ -184,34 +126,35 @@ def main():
                 "chi": "relative speed of hyp. cleaning (None for no cleaning)"
                 }
 
-        return customize_setup(variables, constants, doc)
+        from pytools import gather_parameters_from_user
+        return gather_parameters_from_user(variables, constants, doc)
 
     setup = make_setup()
 
     # discretization setup ----------------------------------------------------
-    if "mesh" not in setup:
-        setup["mesh"] = make_rect_mesh(
-                a=(-0.5, -setup["tube_width"]/2),
-                b=(-0.5+setup["tube_length"], setup["tube_width"]/2),
-                periodicity=(setup["tube_periodic"], False),
+    if "mesh" not in dir(setup):
+        from hedge.mesh import make_rect_mesh
+        setup.mesh = make_rect_mesh(
+                a=(-0.5, -setup.tube_width/2),
+                b=(-0.5+setup.tube_length, setup.tube_width/2),
+                periodicity=(setup.tube_periodic, False),
                 subdivisions=(10,5),
-                max_area=setup["tube_max_tri_area"])
+                max_area=setup.tube_max_tri_area)
 
     from hedge.parallel import guess_parallelization_context
 
     pcon = guess_parallelization_context()
 
     if pcon.is_head_rank:
-        mesh = pcon.distribute_mesh(setup["mesh"])
+        mesh = pcon.distribute_mesh(setup.mesh)
     else:
         mesh = pcon.receive_mesh()
 
-    discr = pcon.make_discretization(mesh, TriangularElement(setup["element_order"]))
+    discr = pcon.make_discretization(mesh, TriangularElement(setup.element_order))
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
     from hedge.operators import TEMaxwellOperator, DivergenceOperator
-    from pyrticle.hyperbolic import ECleaningMaxwellOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
 
     max_op = TEMaxwellOperator(discr, 
@@ -219,16 +162,17 @@ def main():
             mu=units.MU0, 
             upwind_alpha=1)
 
-    if setup["chi"] is not None:
+    if setup.chi is not None:
+        from pyrticle.hyperbolic import ECleaningMaxwellOperator
         max_op = ECleaningMaxwellOperator(max_op, 
-                chi=setup["chi"], 
-                phi_decay=setup["phi_decay"])
+                chi=setup.chi, 
+                phi_decay=setup.phi_decay)
 
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.max_eigenvalue())
-    nsteps = int(setup["final_time"]/dt)+1
-    dt = setup["final_time"]/nsteps
+    nsteps = int(setup.final_time/dt)+1
+    dt = setup.final_time/nsteps
 
     print "#elements=%d, dt=%s, #steps=%d" % (
             len(discr.mesh.elements), dt, nsteps)
@@ -242,40 +186,38 @@ def main():
     from pyrticle.reconstruction import Reconstructor
     from pyrticle.pusher import Pusher
 
-    assert isinstance(setup["reconstructor"], Reconstructor), \
+    assert isinstance(setup.reconstructor, Reconstructor), \
             "must specify valid reconstructor"
-    assert isinstance(setup["pusher"], Pusher), \
+    assert isinstance(setup.pusher, Pusher), \
             "must specify valid reconstructor"
 
     from pyrticle.cloud import ParticleCloud
-    cloud = ParticleCloud(discr, units, setup["reconstructor"], setup["pusher"],
+    cloud = ParticleCloud(discr, units, setup.reconstructor, setup.pusher,
                 dimensions_pos=2, dimensions_velocity=2,
                 verbose_vis=True)
 
-    nparticles = setup["nparticles"]
-
-    electrons_per_particle = abs(setup["cloud_charge"]/nparticles/units.EL_CHARGE)
+    electrons_per_particle = abs(setup.cloud_charge/setup.nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
-    mean_beta = setup["mean_v"]/units.VACUUM_LIGHT_SPEED
-    gamma = units.gamma(setup["mean_v"])
+    mean_beta = setup.mean_v/units.VACUUM_LIGHT_SPEED
+    gamma = units.gamma(setup.mean_v)
     pmass = electrons_per_particle*units.EL_MASS
-    mean_p = gamma*pmass*setup["mean_v"]
+    mean_p = gamma*pmass*setup.mean_v
 
     print "beta=%g, gamma=%g" % (comp.norm_2(mean_beta), gamma)
 
     gauss_p = GaussianParticleDistribution(
-            total_charge=setup["cloud_charge"], 
-            total_mass=pmass*nparticles,
+            total_charge=setup.cloud_charge, 
+            total_mass=pmass*setup.nparticles,
             mean_x=num.zeros((2,)),
             mean_p=mean_p,
-            sigma_x=setup["sigma_x"],
-            sigma_p=gamma*pmass*setup["sigma_v"])
-    gauss_p.add_to(cloud, nparticles)
+            sigma_x=setup.sigma_x,
+            sigma_p=gamma*pmass*setup.sigma_v)
+    gauss_p.add_to(cloud, setup.nparticles)
 
     from pyrticle.cloud import optimize_shape_bandwidth
     optimize_shape_bandwidth(cloud, discr, gauss_p.analytic_rho(discr),
-            setup["shape_exponent"])
+            setup.shape_exponent)
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
@@ -298,17 +240,17 @@ def main():
     add_particle_quantities(logmgr, cloud)
     add_field_quantities(logmgr, fields, reconstruct_interval=1)
     add_beam_quantities(logmgr, cloud, axis=1, beam_axis=0)
-    add_currents(logmgr, fields, (1,0), setup["tube_length"])
+    add_currents(logmgr, fields, (1,0), setup.tube_length)
 
     stepper.add_instrumentation(logmgr)
     fields.add_instrumentation(logmgr)
     logmgr.set_constant("beta", comp.norm_2(mean_beta))
     logmgr.set_constant("gamma", gamma)
-    logmgr.set_constant("mean_v", setup["mean_v"])
-    logmgr.set_constant("Q0", setup["cloud_charge"])
-    logmgr.set_constant("n_part_0", nparticles)
+    logmgr.set_constant("mean_v", setup.mean_v)
+    logmgr.set_constant("Q0", setup.cloud_charge)
+    logmgr.set_constant("n_part_0", setup.nparticles)
     logmgr.set_constant("pmass", electrons_per_particle*units.EL_MASS)
-    logmgr.set_constant("chi", setup["chi"])
+    logmgr.set_constant("chi", setup.chi)
 
     from pytools.log import IntervalTimer
     vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
@@ -324,7 +266,7 @@ def main():
     for step in xrange(nsteps):
         logmgr.tick()
 
-        if step % setup["vis_interval"] == 0:
+        if step % setup.vis_interval == 0:
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 

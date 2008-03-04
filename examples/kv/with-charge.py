@@ -1,8 +1,6 @@
 from __future__ import division
 import pylinear.array as num
 import pylinear.computation as comp
-import pylinear.operator as op
-import cProfile as profile
 
 
 
@@ -10,17 +8,9 @@ import cProfile as profile
 def main():
     from hedge.element import TetrahedralElement
     from hedge.timestep import RK4TimeStepper
-    from hedge.mesh import \
-            make_box_mesh, \
-            make_cylinder_mesh
-    from hedge.discretization import \
-            Discretization, \
-            pair_with_boundary
     from hedge.visualization import VtkVisualizer, SiloVisualizer
     from hedge.tools import dot
-    from math import sqrt, pi
-    from pytools.arithmetic_container import \
-            ArithmeticList, join_fields
+    from math import sqrt
     from hedge.operators import MaxwellOperator, DivergenceOperator
     from kv import KVZIntervalBeam
     from random import seed
@@ -31,40 +21,81 @@ def main():
 
     seed(0)
 
-    # parse command line ------------------------------------------------------
-    from optparse import OptionParser
-    parser = OptionParser()
-    parser.add_option(
-            "--radial-subdiv", dest="radial_subdiv", default="15",
-            help="how many angular subdivisions in the surface mesh")
-    parser.add_option(
-            "--tube-length", dest="tube_length", default="0.1",
-            help="how long a beam tube [m]")
-    parser.add_option(
-            "--nparticles", dest="nparticles", default="20000",
-            help="how many particles")
-    parser.add_option(
-            "--beam-radius", dest="beam_radius", default="2.5",
-            help="radius of the beam [mm]")
-    parser.add_option(
-            "--emittance", dest="emittance", default="5",
-            help="total emittance of the beam [mm*mrad]")
-    parser.add_option(
-            "--final-time", dest="final_time", default="0.1",
-            help="how long to run the computation [m]")
-    parser.add_option(
-            "--field-dump-interval", dest="field_dump_interval", default="100",
-            help="every how many time steps to dump the fields")
+    # user interface ----------------------------------------------------------
+    def make_setup():
+        from pyrticle.reconstruction import \
+                ShapeFunctionReconstructor, \
+                NormalizedShapeFunctionReconstructor, \
+                AdvectiveReconstructor
+        from pyrticle.pusher import \
+                MonomialParticlePusher, \
+                AverageParticlePusher
 
-    options, args = parser.parse_args()
+        variables = {
+                "radial_subdiv": 15,
+                "tube_length": 0.1*units.M,
+                "tube_radius": 25*units.MM,
+                "tube_radius_inner": 2.5*units.MM,
+                "max_volume_inner": 10*units.MM**3,
+                "max_volume_outer": 100*units.MM**3,
 
-    radial_subdiv = int(options.radial_subdiv)
-    tube_length = float(options.tube_length)*units.M
-    nparticles = int(options.nparticles)
-    beam_radius = float(options.beam_radius)*units.MM
-    emittance = float(options.emittance) * units.MM * units.MRAD
-    final_time = float(options.final_time)*units.M/units.VACUUM_LIGHT_SPEED
-    field_dump_interval = int(options.field_dump_interval)
+                "element_order": 3,
+                "shape_exponent": 2,
+
+                "chi": None,
+                "phi_decay": 0,
+
+                "final_time": 0.1*units.M/units.VACUUM_LIGHT_SPEED,
+
+                "pusher": None,
+                "reconstructor": None,
+
+                "nparticles": 20000,
+                "cloud_charge": -10e-9 * units.C,
+                "beam_emittance": 5*units.MM*units.MRAD,
+                "beam_radius": 2.5*units.MM,
+                "beam_length": 5*units.MM,
+
+                "vis_interval": 100,
+                }
+
+        from pyrticle.reconstruction import \
+                ShapeFunctionReconstructor, \
+                NormalizedShapeFunctionReconstructor, \
+                AdvectiveReconstructor
+        from pyrticle.pusher import \
+                MonomialParticlePusher, \
+                AverageParticlePusher
+
+        constants = {
+                "num": num,
+                "comp": comp,
+                "units": units,
+
+                "RecShape": ShapeFunctionReconstructor,
+                "RecNormShape": NormalizedShapeFunctionReconstructor,
+                "RecAdv": AdvectiveReconstructor,
+
+                "PushMonomial": MonomialParticlePusher,
+                "PushAverage": AverageParticlePusher,
+                }
+
+        doc = {
+                "chi": "relative speed of hyp. cleaning (None for no cleaning)",
+                "tube_length": "how long a beam tube [m]",
+                "nparticles": "how many particles",
+                "beam_radius": "total radius of the beam [m]",
+                "beam_length": "Z-wise length of the beam [m]",
+                "beam_emittance": "total emittance of the beam [m*rad]",
+                "vis_interval": "how often a visualization of the fields is written",
+                "max_volume_inner": "max. tet volume in inner mesh [m^3]",
+                "max_volume_outer": "max. tet volume in outer mesh [m^3]",
+                }
+
+        from pytools import gather_parameters_from_user
+        return gather_parameters_from_user(variables, constants, doc)
+
+    setup = make_setup()
 
     # discretization setup ----------------------------------------------------
     job = Job("mesh")
@@ -75,28 +106,28 @@ def main():
     if True:
         from tubemesh import make_cylinder_with_fine_core
         full_mesh = make_cylinder_with_fine_core(
-                r=10*beam_radius, inner_r=1*beam_radius, 
-                min_z=0, max_z=tube_length,
-                max_volume_inner=10*units.MM**3,
-                max_volume_outer=100*units.MM**3,
-                radial_subdiv=radial_subdiv,
+                r=setup.tube_radius, inner_r=setup.tube_radius_inner, 
+                min_z=0, max_z=setup.tube_length,
+                max_volume_inner=setup.max_volume_inner,
+                max_volume_outer=setup.max_volume_outer,
+                radial_subdiv=setup.radial_subdiv,
                 )
     if False:
         # pillbox cavity
         from tubemesh import make_extrusion_with_fine_core
         full_mesh = make_extrusion_with_fine_core(
                 rz=[
-                    (5*beam_radius,0),
-                    (5*beam_radius,tube_length*0.333),
-                    (10*beam_radius,tube_length*0.333),
-                    (10*beam_radius,tube_length*0.666),
-                    (5*beam_radius,tube_length*0.666),
-                    (5*beam_radius,tube_length),
+                    (1*setup.tube_radius,0),
+                    (1*setup.tube_radius,setup.tube_length*0.333),
+                    (2*setup.tube_radius,setup.tube_length*0.333),
+                    (2*setup.tube_radius,setup.tube_length*0.666),
+                    (1*setup.tube_radius,setup.tube_length*0.666),
+                    (1*setup.tube_radius,setup.tube_length),
                     ],
-                inner_r=2*beam_radius, 
-                max_volume_inner=2.5*units.MM**3,
-                max_volume_outer=50*units.MM**3,
-                radial_subdiv=radial_subdiv,
+                inner_r=setup.tube_radius_inner, 
+                max_volume_inner=setup.max_volume_inner,
+                max_volume_outer=setup.max_volume_outer,
+                radial_subdiv=setup.radial_subdiv,
                 )
     job.done()
 
@@ -110,7 +141,7 @@ def main():
         mesh = pcon.receive_mesh()
 
     job = Job("discretization")
-    discr = pcon.make_discretization(mesh, TetrahedralElement(3))
+    discr = pcon.make_discretization(mesh, TetrahedralElement(setup.element_order))
     job.done()
 
     vis = SiloVisualizer(discr)
@@ -120,13 +151,18 @@ def main():
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
             upwind_alpha=1)
-    from pyrticle.hyperbolic import CleaningMaxwellOperator
-    max_op = CleaningMaxwellOperator(max_op, chi=2)
+
+    if setup.chi is not None:
+        from pyrticle.hyperbolic import ECleaningMaxwellOperator
+        max_op = ECleaningMaxwellOperator(max_op, 
+                chi=setup.chi, 
+                phi_decay=setup.phi_decay)
+
     div_op = DivergenceOperator(discr)
 
     dt = discr.dt_factor(max_op.c) / 2
-    nsteps = int(final_time/dt)+1
-    dt = final_time/nsteps
+    nsteps = int(setup.final_time/dt)+1
+    dt = setup.final_time/nsteps
 
     print "#elements=%d, dt=%s, #steps=%d" % (
             len(discr.mesh.elements), dt, nsteps)
@@ -138,44 +174,43 @@ def main():
 
     # particles setup ---------------------------------------------------------
     from pyrticle.cloud import ParticleCloud
-    from pyrticle.reconstruction import \
-            ShapeFunctionReconstructor, \
-            AdvectiveReconstructor
-    from pyrticle.pusher import MonomialParticlePusher
-    cloud = ParticleCloud(discr, units, 
-            #AdvectiveReconstructor(
-                #activation_threshold=1e-5,
-                #kill_threshold=1e-3,
-                #upwind_alpha=1),
-            ShapeFunctionReconstructor(),
-            MonomialParticlePusher(),
-            3, 3, verbose_vis=True)
 
-    cloud_charge = -10e-9 * units.C
-    electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
+    from pyrticle.reconstruction import Reconstructor
+    from pyrticle.pusher import Pusher
+
+    assert isinstance(setup.reconstructor, Reconstructor), \
+            "must specify valid reconstructor"
+    assert isinstance(setup.pusher, Pusher), \
+            "must specify valid reconstructor"
+
+    cloud = ParticleCloud(discr, units, 
+            setup.reconstructor, setup.pusher,
+            dimensions_pos=3, dimensions_velocity=3, 
+            verbose_vis=True)
+
+    electrons_per_particle = abs(setup.cloud_charge/setup.nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
     el_energy = units.EL_REST_ENERGY*10
     el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
-    #el_lorentz_gamma = 100000
     mean_beta = (1-1/el_lorentz_gamma**2)**0.5
     gamma = 1/sqrt(1-mean_beta**2)
     print "beta = %g, gamma = %g" % (mean_beta, gamma)
 
-    beam = KVZIntervalBeam(units, nparticles, 
-            p_charge=cloud_charge/nparticles, 
+    beam = KVZIntervalBeam(units, setup.nparticles, 
+            p_charge=setup.cloud_charge/setup.nparticles, 
             p_mass=electrons_per_particle*units.EL_MASS,
-            radii=2*[beam_radius],
-            emittances=2*[5 * units.MM * units.MRAD], 
-            z_length=5*units.MM,
+            radii=2*[setup.beam_radius],
+            emittances=2*[setup.beam_emittance], 
+            z_length=setup.beam_length,
             z_pos=10*units.MM,
             beta=mean_beta)
     beam.add_to(cloud, discr)
 
     from pyrticle.cloud import optimize_shape_bandwidth, guess_shape_bandwidth
-    #optimize_shape_bandwidth(cloud, discr, beam.analytic_rho(discr),
-            #plot_l1_errors=True)
-    guess_shape_bandwidth(cloud)
+    optimize_shape_bandwidth(cloud, discr, beam.analytic_rho(discr), 
+            exponent=setup.shape_exponent, plot_l1_errors=True)
+    #guess_shape_bandwidth(cloud)
 
     # initial condition -------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
@@ -203,15 +238,15 @@ def main():
     add_particle_quantities(logmgr, cloud)
     add_field_quantities(logmgr, fields)
     add_beam_quantities(logmgr, cloud, axis=0, beam_axis=2)
-    add_currents(logmgr, fields, (0,0,1), tube_length)
+    add_currents(logmgr, fields, (0,0,1), setup.tube_length)
 
     stepper.add_instrumentation(logmgr)
     fields.add_instrumentation(logmgr)
     logmgr.set_constant("beta", mean_beta)
     logmgr.set_constant("gamma", gamma)
-    logmgr.set_constant("vz", units.VACUUM_LIGHT_SPEED)
-    logmgr.set_constant("Q0", cloud_charge)
-    logmgr.set_constant("n_part_0", nparticles)
+    logmgr.set_constant("vz", mean_beta*units.VACUUM_LIGHT_SPEED)
+    logmgr.set_constant("Q0", setup.cloud_charge)
+    logmgr.set_constant("n_part_0", setup.nparticles)
     logmgr.set_constant("pmass", electrons_per_particle*units.EL_MASS)
 
     from pytools.log import IntervalTimer
@@ -239,7 +274,7 @@ def main():
         cloud.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
 
-        if step % field_dump_interval == 0:
+        if step % setup.vis_interval == 0:
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
@@ -268,5 +303,6 @@ def main():
 
 
 if __name__ == "__main__":
+    #import cProfile as profile
     #profile.run("main()", "pic.prof")
     main()
