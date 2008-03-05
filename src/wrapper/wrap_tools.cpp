@@ -116,6 +116,15 @@ void expose_tools()
   }
 
   {
+    typedef std::vector<char> cl;
+    python::class_<cl>("CharVector")
+      .def(python::vector_indexing_suite<cl>())
+      .DEF_SIMPLE_METHOD(clear)
+      .DEF_SIMPLE_METHOD(reserve)
+      ;
+  }
+
+  {
     typedef visualization_listener cl;
     python::class_<visualization_listener_wrap, 
       boost::shared_ptr<visualization_listener_wrap>,

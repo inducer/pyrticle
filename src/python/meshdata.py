@@ -42,13 +42,14 @@ class MeshData(_internal.MeshData):
         from pyrticle._internal import PeriodicityAxis
         for axis, ((ax_min, ax_max), periodicity_tags) in enumerate(zip(
                 zip(*discr.mesh.bounding_box), discr.mesh.periodicity)):
+            pa = PeriodicityAxis()
             if periodicity_tags is not None:
-                pa = PeriodicityAxis()
-                pa.axis = axis
                 pa.min = ax_min
                 pa.max = ax_max
-                pa.width = ax_max-ax_min
-                self.periodicities.append(pa)
+            else:
+                pa.min = 0
+                pa.max = 0
+            self.periodicities.append(pa)
 
         # add elements --------------------------------------------------------
         mesh = discr.mesh
@@ -73,16 +74,29 @@ class MeshData(_internal.MeshData):
             ei.normals.extend(el.face_normals)
             ei.neighbors[:] = [neighbor_map[el,fi] for fi in xrange(len(el.faces))]
 
+            face_vertices = el.face_vertices(el.vertex_indices)
+
+            def get_periodicity_axis(fi):
+                fvi = face_vertices[fi]
+                try:
+                    return mesh.periodic_opposite_faces[fvi][1]
+                except KeyError:
+                    return MeshData.INVALID_AXIS
+
+            ei.neighbor_periodicity_axes[:] = [
+                    get_periodicity_axis(fi) for fi in xrange(len(el.faces))]
+
             self.element_info.append(ei)
 
         # add vertices --------------------------------------------------------
-        vertex_to_element_map = {}
+        vertex_to_element_map = {} # map vertex to (via_periodic, el_id)
 
         for el in mesh.elements:
             for vi in el.vertex_indices:
-                vertex_to_element_map.setdefault(vi, set()).add(el.id)
-                for other_vi in mesh.periodic_opposite_vertices.get(vi, []):
-                    vertex_to_element_map.setdefault(other_vi, set()).add(el.id)
+                vertex_to_element_map.setdefault(vi, set()).add((
+                    _internal.MeshData.INVALID_AXIS, el.id))
+                for other_vi, per_axis in mesh.periodic_opposite_vertices.get(vi, []):
+                    vertex_to_element_map.setdefault(other_vi, set()).add((per_axis, el.id))
 
         self.vertices.reserve(len(mesh.points))
         self.vertices.extend(mesh.points)
@@ -94,7 +108,9 @@ class MeshData(_internal.MeshData):
         self.vertex_adj_element_starts.append(0)
 
         for vi in xrange(len(mesh.points)):
-            self.vertex_adj_elements.extend(vertex_to_element_map[vi])
+            adj_periodicity_axes, adj_ids = zip(*vertex_to_element_map[vi])
+            self.vertex_adj_elements.extend(adj_ids)
+            self.vertex_adj_periodicity_axes.extend(adj_periodicity_axes)
             self.vertex_adj_element_starts.append(
                     len(self.vertex_adj_elements))
 

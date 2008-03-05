@@ -13,4 +13,4 @@ for dir in "$@"; do
   id=${id#*-}
   cmdline="$cmdline $dir/2d.dat prefix $id: plot t_sim,$PLOTTERM"
 done
-exec logtool --legend-expr $cmdline
+exec logtool --grid --legend-expr $cmdline

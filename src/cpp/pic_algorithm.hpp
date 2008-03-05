@@ -269,20 +269,27 @@ namespace pyrticle
           bool periodicity_trip = false;
 
           hedge::vector pt = subrange(m_positions, x_pstart, x_pend);
+
+          mesh_data::axis_number per_axis = 0;
           BOOST_FOREACH(const mesh_data::periodicity_axis &pa, 
               m_mesh_data.m_periodicities)
           {
-            const double xi = pt[pa.m_axis];
-            if (xi < pa.m_min)
+            if (pa.m_min != pa.m_max)
             {
-              pt[pa.m_axis] += (pa.m_max-pa.m_min);
-              periodicity_trip = true;
+              const double xi = pt[per_axis];
+              if (xi < pa.m_min)
+              {
+                pt[per_axis] += (pa.m_max-pa.m_min);
+                periodicity_trip = true;
+              }
+              else if (xi > pa.m_max)
+              {
+                pt[per_axis] -= (pa.m_max-pa.m_min);
+                periodicity_trip = true;
+              }
             }
-            else if (xi > pa.m_max)
-            {
-              pt[pa.m_axis] -= (pa.m_max-pa.m_min);
-              periodicity_trip = true;
-            }
+
+            ++per_axis;
           }
 
           if (periodicity_trip)

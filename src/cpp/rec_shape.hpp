@@ -99,31 +99,34 @@ namespace pyrticle
       {
         PIC_THIS->add_shape_on_element(target, pos, einfo.m_id);
 
-        BOOST_FOREACH(mesh_data::element_number en, einfo.m_neighbors)
-          if (en != mesh_data::INVALID_ELEMENT)
-            PIC_THIS->add_shape_on_element(target, pos, en);
-
-        // now check if we need to redo this for periodic copies
-        BOOST_FOREACH(const mesh_data::periodicity_axis &pa,
-            CONST_PIC_THIS->m_mesh_data.m_periodicities)
+        for (unsigned i = 0; i < einfo.m_neighbors.size(); ++i)
         {
-          if (pos[pa.m_axis] - radius < pa.m_min)
-          {
-            hedge::vector pos2(pos);
-            pos2[pa.m_axis] += (pa.m_max-pa.m_min);
+          const mesh_data::element_number en = einfo.m_neighbors[i];
 
-            BOOST_FOREACH(mesh_data::element_number en, einfo.m_neighbors)
-              if (en != mesh_data::INVALID_ELEMENT)
-                PIC_THIS->add_shape_on_element(target, pos2, en);
-          }
-          if (pos[pa.m_axis] + radius > pa.m_max)
+          if (en != mesh_data::INVALID_ELEMENT)
           {
-            hedge::vector pos2(pos);
-            pos2[pa.m_axis] -= (pa.m_max-pa.m_min);
+            const mesh_data::axis_number per_axis = 
+              einfo.m_neighbor_periodicity_axes[i];
 
-            BOOST_FOREACH(mesh_data::element_number en, einfo.m_neighbors)
-              if (en != mesh_data::INVALID_ELEMENT)
+            if (per_axis == mesh_data::INVALID_AXIS)
+              PIC_THIS->add_shape_on_element(target, pos, en);
+            else
+            {
+              hedge::vector pos2(pos);
+              const mesh_data::periodicity_axis &pa = 
+                CONST_PIC_THIS->m_mesh_data.m_periodicities[per_axis];
+
+              if (pos[per_axis] - radius < pa.m_min)
+              {
+                pos2[per_axis] += (pa.m_max-pa.m_min);
                 PIC_THIS->add_shape_on_element(target, pos2, en);
+              }
+              if (pos[per_axis] + radius > pa.m_max)
+              {
+                pos2[per_axis] -= (pa.m_max-pa.m_min);
+                PIC_THIS->add_shape_on_element(target, pos2, en);
+              }
+            }
           }
         }
       }
@@ -156,37 +159,33 @@ namespace pyrticle
         const mesh_data &md = CONST_PIC_THIS->m_mesh_data;
 
         // go through vertex-adjacent elements
-        BOOST_AUTO(vertex_el_range, 
-            std::make_pair(
-              md.m_vertex_adj_elements.begin()
-              + md.m_vertex_adj_element_starts[closest_vertex],
-              md.m_vertex_adj_elements.begin()
-              + md.m_vertex_adj_element_starts[closest_vertex+1]
-              )
-            );
-        
-        BOOST_FOREACH(mesh_data::element_number en, vertex_el_range)
-          PIC_THIS->add_shape_on_element(target, pos, en);
+        unsigned start = md.m_vertex_adj_element_starts[closest_vertex];
+        unsigned stop = md.m_vertex_adj_element_starts[closest_vertex+1];
 
-        // now check if we need to redo this for periodic copies
-        BOOST_FOREACH(const mesh_data::periodicity_axis &pa,
-            md.m_periodicities)
+        for (unsigned i = start; i < stop; ++i)
         {
-          if (pos[pa.m_axis] - radius < pa.m_min)
-          {
-            hedge::vector pos2(pos);
-            pos2[pa.m_axis] += (pa.m_max - pa.m_min);
+          const mesh_data::axis_number per_axis = 
+            md.m_vertex_adj_periodicity_axes[i];
+          const mesh_data::element_number en = 
+            md.m_vertex_adj_elements[i];
 
-            BOOST_FOREACH(mesh_data::element_number en, vertex_el_range)
-              PIC_THIS->add_shape_on_element(target, pos2, en);
-          }
-          if (pos[pa.m_axis] + radius > pa.m_max)
+          if (per_axis == mesh_data::INVALID_AXIS)
+            PIC_THIS->add_shape_on_element(target, pos, en);
+          else
           {
-            hedge::vector pos2(pos);
-            pos2[pa.m_axis] -= (pa.m_max - pa.m_min);
+            const mesh_data::periodicity_axis &pa = md.m_periodicities[per_axis];
 
-            BOOST_FOREACH(mesh_data::element_number en, vertex_el_range)
+            hedge::vector pos2(pos);
+            if (pos[per_axis] - radius < pa.m_min)
+            {
+              pos2[per_axis] += (pa.m_max - pa.m_min);
               PIC_THIS->add_shape_on_element(target, pos2, en);
+            }
+            if (pos[per_axis] + radius > pa.m_max)
+            {
+              pos2[per_axis] -= (pa.m_max - pa.m_min);
+              PIC_THIS->add_shape_on_element(target, pos2, en);
+            }
           }
         }
       }

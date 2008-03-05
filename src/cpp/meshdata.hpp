@@ -49,8 +49,11 @@ namespace pyrticle
       typedef hedge::vtx_id_vector vtx_id_vector;
       typedef hedge::el_face el_face;
 
+      typedef char axis_number;
+
       static const element_number INVALID_ELEMENT = hedge::INVALID_ELEMENT;
       static const vertex_number INVALID_VERTEX = hedge::INVALID_VERTEX;
+      static const axis_number INVALID_AXIS = CHAR_MAX;
 
 
 
@@ -66,7 +69,7 @@ namespace pyrticle
 
         vtx_id_vector                  m_vertices;
 
-        /** The indices for the following two lists match up: say at matching
+        /** The indices for the following lists match up: say at matching
          * indices you find normal n and element index i, then n is the normal
          * of the face leading to element i. By corollary, if there is no 
          * neighbor past that face, INVALID_ELEMENT is stored in that entry.
@@ -74,12 +77,12 @@ namespace pyrticle
 
         std::vector<hedge::vector>      m_normals;
         std::vector<element_number>     m_neighbors;
+        std::vector<axis_number>        m_neighbor_periodicity_axes;
       };
 
 
       struct periodicity_axis
       {
-        unsigned                m_axis;
         double                  m_min, m_max;
       };
 
@@ -89,8 +92,11 @@ namespace pyrticle
       std::vector<element_info> m_element_info;
       std::vector<hedge::vector> m_vertices, m_nodes;
 
+      /** The following three encode the vertex-adjacent elements in a sort
+       * of Compressed-Row-Storage format. */
       std::vector<unsigned> m_vertex_adj_element_starts;
       el_id_vector m_vertex_adj_elements;
+      std::vector<axis_number> m_vertex_adj_periodicity_axes;
 
       std::vector<periodicity_axis> m_periodicities;
 
@@ -106,43 +112,7 @@ namespace pyrticle
 
 
       static element_number get_INVALID_ELEMENT() { return INVALID_ELEMENT; }
-
-
-
-
-      /*
-      void add_vertex(
-          vertex_number vn, 
-          const hedge::vector &pos,
-          python::object adjacent_elements)
-      {
-        if (vn != m_vertex_adj_elements.size())
-          throw std::runtime_error("vertices must be added in increasing order");
-
-        m_vertices.push_back(pos);
-
-        std::auto_ptr<el_id_vector> adj_els_cpp(new el_id_vector);
-        std::copy(
-            python::stl_input_iterator<element_number>(adjacent_elements),
-            python::stl_input_iterator<element_number>(),
-            back_inserter(*adj_els_cpp));
-
-        m_vertex_adj_elements.push_back(adj_els_cpp);
-      }
-      */
-
-
-
-
-      /*
-      void add_nodes(unsigned sizehint, python::object iterable)
-      {
-        m_nodes.reserve(sizehint);
-        python::stl_input_iterator<const hedge::vector &> 
-          first(iterable), last;
-        std::copy(first, last, std::back_inserter(m_nodes));
-      }
-      */
+      static axis_number get_INVALID_AXIS() { return INVALID_AXIS; }
 
 
 

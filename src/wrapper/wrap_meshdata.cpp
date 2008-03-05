@@ -37,6 +37,7 @@ void expose_meshdata()
     typedef mesh_data cl;
     python::class_<cl, boost::noncopyable>("MeshData", python::init<unsigned>())
       .add_static_property("INVALID_ELEMENT", &cl::get_INVALID_ELEMENT)
+      .add_static_property("INVALID_AXIS", &cl::get_INVALID_AXIS)
 
       .DEF_RW_MEMBER(nodes)
       .DEF_RO_MEMBER(dimensions)
@@ -47,6 +48,7 @@ void expose_meshdata()
 
       .DEF_RO_MEMBER(vertex_adj_element_starts)
       .DEF_RO_MEMBER(vertex_adj_elements)
+      .DEF_RO_MEMBER(vertex_adj_periodicity_axes)
 
       .DEF_RO_MEMBER(periodicities)
 
@@ -64,15 +66,16 @@ void expose_meshdata()
       .DEF_RW_MEMBER(start)
       .DEF_RW_MEMBER(end)
       .DEF_RW_MEMBER(vertices)
+
       .DEF_RW_MEMBER(normals)
       .DEF_RW_MEMBER(neighbors)
+      .DEF_RW_MEMBER(neighbor_periodicity_axes)
       ;
   }
 
   {
     typedef mesh_data::periodicity_axis cl;
     python::class_<cl>("PeriodicityAxis")
-      .DEF_RW_MEMBER(axis)
       .DEF_RW_MEMBER(min)
       .DEF_RW_MEMBER(max)
       ;
