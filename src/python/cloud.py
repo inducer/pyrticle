@@ -678,6 +678,11 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False,
     if rhovis:
         vis.close()
 
+    if plot_l1_errors:
+        from pylab import plot, show
+        plot(tried_radii, l1_errors)
+        show()
+
     from pytools import argmin
     min_idx = argmin(l1_errors)
     min_rad = tried_radii[min_idx]
@@ -708,11 +713,6 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False,
 
     print "radius: optimum l1 error=%g, chosen l1 error=%g" % (
             min_l1_error, chosen_l1_error)
-
-    if plot_l1_errors:
-        from pylab import plot, show
-        plot(tried_radii, l1_errors)
-        show()
 
     set_radius(chosen_rad)
     cloud.derived_quantity_cache.clear()

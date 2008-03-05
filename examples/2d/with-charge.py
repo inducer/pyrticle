@@ -80,6 +80,7 @@ def main():
 
                 "element_order": 7,
                 "shape_exponent": 2,
+                "shape_bandwidth": "optimize",
 
                 "chi": None, # 
                 "phi_decay": 0,
@@ -123,7 +124,8 @@ def main():
                 }
 
         doc = {
-                "chi": "relative speed of hyp. cleaning (None for no cleaning)"
+                "chi": "relative speed of hyp. cleaning (None for no cleaning)",
+                "shape_bandwidth": "either 'optimize', 'guess' or a positive real number",
                 }
 
         from pytools import gather_parameters_from_user
@@ -215,9 +217,20 @@ def main():
             sigma_p=gamma*pmass*setup.sigma_v)
     gauss_p.add_to(cloud, setup.nparticles)
 
-    from pyrticle.cloud import optimize_shape_bandwidth
-    optimize_shape_bandwidth(cloud, discr, gauss_p.analytic_rho(discr),
-            setup.shape_exponent)
+    from pyrticle.cloud import optimize_shape_bandwidth, guess_shape_bandwidth
+    if setup.shape_bandwidth == "optimize":
+        optimize_shape_bandwidth(cloud, discr, gauss_p.analytic_rho(discr),
+                setup.shape_exponent)
+    elif setup.shape_bandwidth == "guess":
+        guess_shape_bandwidth(cloud, setup.shape_exponent)
+    else:
+        from pyrticle._internal import ShapeFunction
+        cloud.reconstructor.set_shape_function(
+                ShapeFunction(
+                    float(setup.shape_bandwidth),
+                    cloud.mesh_data.dimensions,
+                    exponent,
+                    ))
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition

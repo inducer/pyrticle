@@ -49,11 +49,11 @@ namespace pyrticle
       typedef hedge::vtx_id_vector vtx_id_vector;
       typedef hedge::el_face el_face;
 
-      typedef char axis_number;
+      typedef unsigned axis_number;
 
       static const element_number INVALID_ELEMENT = hedge::INVALID_ELEMENT;
       static const vertex_number INVALID_VERTEX = hedge::INVALID_VERTEX;
-      static const axis_number INVALID_AXIS = CHAR_MAX;
+      static const axis_number INVALID_AXIS = UINT_MAX;
 
 
 
