@@ -143,3 +143,4 @@ class NumberShiftableVector(object):
     def reset(self, start, size):
         m = self.multiplier
         self.vector[start*m:(start+size)*m] = 0
+

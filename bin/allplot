@@ -11,6 +11,6 @@ shift
 for dir in "$@"; do
   id=${dir%-20??-??-??-??????} # remove timestamp
   id=${id#*-}
-  cmdline="$cmdline $dir/2d.dat prefix $id: plot t_sim,$PLOTTERM"
+  cmdline="$cmdline $dir/2d.dat prefix $id: plot step,$PLOTTERM"
 done
 exec logtool --grid --legend-expr $cmdline

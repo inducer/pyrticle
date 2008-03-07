@@ -58,6 +58,8 @@ namespace pyrticle
     typedef PIC cl;
 
     wrp
+      .DEF_RO_MEMBER(e_normalization_stats)
+      .DEF_RO_MEMBER(b_normalization_stats)
       .DEF_SIMPLE_METHOD(setup_averaging_particle_pusher)
       ;
   }

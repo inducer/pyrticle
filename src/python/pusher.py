@@ -28,16 +28,38 @@ import pylinear.computation as comp
 
 
 class Pusher(object):
+    def __init__(self):
+        from pytools.log import IntervalTimer, EventCounter
+
+        self.force_timer = IntervalTimer(
+                "t_force",
+                "Time spent calculating forces")
+
+    def initialize(self, cloud):
+        self.cloud = cloud
+
     def add_instrumentation(self, mgr):
-        pass
+        mgr.add_quantity(self.force_timer)
+
+    def forces(self, velocities, verbose_vis, *field_args):
+        self.force_timer.start()
+        forces = self.pic_algorithm.forces(
+                velocities=velocities,
+                verbose_vis=self.verbose_vis,
+                *field_args
+                )
+        self.force_timer.stop()
 
 
 
 
+# monomial pusher -------------------------------------------------------------
 class MonomialParticlePusher(Pusher):
     name = "Monomial"
 
     def initialize(self, cloud):
+        Pusher.initialize(self, cloud)
+
         # add monomial basis data ---------------------------------------------
         from hedge.polynomial import generic_vandermonde
         from pyrticle._internal import MonomialBasisFunction
@@ -64,6 +86,7 @@ class MonomialParticlePusher(Pusher):
 
 
 
+# average pusher instrumentation ----------------------------------------------
 class AverageFieldStdDeviation(pytools.log.LogQuantity):
     def __init__(self, pusher, field, name, unit):
         if name is None:
@@ -75,13 +98,14 @@ class AverageFieldStdDeviation(pytools.log.LogQuantity):
 
         self.pusher = pusher
         self.vis_field = "pt_%s_stddev" % field
+
     def __call__(self):
         vis_info = self.pusher.cloud.vis_info
         if self.vis_field not in vis_info:
-            return 0
+            return None
         sd = vis_info[self.vis_field]
         if not sd:
-            return 0
+            return None
 
         from pyrticle.tools import NumberShiftableVector
         sd = NumberShiftableVector.unwrap(sd)
@@ -107,11 +131,12 @@ class AverageBFieldStdDeviation(AverageFieldStdDeviation):
 
 
 
+# average pusher --------------------------------------------------------------
 class AverageParticlePusher(Pusher):
     name = "Average"
 
     def initialize(self, cloud):
-        self.cloud = cloud
+        Pusher.initialize(self, cloud)
 
         eg, = cloud.mesh_data.discr.element_groups
         ldis = eg.local_discretization
@@ -120,6 +145,25 @@ class AverageParticlePusher(Pusher):
                 ldis.mass_matrix())
 
     def add_instrumentation(self, mgr):
+        Pusher.add_instrumentation(self, mgr)
+
         mgr.add_quantity(AverageEFieldStdDeviation(self))
         mgr.add_quantity(AverageBFieldStdDeviation(self))
+
+        from pyrticle.log import StatsGathererLogQuantity
+        mgr.add_quantity(StatsGathererLogQuantity(
+            self.cloud.pic_algorithm.e_normalization_stats,
+            "avgpush_enorm", "1", 
+            "normalization constants applied to E-field during averaging particle push"))
+        mgr.add_quantity(StatsGathererLogQuantity(
+            self.cloud.pic_algorithm.b_normalization_stats,
+            "avgpush_bnorm", "1", 
+            "normalization constants applied to B-field during averaging particle push"))
+
+    def forces(self, velocities, verbose_vis, *field_args):
+            self.cloud.pic_algorithm.e_normalization_stats.reset()
+            self.cloud.pic_algorithm.b_normalization_stats.reset()
+            return Pusher.forces(velocities, verbose_vis, *field_args)
+
+    
 

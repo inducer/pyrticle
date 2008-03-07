@@ -30,6 +30,39 @@ import pylinear.computation as comp
 
 
 
+# generic StatsGatherer logging -----------------------------------------------
+class StatsGathererLogQuantity(MultiLogQuantity):
+    def __init__(self, gatherer, basename, unit, description):
+        MultiLogQuantity.__init__(self, 
+                names=[
+                    "%s_mean" % basename,
+                    "%s_stddev" % basename,
+                    "%s_min" % basename,
+                    "%s_max" % basename,
+                    ],
+                    units=4 * [unit], 
+                    descriptions=[
+                        "Mean of %s" % description,
+                        "Standard deviation of %s" % description,
+                        "Minimum of %s" % description,
+                        "Maximum of %s" % description,
+                        ])
+
+        self.gatherer = gatherer
+
+    def __call__(self):
+        if self.gatherer.count():
+            return [self.gatherer.mean(), 
+                    self.gatherer.standard_deviation(),
+                    self.gatherer.minimum(),
+                    self.gatherer.maximum()
+                    ]
+        else:
+            return [None, None, None, None]
+
+
+
+
 # Particle quantities ---------------------------------------------------------
 class ParticleCount(LogQuantity):
     def __init__(self, cloud, name="n_part"):

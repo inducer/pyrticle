@@ -53,6 +53,8 @@ namespace pyrticle
       hedge::vector m_shape_interpolant;
       unsigned m_used_shape_dofs;
 
+      stats_gatherer<double> &m_normalization_stats;
+
 
 
       struct shape_element {
@@ -80,12 +82,15 @@ namespace pyrticle
       normalizing_target(
          const mesh_data &mesh_data,
          const hedge::vector &integral_weights,
-         Target &target)
+         Target &target,
+         stats_gatherer<double> &normalization_stats
+         )
         : 
           m_mesh_data(mesh_data),
           m_integral_weights(integral_weights),
           m_target(target), 
-          m_shape_interpolant(100)
+          m_shape_interpolant(100),
+          m_normalization_stats(normalization_stats)
       { }
 
 
@@ -153,6 +158,7 @@ namespace pyrticle
                   % m_particle_shape_elements.size()).c_str());
 
         const double scale = charge/m_integral;
+        m_normalization_stats.add(scale);
 
         m_target.begin_particle(pn);
         BOOST_FOREACH(const shape_element &sel, m_particle_shape_elements)
@@ -180,6 +186,9 @@ namespace pyrticle
         // member data --------------------------------------------------------
         shape_function                  m_shape_function;
         hedge::vector                   m_integral_weights;
+
+        mutable stats_gatherer<double>  m_normalization_stats;
+        mutable stats_gatherer<double>  m_centroid_distance_stats;
 
 
 
@@ -211,10 +220,13 @@ namespace pyrticle
         template<class Target>
         void reconstruct_densities_on_target(Target &tgt)
         {
+          m_normalization_stats.reset();
+          m_centroid_distance_stats.reset();
+
           normalizing_target<Target> norm_tgt(
               CONST_PIC_THIS->m_mesh_data,
               m_integral_weights,
-              tgt);
+              tgt, m_normalization_stats);
 
           for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {
@@ -235,10 +247,12 @@ namespace pyrticle
             const mesh_data::element_number en
             ) const
         {
-          norm_tgt.add_shape_on_element(
-              CONST_PIC_THIS->m_mesh_data.m_element_info[en],
-              center,
-              m_shape_function);
+          const mesh_data::element_info &einfo = CONST_PIC_THIS->m_mesh_data.m_element_info[en];
+          hedge::vector centroid = einfo.centroid(CONST_PIC_THIS->m_mesh_data.m_vertices);
+
+          m_centroid_distance_stats.add(norm_2(centroid-center));
+
+          norm_tgt.add_shape_on_element(einfo, center, m_shape_function);
         }
     };
   };

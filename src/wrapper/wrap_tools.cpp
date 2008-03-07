@@ -138,4 +138,18 @@ void expose_tools()
       ;
   }
 
+  {
+    typedef stats_gatherer<double> cl;
+    python::class_<cl>("StatsGatherer")
+      .DEF_SIMPLE_METHOD(add)
+      .DEF_SIMPLE_METHOD(reset)
+      .DEF_SIMPLE_METHOD(count)
+      .DEF_SIMPLE_METHOD(minimum)
+      .DEF_SIMPLE_METHOD(maximum)
+      .DEF_SIMPLE_METHOD(mean)
+      .DEF_SIMPLE_METHOD(variance)
+      .DEF_SIMPLE_METHOD(standard_deviation)
+      ;
+  }
+
 }

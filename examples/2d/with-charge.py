@@ -73,6 +73,7 @@ def main():
         c0 = units.VACUUM_LIGHT_SPEED
 
         variables = {
+                "mesh": None,
                 "tube_length": 2,
                 "tube_width": 1,
                 "tube_periodic": True,
@@ -134,7 +135,7 @@ def main():
     setup = make_setup()
 
     # discretization setup ----------------------------------------------------
-    if "mesh" not in dir(setup):
+    if setup.mesh is None:
         from hedge.mesh import make_rect_mesh
         setup.mesh = make_rect_mesh(
                 a=(-0.5, -setup.tube_width/2),
@@ -142,6 +143,17 @@ def main():
                 periodicity=(setup.tube_periodic, False),
                 subdivisions=(10,5),
                 max_area=setup.tube_max_tri_area)
+    elif setup.mesh == "glued":
+        from special_meshes import make_glued_rect_mesh
+        setup.mesh = make_glued_rect_mesh(
+                a=(-0.5, -setup.tube_width/2),
+                b=(-0.5+setup.tube_length, setup.tube_width/2),
+                periodicity=(setup.tube_periodic, False),
+                subdivisions=(10,5),
+                max_area=setup.tube_max_tri_area)
+    else:
+        from hedge.mesh import Mesh
+        assert isinstance(setup.mesh, Mesh)
 
     from hedge.parallel import guess_parallelization_context
 

@@ -78,6 +78,17 @@ namespace pyrticle
         std::vector<hedge::vector>      m_normals;
         std::vector<element_number>     m_neighbors;
         std::vector<axis_number>        m_neighbor_periodicity_axes;
+
+        hedge::vector centroid(const std::vector<hedge::vector> &vertex_points) const
+        {
+          hedge::vector result(vertex_points[m_vertices[0]]);
+
+          for (unsigned i = 1; i < m_vertices.size(); ++i)
+            result += vertex_points[m_vertices[i]];
+
+          result /= m_vertices.size();
+          return result;
+        }
       };
 
 

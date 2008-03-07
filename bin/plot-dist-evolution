@@ -1,0 +1,8 @@
+#! /bin/sh
+
+logtool $1 --grid --legend-expr \
+  plot step,$2_mean \
+  plot step,$2_mean+$2_stddev \
+  plot step,$2_mean-$2_stddev \
+  plot step,$2_min \
+  plot step,$2_max

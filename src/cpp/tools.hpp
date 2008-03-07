@@ -207,6 +207,75 @@ namespace pyrticle
 
 
 
+  template <class T>
+  class stats_gatherer
+  {
+    private:
+      unsigned m_count;
+      T m_sum, m_square_sum;
+      T m_min, m_max;
+
+    public:
+      stats_gatherer()
+        : m_count(0), m_sum(0), m_square_sum(0)
+      { }
+
+      void add(T x)
+      {
+        m_sum += x;
+        m_square_sum += square(x);
+
+        if (m_count == 0 || x < m_min)
+          m_min = x;
+
+        if (m_count == 0 || x > m_max)
+          m_max = x;
+
+        ++m_count;
+      }
+
+      void reset()
+      {
+        m_count = 0;
+        m_sum = 0;
+        m_square_sum = 0;
+      }
+
+      unsigned count() const
+      { return m_count; }
+
+      T minimum() const
+      { return m_min; }
+
+      T maximum() const
+      { return m_max; }
+
+      T mean() const
+      {
+        if (m_count == 0)
+          throw std::runtime_error("attempted to take empty mean");
+
+        return m_sum/m_count;
+      }
+
+      T variance() const
+      {
+        if (m_count == 0)
+          throw std::runtime_error("attempted to take empty mean");
+
+        return m_square_sum/m_count - square(mean());
+      }
+
+      T standard_deviation() const
+      {
+        return sqrt(variance());
+      }
+
+  };
+
+
+
+
   class visualization_listener
   {
     public:

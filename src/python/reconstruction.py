@@ -79,6 +79,20 @@ class NormalizedShapeFunctionReconstructor(Reconstructor):
         cloud.pic_algorithm.setup_normalized_shape_reconstructor(
                 ldis.mass_matrix())
 
+    def add_instrumentation(self, mgr):
+        Reconstructor.add_instrumentation(self, mgr)
+
+        from pyrticle.log import StatsGathererLogQuantity
+        mgr.add_quantity(StatsGathererLogQuantity(
+            self.cloud.pic_algorithm.normalization_stats,
+            "normshape_norm", "1", 
+            "normalization constants applied during reconstruction"))
+
+        mgr.add_quantity(StatsGathererLogQuantity(
+            self.cloud.pic_algorithm.centroid_distance_stats,
+            "normshape_centroid_dist", "m", 
+            "distance of shape center from element centroid"))
+
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf
@@ -137,19 +151,6 @@ class AdvectiveReconstructor(Reconstructor):
         self.active_elements_log = ActiveAdvectiveElements(self)
 
 
-    def add_instrumentation(self, mgr):
-        mgr.add_quantity(self.element_activation_counter)
-        mgr.add_quantity(self.element_kill_counter)
-        mgr.add_quantity(self.advective_rhs_timer)
-        mgr.add_quantity(self.active_elements_log)
-
-        mgr.set_constant("el_activation_threshold", self.activation_threshold)
-        mgr.set_constant("el_kill_threshold", self.kill_threshold)
-        mgr.set_constant("adv_upwind_alpha", self.upwind_alpha)
-
-        mgr.set_constant("filter_amp", self.filter_amp)
-        mgr.set_constant("filter_amp", self.filter_order)
-
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
 
@@ -188,6 +189,21 @@ class AdvectiveReconstructor(Reconstructor):
             cloud.pic_algorithm.add_local_diff_matrix(i, diffmat)
 
         cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
+
+    def add_instrumentation(self, mgr):
+        Reconstructor.add_instrumentation(self, mgr)
+
+        mgr.add_quantity(self.element_activation_counter)
+        mgr.add_quantity(self.element_kill_counter)
+        mgr.add_quantity(self.advective_rhs_timer)
+        mgr.add_quantity(self.active_elements_log)
+
+        mgr.set_constant("el_activation_threshold", self.activation_threshold)
+        mgr.set_constant("el_kill_threshold", self.kill_threshold)
+        mgr.set_constant("adv_upwind_alpha", self.upwind_alpha)
+
+        mgr.set_constant("filter_amp", self.filter_amp)
+        mgr.set_constant("filter_amp", self.filter_order)
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)

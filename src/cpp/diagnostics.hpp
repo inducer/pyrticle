@@ -109,14 +109,18 @@ namespace pyrticle
     if (pic.m_particle_count == 0)
       return 0;
 
+    double mean_x = 0;
+    double mean_xp = 0;
     double mean_x_squared = 0;
-    double mean_p_squared = 0;
-    double squared_mean_xxp = 0;
+    double mean_xp_squared = 0;
+    double mean_xxp = 0;
 
+    // see doc/notes-2.tm
     for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
     {
       const double x = pic.m_positions[pn*pic.get_dimensions_pos() + axis];
 
+      mean_x += x;
       mean_x_squared += square(x);
 
       const double px = pic.m_momenta[pn*pic.get_dimensions_velocity() + axis];
@@ -124,16 +128,29 @@ namespace pyrticle
 
       const double xprime = pz ? px/pz : 0;
 
-      mean_p_squared += square(xprime);
+      mean_xp += xprime;
+      mean_xp_squared += square(xprime);
 
-      squared_mean_xxp += x*xprime;
+      mean_xxp += x*xprime;
     }
 
-    mean_x_squared /= pic.m_particle_count;
-    mean_p_squared /= pic.m_particle_count;
-    squared_mean_xxp = square(squared_mean_xxp/pic.m_particle_count);
+    mean_x /= pic.m_particle_count;
+    mean_xp /= pic.m_particle_count;
 
-    return sqrt(mean_x_squared*mean_p_squared - squared_mean_xxp);
+    mean_x_squared /= pic.m_particle_count;
+    mean_xp_squared /= pic.m_particle_count;
+
+    mean_xxp /= pic.m_particle_count;
+
+    return sqrt(
+        mean_x_squared*mean_xp_squared
+        - square(mean_x)*mean_xp_squared
+        - mean_x_squared*square(mean_xp)
+        - (
+          square(mean_xxp)
+          -2*mean_xxp*mean_x*mean_xp
+          )
+        );
   }
 
 

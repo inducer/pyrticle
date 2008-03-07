@@ -130,10 +130,6 @@ class ParticleCloud:
                 "n_find_global",
                 "#Particles found by global search")
 
-        self.force_timer = IntervalTimer(
-                "t_force",
-                "Time spent calculating forces")
-
     def __len__(self):
         return self.pic_algorithm.particle_count
 
@@ -146,8 +142,6 @@ class ParticleCloud:
         mgr.add_quantity(self.find_by_neighbor_counter)
         mgr.add_quantity(self.find_by_vertex_counter)
         mgr.add_quantity(self.find_global_counter)
-
-        mgr.add_quantity(self.force_timer)
 
         self.reconstructor.add_instrumentation(mgr)
         self.pusher.add_instrumentation(mgr)
@@ -374,13 +368,11 @@ class ParticleCloud:
         field_args = tuple(e) + tuple(b)
 
         # compute forces
-        self.force_timer.start()
         forces = self.pic_algorithm.forces(
                 velocities=velocities,
                 verbose_vis=self.verbose_vis,
                 *field_args
                 )
-        self.force_timer.stop()
 
         from pyrticle.tools import NumberShiftableVector
         result = ArithmeticList([

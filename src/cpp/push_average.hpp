@@ -217,6 +217,7 @@ namespace pyrticle
   {
     private:
       typedef force_averaging_target<DimensionsVelocity, FX, FY, FZ> super;
+      stats_gatherer<double> *m_normalization_stats;
       const hedge::vector  &m_charges;
       hedge::vector  &m_result;
 
@@ -227,6 +228,7 @@ namespace pyrticle
           const FX &fx, const FY &fy, const FZ &fz,
           hedge::vector *particlewise_field,
           hedge::vector *field_stddev,
+          stats_gatherer<double> *normalization_stats,
           const hedge::vector &charges,
           hedge::vector &result
           )
@@ -234,6 +236,7 @@ namespace pyrticle
           super(md, integral_weights, 
               fx, fy, fz, 
               particlewise_field, field_stddev),
+          m_normalization_stats(normalization_stats),
           m_charges(charges),
           m_result(result)
       { }
@@ -250,6 +253,9 @@ namespace pyrticle
           return;
 
         const double scale = m_charges[pn]/this->m_particle_charge;
+
+        if (m_normalization_stats)
+          m_normalization_stats->add(scale);
 
         noalias(subrange(this->m_result, pstart, pend)) += 
           scale*subrange(
@@ -269,6 +275,7 @@ namespace pyrticle
       typedef force_averaging_target<DimensionsVelocity, FX, FY, FZ> super;
       const hedge::vector               &m_velocities;
       
+      stats_gatherer<double> *m_normalization_stats;
       const hedge::vector  &m_charges;
       hedge::vector  &m_result;
 
@@ -280,6 +287,7 @@ namespace pyrticle
           const hedge::vector &velocities,
           hedge::vector *particlewise_field,
           hedge::vector *field_stddev,
+          stats_gatherer<double> *normalization_stats,
           const hedge::vector &charges,
           hedge::vector &result
           )
@@ -288,6 +296,7 @@ namespace pyrticle
               fx, fy, fz, 
               particlewise_field, field_stddev), 
           m_velocities(velocities),
+          m_normalization_stats(normalization_stats),
           m_charges(charges),
           m_result(result)
       { }
@@ -304,6 +313,9 @@ namespace pyrticle
           return;
 
         const double scale = m_charges[pn]/this->m_particle_charge;
+
+        if (m_normalization_stats)
+          m_normalization_stats->add(scale);
 
         noalias(subrange(this->m_result, pstart, pend)) += 
           subrange(
@@ -326,6 +338,9 @@ namespace pyrticle
         hedge::vector   m_integral_weights;
 
       public:
+        stats_gatherer<double> m_e_normalization_stats;
+        stats_gatherer<double> m_b_normalization_stats;
+
         static const char *get_name()
         { return "Average"; }
 
@@ -385,9 +400,11 @@ namespace pyrticle
 
           el_tgt_t el_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,
               ex, ey, ez, vis_e.get(), vis_e_stddev.get(), 
+              &m_e_normalization_stats,
               CONST_PIC_THIS->m_charges, el_force);
           mag_tgt_t mag_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,
               bx, by, bz, velocities, vis_b.get(), vis_b_stddev.get(), 
+              &m_b_normalization_stats,
               CONST_PIC_THIS->m_charges, mag_force);
 
           chained_reconstruction_target<el_tgt_t, mag_tgt_t> force_tgt(el_tgt, mag_tgt);
