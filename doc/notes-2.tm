@@ -21,9 +21,13 @@
     <tformat|<table|<row|<cell|\<partial\><rsub|t>E-<frac|1|\<varepsilon\>>\<nabla\>\<times\>H+c<rsup|2>\<nabla\>\<Phi\>>|<cell|=>|<cell|-<frac|j|\<varepsilon\><rsub|0>>>>|<row|<cell|\<partial\><rsub|t>H+<frac|1|\<mu\>>\<nabla\>\<times\>E>|<cell|=>|<cell|0>>|<row|<cell|\<partial\><rsub|t>\<Phi\>+\<chi\><rsup|2>\<nabla\>\<cdot\>E>|<cell|=>|<cell|\<chi\><rsup|2><frac|\<rho\>|\<varepsilon\><rsub|0>>>>>>
   </eqnarray*>
 
-  <section|Hyperbolic Cleaning of <math|div E> and <math|div H>>
+  <section|RMS Emittance>
 
-  \;
+  <math|<with|mode|text|<assign|mean|<macro|arg|\<langle\><arg|arg>\<rangle\>>>>>
+
+  <\eqnarray*>
+    <tformat|<table|<row|<cell|\<varepsilon\><rsub|y><rsup|2>>|<cell|=>|<cell|<mean|(y-<mean|y>)<rsup|2>><mean|(y<rprime|'>-<mean|y<rprime|'>>)<rsup|2>>-<mean|(y-<mean|y>)(y<rprime|'>-<mean|y<rprime|'>>)><rsup|2>>>|<row|<cell|>|<cell|=>|<cell|<mean|y<rsup|2>-2y<mean|y>+<mean|y><rsup|2>><mean|(y<rprime|'>-<mean|y<rprime|'>>)<rsup|2>>-<mean|(y-<mean|y>)(y<rprime|'>-<mean|y<rprime|'>>)><rsup|2>>>|<row|<cell|>|<cell|=>|<cell|[<mean|y<rsup|2>>-<mean|y><rsup|2>][<mean|y<rprime|'><rsup|2>>-<mean|y<rprime|'>><rsup|2>]-<mean|y*y<rprime|'>-<mean|y>y<rprime|'>-y<mean|y<rprime|'>>+<mean|y><mean|y<rprime|'>>><rsup|2>>>|<row|<cell|>|<cell|=>|<cell|[<mean|y<rsup|2>><mean|y<rprime|'><rsup|2>>-<mean|y><rsup|2><mean|y<rprime|'><rsup|2>>-<mean|y<rsup|2>><mean|y<rprime|'>><rsup|2>+<mean|y><rsup|2><mean|y<rprime|'>><rsup|2>]-[<mean|y*y<rprime|'>>-<mean|y><mean|y<rprime|'>>]<rsup|2>>>|<row|<cell|>|<cell|=>|<cell|[<mean|y<rsup|2>><mean|y<rprime|'><rsup|2>>-<mean|y><rsup|2><mean|y<rprime|'><rsup|2>>-<mean|y<rsup|2>><mean|y<rprime|'>><rsup|2>+<mean|y><rsup|2><mean|y<rprime|'>><rsup|2>]-[<mean|y*y<rprime|'>><rsup|2>-2<mean|y*y<rprime|'>><mean|y><mean|y<rprime|'>>+<mean|y><rsup|2><mean|y<rprime|'>><rsup|2>]>>|<row|<cell|>|<cell|=>|<cell|[<mean|y<rsup|2>><mean|y<rprime|'><rsup|2>>-<mean|y><rsup|2><mean|y<rprime|'><rsup|2>>-<mean|y<rsup|2>><mean|y<rprime|'>><rsup|2>]-[<mean|y*y<rprime|'>><rsup|2>-2<mean|y*y<rprime|'>><mean|y><mean|y<rprime|'>>]>>>>
+  </eqnarray*>
 </body>
 
 <\initial>
