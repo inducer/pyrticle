@@ -380,6 +380,8 @@ namespace pyrticle
         : pic_data(mesh_dimensions, vacuum_c)
       { }
 
+      virtual ~pic() { } // placate old versions of gcc
+
       // visualization-related ------------------------------------------------
       boost::shared_ptr<visualization_listener> m_vis_listener;
 

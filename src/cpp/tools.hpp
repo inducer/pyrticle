@@ -279,6 +279,9 @@ namespace pyrticle
   class visualization_listener
   {
     public:
+      virtual ~visualization_listener()
+      { }
+
       virtual void store_particle_vis_vector(
           const char *name,
           const hedge::vector &vec,
@@ -292,6 +295,9 @@ namespace pyrticle
   class number_shift_listener
   {
     public:
+      virtual ~number_shift_listener()
+      { }
+
       virtual void note_change_size(unsigned new_size) const 
       { }
       virtual void note_move(unsigned orig, unsigned dest, unsigned size) const 
