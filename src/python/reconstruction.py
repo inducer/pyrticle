@@ -93,6 +93,11 @@ class NormalizedShapeFunctionReconstructor(Reconstructor):
             "normshape_centroid_dist", "m", 
             "distance of shape center from element centroid"))
 
+        mgr.add_quantity(StatsGathererLogQuantity(
+            self.cloud.pic_algorithm.el_per_particle_stats,
+            "normshape_el_per_particle", "1", 
+            "number of elements per particle"))
+
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf

@@ -189,6 +189,8 @@ namespace pyrticle
 
         mutable stats_gatherer<double>  m_normalization_stats;
         mutable stats_gatherer<double>  m_centroid_distance_stats;
+        mutable stats_gatherer<double>  m_el_per_particle_stats;
+        mutable unsigned                m_element_counter;
 
 
 
@@ -222,6 +224,7 @@ namespace pyrticle
         {
           m_normalization_stats.reset();
           m_centroid_distance_stats.reset();
+          m_el_per_particle_stats.reset();
 
           normalizing_target<Target> norm_tgt(
               CONST_PIC_THIS->m_mesh_data,
@@ -231,7 +234,9 @@ namespace pyrticle
           for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {
             norm_tgt.begin_particle();
+            m_element_counter = 0;
             add_shape(norm_tgt, pn, m_shape_function.radius());
+            m_el_per_particle_stats.add(m_element_counter);
             norm_tgt.end_particle(pn, CONST_PIC_THIS->m_charges[pn]);
           }
         }
@@ -253,6 +258,7 @@ namespace pyrticle
           m_centroid_distance_stats.add(norm_2(centroid-center));
 
           norm_tgt.add_shape_on_element(einfo, center, m_shape_function);
+          ++m_element_counter;
         }
     };
   };

@@ -55,6 +55,7 @@ namespace pyrticle
     wrp
       .DEF_RO_MEMBER(normalization_stats)
       .DEF_RO_MEMBER(centroid_distance_stats)
+      .DEF_RO_MEMBER(el_per_particle_stats)
       .DEF_RW_MEMBER(shape_function)
       .DEF_SIMPLE_METHOD(setup_normalized_shape_reconstructor)
       ;
