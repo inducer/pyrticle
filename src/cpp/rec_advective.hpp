@@ -592,10 +592,10 @@ namespace pyrticle
             const mesh_data::element_info &einfo = *el.m_element_info;
 
             unsigned fn = 0;
-            BOOST_FOREACH(mesh_data::element_number neighbor, einfo.m_neighbors)
+            BOOST_FOREACH(const mesh_data::face_info &f, einfo.m_faces)
             {
-              if (new_particle.find_element(neighbor))
-                el.m_connections[fn] = neighbor;
+              if (new_particle.find_element(f.m_neighbor))
+                el.m_connections[fn] = f.m_neighbor;
               ++fn;
             }
           }
@@ -859,8 +859,9 @@ namespace pyrticle
 
                     // update connections
                     hedge::face_number opp_fn = 0;
-                    BOOST_FOREACH(hedge::element_number opp_neigh_en, opp_einfo.m_neighbors)
+                    BOOST_FOREACH(const mesh_data::face_info &opp_face, opp_einfo.m_faces)
                     {
+                      const hedge::element_number opp_neigh_en = opp_face.m_neighbor;
                       active_element *opp_neigh_el = p.find_element(opp_neigh_en);
                       if (opp_neigh_el)
                       {
@@ -889,10 +890,16 @@ namespace pyrticle
                         // Next, tell opp_neigh that opp exists.
                         const mesh_data::element_info &opp_neigh_einfo(
                             CONST_PIC_THIS->m_mesh_data.m_element_info[opp_neigh_en]);
-                        unsigned opp_index_in_opp_neigh = std::find(
-                              opp_neigh_einfo.m_neighbors.begin(),
-                              opp_neigh_einfo.m_neighbors.end(),
-                              opp_en) - opp_neigh_einfo.m_neighbors.begin();
+
+                        mesh_data::face_number opp_index_in_opp_neigh = 0;
+                        for (;opp_index_in_opp_neigh < opp_neigh_einfo.m_faces.size()
+                            ;++opp_index_in_opp_neigh)
+                          if (opp_neigh_einfo.m_faces[opp_index_in_opp_neigh].m_neighbor
+                              == opp_en)
+                            break;
+
+                        if (opp_index_in_opp_neigh == opp_neigh_einfo.m_faces.size())
+                          throw std::runtime_error("opp not found in opp_neigh");
 
                         opp_neigh_el->m_connections[opp_index_in_opp_neigh] = opp_en;
                       }

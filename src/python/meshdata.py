@@ -61,7 +61,7 @@ class MeshData(_internal.MeshData):
         for face in discr.mesh.tag_to_boundary[TAG_ALL]:
             neighbor_map[face] = MeshData.INVALID_ELEMENT
 
-        from pyrticle._internal import ElementInfo
+        from pyrticle._internal import ElementInfo, FaceInfo
 
         self.element_info.reserve(len(mesh.elements))
         for i, el in enumerate(mesh.elements):
@@ -71,20 +71,21 @@ class MeshData(_internal.MeshData):
             ei.jacobian = abs(el.map.jacobian)
             ei.start, ei.end = discr.find_el_range(el.id)
             ei.vertices.extend([vi for vi in el.vertex_indices])
-            ei.normals.extend(el.face_normals)
-            ei.neighbors[:] = [neighbor_map[el,fi] for fi in xrange(len(el.faces))]
 
             face_vertices = el.face_vertices(el.vertex_indices)
 
-            def get_periodicity_axis(fi):
-                fvi = face_vertices[fi]
-                try:
-                    return mesh.periodic_opposite_faces[fvi][1]
-                except KeyError:
-                    return MeshData.INVALID_AXIS
+            for face_idx, face_normal in enumerate(el.face_normals):
+                fi = FaceInfo()
+                fi.normal = face_normal
+                fi.neighbor = neighbor_map[el, face_idx] 
 
-            ei.neighbor_periodicity_axes[:] = [
-                    get_periodicity_axis(fi) for fi in xrange(len(el.faces))]
+                fvi = face_vertices[face_idx]
+                try:
+                    fi.neighbor_periodicity_axis = mesh.periodic_opposite_faces[fvi][1]
+                except KeyError:
+                    fi.neighbor_periodicity_axis = MeshData.INVALID_AXIS
+
+                ei.faces.append(fi)
 
             self.element_info.append(ei)
 

@@ -151,9 +151,12 @@ namespace pyrticle
               double max_ip = 0;
               unsigned normal_idx = 0;
 
-              BOOST_FOREACH(const hedge::vector &n, prev_el.m_normals)
+              BOOST_FOREACH(const mesh_data::face_info &f, prev_el.m_faces)
               {
-                double ip = inner_prod(n, subrange(m_momenta, x_pstart, x_pend));
+                double ip = inner_prod(
+                    f.m_normal, 
+                    subrange(m_momenta, x_pstart, x_pend));
+
                 if (ip > max_ip)
                 {
                   closest_normal_idx = normal_idx;
@@ -166,7 +169,7 @@ namespace pyrticle
                 throw std::runtime_error("no best normal found--weird");
 
               mesh_data::element_number possible_idx =
-                prev_el.m_neighbors[closest_normal_idx];
+                prev_el.m_faces[closest_normal_idx].m_neighbor;
 
               if (possible_idx != mesh_data::INVALID_ELEMENT)
               {

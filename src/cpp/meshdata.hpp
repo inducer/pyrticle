@@ -59,6 +59,22 @@ namespace pyrticle
 
 
       // data structures ------------------------------------------------------
+      struct face_info
+      {
+        hedge::vector         m_normal;
+        element_number        m_neighbor;
+        axis_number           m_neighbor_periodicity_axis;
+
+        /** The equation for the hyperplane containing this face is
+         * m_normal * x = m_face_plane_eqn_rhs.
+         */
+        hedge::vector::value_type m_face_plane_eqn_rhs;
+
+        /** These two specify a bounding circle on the face. */
+        hedge::vector         m_face_centroid;
+        hedge::vector::value_type m_face_radius_from_centroid;
+      };
+
       struct element_info
       {
         element_number                 m_id;
@@ -69,15 +85,7 @@ namespace pyrticle
 
         vtx_id_vector                  m_vertices;
 
-        /** The indices for the following lists match up: say at matching
-         * indices you find normal n and element index i, then n is the normal
-         * of the face leading to element i. By corollary, if there is no 
-         * neighbor past that face, INVALID_ELEMENT is stored in that entry.
-         */
-
-        std::vector<hedge::vector>      m_normals;
-        std::vector<element_number>     m_neighbors;
-        std::vector<axis_number>        m_neighbor_periodicity_axes;
+        std::vector<face_info>      m_faces;
 
         hedge::vector centroid(const std::vector<hedge::vector> &vertex_points) const
         {

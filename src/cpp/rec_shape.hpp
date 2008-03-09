@@ -106,17 +106,14 @@ namespace pyrticle
       {
         target.add_shape_on_element(pos, einfo.m_id);
 
-        for (unsigned i = 0; i < einfo.m_neighbors.size(); ++i)
+        BOOST_FOREACH(const mesh_data::face_info &face, einfo.m_faces)
         {
-          const mesh_data::element_number en = einfo.m_neighbors[i];
-
-          if (en != mesh_data::INVALID_ELEMENT)
+          if (face.m_neighbor != mesh_data::INVALID_ELEMENT)
           {
-            const mesh_data::axis_number per_axis = 
-              einfo.m_neighbor_periodicity_axes[i];
+            const mesh_data::axis_number per_axis = face.m_neighbor_periodicity_axis;
 
             if (per_axis == mesh_data::INVALID_AXIS)
-              target.add_shape_on_element(pos, en);
+              target.add_shape_on_element(pos, face.m_neighbor);
             else
             {
               hedge::vector pos2(pos);
@@ -126,12 +123,12 @@ namespace pyrticle
               if (pos[per_axis] - radius < pa.m_min)
               {
                 pos2[per_axis] += (pa.m_max-pa.m_min);
-                target.add_shape_on_element(pos2, en);
+                target.add_shape_on_element(pos2, face.m_neighbor);
               }
               if (pos[per_axis] + radius > pa.m_max)
               {
                 pos2[per_axis] -= (pa.m_max-pa.m_min);
-                target.add_shape_on_element(pos2, en);
+                target.add_shape_on_element(pos2, face.m_neighbor);
               }
             }
           }

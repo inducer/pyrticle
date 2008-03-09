@@ -58,6 +58,19 @@ void expose_meshdata()
   }
 
   {
+    typedef mesh_data::face_info cl;
+    python::class_<cl>("FaceInfo")
+      .DEF_RW_MEMBER(normal)
+      .DEF_RW_MEMBER(neighbor)
+      .DEF_RW_MEMBER(neighbor_periodicity_axis)
+
+      .DEF_RW_MEMBER(face_plane_eqn_rhs)
+
+      .DEF_RW_MEMBER(face_centroid)
+      .DEF_RW_MEMBER(face_radius_from_centroid)
+      ;
+  }
+  {
     typedef mesh_data::element_info cl;
     python::class_<cl>("ElementInfo")
       .DEF_RW_MEMBER(id)
@@ -67,9 +80,7 @@ void expose_meshdata()
       .DEF_RW_MEMBER(end)
       .DEF_RW_MEMBER(vertices)
 
-      .DEF_RW_MEMBER(normals)
-      .DEF_RW_MEMBER(neighbors)
-      .DEF_RW_MEMBER(neighbor_periodicity_axes)
+      .DEF_RW_MEMBER(faces)
       ;
   }
 
@@ -81,6 +92,7 @@ void expose_meshdata()
       ;
   }
 
+  expose_std_vector<mesh_data::face_info>("FaceInfo");
   expose_std_vector<mesh_data::element_info>("ElementInfo");
   expose_std_vector<mesh_data::periodicity_axis>("PeriodicityAxis");
   expose_std_vector<hedge::vector>("Vector");
