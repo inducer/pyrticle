@@ -50,9 +50,7 @@ namespace pyrticle
   struct advective_reconstructor 
   {
     template <class PICAlgorithm>
-    class type : 
-      public shape_element_finder<PICAlgorithm>,
-      public reconstructor_base
+    class type : public reconstructor_base
     {
       public:
         static const unsigned max_faces = 4;
@@ -75,8 +73,8 @@ namespace pyrticle
 
         struct advected_particle
         {
-          std::vector<active_element>   m_elements;
           shape_function                m_shape_function;
+          std::vector<active_element>   m_elements;
 
           active_element *find_element(mesh_data::element_number en)
           {
@@ -530,31 +528,6 @@ namespace pyrticle
 
 
         // particle construction ----------------------------------------------
-        void add_shape_on_element(
-            advected_particle &new_particle,
-            const hedge::vector &center,
-            const mesh_data::element_number en
-            )
-        {
-          const mesh_data::element_info &einfo(
-              CONST_PIC_THIS->m_mesh_data.m_element_info[en]);
-
-          active_element new_element;
-          new_element.m_element_info = &einfo;
-          unsigned start = new_element.m_start_index = allocate_element();
-          new_element.m_min_life = 0;
-
-          for (unsigned i = 0; i < m_dofs_per_element; ++i)
-            m_rho[start+i] =
-              new_particle.m_shape_function(
-                  CONST_PIC_THIS->m_mesh_data.m_nodes[einfo.m_start+i]-center);
-
-          new_particle.m_elements.push_back(new_element);
-        }
-
-
-
-
         unsigned count_advective_particles() const
         {
           return m_advected_particles.size();
@@ -563,6 +536,44 @@ namespace pyrticle
 
 
 
+      private:
+        struct advected_particle_element_target
+        {
+          private:
+            PICAlgorithm                  &m_pic_algorithm;
+            advected_particle             &m_particle;
+          public:
+            
+            advected_particle_element_target(PICAlgorithm &pa, advected_particle &p)
+              : m_pic_algorithm(pa), m_particle(p)
+            { }
+
+          void add_shape_on_element(
+              const hedge::vector &center,
+              const mesh_data::element_number en
+              )
+          {
+            const mesh_data::element_info &einfo(
+                m_pic_algorithm.m_mesh_data.m_element_info[en]);
+
+            active_element new_element;
+            new_element.m_element_info = &einfo;
+            unsigned start = new_element.m_start_index = m_pic_algorithm.allocate_element();
+            new_element.m_min_life = 0;
+
+            for (unsigned i = 0; i < m_pic_algorithm.m_dofs_per_element; ++i)
+              m_pic_algorithm.m_rho[start+i] =
+                m_particle.m_shape_function(
+                    m_pic_algorithm.m_mesh_data.m_nodes[einfo.m_start+i]-center);
+
+            m_particle.m_elements.push_back(new_element);
+          }
+        };
+
+
+
+
+      public:
         void add_advective_particle(shape_function sf, particle_number pn)
         {
           if (pn != m_advected_particles.size())
@@ -571,7 +582,9 @@ namespace pyrticle
           advected_particle new_particle;
           new_particle.m_shape_function = sf;
 
-          add_shape(new_particle, pn, sf.radius());
+          shape_element_finder<PICAlgorithm> el_finder(*CONST_PIC_THIS);
+          advected_particle_element_target el_tgt(*PIC_THIS, new_particle);
+          el_finder(el_tgt, pn, sf.radius());
 
           // make connections
           BOOST_FOREACH(active_element &el, new_particle.m_elements)

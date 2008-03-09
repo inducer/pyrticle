@@ -38,150 +38,149 @@
 
 namespace pyrticle 
 {
-  /* This does not adhere to the ReconstructionTarget protocol.
-   * Instead, it is a layer that sits between the 
-   * normalized_shape_function_reconstructor, below, and the 
-   * real ReconstructionTarget.
-   */
-  template <class Target>
-  class normalizing_target
-  {
-    public:
-      const mesh_data &m_mesh_data;
-      const hedge::vector &m_integral_weights;
-      Target m_target;
-      hedge::vector m_shape_interpolant;
-      unsigned m_used_shape_dofs;
-
-      stats_gatherer<double> &m_normalization_stats;
-
-
-
-      struct shape_element {
-        mesh_data::element_number m_el_number;
-        unsigned m_el_length;
-        unsigned m_my_start_index;
-        mesh_data::node_number m_global_start_index;
-
-        shape_element(
-            mesh_data::element_number el_number,
-            unsigned el_length,
-            unsigned my_start_index, 
-            mesh_data::node_number global_start_index)
-          : 
-            m_el_number(el_number),
-            m_el_length(el_length),
-            m_my_start_index(my_start_index), 
-            m_global_start_index(global_start_index)
-        { }
-      };
-
-      std::vector<shape_element>        m_particle_shape_elements;
-      double                            m_integral;
-
-      normalizing_target(
-         const mesh_data &mesh_data,
-         const hedge::vector &integral_weights,
-         Target &target,
-         stats_gatherer<double> &normalization_stats
-         )
-        : 
-          m_mesh_data(mesh_data),
-          m_integral_weights(integral_weights),
-          m_target(target), 
-          m_shape_interpolant(100),
-          m_normalization_stats(normalization_stats)
-      { }
-
-
-
-
-      void begin_particle()
-      {
-        m_used_shape_dofs = 0;
-        m_particle_shape_elements.clear();
-        m_integral = 0;
-      }
-
-
-
-
-      void add_shape_on_element(
-          const mesh_data::element_info &einfo,
-          const hedge::vector &center,
-          const shape_function sf
-          )
-      {
-        unsigned element_length = einfo.m_end-einfo.m_start;
-
-        // make sure we have enough interpolant dofs available
-        while (m_used_shape_dofs + element_length > m_shape_interpolant.size())
-        {
-          hedge::vector new_shape_interpolant(2*m_shape_interpolant.size());
-          subrange(new_shape_interpolant, 0, m_shape_interpolant.size()) =
-            m_shape_interpolant;
-          new_shape_interpolant.swap(m_shape_interpolant);
-        }
-
-        shape_element new_shape_element(
-            einfo.m_id,
-            element_length,
-            m_used_shape_dofs, 
-            einfo.m_start);
-        m_used_shape_dofs += element_length;
-
-        double el_integral = 0;
-        for (unsigned i = 0; i < element_length; i++)
-        {
-          double shapeval = sf(m_mesh_data.m_nodes[i+einfo.m_start]-center);
-          m_shape_interpolant[new_shape_element.m_my_start_index+i] 
-            = shapeval;
-          el_integral += shapeval * m_integral_weights[i];
-        }
-        m_integral += el_integral*einfo.m_jacobian;
-        
-        m_particle_shape_elements.push_back(new_shape_element);
-      }
-
-
-
-
-      void end_particle(
-          particle_number pn,
-          const double charge)
-      {
-        if (m_integral == 0)
-            throw std::runtime_error(
-                str(boost::format("reconstructed particle mass is zero"
-                  "(particle %d, #elements=%d)") 
-                  % pn 
-                  % m_particle_shape_elements.size()).c_str());
-
-        const double scale = charge/m_integral;
-        m_normalization_stats.add(scale);
-
-        m_target.begin_particle(pn);
-        BOOST_FOREACH(const shape_element &sel, m_particle_shape_elements)
-          m_target.add_shape_on_element(sel.m_el_number,
-              sel.m_global_start_index,
-              scale * subrange(m_shape_interpolant, 
-                sel.m_my_start_index,
-                sel.m_my_start_index+sel.m_el_length));
-        m_target.end_particle(pn);
-      }
-
-  };
-
-
-
-
   struct normalized_shape_function_reconstructor
   {
     template <class PICAlgorithm>
-    class type : 
-      public shape_element_finder<PICAlgorithm>, 
-      public reconstructor_base
+    class type : public reconstructor_base
     {
+      private:
+        template <class Target>
+        class normalizing_element_target
+        {
+          public:
+            const PICAlgorithm &m_pic_algorithm;
+            const hedge::vector &m_integral_weights;
+            Target m_target;
+            hedge::vector m_shape_interpolant;
+            unsigned m_used_shape_dofs;
+
+
+            struct shape_element {
+              mesh_data::element_number m_el_number;
+              unsigned m_el_length;
+              unsigned m_my_start_index;
+              mesh_data::node_number m_global_start_index;
+
+              shape_element(
+                  mesh_data::element_number el_number,
+                  unsigned el_length,
+                  unsigned my_start_index, 
+                  mesh_data::node_number global_start_index)
+                : 
+                  m_el_number(el_number),
+                  m_el_length(el_length),
+                  m_my_start_index(my_start_index), 
+                  m_global_start_index(global_start_index)
+              { }
+            };
+
+            std::vector<shape_element>        m_particle_shape_elements;
+            double                            m_integral;
+
+            normalizing_element_target(
+                const PICAlgorithm &pic_algorithm,
+                const hedge::vector &integral_weights,
+                Target &target
+                )
+              : 
+                m_pic_algorithm(pic_algorithm),
+                m_integral_weights(integral_weights),
+                m_target(target), 
+                m_shape_interpolant(100)
+            { }
+
+
+
+
+            void begin_particle()
+            {
+              m_used_shape_dofs = 0;
+              m_particle_shape_elements.clear();
+              m_integral = 0;
+            }
+
+
+
+
+            void add_shape_on_element(
+                const hedge::vector &center,
+                const mesh_data::element_number en
+                )
+            {
+              const mesh_data::element_info &einfo = m_pic_algorithm.m_mesh_data.m_element_info[en];
+              unsigned element_length = einfo.m_end-einfo.m_start;
+
+              {
+                hedge::vector centroid = einfo.centroid(m_pic_algorithm.m_mesh_data.m_vertices);
+                m_pic_algorithm.m_centroid_distance_stats.add(norm_2(centroid-center));
+              }
+
+              // make sure we have enough interpolant dofs available
+              while (m_used_shape_dofs + element_length > m_shape_interpolant.size())
+              {
+                hedge::vector new_shape_interpolant(2*m_shape_interpolant.size());
+                subrange(new_shape_interpolant, 0, m_shape_interpolant.size()) =
+                  m_shape_interpolant;
+                new_shape_interpolant.swap(m_shape_interpolant);
+              }
+
+              shape_element new_shape_element(
+                  einfo.m_id,
+                  element_length,
+                  m_used_shape_dofs, 
+                  einfo.m_start);
+              m_used_shape_dofs += element_length;
+
+              double el_integral = 0;
+              for (unsigned i = 0; i < element_length; i++)
+              {
+                double shapeval = m_pic_algorithm.m_shape_function(
+                    m_pic_algorithm.m_mesh_data.m_nodes[i+einfo.m_start]-center);
+
+                m_shape_interpolant[new_shape_element.m_my_start_index+i] 
+                  = shapeval;
+                el_integral += shapeval * m_integral_weights[i];
+              }
+              m_integral += el_integral*einfo.m_jacobian;
+
+              m_particle_shape_elements.push_back(new_shape_element);
+            }
+
+
+
+
+            void end_particle(
+                particle_number pn,
+                const double charge)
+            {
+              if (m_integral == 0)
+                throw std::runtime_error(
+                    str(boost::format("reconstructed particle mass is zero"
+                        "(particle %d, #elements=%d)") 
+                      % pn 
+                      % m_particle_shape_elements.size()).c_str());
+
+              const double scale = charge/m_integral;
+              m_pic_algorithm.m_normalization_stats.add(scale);
+
+              m_target.begin_particle(pn);
+              BOOST_FOREACH(const shape_element &sel, m_particle_shape_elements)
+                m_target.add_shape_on_element(sel.m_el_number,
+                    sel.m_global_start_index,
+                    scale * subrange(m_shape_interpolant, 
+                      sel.m_my_start_index,
+                      sel.m_my_start_index+sel.m_el_length));
+              m_target.end_particle(pn);
+
+              m_pic_algorithm.m_el_per_particle_stats.add(
+                  m_particle_shape_elements.size());
+            }
+
+        };
+
+
+
+
       public:
         // member data --------------------------------------------------------
         shape_function                  m_shape_function;
@@ -190,7 +189,6 @@ namespace pyrticle
         mutable stats_gatherer<double>  m_normalization_stats;
         mutable stats_gatherer<double>  m_centroid_distance_stats;
         mutable stats_gatherer<double>  m_el_per_particle_stats;
-        mutable unsigned                m_element_counter;
 
 
 
@@ -226,39 +224,19 @@ namespace pyrticle
           m_centroid_distance_stats.reset();
           m_el_per_particle_stats.reset();
 
-          normalizing_target<Target> norm_tgt(
-              CONST_PIC_THIS->m_mesh_data,
+          normalizing_element_target<Target> norm_tgt(
+              *CONST_PIC_THIS,
               m_integral_weights,
-              tgt, m_normalization_stats);
+              tgt);
+
+          shape_element_finder<PICAlgorithm> el_finder(*CONST_PIC_THIS);
 
           for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {
             norm_tgt.begin_particle();
-            m_element_counter = 0;
-            add_shape(norm_tgt, pn, m_shape_function.radius());
-            m_el_per_particle_stats.add(m_element_counter);
+            el_finder(norm_tgt, pn, m_shape_function.radius());
             norm_tgt.end_particle(pn, CONST_PIC_THIS->m_charges[pn]);
           }
-        }
-
-
-
-
-        // inner workings -----------------------------------------------------
-        template <class NormTarget>
-        void add_shape_on_element(
-            NormTarget &norm_tgt, 
-            const hedge::vector &center,
-            const mesh_data::element_number en
-            ) const
-        {
-          const mesh_data::element_info &einfo = CONST_PIC_THIS->m_mesh_data.m_element_info[en];
-          hedge::vector centroid = einfo.centroid(CONST_PIC_THIS->m_mesh_data.m_vertices);
-
-          m_centroid_distance_stats.add(norm_2(centroid-center));
-
-          norm_tgt.add_shape_on_element(einfo, center, m_shape_function);
-          ++m_element_counter;
         }
     };
   };

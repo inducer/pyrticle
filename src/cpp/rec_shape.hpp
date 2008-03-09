@@ -89,15 +89,22 @@ namespace pyrticle
   template <class PICAlgorithm>
   class shape_element_finder
   {
+    private:
+      const PICAlgorithm &m_pic_algorithm;
+
     public:
-      template <class Target>
+      shape_element_finder(const PICAlgorithm &pa)
+        : m_pic_algorithm(pa)
+      { }
+
+      template <class ElementTarget>
       void add_shape_by_neighbors(
-          Target &target,
+          ElementTarget &target,
           const hedge::vector &pos,
           const mesh_data::element_info &einfo,
           double radius)
       {
-        PIC_THIS->add_shape_on_element(target, pos, einfo.m_id);
+        target.add_shape_on_element(pos, einfo.m_id);
 
         for (unsigned i = 0; i < einfo.m_neighbors.size(); ++i)
         {
@@ -109,22 +116,22 @@ namespace pyrticle
               einfo.m_neighbor_periodicity_axes[i];
 
             if (per_axis == mesh_data::INVALID_AXIS)
-              PIC_THIS->add_shape_on_element(target, pos, en);
+              target.add_shape_on_element(pos, en);
             else
             {
               hedge::vector pos2(pos);
               const mesh_data::periodicity_axis &pa = 
-                CONST_PIC_THIS->m_mesh_data.m_periodicities[per_axis];
+                m_pic_algorithm.m_mesh_data.m_periodicities[per_axis];
 
               if (pos[per_axis] - radius < pa.m_min)
               {
                 pos2[per_axis] += (pa.m_max-pa.m_min);
-                PIC_THIS->add_shape_on_element(target, pos2, en);
+                target.add_shape_on_element(pos2, en);
               }
               if (pos[per_axis] + radius > pa.m_max)
               {
                 pos2[per_axis] -= (pa.m_max-pa.m_min);
-                PIC_THIS->add_shape_on_element(target, pos2, en);
+                target.add_shape_on_element(pos2, en);
               }
             }
           }
@@ -134,9 +141,9 @@ namespace pyrticle
 
 
 
-      template <class Target>
+      template <class ElementTarget>
       void add_shape_by_vertex(
-          Target &target,
+          ElementTarget &target,
           const hedge::vector &pos,
           const mesh_data::element_info &einfo,
           double radius)
@@ -148,7 +155,7 @@ namespace pyrticle
 
         BOOST_FOREACH(mesh_data::vertex_number vi, einfo.m_vertices)
         {
-          double dist = norm_2(CONST_PIC_THIS->m_mesh_data.m_vertices[vi] - pos);
+          double dist = norm_2(m_pic_algorithm.m_mesh_data.m_vertices[vi] - pos);
           if (dist < min_dist)
           {
             closest_vertex = vi;
@@ -156,7 +163,7 @@ namespace pyrticle
           }
         }
 
-        const mesh_data &md = CONST_PIC_THIS->m_mesh_data;
+        const mesh_data &md = m_pic_algorithm.m_mesh_data;
 
         // go through vertex-adjacent elements
         unsigned start = md.m_vertex_adj_element_starts[closest_vertex];
@@ -170,7 +177,7 @@ namespace pyrticle
             md.m_vertex_adj_elements[i];
 
           if (per_axis == mesh_data::INVALID_AXIS)
-            PIC_THIS->add_shape_on_element(target, pos, en);
+            target.add_shape_on_element(pos, en);
           else
           {
             const mesh_data::periodicity_axis &pa = md.m_periodicities[per_axis];
@@ -179,12 +186,12 @@ namespace pyrticle
             if (pos[per_axis] - radius < pa.m_min)
             {
               pos2[per_axis] += (pa.m_max - pa.m_min);
-              PIC_THIS->add_shape_on_element(target, pos2, en);
+              target.add_shape_on_element(pos2, en);
             }
             if (pos[per_axis] + radius > pa.m_max)
             {
               pos2[per_axis] -= (pa.m_max - pa.m_min);
-              PIC_THIS->add_shape_on_element(target, pos2, en);
+              target.add_shape_on_element(pos2, en);
             }
           }
         }
@@ -193,16 +200,16 @@ namespace pyrticle
 
 
 
-      template <class Target>
-      void add_shape(Target &target, particle_number pn, double radius)
+      template <class ElementTarget>
+      void operator()(ElementTarget &target, particle_number pn, double radius)
       {
-        const unsigned dim = CONST_PIC_THIS->get_dimensions_pos();
+        const unsigned dim = m_pic_algorithm.get_dimensions_pos();
         const hedge::vector pos = subrange(
-            CONST_PIC_THIS->m_positions, pn*dim, (pn+1)*dim);
+            m_pic_algorithm.m_positions, pn*dim, (pn+1)*dim);
         const mesh_data::element_number containing_el = 
-          CONST_PIC_THIS->m_containing_elements[pn];
+          m_pic_algorithm.m_containing_elements[pn];
         const mesh_data::element_info &einfo(
-            CONST_PIC_THIS->m_mesh_data.m_element_info[containing_el]);
+            m_pic_algorithm.m_mesh_data.m_element_info[containing_el]);
 
         // We're deciding between RULE A and RULE B below.
         // The decision is made by looking at the barycentric coordinates of
@@ -242,10 +249,43 @@ namespace pyrticle
   struct shape_function_reconstructor
   {
     template <class PICAlgorithm>
-    class type : 
-      public shape_element_finder<PICAlgorithm>, 
-      public reconstructor_base
+    class type : public reconstructor_base
     {
+      private:
+        template <class Target>
+        class element_target
+        {
+          private:
+            const PICAlgorithm &m_pic_algorithm;
+            const double      m_charge;
+            Target            &m_target;
+            
+          public:
+            element_target(PICAlgorithm &pic_algorithm, double charge, Target &tgt)
+              : m_pic_algorithm(pic_algorithm), m_charge(charge), m_target(tgt)
+            { }
+
+            void add_shape_on_element(
+                const hedge::vector &center,
+                const mesh_data::element_number en
+                ) const
+            {
+              const mesh_data::element_info &einfo(
+                  m_pic_algorithm.m_mesh_data.m_element_info[en]);
+
+              const unsigned el_length = einfo.m_end-einfo.m_start;
+              hedge::vector el_rho(el_length);
+
+              for (unsigned i = 0; i < el_length; i++)
+                el_rho[i] = 
+                  m_charge * m_pic_algorithm.m_shape_function(
+                      m_pic_algorithm.m_mesh_data.m_nodes[einfo.m_start+i] 
+                      - center);
+
+              m_target.add_shape_on_element(en, einfo.m_start, el_rho);
+            }
+        };
+
       public:
         // member data --------------------------------------------------------
         shape_function   m_shape_function;
@@ -263,44 +303,19 @@ namespace pyrticle
 
 
 
-        // inner workings -----------------------------------------------------
-        template <class Target>
-        void add_shape_on_element(
-            Target &tgt, 
-            const hedge::vector &center,
-            const mesh_data::element_number en
-            ) const
-        {
-          const mesh_data::element_info &einfo(
-              CONST_PIC_THIS->m_mesh_data.m_element_info[en]);
-
-          const unsigned el_length = einfo.m_end-einfo.m_start;
-          hedge::vector el_rho(el_length);
-
-          const double charge = tgt.first;
-
-          for (unsigned i = 0; i < el_length; i++)
-            el_rho[i] = 
-              charge * m_shape_function(
-                  CONST_PIC_THIS->m_mesh_data.m_nodes[einfo.m_start+i]
-                  -center);
-
-          tgt.second.get().add_shape_on_element(en, einfo.m_start, el_rho);
-        }
-
-
-
-
         template<class Target>
         void reconstruct_densities_on_target(Target &tgt)
         {
+          shape_element_finder<PICAlgorithm> el_finder(*CONST_PIC_THIS);
+          
           for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {
-            std::pair<double, boost::reference_wrapper<Target> > subtgt
-              (CONST_PIC_THIS->m_charges[pn], boost::ref(tgt));
+            element_target<Target> el_target(
+                *CONST_PIC_THIS, 
+                CONST_PIC_THIS->m_charges[pn], tgt);
 
             tgt.begin_particle(pn);
-            add_shape(subtgt, pn, m_shape_function.radius());
+            el_finder(el_target, pn, m_shape_function.radius());
             tgt.end_particle(pn);
           }
         }
