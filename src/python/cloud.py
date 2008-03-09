@@ -256,6 +256,13 @@ class ParticleCloud:
         for pn in range(prev_count, pic.particle_count):
             self.reconstructor.add_particle_hook(pn)
 
+        self.derived_quantity_cache.clear()
+
+    def clear_particles(self):
+        self.pic_algorithm.particle_count = 0
+        self.reconstructor.clear_particles()
+        self.derived_quantity_cache.clear()
+
     def check_containment(self):
         """Check that a containing element is known for each particle.
 

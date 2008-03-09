@@ -43,6 +43,9 @@ class Reconstructor(object):
     def add_particle_hook(self, pn):
         pass
 
+    def clear_particles(self):
+        pass
+
     def reconstruct_hook(self):
         if self.shape_function is None:
             raise RuntimeError, "shape function never set"
@@ -221,6 +224,10 @@ class AdvectiveReconstructor(Reconstructor):
         if self.shape_function is not None:
             self.cloud.pic_algorithm.add_advective_particle(
                     self.shape_function, pn)
+
+    def clear_particles(self):
+        Reconstructor.clear_particles(self)
+        self.cloud.pic_algorithm.clear_advective_particles()
 
     def rhs(self):
         from pyrticle.tools import NumberShiftableVector
