@@ -2,6 +2,16 @@ from pytools.batchjob import GridEngineJob, ConstructorPlaceholder
 
 BatchJob = GridEngineJob
 
+def cn(placeholder):
+    result = placeholder.classname
+    assert result[0].isupper()
+
+    for i in range(1, len(result)):
+        if result[i].isupper():
+            return result[i:].lower()
+    else:
+        return result.lower()
+
 def compare_methods():
     """Submit jobs to compare reconstruction/pushing methods."""
 
@@ -9,17 +19,20 @@ def compare_methods():
 
     for rec in [O("RecAdv"), O("RecNormShape"), O("RecShape")]:
         for pusher in [O("PushMonomial"), O("PushAverage")]:
-            job = BatchJob(
-                    "compmeth-%s-%s" % (rec.classname, pusher.classname),
-                    "with-charge.py",
-                    )
-            job.write_setup([
-                "pusher = %s" % pusher,
-                "reconstructor = %s" % rec,
-                ])
+            for finder in [O("FindFaceBased"), O("FindHeuristic")]:
+                job = BatchJob(
+                        "compmeth-%s-%s-%s" % (cn(rec), cn(pusher), cn(finder)),
+                        "with-charge.py",
+                        )
+                job.write_setup([
+                    "pusher = %s" % pusher,
+                    "reconstructor = %s" % rec,
+                    "finder = %s" % finder,
+                    ])
+                job.submit()
 
 def compare_element_finders():
-    """Submit jobs to compare reconstruction/pushing methods."""
+    """Submit jobs to compare element finders."""
 
     O = ConstructorPlaceholder
 
@@ -28,7 +41,7 @@ def compare_element_finders():
     for xpos in [0, 0.5, 1]:
         for finder in [O("FindFaceBased"), O("FindHeuristic")]:
             job = BatchJob(
-                    "compelfind-%s-%s" % (xpos, finder.classname),
+                    "compelfind-%s-%s" % (xpos, cn(classname)),
                     "rec-by-area.py",
                     ["special_meshes.py"]
                     )
@@ -51,7 +64,7 @@ def study_cleaning():
         for pusher in [O("PushAverage")]:
             for chi in [None, 1, 2, 5]:
                 job = BatchJob(
-                        "cleanstudy-%s-chi%s" % (rec.classname, chi),
+                        "cleanstudy-%s-chi%s" % (cn(rec), chi),
                         "with-charge.py",
                         )
                 job.write_setup([
@@ -94,7 +107,7 @@ def study_blob_exponent():
     for exponent in [1,2,3,4]:
         for rec in [O("RecAdv"), O("RecNormShape")]:
             job = BatchJob(
-                    "expstudy-exp%d-%s" % (exponent, rec.classname),
+                    "expstudy-exp%d-%s" % (exponent, cn(rec)),
                     "with-charge.py",
                     )
             job.write_setup([

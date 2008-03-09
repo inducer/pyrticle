@@ -170,7 +170,7 @@ def main():
 
     print descr 
 
-    outf = open("hist.data", "w")
+    outf = open("hist.dat", "w")
     for integral in integrals:
         outf.write("%g\n" % integral)
 
