@@ -22,6 +22,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 import pyrticle._internal as _internal
 import pylinear.array as num
 import pylinear.computation as comp
+import pytools
 
 
 
@@ -143,4 +144,63 @@ class NumberShiftableVector(object):
     def reset(self, start, size):
         m = self.multiplier
         self.vector[start*m:(start+size)*m] = 0
+
+
+
+
+# user interface --------------------------------------------------------------
+class PICCPyUserInterface(pytools.CPyUserInterface):
+    def __init__(self, variables, constants={}, doc={}):
+        variables = variables.copy()
+        constants = constants.copy()
+        doc = doc.copy()
+
+        from pyrticle.reconstruction import \
+                ShapeFunctionReconstructor, \
+                NormalizedShapeFunctionReconstructor, \
+                AdvectiveReconstructor
+        from pyrticle.pusher import \
+                MonomialParticlePusher, \
+                AverageParticlePusher
+
+        from pyrticle.cloud import \
+                FaceBasedElementFinder, \
+                HeuristicElementFinder
+
+        constants.update({
+                "num": num,
+                "comp": comp,
+
+                "RecShape": ShapeFunctionReconstructor,
+                "RecNormShape": NormalizedShapeFunctionReconstructor,
+                "RecAdv": AdvectiveReconstructor,
+
+                "PushMonomial": MonomialParticlePusher,
+                "PushAverage": AverageParticlePusher,
+
+                "FindHeuristic": HeuristicElementFinder,
+                "FindFaceBased": FaceBasedElementFinder,
+                })
+
+        variables.update({
+                "pusher": None,
+                "reconstructor": None,
+                "finder": None,
+                })
+
+        pytools.CPyUserInterface.__init__(self, variables, constants, doc)
+
+    def validate(self, setup):
+        pytools.CPyUserInterface.validate(self, setup)
+
+        from pyrticle.reconstruction import Reconstructor
+        from pyrticle.pusher import Pusher
+        from pyrticle.cloud import ElementFinder
+
+        assert isinstance(setup.reconstructor, Reconstructor), \
+                "must specify valid reconstructor"
+        assert isinstance(setup.pusher, Pusher), \
+                "must specify valid reconstructor"
+        assert isinstance(setup.finder, ElementFinder), \
+                "must specify valid element finder"
 

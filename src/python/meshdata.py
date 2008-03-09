@@ -72,18 +72,30 @@ class MeshData(_internal.MeshData):
             ei.start, ei.end = discr.find_el_range(el.id)
             ei.vertices.extend([vi for vi in el.vertex_indices])
 
-            face_vertices = el.face_vertices(el.vertex_indices)
+            all_face_vertex_indices = el.face_vertices(el.vertex_indices)
 
             for face_idx, face_normal in enumerate(el.face_normals):
                 fi = FaceInfo()
                 fi.normal = face_normal
                 fi.neighbor = neighbor_map[el, face_idx] 
 
-                fvi = face_vertices[face_idx]
+                this_fvi = all_face_vertex_indices[face_idx]
                 try:
-                    fi.neighbor_periodicity_axis = mesh.periodic_opposite_faces[fvi][1]
+                    fi.neighbor_periodicity_axis = mesh.periodic_opposite_faces[this_fvi][1]
                 except KeyError:
                     fi.neighbor_periodicity_axis = MeshData.INVALID_AXIS
+
+                this_face_vertices = [mesh.points[fvi] 
+                        for fvi in all_face_vertex_indices[face_idx]]
+
+                rhs = [face_normal*fv for fv in this_face_vertices]
+                from pytools import all_roughly_equal, average
+                assert all_roughly_equal(rhs, 1e-14)
+                fi.face_plane_eqn_rhs = average(rhs)
+                fi.face_centroid = average(this_face_vertices)
+
+                fi.face_radius_from_centroid = max(
+                        comp.norm_2(fv - fi.face_centroid) for fv in this_face_vertices)
 
                 ei.faces.append(fi)
 

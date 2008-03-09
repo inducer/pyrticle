@@ -88,9 +88,6 @@ def main():
 
                 "final_time": 10*units.M/units.VACUUM_LIGHT_SPEED,
 
-                "pusher": None,
-                "reconstructor": None,
-
                 "sigma_x": 0.1*num.ones((2,)),
                 "mean_v": num.array([c0*0.9, 0]),
                 "sigma_v": num.array([c0*0.9*1e-3, c0*0.9*1e-6]),
@@ -100,27 +97,10 @@ def main():
                 "vis_interval": 100,
                 }
         
-        from pyrticle.reconstruction import \
-                ShapeFunctionReconstructor, \
-                NormalizedShapeFunctionReconstructor, \
-                AdvectiveReconstructor
-        from pyrticle.pusher import \
-                MonomialParticlePusher, \
-                AverageParticlePusher
         from hedge.mesh import make_rect_mesh
 
         constants = {
-                "num": num,
-                "comp": comp,
                 "units": units,
-
-                "RecShape": ShapeFunctionReconstructor,
-                "RecNormShape": NormalizedShapeFunctionReconstructor,
-                "RecAdv": AdvectiveReconstructor,
-
-                "PushMonomial": MonomialParticlePusher,
-                "PushAverage": AverageParticlePusher,
-
                 "make_rect_mesh": make_rect_mesh,
                 }
 
@@ -129,8 +109,9 @@ def main():
                 "shape_bandwidth": "either 'optimize', 'guess' or a positive real number",
                 }
 
-        from pytools import gather_parameters_from_user
-        return gather_parameters_from_user(variables, constants, doc)
+        from pyrticle.tools import PICCPyUserInterface
+        ui = PICCPyUserInterface(variables, constants, doc)
+        return ui.gather()
 
     setup = make_setup()
 
@@ -197,18 +178,11 @@ def main():
         return l2_norm(field-true)/l2_norm(true)
 
     # particles setup ---------------------------------------------------------
-    from pyrticle.reconstruction import Reconstructor
-    from pyrticle.pusher import Pusher
-
-    assert isinstance(setup.reconstructor, Reconstructor), \
-            "must specify valid reconstructor"
-    assert isinstance(setup.pusher, Pusher), \
-            "must specify valid reconstructor"
-
     from pyrticle.cloud import ParticleCloud
-    cloud = ParticleCloud(discr, units, setup.reconstructor, setup.pusher,
-                dimensions_pos=2, dimensions_velocity=2,
-                verbose_vis=True)
+    cloud = ParticleCloud(discr, units, 
+            setup.reconstructor, setup.pusher, setup.finder,
+            dimensions_pos=2, dimensions_velocity=2,
+            verbose_vis=True)
 
     electrons_per_particle = abs(setup.cloud_charge/setup.nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 

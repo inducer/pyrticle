@@ -368,16 +368,18 @@ namespace pyrticle
 
   template <class PICData, 
            class Reconstructor, 
-           class ParticlePusher>
+           class ParticlePusher,
+           class ElementFinder>
   class pic : 
-    public PICData::template type<pic<PICData, Reconstructor, ParticlePusher> >,
-    public Reconstructor::template type<pic<PICData, Reconstructor, ParticlePusher> >,
-    public ParticlePusher::template type<pic<PICData, Reconstructor, ParticlePusher> >
+    public PICData::template type<pic<PICData, Reconstructor, ParticlePusher, ElementFinder> >,
+    public Reconstructor::template type<pic<PICData, Reconstructor, ParticlePusher, ElementFinder> >,
+    public ParticlePusher::template type<pic<PICData, Reconstructor, ParticlePusher, ElementFinder> >
   {
     public:
       typedef typename PICData::template type<pic> pic_data;
       typedef typename Reconstructor::template type<pic> reconstructor;
       typedef typename ParticlePusher::template type<pic> particle_pusher;
+      typedef typename ElementFinder::template type<pic> element_finder;
 
       pic(unsigned mesh_dimensions, double vacuum_c)
         : pic_data(mesh_dimensions, vacuum_c)

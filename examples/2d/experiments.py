@@ -18,6 +18,30 @@ def compare_methods():
                 "reconstructor = %s" % rec,
                 ])
 
+def compare_element_finders():
+    """Submit jobs to compare reconstruction/pushing methods."""
+
+    O = ConstructorPlaceholder
+
+    reconstructor = O("RecShape")
+    pusher = O("PushMonomial")
+    for xpos in [0, 0.5, 1]:
+        for finder in [O("FindFaceBased"), O("FindHeuristic")]:
+            job = BatchJob(
+                    "compelfind-%s-%s" % (xpos, finder.classname),
+                    "rec-by-area.py",
+                    ["special_meshes.py"]
+                    )
+            job.write_setup([
+                "pusher = %s" % pusher,
+                "reconstructor = %s" % reconstructor,
+                "finder = %s" % finder,
+                "mean_x = num.array([%g*tube_length,0])" % xpos,
+                "nparticles = 1000",
+                "mesh = 'glued'",
+                ])
+            job.submit()
+
 def study_cleaning():
     """Submit jobs to see the effect of hyperbolic cleaning."""
 
@@ -80,6 +104,5 @@ def study_blob_exponent():
                 ])
             job.submit()
 
-study_blob_exponent()
-study_advec_filter()
-study_cleaning()
+import sys
+exec sys.argv[1]

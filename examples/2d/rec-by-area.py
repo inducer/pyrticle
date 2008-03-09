@@ -40,46 +40,29 @@ def main():
                 "element_order": 7,
                 "shape_exponent": 2,
 
-                "pusher": None,
-                "reconstructor": None,
-
                 "mean_x": num.array([0,0]),
                 "sigma_x": num.array([0.05,0.5*tube_width]),
                 "nparticles": 1000,
                 "cloud_charge": -1e-9 * units.C,
+
+                "do_vis": False,
+                "do_hist": False,
                 }
         
-        from pyrticle.reconstruction import \
-                ShapeFunctionReconstructor, \
-                NormalizedShapeFunctionReconstructor, \
-                AdvectiveReconstructor
-        from pyrticle.pusher import \
-                MonomialParticlePusher, \
-                AverageParticlePusher
         from hedge.mesh import make_rect_mesh
 
         constants = {
-                "num": num,
-                "comp": comp,
                 "units": units,
-
-                "RecShape": ShapeFunctionReconstructor,
-                "RecNormShape": NormalizedShapeFunctionReconstructor,
-                "RecAdv": AdvectiveReconstructor,
-
-                "PushMonomial": MonomialParticlePusher,
-                "PushAverage": AverageParticlePusher,
-
                 "make_rect_mesh": make_rect_mesh,
                 }
 
         doc = {
-                "chi": "relative speed of hyp. cleaning (None for no cleaning)",
                 "shape_bandwidth": "either 'optimize', 'guess' or a positive real number",
                 }
 
-        from pytools import gather_parameters_from_user
-        return gather_parameters_from_user(variables, constants, doc)
+        from pyrticle.tools import PICCPyUserInterface
+        ui = PICCPyUserInterface(variables, constants, doc)
+        return ui.gather()
 
     setup = make_setup()
 
@@ -138,9 +121,10 @@ def main():
             "must specify valid reconstructor"
 
     from pyrticle.cloud import ParticleCloud
-    cloud = ParticleCloud(discr, units, setup.reconstructor, setup.pusher,
-                dimensions_pos=2, dimensions_velocity=2,
-                verbose_vis=True)
+    cloud = ParticleCloud(discr, units, 
+            setup.reconstructor, setup.pusher, setup.finder,
+            dimensions_pos=2, dimensions_velocity=2,
+            verbose_vis=True)
 
     from pyrticle.cloud import guess_shape_bandwidth
     guess_shape_bandwidth(cloud, setup.shape_exponent)
@@ -172,12 +156,13 @@ def main():
         sg.add(int_rho)
         integrals.append(int_rho)
 
-        visf = vis.make_file("particle-%04d" % particle)
-        cloud.add_to_vis(vis, visf)
-        vis.add_data(visf, [
-                    ("rho", rho),
-                    ],)
-        visf.close()
+        if setup.do_vis:
+            visf = vis.make_file("particle-%04d" % particle)
+            cloud.add_to_vis(vis, visf)
+            vis.add_data(visf, [
+                        ("rho", rho),
+                        ],)
+            visf.close()
 
     descr = "mean_x=%s, mean=%g, stddev=%g, min=%g, max=%g" % (setup.mean_x,
             sg.mean(), sg.standard_deviation(),
@@ -185,10 +170,15 @@ def main():
 
     print descr 
 
-    from pylab import hist, show,title
-    title(descr)
-    hist(integrals, 100)
-    show()
+    outf = open("hist.data", "w")
+    for integral in integrals:
+        outf.write("%g\n" % integral)
+
+    if setup.do_hist:
+        from pylab import hist, show,title
+        title(descr)
+        hist(integrals, 100)
+        show()
 
 
 

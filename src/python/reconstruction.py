@@ -30,6 +30,9 @@ import pylinear.computation as comp
 
 
 class Reconstructor(object):
+    def __init__(self):
+        pass
+    
     def initialize(self, cloud):
         self.cloud = cloud
         self.shape_function = None
@@ -126,6 +129,8 @@ class AdvectiveReconstructor(Reconstructor):
     def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3, 
             filter_amp=None, filter_order=None, 
             upwind_alpha=1):
+        Reconstructor.__init__(self)
+
         from pyrticle.tools import NumberShiftForwarder
         self.rho_shift_signaller = NumberShiftForwarder()
 

@@ -205,7 +205,7 @@ namespace pyrticle
 
 
         // public interface ---------------------------------------------------
-        static const char *get_name()
+        static const std::string get_name()
         { return "NormShape"; }
 
 
@@ -229,7 +229,7 @@ namespace pyrticle
               m_integral_weights,
               tgt);
 
-          shape_element_finder<PICAlgorithm> el_finder(*CONST_PIC_THIS);
+          typename PICAlgorithm::element_finder el_finder(*CONST_PIC_THIS);
 
           for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {

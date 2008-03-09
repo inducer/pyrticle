@@ -176,7 +176,7 @@ namespace pyrticle
 
 
 
-        static const char *get_name()
+        static const std::string get_name()
         { return "Advective"; }
 
 
@@ -582,7 +582,8 @@ namespace pyrticle
           advected_particle new_particle;
           new_particle.m_shape_function = sf;
 
-          shape_element_finder<PICAlgorithm> el_finder(*CONST_PIC_THIS);
+          typename PICAlgorithm::element_finder el_finder(*CONST_PIC_THIS);
+
           advected_particle_element_target el_tgt(*PIC_THIS, new_particle);
           el_finder(el_tgt, pn, sf.radius());
 

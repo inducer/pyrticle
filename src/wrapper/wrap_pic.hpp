@@ -61,6 +61,7 @@ namespace
     std::string name = "PIC";
     name += PICAlgorithm::reconstructor::get_name();
     name += PICAlgorithm::particle_pusher::get_name();
+    name += PICAlgorithm::element_finder::get_name();
     name += boost::lexical_cast<std::string>(PICAlgorithm::get_dimensions_pos());
     name += boost::lexical_cast<std::string>(PICAlgorithm::get_dimensions_velocity());
 
@@ -170,10 +171,21 @@ namespace
         pic<
           pic_data<2,2>,
           Reconstructor,
-          Pusher
+          Pusher,
+          heuristic_element_finder
           >
         >();
 
+    expose_pic_algorithm<
+        pic<
+          pic_data<2,2>,
+          Reconstructor,
+          Pusher,
+          face_based_element_finder
+          >
+        >();
+
+    /*
     expose_pic_algorithm<
         pic<
           pic_data<3,3>,
@@ -181,6 +193,7 @@ namespace
           Pusher
           >
         >();
+        */
   }
 
 

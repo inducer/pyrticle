@@ -47,13 +47,23 @@ class MapStorageVisualizationListener(_internal.VisualizationListener):
 
 
 
+class ElementFinder(object):
+    pass
+class FaceBasedElementFinder(ElementFinder):
+    name = "FaceBasedFind"
+class HeuristicElementFinder(ElementFinder):
+    name = "HeuristicFind"
+
+
+
+
 class ParticleCloud:
     """State container for a cloud of particles. Supports particle
     problems of any dimension, examples below are given for three
     dimensions for simplicity.
     """
     def __init__(self, discr, units, 
-            reconstructor, pusher,
+            reconstructor, pusher, finder,
             dimensions_pos, dimensions_velocity,
             verbose_vis=False):
 
@@ -63,6 +73,7 @@ class ParticleCloud:
 
         self.reconstructor = reconstructor
         self.pusher = pusher
+        self.finder = finder
 
         self.dimensions_mesh = discr.dimensions
         self.dimensions_pos = dimensions_pos
@@ -71,9 +82,10 @@ class ParticleCloud:
         dims = (dimensions_pos, dimensions_velocity)
 
         self.pic_algorithm = getattr(_internal, 
-                "PIC%s%s%d%d" % (
+                "PIC%s%s%s%d%d" % (
                     self.reconstructor.name,
                     self.pusher.name,
+                    self.finder.name,
                     self.dimensions_pos,
                     self.dimensions_velocity
                     ),

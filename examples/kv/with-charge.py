@@ -47,9 +47,6 @@ def main():
 
                 "final_time": 0.1*units.M/units.VACUUM_LIGHT_SPEED,
 
-                "pusher": None,
-                "reconstructor": None,
-
                 "nparticles": 20000,
                 "cloud_charge": -10e-9 * units.C,
                 "beam_emittance": 5*units.MM*units.MRAD,
@@ -59,25 +56,8 @@ def main():
                 "vis_interval": 100,
                 }
 
-        from pyrticle.reconstruction import \
-                ShapeFunctionReconstructor, \
-                NormalizedShapeFunctionReconstructor, \
-                AdvectiveReconstructor
-        from pyrticle.pusher import \
-                MonomialParticlePusher, \
-                AverageParticlePusher
-
         constants = {
-                "num": num,
-                "comp": comp,
                 "units": units,
-
-                "RecShape": ShapeFunctionReconstructor,
-                "RecNormShape": NormalizedShapeFunctionReconstructor,
-                "RecAdv": AdvectiveReconstructor,
-
-                "PushMonomial": MonomialParticlePusher,
-                "PushAverage": AverageParticlePusher,
                 }
 
         doc = {
@@ -92,8 +72,9 @@ def main():
                 "max_volume_outer": "max. tet volume in outer mesh [m^3]",
                 }
 
-        from pytools import gather_parameters_from_user
-        return gather_parameters_from_user(variables, constants, doc)
+        from pyrticle.tools import PICCPyUserInterface
+        ui = PICCPyUserInterface(variables, constants, doc)
+        return ui.gather()
 
     setup = make_setup()
 
@@ -175,16 +156,8 @@ def main():
     # particles setup ---------------------------------------------------------
     from pyrticle.cloud import ParticleCloud
 
-    from pyrticle.reconstruction import Reconstructor
-    from pyrticle.pusher import Pusher
-
-    assert isinstance(setup.reconstructor, Reconstructor), \
-            "must specify valid reconstructor"
-    assert isinstance(setup.pusher, Pusher), \
-            "must specify valid reconstructor"
-
     cloud = ParticleCloud(discr, units, 
-            setup.reconstructor, setup.pusher,
+            setup.reconstructor, setup.pusher, setup.finder,
             dimensions_pos=3, dimensions_velocity=3, 
             verbose_vis=True)
 
