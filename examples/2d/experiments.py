@@ -19,9 +19,12 @@ def compare_methods():
 
     for rec in [O("RecAdv"), O("RecNormShape"), O("RecShape")]:
         for pusher in [O("PushMonomial"), O("PushAverage")]:
-            for finder in [O("FindFaceBased"), O("FindHeuristic")]:
+            for finder in [
+                    O("FindFaceBased"),
+                    #O("FindHeuristic"),
+                    ]:
                 job = BatchJob(
-                        "compmeth-%s-%s-%s" % (cn(rec), cn(pusher), cn(finder)),
+                        "compmeth-$DATE/%s-%s-%s" % (cn(rec), cn(pusher), cn(finder)),
                         "with-charge.py",
                         )
                 job.write_setup([
@@ -41,7 +44,7 @@ def compare_element_finders():
     for xpos in [0, 0.5, 1]:
         for finder in [O("FindFaceBased"), O("FindHeuristic")]:
             job = BatchJob(
-                    "compelfind-%s-%s" % (xpos, cn(classname)),
+                    "compelfind-$DATE/%s-%s" % (xpos, cn(classname)),
                     "rec-by-area.py",
                     ["special_meshes.py"]
                     )
@@ -60,11 +63,11 @@ def study_cleaning():
 
     O = ConstructorPlaceholder
 
-    for rec in [O("RecAdv"), O("RecNormShape")]:
+    for rec in [O("RecAdv"), O("RecNormShape"), O("RecShape")]:
         for pusher in [O("PushAverage")]:
             for chi in [None, 1, 2, 5]:
                 job = BatchJob(
-                        "cleanstudy-%s-chi%s" % (cn(rec), chi),
+                        "cleanstudy-$DATE/%s-chi%s" % (cn(rec), chi),
                         "with-charge.py",
                         )
                 job.write_setup([
@@ -88,7 +91,7 @@ def study_advec_filter():
     for filter_amp in [None, 0.97, 0.93, 0.88, 0.8, 0.7, 0.5]:
         for filter_order in get_filter_orders(filter_amp):
             job = BatchJob(
-                    "filtstudy-amp%s-ord%s" % (filter_amp, filter_order),
+                    "filtstudy-$DATE/amp%s-ord%s" % (filter_amp, filter_order),
                     "with-charge.py",
                     )
             job.write_setup([
@@ -107,7 +110,7 @@ def study_blob_exponent():
     for exponent in [1,2,3,4]:
         for rec in [O("RecAdv"), O("RecNormShape")]:
             job = BatchJob(
-                    "expstudy-exp%d-%s" % (exponent, cn(rec)),
+                    "expstudy-$DATE/exp%d-%s" % (exponent, cn(rec)),
                     "with-charge.py",
                     )
             job.write_setup([

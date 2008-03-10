@@ -9,8 +9,8 @@ PLOTTERM=$1
 shift
 
 for dir in "$@"; do
-  id=${dir%-20??-??-??-??????} # remove timestamp
-  id=${id#*-}
-  cmdline="$cmdline $dir/2d.dat prefix $id: plot step,$PLOTTERM"
+  #id=${dir%-20??-??-??-??????} # remove timestamp
+  #id=${id#*-}
+  cmdline="$cmdline $dir/*.log prefix $id: plot step,$PLOTTERM"
 done
-exec logtool --grid --legend-expr $cmdline
+exec logtool --grid --legend-expr --skip=10 $cmdline
