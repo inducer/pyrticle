@@ -185,7 +185,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
         variables.update({
                 "pusher": None,
                 "reconstructor": None,
-                "finder": None,
+                "finder": FaceBasedElementFinder(),
                 })
 
         pytools.CPyUserInterface.__init__(self, variables, constants, doc)
