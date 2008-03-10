@@ -1,6 +1,6 @@
-from pytools.batchjob import GridEngineJob, ConstructorPlaceholder
+from pytools.batchjob import guess_job_class, ConstructorPlaceholder
 
-BatchJob = GridEngineJob
+BatchJob = guess_job_class()
 
 def cn(placeholder):
     result = placeholder.classname

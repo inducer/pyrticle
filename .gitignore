@@ -8,6 +8,7 @@ MANIFEST
 *.poly
 *.node
 .*.swp
+.*.swo
 test/ParaViewTrace*.pvs
 dist
 *~
