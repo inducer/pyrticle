@@ -1,5 +1,6 @@
 #! /bin/sh
 
+set -e
 if test "$2" = ""; then
   echo "usage: $0 <plotexpr> <directory-pattern> "
   exit 1
@@ -8,9 +9,22 @@ fi
 PLOTTERM=$1
 shift
 
+function first_existing()
+{
+  while ! test -f $1; do
+    shift
+    if test "$1" = ""; then
+      echo "no matching file found"
+      exit 1
+    fi
+  done
+  echo $1
+}
+
 for dir in "$@"; do
   #id=${dir%-20??-??-??-??????} # remove timestamp
   #id=${id#*-}
-  cmdline="$cmdline $dir/*.log prefix $id: plot step,$PLOTTERM"
+  file=`first_existing $dir/{*.log,2d.dat}`
+  cmdline="$cmdline $file prefix $id: plot step,$PLOTTERM"
 done
 exec logtool --grid --legend-expr --skip=10 $cmdline
