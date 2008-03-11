@@ -163,9 +163,9 @@ def make_fine_center_rect_mesh(a=(0,0), b=(1,1),
             (6,7)
             ]
     facet_markers = [
-            1,2,3,
-            1,0,3,
-            1,0,3,
+            2,1,3,
+            0,1,3,
+            0,1,3,
             4
             ]
 

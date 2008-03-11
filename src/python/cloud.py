@@ -667,12 +667,14 @@ def guess_shape_bandwidth(cloud, exponent):
 
 
 
-def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False, plot_l1_errors=False):
+def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, 
+        plot_l1_errors=False,
+        visualize=False):
     adv_radius = cloud.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**i 
             for i in num.linspace(-4, 2, 50)]
 
-    if rhovis:
+    if visualize:
         from hedge.visualization import SiloVisualizer
         vis = SiloVisualizer(discr)
 
@@ -700,7 +702,7 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False,
         tried_radii.append(radius)
         l1_errors.append(integral(discr, num.abs(rec_rho-analytic_rho)))
 
-        if rhovis:
+        if visualize:
             visf = vis.make_file("rho-%04d" % step)
             cloud.add_to_vis(vis, visf, time=radius, step=step)
             vis.add_data(visf, [ 
@@ -710,7 +712,7 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, rhovis=False,
                 time=radius, step=step)
             visf.close()
 
-    if rhovis:
+    if visualize:
         vis.close()
 
     if plot_l1_errors:
