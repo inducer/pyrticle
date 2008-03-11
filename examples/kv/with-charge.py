@@ -204,7 +204,7 @@ def main():
             add_run_info, ETA
     from pyrticle.log import add_particle_quantities, add_field_quantities, \
             add_beam_quantities, add_currents
-    logmgr = LogManager("kv.dat")
+    logmgr = LogManager("kv.dat", "w")
     add_run_info(logmgr)
     add_general_quantities(logmgr)
     add_simulation_quantities(logmgr, dt)

@@ -3,6 +3,8 @@ from pytools.batchjob import guess_job_class, ConstructorPlaceholder
 BatchJob = guess_job_class()
 
 def cn(placeholder):
+    """Chop the first bit off a CamelCasedClassName, and convert to lower case."""
+
     result = placeholder.classname
     assert result[0].isupper()
 

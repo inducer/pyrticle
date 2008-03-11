@@ -92,7 +92,7 @@ def main():
             add_run_info, ETA
     from pyrticle.log import add_particle_quantities, add_beam_quantities, \
             ParticleCurrent
-    logmgr = LogManager("no-charge.dat")
+    logmgr = LogManager("no-charge.dat", "w")
     add_run_info(logmgr)
     add_general_quantities(logmgr)
     add_simulation_quantities(logmgr, dt)
