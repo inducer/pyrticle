@@ -56,6 +56,9 @@ namespace pyrticle
       const double radius() const
       { return m_l; }
 
+      const double exponent() const
+      { return m_exponent; }
+
     private:
       double m_normalizer;
       double m_alpha;

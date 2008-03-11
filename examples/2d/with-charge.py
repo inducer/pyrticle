@@ -44,7 +44,7 @@ class GaussianParticleDistribution(pytools.Record):
         from hedge.discretization import integral
         int_rho = integral(discr, rho)
         rel_err = (int_rho-self.total_charge)/self.total_charge
-        assert rel_err < 1e-6
+        assert rel_err < 1e-2
 
         return rho
 
@@ -196,9 +196,12 @@ def main():
     gauss_p.add_to(cloud, setup.nparticles)
 
     from pyrticle.cloud import optimize_shape_bandwidth, guess_shape_bandwidth
-    if setup.shape_bandwidth == "optimize":
+    if setup.shape_bandwidth.startswith("optimize"):
         optimize_shape_bandwidth(cloud, discr, gauss_p.analytic_rho(discr),
-                setup.shape_exponent)
+                setup.shape_exponent, 
+                plot_l1_errors="plot" in setup.shape_bandwidth,
+                visualize="visualize" in setup.shape_bandwidth,
+                )
     elif setup.shape_bandwidth == "guess":
         guess_shape_bandwidth(cloud, setup.shape_exponent)
     else:
@@ -242,6 +245,9 @@ def main():
     logmgr.set_constant("n_part_0", setup.nparticles)
     logmgr.set_constant("pmass", electrons_per_particle*units.EL_MASS)
     logmgr.set_constant("chi", setup.chi)
+    logmgr.set_constant("shape_radius_setup", setup.shape_bandwidth)
+    logmgr.set_constant("shape_radius", cloud.reconstructor.shape_function.radius)
+    logmgr.set_constant("shape_exponent", cloud.reconstructor.shape_function.exponent)
 
     from pytools.log import IntervalTimer
     vis_timer = IntervalTimer("t_vis", "Time spent visualizing")

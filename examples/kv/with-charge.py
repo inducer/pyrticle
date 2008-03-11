@@ -221,6 +221,10 @@ def main():
     logmgr.set_constant("Q0", setup.cloud_charge)
     logmgr.set_constant("n_part_0", setup.nparticles)
     logmgr.set_constant("pmass", electrons_per_particle*units.EL_MASS)
+    logmgr.set_constant("chi", setup.chi)
+    logmgr.set_constant("shape_radius_setup", setup.shape_bandwidth)
+    logmgr.set_constant("shape_radius", cloud.reconstructor.shape_function.radius)
+    logmgr.set_constant("shape_exponent", cloud.reconstructor.shape_function.exponent)
 
     from pytools.log import IntervalTimer
     vis_timer = IntervalTimer("t_vis", "Time spent visualizing")

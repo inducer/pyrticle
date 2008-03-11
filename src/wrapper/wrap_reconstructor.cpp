@@ -41,6 +41,7 @@ void expose_reconstructor()
         python::init<double, unsigned, python::optional<double> >(
           (arg("radius"), arg("dimensions"), arg("alpha"))))
       .add_property("radius", &cl::radius)
+      .add_property("exponent", &cl::exponent)
       .def("__call__", &cl::operator())
       ;
   }
