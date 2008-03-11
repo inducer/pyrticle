@@ -57,7 +57,7 @@ namespace pyrticle
       { return m_l; }
 
       const double exponent() const
-      { return m_exponent; }
+      { return m_alpha; }
 
     private:
       double m_normalizer;
