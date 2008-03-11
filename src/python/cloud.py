@@ -434,19 +434,16 @@ class ParticleCloud:
 
         return self
 
-    def add_to_vis(self, visualizer, vis_file, time=None, step=None, verbose=None):
-        if verbose is None:
-            verbose = self.verbose_vis
-
+    def add_to_vis(self, visualizer, vis_file, time=None, step=None, beamaxis=None):
         from hedge.visualization import VtkVisualizer, SiloVisualizer
         if isinstance(visualizer, VtkVisualizer):
-            return self._add_to_vtk(visualizer, vis_file, time, step, verbose)
+            return self._add_to_vtk(visualizer, vis_file, time, step)
         elif isinstance(visualizer, SiloVisualizer):
-            return self._add_to_silo(vis_file, time, step, verbose)
+            return self._add_to_silo(vis_file, time, step, beamaxis)
         else:
             raise ValueError, "unknown visualizer type `%s'" % type(visualizer)
 
-    def _add_to_vtk(self, visualizer, vis_file, time, step, verbose):
+    def _add_to_vtk(self, visualizer, vis_file, time, step):
         from hedge.vtk import \
                 VTK_VERTEX, VF_INTERLEAVED, \
                 DataArray, \
@@ -501,7 +498,7 @@ class ParticleCloud:
 
         visualizer.register_pathname(time, pathname)
 
-    def _add_to_silo(self, db, time, step, verbose):
+    def _add_to_silo(self, db, time, step, beamaxis):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
         from warnings import warn
 
@@ -514,10 +511,14 @@ class ParticleCloud:
         pcount = len(self)
 
         if pcount:
+            pos_alist = self.positions.get_alist_of_components()
+            mom_alist = self.momenta.get_alist_of_components()
+            # real-space ------------------------------------------------------
             db.put_pointmesh("particles", self.dimensions_pos, 
-                    num.hstack(self.positions.get_alist_of_components()), optlist)
-            db.put_pointvar("momenta", "particles", 
-                    self.momenta.get_alist_of_components())
+                    num.hstack(pos_alist), optlist)
+            db.put_pointvar1("charge", "particles", self.charges)
+            db.put_pointvar1("mass", "particles", self.masses)
+            db.put_pointvar("momentum", "particles", mom_alist)
             db.put_pointvar("velocity", "particles", 
                     self.velocities().get_alist_of_components())
 
@@ -532,6 +533,29 @@ class ParticleCloud:
                     db.put_pointvar1(name, "particles", value)
                 else:
                     db.put_pointvar(name, "particles", [value[i::dim] for i in range(dim)])
+            
+            # phase-space -----------------------------------------------------
+            axes_names = ["x", "y", "z"]
+
+            if beamaxis is not None:
+                for axis in range(min(self.dimensions_pos, self.dimensions_velocity)):
+                    if axis == beamaxis:
+                        continue 
+
+                    axname = axes_names[axis]
+
+                    db.put_defvars("phasespace_%s" % axname, 
+                            [
+                            ("part_%s" % axname, "coord(particles)[%d]" % axis), 
+                            ("part_%s_prime" % axname, 
+                                "momentum[%d]/momentum[%d]" % (axis, beamaxis)), 
+                            ("part_%s_momentum" % axname, 
+                                "momentum[%d]" % (axis)),
+                            ])
+
+
+
+
 
 
 
@@ -833,7 +857,7 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
             ("h_prime", h_prime), 
             ],
             )
-        cloud.add_to_vis(vis, visf, verbose=False)
+        cloud.add_to_vis(vis, visf)
         visf.close()
 
     return FieldsAndCloud(max_op, e_prime, h_prime, cloud)

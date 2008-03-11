@@ -306,7 +306,7 @@ def run_setup(casename, setup, discr, pusher):
             add_general_quantities, \
             add_run_info, ETA
     from pyrticle.log import add_particle_quantities
-    logmgr = LogManager("%s.dat" % casename)
+    logmgr = LogManager("%s.dat" % casename, "w")
     add_run_info(logmgr)
     add_general_quantities(logmgr)
     add_simulation_quantities(logmgr, dt)

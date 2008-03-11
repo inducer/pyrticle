@@ -1,8 +1,10 @@
-from pytools.batchjob import GridEngineJob, ConstructorPlaceholder
+from pytools.batchjob import GridEngineJob, ConstructorPlaceholder, get_timestamp
 
 BatchJob = GridEngineJob
 
 def cn(placeholder):
+    """Chop the first bit off a CamelCasedClassName, and convert to lower case."""
+
     result = placeholder.classname
     assert result[0].isupper()
 

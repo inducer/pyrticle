@@ -232,7 +232,7 @@ def main():
             add_run_info, ETA
     from pyrticle.log import add_particle_quantities, add_field_quantities, \
             add_beam_quantities, add_currents
-    logmgr = LogManager("2d.dat")
+    logmgr = LogManager("2d.dat", "w")
     add_run_info(logmgr)
     add_general_quantities(logmgr)
     add_simulation_quantities(logmgr, dt)
@@ -269,7 +269,7 @@ def main():
             vis_timer.start()
             visf = vis.make_file("pic-%04d" % step)
 
-            cloud.add_to_vis(vis, visf, time=t, step=step)
+            cloud.add_to_vis(vis, visf, time=t, step=step, beamaxis=0)
             vis.add_data(visf, [
                         ("divD", max_op.epsilon*div_op(fields.e)),
                         ("e", fields.e), 
