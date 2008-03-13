@@ -79,6 +79,9 @@ class ParticleCloud:
         self.dimensions_pos = dimensions_pos
         self.dimensions_velocity = dimensions_velocity
 
+        from pyrticle.tools import WarningForwarder
+        self.warning_forwarder = WarningForwarder()
+
         dims = (dimensions_pos, dimensions_velocity)
 
         self.pic_algorithm = getattr(_internal, 

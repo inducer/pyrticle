@@ -26,6 +26,7 @@
 
 #include "meshdata.hpp"
 #include "bases.hpp"
+#include "pic_algorithm.hpp"
 
 
 
@@ -176,10 +177,13 @@ namespace pyrticle
                   (pn+1)*field_components));
 
           if (m_particle_charge == 0)
-            throw std::runtime_error(
-                str(boost::format(
+          {
+            WARN(str(boost::format(
                     "average pusher: particle %d had zero reconstructed charge") % pn
-                  ).c_str());
+                  ));
+            (*m_field_stddev)[pn] = 0;
+            return;
+          }
 
           particle_field /= m_particle_charge;
 

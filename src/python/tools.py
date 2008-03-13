@@ -32,6 +32,16 @@ ZeroVector = _internal.ZeroVector
 
 
 
+# warnings --------------------------------------------------------------------
+class WarningForwarder(_internal.WarningListener):
+    def note_warning(message, category, filename, lineno):
+        from warnings import warn_explicit, UserWarning
+        warn_explicit(message, UserWarning, filename, lineno)
+
+
+
+
+# number-shifting vectors -----------------------------------------------------
 class NumberShiftSignaller:
     def __init__(self):
         from weakref import WeakKeyDictionary
@@ -203,4 +213,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "must specify valid reconstructor"
         assert isinstance(setup.finder, ElementFinder), \
                 "must specify valid element finder"
+
+
+
 

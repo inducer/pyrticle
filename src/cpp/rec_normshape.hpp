@@ -153,12 +153,17 @@ namespace pyrticle
                 particle_number pn,
                 const double charge)
             {
+              m_pic_algorithm.m_el_per_particle_stats.add(
+                  m_particle_shape_elements.size());
+
               if (m_integral == 0)
-                throw std::runtime_error(
-                    str(boost::format("reconstructed particle mass is zero"
+              {
+                WARN(str(boost::format("reconstructed particle mass is zero"
                         "(particle %d, #elements=%d)") 
                       % pn 
-                      % m_particle_shape_elements.size()).c_str());
+                      % m_particle_shape_elements.size()));
+                return;
+              }
 
               const double scale = charge/m_integral;
               m_pic_algorithm.m_normalization_stats.add(scale);
@@ -171,11 +176,7 @@ namespace pyrticle
                       sel.m_my_start_index,
                       sel.m_my_start_index+sel.m_el_length));
               m_target.end_particle(pn);
-
-              m_pic_algorithm.m_el_per_particle_stats.add(
-                  m_particle_shape_elements.size());
             }
-
         };
 
 

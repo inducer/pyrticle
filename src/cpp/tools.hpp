@@ -56,10 +56,6 @@ namespace pyrticle
   static const particle_number INVALID_PARTICLE = UINT_MAX;
 
 
-#define PIC_THIS static_cast<PICAlgorithm *>(this)
-#define CONST_PIC_THIS static_cast<const PICAlgorithm *>(this)
-
-
 
 
   // common ublas types -------------------------------------------------------
@@ -305,6 +301,51 @@ namespace pyrticle
       virtual void note_reset(unsigned start, unsigned size) const 
       { }
   };
+
+
+
+  class warning_listener
+  {
+    private:
+      static warning_listener   *m_singleton;
+
+    public:
+      warning_listener()
+      {
+        if (m_singleton)
+          throw std::runtime_error("warning listener singleton already exists");
+        m_singleton = this;
+      }
+
+      virtual ~warning_listener()
+      { 
+        m_singleton = 0;
+      }
+
+      static void warn(
+          std::string const &message,
+          std::string const &filename,
+          unsigned lineno
+          ) 
+      {
+        if (m_singleton)
+          m_singleton->note_warning(message, filename, lineno);
+        else
+          throw std::runtime_error("warning raised, but no listener registered");
+      }
+
+      virtual void note_warning(
+          std::string const &message,
+          std::string const &filename,
+          unsigned lineno
+          ) const = 0;
+  };
+
+
+
+
+#define WARN(MESSAGE) \
+  warning_listener::warn(MESSAGE, __FILE__, __LINE__);
 }
 
 

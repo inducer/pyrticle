@@ -68,6 +68,9 @@ def main():
     from pyrticle.units import SI
     units = SI()
 
+    from pytools.log import LogManager
+    logmgr = LogManager("2d.dat", "w")
+
     # user interface ----------------------------------------------------------
     def make_setup():
         c0 = units.VACUUM_LIGHT_SPEED
@@ -221,13 +224,12 @@ def main():
     stepper = RK4TimeStepper()
 
     # diagnostics setup -------------------------------------------------------
-    from pytools.log import LogManager, \
+    from pytools.log import \
             add_simulation_quantities, \
             add_general_quantities, \
             add_run_info, ETA
     from pyrticle.log import add_particle_quantities, add_field_quantities, \
             add_beam_quantities, add_currents
-    logmgr = LogManager("2d.dat", "w")
     add_run_info(logmgr)
     add_general_quantities(logmgr)
     add_simulation_quantities(logmgr, dt)

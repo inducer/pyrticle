@@ -81,6 +81,23 @@ namespace
         number_shift_listener::note_reset(start, size);
     }
   };
+
+
+
+
+  struct warning_listener_wrap : 
+    warning_listener,
+    python::wrapper<warning_listener>
+  {
+      void note_warning(
+          std::string const &message,
+          std::string const &filename,
+          unsigned lineno
+          ) const 
+      {
+        this->get_override("note_warning")(message, filename, lineno);
+      }
+  };
 }
 
 
@@ -135,6 +152,16 @@ void expose_tools()
       .def("note_change_size", &cl::note_change_size, &wrp::note_change_size)
       .def("note_move", &cl::note_move, &wrp::note_move)
       .def("note_reset", &cl::note_reset, &wrp::note_reset)
+      ;
+  }
+
+  {
+    typedef warning_listener cl;
+    python::class_<warning_listener_wrap, 
+      boost::shared_ptr<warning_listener_wrap>,
+      boost::noncopyable>
+      ("WarningListener")
+      .DEF_PURE_VIRTUAL_METHOD(note_warning)
       ;
   }
 

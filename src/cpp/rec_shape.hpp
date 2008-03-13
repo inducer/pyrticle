@@ -33,6 +33,7 @@
 #include "tools.hpp"
 #include "bases.hpp"
 #include "meshdata.hpp"
+#include "pic_algorithm.hpp"
 
 
 

@@ -614,16 +614,21 @@ namespace pyrticle
           const double total_unscaled_mass = std::accumulate(
               unscaled_masses.begin(), unscaled_masses.end(), double(0));
 
+          double scale;
           if (total_unscaled_mass == 0)
-            throw std::runtime_error(
-                str(boost::format("reconstructed initial particle mass is zero"
-                  "(particle %d, #elements=%d)") % pn % new_particle.m_elements.size()).c_str());
+          {
+            WARN(str(boost::format("reconstructed initial particle mass is zero"
+                    "(particle %d, #elements=%d)") % pn % new_particle.m_elements.size()));
+            scale = charge;
+          }
+          else
+            scale = charge / total_unscaled_mass;
 
           BOOST_FOREACH(active_element &el, new_particle.m_elements)
             subrange(m_rho, 
                 el.m_start_index, 
                 el.m_start_index+m_dofs_per_element) 
-            *= charge / total_unscaled_mass;
+            *= scale;
 
           m_advected_particles.push_back(new_particle);
         }
