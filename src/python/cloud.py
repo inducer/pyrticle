@@ -145,6 +145,14 @@ class ParticleCloud:
                 "n_find_global",
                 "#Particles found by global search")
 
+    def set_ignore_core_warnings(self, ignore):
+        from pyrticle.tools import WarningForwarder, WarningIgnorer
+        del self.warning_forwarder
+        if ignore:
+            self.warning_forwarder = WarningIgnorer()
+        else:
+            self.warning_forwarder = WarningForwarder()
+
     def __len__(self):
         return self.pic_algorithm.particle_count
 
@@ -692,15 +700,21 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent,
     l1_errors = []
     for step, radius in enumerate(radii):
         try:
+            cloud.set_ignore_core_warnings(True)
             set_radius(radius)
         except RuntimeError:
             continue
+        finally:
+            cloud.set_ignore_core_warnings(False)
 
         cloud.derived_quantity_cache.clear()
         try:
+            cloud.set_ignore_core_warnings(True)
             rec_rho = cloud.reconstruct_rho()
         except RuntimeError:
             continue
+        finally:
+            cloud.set_ignore_core_warnings(False)
 
         tried_radii.append(radius)
         l1_errors.append(integral(discr, num.abs(rec_rho-analytic_rho)))

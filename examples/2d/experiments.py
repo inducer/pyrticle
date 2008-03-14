@@ -126,9 +126,11 @@ def study_blob_exponent():
 
     timestamp = get_timestamp()
 
-    for exponent in [1,2,3,4]:
-        for rec in [O("RecAdv"), O("RecNormShape")]:
-            for push in [O("PushMonomial")]:
+    #for exponent in [1,2,3,4]:
+    for exponent in [5,6,7,8]:
+        #for rec in [O("RecAdv"), O("RecNormShape")]:
+        for rec in [O("RecShape"), O("RecNormShape")]:
+            for push in [O("PushMonomial"), O("PushAverage")]:
                 job = BatchJob(
                         "expstudy-$DATE/exp%d-%s-%s" % (exponent, cn(rec), cn(push)),
                         "with-charge.py",
