@@ -34,8 +34,9 @@ ZeroVector = _internal.ZeroVector
 
 # warnings --------------------------------------------------------------------
 class WarningForwarder(_internal.WarningListener):
-    def note_warning(message, category, filename, lineno):
+    def note_warning(self, message, filename, lineno):
         from warnings import warn_explicit
+        print message, filename, lineno
         warn_explicit(message, UserWarning, filename, lineno)
 
 

@@ -11,7 +11,7 @@ pusher = PushAverage()
 reconstructor = RecShape()
 shape_exponent = 2
 nparticles = 10000
-shape_bandwidth = "optimize,plot,visualize"
+shape_bandwidth = "optimize"
 vis_interval = 10
 
 element_order = 5
