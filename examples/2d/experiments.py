@@ -1,4 +1,7 @@
-from pytools.batchjob import guess_job_class, ConstructorPlaceholder
+from pytools.batchjob import \
+        guess_job_class, \
+        ConstructorPlaceholder, \
+        get_timestamp
 
 BatchJob = guess_job_class()
 
@@ -19,6 +22,8 @@ def compare_methods():
 
     O = ConstructorPlaceholder
 
+    timestamp = get_timestamp()
+
     for rec in [O("RecAdv"), O("RecNormShape"), O("RecShape")]:
         for pusher in [O("PushMonomial"), O("PushAverage")]:
             for finder in [
@@ -28,6 +33,7 @@ def compare_methods():
                 job = BatchJob(
                         "compmeth-$DATE/%s-%s-%s" % (cn(rec), cn(pusher), cn(finder)),
                         "with-charge.py",
+                        timestamp=timestamp,
                         )
                 job.write_setup([
                     "pusher = %s" % pusher,
@@ -41,6 +47,8 @@ def compare_element_finders():
 
     O = ConstructorPlaceholder
 
+    timestamp = get_timestamp()
+
     reconstructor = O("RecShape")
     pusher = O("PushMonomial")
     for xpos in [0, 0.5, 1]:
@@ -48,7 +56,8 @@ def compare_element_finders():
             job = BatchJob(
                     "compelfind-$DATE/%s-%s" % (xpos, cn(classname)),
                     "rec-by-area.py",
-                    ["special_meshes.py"]
+                    ["special_meshes.py"],
+                    timestamp=timestamp,
                     )
             job.write_setup([
                 "pusher = %s" % pusher,
@@ -65,12 +74,15 @@ def study_cleaning():
 
     O = ConstructorPlaceholder
 
+    timestamp = get_timestamp()
+
     for rec in [O("RecAdv"), O("RecNormShape"), O("RecShape")]:
         for pusher in [O("PushAverage")]:
             for chi in [None, 1, 2, 5]:
                 job = BatchJob(
                         "cleanstudy-$DATE/%s-chi%s" % (cn(rec), chi),
                         "with-charge.py",
+                        timestamp=timestamp,
                         )
                 job.write_setup([
                     "pusher = %s" % pusher,
@@ -90,11 +102,14 @@ def study_advec_filter():
         else:
             return [3, 6, 7, 9]
 
+    timestamp = get_timestamp()
+
     for filter_amp in [None, 0.97, 0.93, 0.88, 0.8, 0.7, 0.5]:
         for filter_order in get_filter_orders(filter_amp):
             job = BatchJob(
                     "filtstudy-$DATE/amp%s-ord%s" % (filter_amp, filter_order),
                     "with-charge.py",
+                    timestamp=timestamp,
                     )
             job.write_setup([
                 "pusher = %s" % O("PushAverage"),
@@ -109,18 +124,22 @@ def study_blob_exponent():
 
     O = ConstructorPlaceholder
 
+    timestamp = get_timestamp()
+
     for exponent in [1,2,3,4]:
         for rec in [O("RecAdv"), O("RecNormShape")]:
-            job = BatchJob(
-                    "expstudy-$DATE/exp%d-%s" % (exponent, cn(rec)),
-                    "with-charge.py",
-                    )
-            job.write_setup([
-                "pusher = PushAverage()",
-                "reconstructor = %s" % rec,
-                "shape_exponent = %s" % exponent,
-                ])
-            job.submit()
+            for push in [O("PushMonomial")]:
+                job = BatchJob(
+                        "expstudy-$DATE/exp%d-%s-%s" % (exponent, cn(rec), cn(push)),
+                        "with-charge.py",
+                        timestamp=timestamp,
+                        )
+                job.write_setup([
+                    "pusher = %s" % push,
+                    "reconstructor = %s" % rec,
+                    "shape_exponent = %s" % exponent,
+                    ])
+                job.submit()
 
 import sys
 exec sys.argv[1]
