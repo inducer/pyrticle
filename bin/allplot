@@ -2,7 +2,7 @@
 
 set -e
 if test "$2" = ""; then
-  echo "usage: $0 <plotexpr> <directory-pattern> "
+  echo "usage: $0 <plotexpr> <directory-pattern> [-- <further logtool commands>]"
   exit 1
 fi
 
@@ -21,11 +21,13 @@ function first_existing()
   echo $1
 }
 
-for dir in "$@"; do
-  id=$dir
+while test "$1" != "" && test "$1" != "--"; do
+  id="$1"
   #id=${id%-20??-??-??-??????} # remove timestamp
   #id=${id#*-}
-  file=`first_existing $dir/{*.log,2d.dat}`
+  file=`first_existing $id/{*.log,2d.dat}`
   cmdline="$cmdline $file prefix $id: plot t_sim,$PLOTTERM"
+  shift
 done
-exec logtool --grid --legend-expr --skip=10 $cmdline
+
+exec logtool --legend-expr $cmdline "$@"
