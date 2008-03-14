@@ -22,9 +22,10 @@ function first_existing()
 }
 
 for dir in "$@"; do
-  #id=${dir%-20??-??-??-??????} # remove timestamp
+  id=$dir
+  #id=${id%-20??-??-??-??????} # remove timestamp
   #id=${id#*-}
   file=`first_existing $dir/{*.log,2d.dat}`
-  cmdline="$cmdline $file prefix $id: plot step,$PLOTTERM"
+  cmdline="$cmdline $file prefix $id: plot t_sim,$PLOTTERM"
 done
 exec logtool --grid --legend-expr --skip=10 $cmdline
