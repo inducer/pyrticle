@@ -393,6 +393,18 @@ namespace pyrticle
 
       virtual ~pic() { } // placate old versions of gcc
 
+      // pic_data vector member accessors -------------------------------------
+      // (BPL workaround)
+      hedge::vector positions() const { return this->m_positions; }
+      hedge::vector momenta() const { return this->m_momenta; }
+      hedge::vector charges() const { return this->m_charges; }
+      hedge::vector masses() const { return this->m_masses; }
+
+      void set_positions(hedge::vector v) { this->m_positions = v; }
+      void set_momenta(hedge::vector v) { this->m_momenta = v; }
+      void set_charges(hedge::vector v) { this->m_charges = v; }
+      void set_masses(hedge::vector v) { this->m_masses = v; }
+
       // visualization-related ------------------------------------------------
       boost::shared_ptr<visualization_listener> m_vis_listener;
 
@@ -411,8 +423,8 @@ namespace pyrticle
 
       // reconstruction -----------------------------------------------------
       void reconstruct_densities(
-          hedge::vector &rho, 
-          hedge::vector &j,
+          hedge::vector rho, 
+          hedge::vector j,
           const hedge::vector &velocities)
       {
         if (rho.size() != this->m_mesh_data.m_nodes.size())
@@ -435,7 +447,7 @@ namespace pyrticle
 
 
 
-      void reconstruct_j(hedge::vector &j, const hedge::vector &velocities)
+      void reconstruct_j(hedge::vector j, const hedge::vector &velocities)
       {
         if (j.size() != this->m_mesh_data.m_nodes.size() *
             this->get_dimensions_velocity())
@@ -450,12 +462,12 @@ namespace pyrticle
 
 
 
-      void reconstruct_rho(hedge::vector &rho)
+      void reconstruct_rho(hedge::vector rho)
       {
         if (rho.size() != this->m_mesh_data.m_nodes.size())
           throw std::runtime_error("rho field does not have the correct size");
-        rho_reconstruction_target rho_tgt(rho);
 
+        rho_reconstruction_target rho_tgt(rho);
         this->reconstruct_densities_on_target(rho_tgt);
       }
   };

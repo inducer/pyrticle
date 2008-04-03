@@ -20,11 +20,8 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
-import pylinear.array as num
-import pylinear.computation as comp
-from pytools.arithmetic_container import work_with_arithmetic_containers
-from pytools.arithmetic_container import ArithmeticList
-from math import sqrt
+import numpy
+import numpy.linalg as la
 import pyrticle._internal as _internal
 
 from pyrticle.meshdata import MeshData
@@ -93,6 +90,10 @@ class ParticleCloud:
                     self.dimensions_velocity
                     ),
                 )(discr.dimensions, units.VACUUM_LIGHT_SPEED)
+        self.pic_algorithm.positions = numpy.zeros((0,), dtype=float)
+        self.pic_algorithm.momenta = numpy.zeros((0,), dtype=float)
+        self.pic_algorithm.charges = numpy.zeros((0,), dtype=float)
+        self.pic_algorithm.masses = numpy.zeros((0,), dtype=float)
 
         # We need to retain this particular Python wrapper
         # of our mesh_data object because we write new stuff
@@ -166,19 +167,17 @@ class ParticleCloud:
 
     @property
     def positions(self):
-        from hedge.tools import FixedSizeSliceAdapter
-        return FixedSizeSliceAdapter(
-                self.pic_algorithm.positions, 
-                self.dimensions_pos,
-                self.pic_algorithm.particle_count)
+        allocated_p_count = len(self.pic_algorithm.containing_elements)
+        return numpy.reshape(self.pic_algorithm.positions,
+                (allocated_p_count, self.dimensions_pos)
+                )[:self.pic_algorithm.particle_count]
 
     @property
     def momenta(self):
-        from hedge.tools import FixedSizeSliceAdapter
-        return FixedSizeSliceAdapter(
-                self.pic_algorithm.momenta, 
-                self.dimensions_velocity,
-                self.pic_algorithm.particle_count)
+        allocated_p_count = len(self.pic_algorithm.containing_elements)
+        return numpy.reshape(self.pic_algorithm.momenta,
+                (allocated_p_count, self.dimensions_velocity)
+                )[:self.pic_algorithm.particle_count]
 
     @property
     def masses(self):
@@ -188,19 +187,15 @@ class ParticleCloud:
     def charges(self):
         return self.pic_algorithm.charges[:self.pic_algorithm.particle_count]
 
-    def raw_velocities(self):
-        if "raw_velocities" in self.derived_quantity_cache:
-            return self.derived_quantity_cache["raw_velocities"]
-        else:
-            result = self.pic_algorithm.velocities()
-            self.derived_quantity_cache["raw_velocities"] = result
-            return result
-
     def velocities(self):
-        from hedge.tools import FixedSizeSliceAdapter
-        return FixedSizeSliceAdapter(
-                self.raw_velocities(),
-                self.dimensions_velocity)
+        if "velocities" in self.derived_quantity_cache:
+            return self.derived_quantity_cache["velocities"]
+        else:
+            result = numpy.reshape(
+                    self.pic_algorithm.velocities(),
+                    (self.pic_algorithm.particle_count, self.dimensions_velocity))
+            self.derived_quantity_cache["velocities"] = result
+            return result
 
     def add_particles(self, positions, velocities, charges, masses):
         """Add the particles with the given data to the cloud."""
@@ -211,7 +206,7 @@ class ParticleCloud:
         try:
             len(charges)
         except:
-            charges = charges*num.ones((new_count,))
+            charges = charges*numpy.ones((new_count,))
 
         try:
             len(masses)
@@ -235,9 +230,9 @@ class ParticleCloud:
                 if not dead]
         momenta = [v for v, dead in zip(momenta, deathflags) 
                 if not dead]
-        charges = num.array([c for c, dead in zip(charges, deathflags) 
+        charges = numpy.array([c for c, dead in zip(charges, deathflags) 
             if not dead])
-        masses = num.array([m for m, dead in zip(masses, deathflags) 
+        masses = numpy.array([m for m, dead in zip(masses, deathflags) 
             if not dead])
 
         # check vector dimensionalities
@@ -249,19 +244,18 @@ class ParticleCloud:
             assert len(p) == vdim
 
         # add particles
-
         pic.containing_elements[pic.particle_count:] = containing_elements
 
         prev_count = pic.particle_count
-        pic.positions = num.hstack(
-                (pic.positions[:prev_count*xdim], num.hstack(positions))
+        pic.positions = numpy.hstack(
+                (pic.positions[:prev_count*xdim], numpy.hstack(positions))
                 )
-        pic.momenta = num.hstack(
-                (pic.momenta[:prev_count*vdim], num.hstack(momenta)))
+        pic.momenta = numpy.hstack(
+                (pic.momenta[:prev_count*vdim], numpy.hstack(momenta)))
 
-        pic.charges = num.hstack(
+        pic.charges = numpy.hstack(
                 (pic.charges[:prev_count], charges))
-        pic.masses = num.hstack(
+        pic.masses = numpy.hstack(
                 (pic.masses[:prev_count], masses))
 
         pic.particle_count += len(containing_elements)
@@ -296,9 +290,8 @@ class ParticleCloud:
 
     def reconstruct_densities(self):
         """Return a tuple (charge_density, current_densities), where
-        current_densities is an 
-          ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
-        of the densities in each direction.
+        current_densities is an d-by-n array, where d is the number 
+        of velocity dimensions, and n is the discretization nodes.
         """
 
         if "j" in self.derived_quantity_cache:
@@ -311,21 +304,20 @@ class ParticleCloud:
         else:
             if "rho" in self.derived_quantity_cache:
                 rho = self.derived_quantity_cache["rho"]
-                j = self.reconstruct_j(self.raw_velocities())
+                j = self.reconstruct_j(self.velocities())
                 return rho, j
             else:
                 rho = self.discretization.volume_zeros()
-                from hedge.tools import FixedSizeSliceAdapter
-                j = FixedSizeSliceAdapter(num.zeros(
-                    (self.dimensions_velocity*len(self.discretization),)),
-                    self.dimensions_velocity)
+                j = numpy.zeros((len(self.discretization), self.dimensions_velocity),
+                        dtype=float)
 
                 self.reconstruct_timer.start()
                 self.reconstructor.reconstruct_hook()
-                self.pic_algorithm.reconstruct_densities(rho, j, self.raw_velocities())
-                j = j.get_alist_of_components()
+                self.pic_algorithm.reconstruct_densities(rho, j, self.velocities())
                 self.reconstruct_timer.stop()
                 self.reconstruct_counter.add(self.dimensions_velocity+1)
+
+                j = numpy.asarray(j.T, order="C")
 
                 self.derived_quantity_cache["rho"] = rho
                 self.derived_quantity_cache["j"] = j
@@ -333,24 +325,24 @@ class ParticleCloud:
                 return rho, j
 
     def reconstruct_j(self):
-        """Return a the current densities in the structure::
-          ArithmeticList([[jx0,jx1,...],[jy0,jy1,...]])  
+        """Return a the current densities as an d-by-n array, where d 
+        is the number of velocity dimensions, and n is the number of 
+        discretization nodes.
         """
 
         if "j" in self.derived_quantity_cache:
             return self.derived_quantity_cache["j"]
 
-        from hedge.tools import FixedSizeSliceAdapter
-        j = FixedSizeSliceAdapter(num.zeros(
-            (self.dimensions_velocity*len(self.discretization),)),
-            self.dimensions_velocity)
+        j = numpy.zeros((len(self.discretization), self.dimensions_velocity),
+                dtype=float)
 
         self.reconstruct_timer.start()
         self.reconstructor.reconstruct_hook()
-        self.pic_algorithm.reconstruct_j(j.adaptee, self.raw_velocities())
-        j = j.get_alist_of_components()
+        self.pic_algorithm.reconstruct_j(j, self.velocities())
         self.reconstruct_timer.stop()
         self.reconstruct_counter.add(self.dimensions_velocity)
+
+        j = numpy.asarray(j.T, order="C")
 
         self.derived_quantity_cache["j"] = j
 
@@ -385,7 +377,7 @@ class ParticleCloud:
           deals with M{H}, not M{B}.
         """
 
-        velocities = self.raw_velocities()
+        velocities = self.velocities()
 
         field_args = tuple(e) + tuple(b)
 
@@ -395,9 +387,12 @@ class ParticleCloud:
                 verbose_vis=self.verbose_vis,
                 *field_args
                 )
+        forces = numpy.reshape(forces,
+                (len(self), self.dimensions_velocity))
 
         from pyrticle.tools import NumberShiftableVector
-        result = ArithmeticList([
+        from hedge.tools import join_fields
+        result = join_fields(
             NumberShiftableVector(velocities, 
                 multiplier=self.dimensions_pos,
                 signaller=self.particle_number_shift_signaller),
@@ -405,21 +400,19 @@ class ParticleCloud:
                 multiplier=self.dimensions_velocity,
                 signaller=self.particle_number_shift_signaller),
             self.reconstructor.rhs()
-            ])
+            )
         return result
 
     def __iadd__(self, rhs):
         self.derived_quantity_cache.clear()
-
-        assert isinstance(rhs, ArithmeticList)
 
         from pyrticle.tools import NumberShiftableVector
 
         dx, dp, drecon = rhs
         dx = NumberShiftableVector.unwrap(dx)
         dp = NumberShiftableVector.unwrap(dp)
-        assert len(dx) == self.dimensions_pos*len(self)
-        assert len(dp) == self.dimensions_velocity*len(self)
+        assert dx.shape == (len(self), self.dimensions_pos)
+        assert dp.shape == (len(self), self.dimensions_velocity)
         self.pic_algorithm.add_rhs(dx, dp)
         self.reconstructor.add_rhs(drecon)
 
@@ -476,7 +469,7 @@ class ParticleCloud:
             if name in self.vis_info:
                 vec = self.vis_info[name]
             else:
-                vec = num.zeros((len(self.pic_algorithm.containing_elements) * dim,))
+                vec = numpy.zeros((len(self.pic_algorithm.containing_elements) * dim,))
 
             grid.add_pointdata(
                     DataArray(name, 
@@ -514,16 +507,15 @@ class ParticleCloud:
         pcount = len(self)
 
         if pcount:
-            pos_alist = self.positions.get_alist_of_components()
-            mom_alist = self.momenta.get_alist_of_components()
             # real-space ------------------------------------------------------
             db.put_pointmesh("particles", self.dimensions_pos, 
-                    num.hstack(pos_alist), optlist)
+                    numpy.asarray(self.positions.T, order="C"), optlist)
             db.put_pointvar1("charge", "particles", self.charges)
             db.put_pointvar1("mass", "particles", self.masses)
-            db.put_pointvar("momentum", "particles", mom_alist)
+            db.put_pointvar("momentum", "particles", 
+                    numpy.asarray(self.momenta.T, order="C"))
             db.put_pointvar("velocity", "particles", 
-                    self.velocities().get_alist_of_components())
+                    numpy.asarray(self.velocities().T, order="C"))
 
             for name, value in self.vis_info.iteritems():
                 from pyrticle.tools import NumberShiftableVector
@@ -600,7 +592,7 @@ class FieldsAndCloud:
         self.cloud.add_instrumentation(mgr)
         self.maxwell_op.discr.add_instrumentation(mgr)
 
-    def __iadd__(self, other):
+    def __add__(self, other):
         d_em_fields, d_cloud = other
 
         self.em_fields += d_em_fields
@@ -611,7 +603,6 @@ class FieldsAndCloud:
     def rhs(self, t, y):
         assert y is self
 
-        from pytools.arithmetic_container import join_fields, ArithmeticList
         from pyrticle._internal import ZeroVector
 
         # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
@@ -650,9 +641,13 @@ class FieldsAndCloud:
         # add current
         e_components = self.maxwell_op.count_subset(
                 self.maxwell_op.get_eh_subset()[0:3])
-        rhs_em[:e_components] -= 1/self.maxwell_op.epsilon*self.cloud.reconstruct_j()
 
-        return ArithmeticList([rhs_em, rhs_cloud])
+        from hedge.tools import to_obj_array
+        j = to_obj_array(self.cloud.reconstruct_j())
+        rhs_em[:e_components] -= 1/self.maxwell_op.epsilon*j
+
+        from hedge.tools import make_obj_array
+        return make_obj_array([rhs_em, rhs_cloud])
 
 
 
@@ -675,7 +670,7 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent,
         visualize=False):
     adv_radius = cloud.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**i 
-            for i in num.linspace(-4, 2, 50)]
+            for i in numpy.linspace(-4, 2, 50)]
 
     if visualize:
         from hedge.visualization import SiloVisualizer
@@ -703,7 +698,7 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent,
             continue
 
         tried_radii.append(radius)
-        l1_errors.append(integral(discr, num.abs(rec_rho-analytic_rho)))
+        l1_errors.append(integral(discr, numpy.abs(rec_rho-analytic_rho)))
 
         if visualize:
             visf = vis.make_file("rho-%04d" % step)
@@ -766,28 +761,26 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
     from hedge.operators import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
-    from hedge.tools import dot
+    from hedge.discretization import norm
 
-    def l2_norm(field):
-        return sqrt(dot(field, discr.mass_operator*field))
     def rel_l2_error(field, true):
-        err = l2_norm(field-true)
+        err = norm(discr, field-true)
         if err == 0:
             return 0
         else:
-            return err/l2_norm(true)
+            return err/norm(discr, true)
 
-    gamma = (1-comp.norm_2_squared(mean_beta))**(-0.5)
+    gamma = (1-numpy.dot(mean_beta, mean_beta))**(-0.5)
 
     # see doc/notes.tm for derivation of IC
 
     def make_scaling_matrix(beta_scale, other_scale):
-        if comp.norm_2(mean_beta) < 1e-10:
-            return other_scale*num.identity(discr.dimensions) 
+        if la.norm(mean_beta) < 1e-10:
+            return other_scale*numpy.eye(discr.dimensions) 
         else:
-            beta_unit = mean_beta/comp.norm_2(mean_beta)
-            return (other_scale*num.identity(discr.dimensions) 
-                    + (beta_scale-other_scale)*(beta_unit <<num.outer>> beta_unit))
+            beta_unit = mean_beta/la.norm(mean_beta)
+            return (other_scale*numpy.identity(discr.dimensions) 
+                    + (beta_scale-other_scale)*numpy.outer(beta_unit, beta_unit))
 
     poisson_op = WeakPoissonOperator(discr, 
             diffusion_tensor=ConstantGivenFunction(
@@ -808,14 +801,15 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
                     GivenVolumeInterpolant(discr, rho_tilde/max_op.epsilon)), 
                 debug=True, tol=1e-10)
 
-    from pytools.arithmetic_container import ArithmeticListMatrix
-    ALM = ArithmeticListMatrix
-    e_tilde = ALM(make_scaling_matrix(1/gamma, 1))*poisson_op.grad(phi_tilde)
-    e_prime = ALM(make_scaling_matrix(1, gamma))*e_tilde
+    from hedge.tools import ptwise_dot
+    e_tilde = ptwise_dot(make_scaling_matrix(1/gamma, 1), poisson_op.grad(phi_tilde))
+    e_prime = ptwise_dot(make_scaling_matrix(1, gamma), e_tilde)
     h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
+
     if debug:
-        from hedge.discretization import ones_on_volume
-        reconstructed_charge = ones_on_volume(discr)*(discr.mass_operator*rho_prime)
+        from hedge.discretization import integral
+        reconstructed_charge = integral(discr, rho_prime)
+
         real_charge = sum(cloud.charges)
         print "charge: supposed=%g reconstructed=%g error=%g %%" % (
                 real_charge,

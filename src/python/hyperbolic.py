@@ -22,7 +22,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
-import pylinear.array as num
+import numpy
 
 
 
@@ -107,13 +107,11 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         pec_phi = self.discr.boundarize_volume_field(phi, self.maxwell_op.pec_tag)
         pec_n = self.pec_normals
 
-        from pytools.arithmetic_container import work_with_arithmetic_containers
-        ac_multiply = work_with_arithmetic_containers(num.multiply)
-
+        from hedge.tools import ptwise_dot
         # see hedge/doc/maxima/eclean.mac for derivation
         pec_bc = join_fields(
                 -pec_e
-                +2*ac_multiply(pec_n, dot(pec_n, pec_e, num.multiply)),
+                +2*pec_n * ptwise_dot(pec_n, pec_e),
                 pec_h,
                 -pec_phi)
 

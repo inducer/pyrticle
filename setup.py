@@ -40,7 +40,7 @@ def main():
     if "PYRTICLE_CONF_TEMPLATE_VERSION" not in conf:
         non_matching_config()
 
-    if conf["PYRTICLE_CONF_TEMPLATE_VERSION"] != 2:
+    if conf["PYRTICLE_CONF_TEMPLATE_VERSION"] != 3:
         non_matching_config()
 
     INCLUDE_DIRS = ["src/cpp"] \
@@ -65,7 +65,9 @@ def main():
         cvars["CXX"] = conf["MPICXX"]
 
     conf["BLAS_INCLUDE_DIRS"] = []
+    conf["LAPACK_INCLUDE_DIRS"] = []
     conf["USE_BLAS"] = True
+    conf["USE_LAPACK"] = True
 
     def handle_component(comp):
         if conf["USE_"+comp]:
@@ -75,6 +77,7 @@ def main():
             EXTRA_LIBRARIES.extend(conf[comp+"_LIBRARIES"])
 
     handle_component("BLAS")
+    handle_component("LAPACK")
 
     setup(name="pyrticle",
           version="0.90",

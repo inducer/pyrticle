@@ -19,8 +19,8 @@
 
 
 import pyrticle._internal as _internal
-import pylinear.array as num
-import pylinear.computation as comp
+import numpy
+import numpy.linalg as la
 from pytools import monkeypatch_class
 
 
@@ -88,14 +88,15 @@ class MeshData(_internal.MeshData):
                 this_face_vertices = [mesh.points[fvi] 
                         for fvi in all_face_vertex_indices[face_idx]]
 
-                rhs = [face_normal*fv for fv in this_face_vertices]
+                rhs = [numpy.dot(face_normal, fv) for fv in this_face_vertices]
                 from pytools import all_roughly_equal, average
                 assert all_roughly_equal(rhs, 1e-14)
+
                 fi.face_plane_eqn_rhs = average(rhs)
                 fi.face_centroid = average(this_face_vertices)
 
                 fi.face_radius_from_centroid = max(
-                        comp.norm_2(fv - fi.face_centroid) for fv in this_face_vertices)
+                        la.norm(fv - fi.face_centroid) for fv in this_face_vertices)
 
                 ei.faces.append(fi)
 
@@ -135,7 +136,7 @@ class MeshData(_internal.MeshData):
         vertices = [self.discr.mesh.points[vi] 
                 for vi in el.vertex_indices]
 
-        return min(min(comp.norm_2(vi-vj)
+        return min(min(la.norm(vi-vj)
                 for i, vi in enumerate(vertices)
                 if i != j)
                 for j, vj in enumerate(vertices))

@@ -1,7 +1,6 @@
 from __future__ import division
-import pylinear.array as num
-import pylinear.computation as comp
-import pylinear.operator as op
+import numpy
+import numpy.linalg as la
 import cProfile as profile
 import pytools
 
@@ -18,11 +17,11 @@ class GaussianParticleDistribution(pytools.Record):
         pmass = self.total_mass/nparticles
         cloud.add_particles(
                 positions=[
-                    num.array([gauss(m, s) for m, s in zip(self.mean_x, self.sigma_x)]) 
+                    numpy.array([gauss(m, s) for m, s in zip(self.mean_x, self.sigma_x)]) 
                     for i in range(nparticles)
                     ],
                 velocities=[cloud.units.v_from_p(pmass, 
-                    num.array([gauss(m, s) for m, s in zip(self.mean_p, self.sigma_p)])) 
+                    numpy.array([gauss(m, s) for m, s in zip(self.mean_p, self.sigma_p)])) 
                     for i in range(nparticles)
                     ],
                 charges=self.total_charge/nparticles, 
@@ -31,12 +30,15 @@ class GaussianParticleDistribution(pytools.Record):
     def analytic_rho(self, discr):
         from math import exp, pi
 
-        sigma_mat = num.diagonal_matrix(num.power(self.sigma_x, 2))
-        inv_sigma_mat = num.diagonal_matrix(num.power(self.sigma_x, -2))
+        sigma_mat = numpy.diag(self.sigma_x**2)
+        inv_sigma_mat = numpy.diag(self.sigma_x**(-2))
+
+        from numpy import dot
 
         def distrib(x):
-            return 1/((2*pi)**(len(x)/2) * comp.determinant(sigma_mat)**0.5) \
-                    * exp(-0.5*(x-self.mean_x)*inv_sigma_mat*(x-self.mean_x))
+            x0 = x-self.mean_x
+            return 1/((2*pi)**(len(x)/2) * la.det(sigma_mat)**0.5) \
+                    * exp(-0.5*dot(x0, dot(inv_sigma_mat, x0)))
 
         rho = self.total_charge * discr.interpolate_volume_function(distrib)
 
@@ -58,7 +60,6 @@ def main():
             Discretization, \
             pair_with_boundary
     from hedge.visualization import VtkVisualizer, SiloVisualizer
-    from hedge.tools import dot
     from math import sqrt, pi
     from pytools.arithmetic_container import join_fields
 
@@ -91,9 +92,9 @@ def main():
 
                 "final_time": 10*units.M/units.VACUUM_LIGHT_SPEED,
 
-                "sigma_x": 0.1*num.ones((2,)),
-                "mean_v": num.array([c0*0.9, 0]),
-                "sigma_v": num.array([c0*0.9*1e-3, c0*0.9*1e-6]),
+                "sigma_x": 0.1*numpy.ones((2,)),
+                "mean_v": numpy.array([c0*0.9, 0]),
+                "sigma_v": numpy.array([c0*0.9*1e-3, c0*0.9*1e-6]),
                 "nparticles": 1000,
                 "cloud_charge": -1e-9 * units.C,
 
@@ -187,12 +188,12 @@ def main():
     pmass = electrons_per_particle*units.EL_MASS
     mean_p = gamma*pmass*setup.mean_v
 
-    print "beta=%g, gamma=%g" % (comp.norm_2(mean_beta), gamma)
+    print "beta=%g, gamma=%g" % (la.norm(mean_beta), gamma)
 
     gauss_p = GaussianParticleDistribution(
             total_charge=setup.cloud_charge, 
             total_mass=pmass*setup.nparticles,
-            mean_x=num.zeros((2,)),
+            mean_x=numpy.zeros((2,)),
             mean_p=mean_p,
             sigma_x=setup.sigma_x,
             sigma_p=gamma*pmass*setup.sigma_v)
@@ -240,7 +241,7 @@ def main():
 
     stepper.add_instrumentation(logmgr)
     fields.add_instrumentation(logmgr)
-    logmgr.set_constant("beta", comp.norm_2(mean_beta))
+    logmgr.set_constant("beta", la.norm(mean_beta))
     logmgr.set_constant("gamma", gamma)
     logmgr.set_constant("mean_v", setup.mean_v)
     logmgr.set_constant("Q0", setup.cloud_charge)

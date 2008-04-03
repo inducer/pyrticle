@@ -20,8 +20,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 import pyrticle._internal as _internal
-import pylinear.array as num
-import pylinear.computation as comp
+import numpy
 import pytools
 
 
@@ -141,9 +140,9 @@ class NumberShiftableVector(object):
         new_size *= self.multiplier
 
         if new_size > old_size:
-            self.vector = num.hstack((
+            self.vector = numpy.hstack((
                     self.vector, 
-                    num.zeros((new_size-len(self.vector),), 
+                    numpy.zeros((new_size-len(self.vector),), 
                         dtype=self.vector.dtype)))
         elif new_size < old_size:
             self.vector = self.vector[:new_size]
@@ -179,8 +178,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 HeuristicElementFinder
 
         constants.update({
-                "num": num,
-                "comp": comp,
+                "numpy": numpy,
 
                 "RecShape": ShapeFunctionReconstructor,
                 "RecNormShape": NormalizedShapeFunctionReconstructor,

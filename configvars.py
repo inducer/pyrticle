@@ -13,6 +13,10 @@ vars = [
         "Library directory for BLAS"),
     ("BLAS_LIB_NAMES", "blas",
         "Library names for BLAS, comma-separated"),
+    ("LAPACK_LIB_DIR", None,
+        "Library directory for LAPACK"),
+    ("LAPACK_LIB_NAMES", "lapack",
+        "Library names for LAPACK, comma-separated"),
     # -------------------------------------------------------------------------
     ("HAVE_MPI", False,
         "Whether to build with support for MPI"),
