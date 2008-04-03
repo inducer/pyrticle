@@ -21,8 +21,8 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 import pytools.log
-import pylinear.array as num
-import pylinear.computation as comp
+import numpy
+import numpy.linalg as la
 
 
 
@@ -62,7 +62,7 @@ class MonomialParticlePusher(Pusher):
 
         # add monomial basis data ---------------------------------------------
         from hedge.polynomial import generic_vandermonde
-        from pyrticle._internal import MonomialBasisFunction
+        from pyrticle._internal import MonomialBasisFunction, lu
 
         for i, eg in enumerate(cloud.mesh_data.discr.element_groups):
             ldis = eg.local_discretization
@@ -73,11 +73,15 @@ class MonomialParticlePusher(Pusher):
             lmd.basis.extend([MonomialBasisFunction(*idx)
                 for idx in ldis.node_tuples()])
 
-            mon_vdm_t = generic_vandermonde(ldis.unit_nodes(), lmd.basis).T
+            mon_vdm_t = numpy.asarray(
+                    generic_vandermonde(ldis.unit_nodes(), lmd.basis).T,
+                    order="C")
 
-            lmd.l_vandermonde_t, \
-                    lmd.u_vandermonde_t, perm, sign = comp.lu(mon_vdm_t)
-            lmd.p_vandermonde_t = num.permutation_matrix(from_indices=perm)
+            lvt, uvt, perm = lu(mon_vdm_t)
+            from pyublas import permutation_matrix
+            lmd.l_vandermonde_t = numpy.asarray(lvt, order="C")
+            lmd.u_vandermonde_t = numpy.asarray(uvt, order="C")
+            lmd.p_vandermonde_t = permutation_matrix(from_indices=perm)
             cloud.pic_algorithm.local_discretizations.append(lmd)
 
             cloud.pic_algorithm.ldis_indices.extend([i]*len(eg.members))

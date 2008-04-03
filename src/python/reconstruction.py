@@ -23,8 +23,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 import pytools.log
-import pylinear.array as num
-import pylinear.computation as comp
+import numpy
 
 
 
@@ -183,7 +182,7 @@ class AdvectiveReconstructor(Reconstructor):
             filter = Filter(discr, self.filter_response)
             filter_mat, = filter.filter_matrices
         else:
-            filter_mat = num.zeros((0,0))
+            filter_mat = numpy.zeros((0,0))
 
         cloud.pic_algorithm.setup_advective_reconstructor(
                 len(ldis.face_indices()),

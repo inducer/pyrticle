@@ -21,7 +21,8 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 from math import pi, sqrt
-import pylinear.computation as comp
+import numpy
+import numpy.linalg as la
 
 
 
@@ -55,16 +56,15 @@ class SI:
     EV = EL_CHARGE * V
 
     def gamma(self, v):
-        import pylinear.computation as comp
-        value = 1-comp.norm_2_squared(v)/self.VACUUM_LIGHT_SPEED**2
+        value = 1-numpy.dot(v, v)/self.VACUUM_LIGHT_SPEED**2
         if value <= 0:
             raise RuntimeError, "particle velocity >= speed of light"
         return value**(-0.5)
 
     def v_from_p(self, m, p):
         c = self.VACUUM_LIGHT_SPEED
-        v =  c*p*(comp.norm_2_squared(p)+c*c*m*m)**(-0.5)
-        assert comp.norm_2(v) < c
+        v =  c*p*(numpy.dot(p, p)+c*c*m*m)**(-0.5)
+        assert la.norm(v) < c
         return v
 
 

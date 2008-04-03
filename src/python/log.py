@@ -24,8 +24,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 from pytools.log import LogQuantity, MultiLogQuantity
 from hedge.log import axis_name
-import pylinear.array as num
-import pylinear.computation as comp
+import numpy
 
 
 
@@ -101,7 +100,7 @@ class KineticEnergy(LogQuantity):
 
     def __call__(self):
         from pyrticle._internal import kinetic_energies
-        total_kin_energy = num.sum(kinetic_energies(
+        total_kin_energy = numpy.sum(kinetic_energies(
                 self.cloud.pic_algorithm))
         return total_kin_energy
 
@@ -151,7 +150,7 @@ class DivergenceEQuantities(MultiLogQuantity):
         from hedge.discretization import integral
         return [
                 integral(self.discr, div_d),
-                integral(self.discr, num.absolute(div_d-rho))
+                integral(self.discr, numpy.absolute(div_d-rho))
                 ]
 
 
@@ -180,9 +179,8 @@ class FieldCurrent(LogQuantity):
 
     def __call__(self):
         from hedge.discretization import integral
-        from hedge.tools import dot
         return integral(self.f_and_c.maxwell_op.discr, 
-                dot(self.direction,
+                numpy.dot(self.direction,
                     self.f_and_c.cloud.reconstruct_j()))/self.tube_length
 
 
@@ -255,16 +253,15 @@ class ParticleCurrent(LogQuantity):
         LogQuantity.__init__(self, name, "A",
                 "Particle Current along %s" % str(list(direction)))
         self.cloud = cloud
-        self.direction = num.asarray(direction)
+        self.direction = numpy.asarray(direction)
         self.tube_length = tube_length
 
     def __call__(self):
         from pyrticle._internal import particle_current
-        from hedge.tools import dot
-        return dot(
+        return numpy.dot(
                 particle_current(
                     self.cloud.pic_algorithm, 
-                    self.cloud.raw_velocities(),
+                    self.cloud.velocities(),
                     self.tube_length),
                 self.direction)
 

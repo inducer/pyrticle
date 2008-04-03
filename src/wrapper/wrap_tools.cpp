@@ -18,11 +18,15 @@
 
 
 
+#include <pyublas/numpy.hpp>
+#include <pyublas/python_helpers.hpp>
 #include <boost/math/tools/config.hpp>
 #include <boost/math/special_functions/gamma.hpp>
 #include <boost/math/special_functions/beta.hpp>
 #include <boost/math/special_functions/asinh.hpp>
 #include <boost/math/special_functions/acosh.hpp>
+#include <boost/numeric/bindings/lapack/gesv.hpp>
+#include <boost/numeric/bindings/traits/ublas_matrix.hpp>
 #include "tools.hpp"
 #include "wrap_helpers.hpp"
 
@@ -98,6 +102,56 @@ namespace
         this->get_override("note_warning")(message, filename, lineno);
       }
   };
+
+
+
+
+  // lu -----------------------------------------------------------------------
+  template <typename ValueType>
+  python::handle<> lu_wrapper(const pyublas::numpy_matrix<ValueType> &a)
+  {
+    namespace lapack = boost::numeric::bindings::lapack;
+
+    typedef pyublas::numpy_matrix<ValueType> matrix_t;
+    typedef ublas::matrix<ValueType, ublas::column_major> col_matrix_t;
+
+    const unsigned piv_len = std::min(a.size1(), a.size2());
+
+    col_matrix_t temp(a);
+    ublas::vector<int> piv(piv_len);
+
+    int info = lapack::getrf(temp, piv);
+    if (info < 0)
+      throw std::runtime_error("invalid argument to getrf");
+    
+    matrix_t l(a.size1(), a.size2());
+    l.clear();
+    matrix_t u(a.size1(), a.size2());
+    u.clear();
+
+    for (typename matrix_t::size_type i = 0; i < a.size1(); i++)
+    {
+      unsigned j = 0;
+      for (; j < std::min(i, a.size2()); j++) l(i,j) = temp(i,j);
+      l(i,i) = 1;
+      for (; j < a.size2(); j++) u(i,j) = temp(i,j);
+    }
+
+    ublas::vector<int> permut(piv_len);
+    for (unsigned i = 0; i < piv_len; i++) 
+      permut[i] = i;
+    for (unsigned i = 0; i < piv_len; i++) 
+      std::swap(permut[i], permut[piv[i]-1]);
+
+    python::list py_permut;
+    for (unsigned i = 0; i < piv_len; i++)
+      py_permut.append(permut[i]);
+    
+    return python::handle<>(Py_BuildValue("(NNO)", 
+        l.to_python().release(), 
+        u.to_python().release(),
+        py_permut.ptr()));
+  }
 }
 
 
@@ -179,4 +233,5 @@ void expose_tools()
       ;
   }
 
+  python::def("lu", lu_wrapper<double>);
 }

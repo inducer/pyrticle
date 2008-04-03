@@ -3,7 +3,7 @@
 # See documentation for hints.
 # --------------------------------------------------------------------
 
-PYRTICLE_CONF_TEMPLATE_VERSION = 2
+PYRTICLE_CONF_TEMPLATE_VERSION = 3
 
 # --------------------------------------------------------------------
 # Path options
@@ -18,6 +18,10 @@ BOOST_BINDINGS_INCLUDE_DIRS = [$str{BOOST_BINDINGS_INC_DIR}]
 HAVE_BLAS = True
 BLAS_LIBRARY_DIRS = [$str{BLAS_LIB_DIR}]
 BLAS_LIBRARIES = $str{BLAS_LIB_NAMES}.split(",")
+
+HAVE_LAPACK = True
+LAPACK_LIBRARY_DIRS = [$str{LAPACK_LIB_DIR}]
+LAPACK_LIBRARIES = $str{LAPACK_LIB_NAMES}.split(",")
 
 HAVE_MPI = ${HAVE_MPI}
 MPICC = $str{MPICC}

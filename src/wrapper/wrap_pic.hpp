@@ -80,11 +80,11 @@ namespace
 
       .DEF_RW_MEMBER(particle_count)
 
-      .DEF_RO_MEMBER(containing_elements)
-      .DEF_RW_MEMBER(positions)
-      .DEF_RW_MEMBER(momenta)
-      .DEF_RW_MEMBER(charges)
-      .DEF_RW_MEMBER(masses)
+      .DEF_RW_MEMBER(containing_elements)
+      .add_property("positions", &cl::positions, &cl::set_positions)
+      .add_property("momenta", &cl::momenta, &cl::set_momenta)
+      .add_property("charges", &cl::charges, &cl::set_charges)
+      .add_property("masses", &cl::masses, &cl::set_masses)
 
       .DEF_RO_MEMBER(vacuum_c)
 
@@ -167,6 +167,7 @@ namespace
   inline
   void expose_pic_all_dim()
   {
+    /*
     expose_pic_algorithm<
         pic<
           pic_data<2,2>,
@@ -175,10 +176,20 @@ namespace
           heuristic_element_finder
           >
         >();
+        */
 
     expose_pic_algorithm<
         pic<
           pic_data<2,2>,
+          Reconstructor,
+          Pusher,
+          face_based_element_finder
+          >
+        >();
+
+    expose_pic_algorithm<
+        pic<
+          pic_data<3,3>,
           Reconstructor,
           Pusher,
           face_based_element_finder
@@ -190,7 +201,8 @@ namespace
         pic<
           pic_data<3,3>,
           Reconstructor,
-          Pusher
+          Pusher,
+          heuristic_element_finder
           >
         >();
         */

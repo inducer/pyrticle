@@ -18,6 +18,7 @@
 
 
 
+#include <pyublas/numpy.hpp>
 #include <boost/shared_ptr.hpp>
 #include "meshdata.hpp"
 #include "wrap_helpers.hpp"
@@ -60,13 +61,13 @@ void expose_meshdata()
   {
     typedef mesh_data::face_info cl;
     python::class_<cl>("FaceInfo")
-      .DEF_RW_MEMBER(normal)
+      .def(pyublas::by_value_rw_member("normal", &cl::m_normal))
       .DEF_RW_MEMBER(neighbor)
       .DEF_RW_MEMBER(neighbor_periodicity_axis)
 
       .DEF_RW_MEMBER(face_plane_eqn_rhs)
 
-      .DEF_RW_MEMBER(face_centroid)
+      .def(pyublas::by_value_rw_member("face_centroid", &cl::m_face_centroid))
       .DEF_RW_MEMBER(face_radius_from_centroid)
       ;
   }

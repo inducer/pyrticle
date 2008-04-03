@@ -22,8 +22,8 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
-import pylinear.array as num
-import pylinear.computation as comp
+import numpy
+import numpy.linalg as la
 from pytools.log import SimulationLogQuantity
 
 
@@ -36,8 +36,8 @@ def uniform_on_unit_sphere(dim):
     # http://www-alg.ist.hokudai.ac.jp/~jan/randsphere.pdf
     # Algorith due to Knuth
 
-    pt = num.array([gauss(0,1) for i in range(dim)])
-    n2 = comp.norm_2(pt)
+    pt = numpy.array([gauss(0,1) for i in range(dim)])
+    n2 = la.norm(pt)
     return pt/n2
 
 
@@ -104,10 +104,10 @@ class KVZIntervalBeam:
         while len(xp) < dim_p:
             xp.append(0)
 
-        z = num.array([0,0,1])
+        z = numpy.array([0,0,1])
 
-        return (num.array(x),
-                z*vz + num.array([xp_i*vz for xp_i in xp]))
+        return (numpy.array(x),
+                z*vz + numpy.array([xp_i*vz for xp_i in xp]))
 
     def add_to(self, cloud, discr):
         from random import uniform
@@ -122,14 +122,14 @@ class KVZIntervalBeam:
         size = bbox_max-bbox_min
 
         vz = self.beta*self.units.VACUUM_LIGHT_SPEED
-        z = num.array([0,0,1])
+        z = numpy.array([0,0,1])
 
         for i in range(self.nparticles):
             pos, v = self.make_particle(
                     vz=self.beta*self.units.VACUUM_LIGHT_SPEED,
                     dim_x=cloud.dimensions_pos, dim_p=cloud.dimensions_velocity)
 
-            my_beta = comp.norm_2(v)/self.units.VACUUM_LIGHT_SPEED
+            my_beta = la.norm(v)/self.units.VACUUM_LIGHT_SPEED
             
             if abs(self.beta) > 1e-4:
                 assert abs(self.beta - my_beta)/self.beta < 1e-4
@@ -307,7 +307,7 @@ class KVRadiusPredictor(ODEDefinedFunction):
     M{Q} is the number of electrons in the beam
     """
     def __init__(self, a0, eps, eB_2E=0, xi=0, dt=1e-4):
-        ODEDefinedFunction.__init__(self, 0, num.array([a0, 0]), 
+        ODEDefinedFunction.__init__(self, 0, numpy.array([a0, 0]), 
                 dt=dt*(a0**4/eps**2)**2)
         self.eps = eps
         self.xi = xi
@@ -316,7 +316,7 @@ class KVRadiusPredictor(ODEDefinedFunction):
     def rhs(self, t, y):
         a = y[0]
         aprime = y[1]
-        return num.array([
+        return numpy.array([
             aprime, 
             - self.eB_2E**2 * a
             + self.eps**2/a**3
@@ -353,10 +353,10 @@ if __name__ == "__main__":
     class Sin(ODEDefinedFunction):
         def __init__(self):
             ODEDefinedFunction.__init__(self, 0, 
-                    num.array([0,1]), 1/7*1e-2)
+                    numpy.array([0,1]), 1/7*1e-2)
 
         def rhs(self, t, y):
-            return num.array([y[1], -y[0]])
+            return numpy.array([y[1], -y[0]])
 
         def __call__(self, t):
             return ODEDefinedFunction.__call__(self, t)[0]
