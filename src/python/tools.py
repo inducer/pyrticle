@@ -41,6 +41,11 @@ class WarningForwarder(_internal.WarningListener):
 
 
 
+warning_forwarder = WarningForwarder()
+
+
+
+
 # number-shifting vectors -----------------------------------------------------
 class NumberShiftSignaller:
     def __init__(self):

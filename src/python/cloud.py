@@ -76,9 +76,6 @@ class ParticleCloud:
         self.dimensions_pos = dimensions_pos
         self.dimensions_velocity = dimensions_velocity
 
-        from pyrticle.tools import WarningForwarder
-        self.warning_forwarder = WarningForwarder()
-
         dims = (dimensions_pos, dimensions_velocity)
 
         self.pic_algorithm = getattr(_internal, 
@@ -403,7 +400,7 @@ class ParticleCloud:
             )
         return result
 
-    def __iadd__(self, rhs):
+    def __add__(self, rhs):
         self.derived_quantity_cache.clear()
 
         from pyrticle.tools import NumberShiftableVector

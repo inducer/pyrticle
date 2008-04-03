@@ -167,6 +167,7 @@ namespace
   inline
   void expose_pic_all_dim()
   {
+    /*
     expose_pic_algorithm<
         pic<
           pic_data<2,2>,
@@ -175,10 +176,20 @@ namespace
           heuristic_element_finder
           >
         >();
+        */
 
     expose_pic_algorithm<
         pic<
           pic_data<2,2>,
+          Reconstructor,
+          Pusher,
+          face_based_element_finder
+          >
+        >();
+
+    expose_pic_algorithm<
+        pic<
+          pic_data<3,3>,
           Reconstructor,
           Pusher,
           face_based_element_finder
@@ -190,7 +201,8 @@ namespace
         pic<
           pic_data<3,3>,
           Reconstructor,
-          Pusher
+          Pusher,
+          heuristic_element_finder
           >
         >();
         */

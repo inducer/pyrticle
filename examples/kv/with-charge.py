@@ -1,6 +1,6 @@
 from __future__ import division
-import pylinear.array as num
-import pylinear.computation as comp
+import numpy
+import numpy.linalg as la
 
 
 
@@ -9,7 +9,6 @@ def main():
     from hedge.element import TetrahedralElement
     from hedge.timestep import RK4TimeStepper
     from hedge.visualization import VtkVisualizer, SiloVisualizer
-    from hedge.tools import dot
     from math import sqrt
     from hedge.operators import MaxwellOperator, DivergenceOperator
     from kv import KVZIntervalBeam
@@ -148,10 +147,9 @@ def main():
     print "#elements=%d, dt=%s, #steps=%d" % (
             len(discr.mesh.elements), dt, nsteps)
 
-    def l2_norm(field):
-        return sqrt(dot(field, discr.mass_operator*field))
     def l2_error(field, true):
-        return l2_norm(field-true)/l2_norm(true)
+        from hedge.discretization import norm
+        return norm(discr, field-true)/norm(discr, true)
 
     # particles setup ---------------------------------------------------------
     from pyrticle.cloud import ParticleCloud
@@ -189,7 +187,7 @@ def main():
     from pyrticle.cloud import compute_initial_condition
     job = Job("initial condition")
     fields = compute_initial_condition(pcon, discr, cloud, 
-            mean_beta=num.array([0, 0, mean_beta]), max_op=max_op, debug=True,
+            mean_beta=numpy.array([0, 0, mean_beta]), max_op=max_op, debug=True,
             force_zero=False)
     job.done()
 

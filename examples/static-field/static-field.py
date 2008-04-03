@@ -1,7 +1,6 @@
 from __future__ import division
-import pylinear.array as num
-import pylinear.computation as comp
-import pylinear.operator as op
+import numpy
+import numpy.linalg as la
 import cProfile as profile
 from pyrticle.units import SI
 
@@ -17,7 +16,7 @@ class StaticFieldSetup:
         self.c = c
 
     def gamma(self, v):
-        value = (1-comp.norm_2_squared(v)/self.c**2)**(-0.5)
+        value = (1-numpy.dot(v, v)/self.c**2)**(-0.5)
         if value < 0:
             raise RuntimeError, "particle velocity > speed of light"
         return value
@@ -38,9 +37,9 @@ class StaticFieldSetup:
 
             for x1, x2, v in zip(x1s, x2s, vs):
                 vpos = (x2-x1)/(2*deriv_dt)
-                #u = num.vstack((vpos, v, (vpos-v)/comp.norm_2(v)))
-                #print (vpos - v)/comp.norm_2(v)
-                assert comp.norm_2(vpos - v)/comp.norm_2(v) < threshold
+                #u = numpy.vstack((vpos, v, (vpos-v)/la.norm(v)))
+                #print (vpos - v)/la.norm(v)
+                assert la.norm(vpos - v)/la.norm(v) < threshold
 
 
 
@@ -65,7 +64,7 @@ class LarmorScrew(StaticFieldSetup):
 
         # self-check
         for v in self.velocities(0):
-            mygamma = (1-comp.norm_2_squared(v)/c**2)**(-1/2)
+            mygamma = (1-numpy.dot(v, v)/c**2)**(-1/2)
             assert abs(mygamma-gamma)/gamma < 1e-13
             
         self._check_velocities(final_time = 2*pi/self.omega_b*1000)
@@ -77,10 +76,10 @@ class LarmorScrew(StaticFieldSetup):
         return 1/self.vperp
 
     def e(self):
-        return num.array([0,0,0])
+        return numpy.array([0,0,0])
 
     def h(self):
-        return 1/units.MU0*num.array([0, 0, self.bz])
+        return 1/units.MU0*numpy.array([0, 0, self.bz])
 
     def fields(self, discr):
         class ZField:
@@ -90,11 +89,10 @@ class LarmorScrew(StaticFieldSetup):
                 self.zval = zval
 
             def __call__(self, x):
-                return num.array([0, 0, self.zval])
+                return numpy.array([0, 0, self.zval])
 
         from hedge.data import GivenFunction
-        from pytools.arithmetic_container import ArithmeticList
-        e = ArithmeticList([discr.volume_zeros() for i in range(3)])
+        e = discr.volume_zeros(shape=(3,))
         h = 1/units.MU0*GivenFunction(ZField(self.bz)).volume_interpolant(discr)
 
         return e, h
@@ -102,21 +100,21 @@ class LarmorScrew(StaticFieldSetup):
     def positions(self, t):
         from math import sin, cos, pi
         return [
-            num.array([
+            numpy.array([
                 self.gyration_rad*( sin(angle + self.omega_b*t)),
                 self.gyration_rad*( cos(angle + self.omega_b*t)),
                 self.vpar*t])
-            for angle in num.arange(0, 2*pi, 2*pi/self.nparticles)
+            for angle in numpy.arange(0, 2*pi, 2*pi/self.nparticles)
             ]
 
     def velocities(self, t):
         from math import sin, cos, pi
         return [
-            num.array([
+            numpy.array([
                 self.omega_b*self.gyration_rad*( cos(angle + self.omega_b*t)),
                 self.omega_b*self.gyration_rad*(-sin(angle + self.omega_b*t)),
                 self.vpar])
-            for angle in num.arange(0, 2*pi, 2*pi/self.nparticles)
+            for angle in numpy.arange(0, 2*pi, 2*pi/self.nparticles)
             ]
 
 
@@ -130,18 +128,18 @@ class EBParallel(StaticFieldSetup):
         StaticFieldSetup.__init__(self, mass, charge, c)
 
         if nparticles == 1:
-            self.particle_offsets = [num.zeros((3,))]
+            self.particle_offsets = [numpy.zeros((3,))]
         elif nparticles == 4:
             self.particle_offsets = [
-                    num.array([-0.1, -0.1, 0]),
-                    num.array([ 0.1, -0.1, 0]),
-                    num.array([-0.1,  0.1, 0]),
-                    num.array([ 0.1,  0.1, 0])
+                    numpy.array([-0.1, -0.1, 0]),
+                    numpy.array([ 0.1, -0.1, 0]),
+                    numpy.array([-0.1,  0.1, 0]),
+                    numpy.array([ 0.1,  0.1, 0])
                     ]
         else:
             raise ValueError, "invalid number of particles"
 
-        self.shift = num.zeros((3,))
+        self.shift = numpy.zeros((3,))
 
         c = self.c = units.VACUUM_LIGHT_SPEED
         self.R = mass*c/(charge*bz) # converted to SI
@@ -197,10 +195,10 @@ class EBParallel(StaticFieldSetup):
         return self.R/self.c
 
     def e(self):
-        return num.array([0,0,self.ez])
+        return numpy.array([0,0,self.ez])
 
     def h(self):
-        return 1/units.MU0*num.array([0, 0, self.bz])
+        return 1/units.MU0*numpy.array([0, 0, self.bz])
 
     def fields(self, discr):
         class ZField:
@@ -210,7 +208,7 @@ class EBParallel(StaticFieldSetup):
                 self.zval = zval
 
             def __call__(self, x):
-                return num.array([0,0,self.zval])
+                return numpy.array([0,0,self.zval])
 
         from hedge.data import GivenFunction
         e = GivenFunction(ZField(self.ez)).volume_interpolant(discr)
@@ -238,7 +236,7 @@ class EBParallel(StaticFieldSetup):
         phi = self.phi(t)
 
         zconst = self.R/self.rho*sqrt(1+self.scaling**2)
-        pos = (num.array([
+        pos = (numpy.array([
                     self.scaling*self.R*sin(phi),
                     self.scaling*self.R*cos(phi),
                     zconst*cosh(self.rho*phi)
@@ -253,7 +251,7 @@ class EBParallel(StaticFieldSetup):
         phi_prime = 1/self.tprime(phi)
         zconst = self.R/self.rho*sqrt(1+self.scaling**2)
         return len(self.particle_offsets)*[
-                num.array([
+                numpy.array([
                     self.scaling*self.R*cos(phi)*phi_prime,
                     self.scaling*self.R*(-sin(phi))*phi_prime,
                     zconst*sinh(self.rho*phi)*self.rho*phi_prime
@@ -271,13 +269,14 @@ def run_setup(casename, setup, discr, pusher):
     vis = SiloVisualizer(discr)
     #vis = VtkVisualizer(discr, "pic")
 
-    from pyrticle.cloud import ParticleCloud
+    from pyrticle.cloud import ParticleCloud, FaceBasedElementFinder
     from pyrticle.reconstruction import \
             ShapeFunctionReconstructor, \
             NormalizedShapeFunctionReconstructor
     cloud = ParticleCloud(discr, units, 
             ShapeFunctionReconstructor(),
             pusher(),
+            FaceBasedElementFinder(),
             3, 3, verbose_vis=True)
 
     e, h = setup.fields(discr)
@@ -334,7 +333,6 @@ def run_setup(casename, setup, discr, pusher):
         dim = discr.dimensions
         all_x = setup.positions(t)
         all_v = setup.velocities(t)
-        all_sim_v = cloud.velocities().adaptee
         all_f = [(p2-p1)/(2*deriv_dt)
                 for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
 
@@ -361,24 +359,24 @@ def run_setup(casename, setup, discr, pusher):
             el_sim_f = all_el_sim_f[i*dim:(i+1)*dim]
             mag_sim_f = all_mag_sim_f[i*dim:(i+1)*dim]
 
-            real_f = num.array(cross(sim_v, setup.charge*local_b)) + setup.charge*local_e
+            real_f = numpy.array(cross(sim_v, setup.charge*local_b)) + setup.charge*local_e
 
             if False:
                 print "particle %d" % i
-                print "pos:", comp.norm_2(x-sim_x)/comp.norm_2(x)
-                print "vel:", comp.norm_2(v-sim_v)/comp.norm_2(v)
-                print "force:", comp.norm_2(f-sim_f)/comp.norm_2(f)
+                print "pos:", la.norm(x-sim_x)/la.norm(x)
+                print "vel:", la.norm(v-sim_v)/la.norm(v)
+                print "force:", la.norm(f-sim_f)/la.norm(f)
                 print "vel:", v, sim_v
                 print "force%d:..." % i, f, sim_f
                 print "forces%d:..." % i, el_sim_f, mag_sim_f
-                #print "acc%d:" % i, comp.norm_2(a-sim_a)
-                #u = num.vstack((v, sim_v, f, sim_f, real_f))
+                #print "acc%d:" % i, la.norm(a-sim_a)
+                #u = numpy.vstack((v, sim_v, f, sim_f, real_f))
                 #print "acc%d:\n%s" % (i, u)
                 #raw_input()
 
-            x_err = max(x_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
-            v_err = max(v_err, comp.norm_2(v-sim_v)/comp.norm_2(v))
-            f_err = max(f_err, comp.norm_2(f-sim_f)/comp.norm_2(f))
+            x_err = max(x_err, la.norm(v-sim_v)/la.norm(v))
+            v_err = max(v_err, la.norm(v-sim_v)/la.norm(v))
+            f_err = max(f_err, la.norm(f-sim_f)/la.norm(f))
 
         return x_err, v_err, f_err
 

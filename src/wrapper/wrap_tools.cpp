@@ -108,7 +108,7 @@ namespace
 
   // lu -----------------------------------------------------------------------
   template <typename ValueType>
-  PyObject *lu_wrapper(const pyublas::numpy_matrix<ValueType> &a)
+  python::handle<> lu_wrapper(const pyublas::numpy_matrix<ValueType> &a)
   {
     namespace lapack = boost::numeric::bindings::lapack;
 
@@ -124,17 +124,17 @@ namespace
     if (info < 0)
       throw std::runtime_error("invalid argument to getrf");
     
-    std::auto_ptr<matrix_t> l(new matrix_t(a.size1(), a.size2()));
-    l->clear();
-    std::auto_ptr<matrix_t> u(new matrix_t(a.size1(), a.size2()));
-    u->clear();
+    matrix_t l(a.size1(), a.size2());
+    l.clear();
+    matrix_t u(a.size1(), a.size2());
+    u.clear();
 
     for (typename matrix_t::size_type i = 0; i < a.size1(); i++)
     {
       unsigned j = 0;
-      for (; j < std::min(i, a.size2()); j++) (*l)(i,j) = temp(i,j);
-      (*l)(i,i) = 1;
-      for (; j < a.size2(); j++) (*u)(i,j) = temp(i,j);
+      for (; j < std::min(i, a.size2()); j++) l(i,j) = temp(i,j);
+      l(i,i) = 1;
+      for (; j < a.size2(); j++) u(i,j) = temp(i,j);
     }
 
     ublas::vector<int> permut(piv_len);
@@ -147,9 +147,10 @@ namespace
     for (unsigned i = 0; i < piv_len; i++)
       py_permut.append(permut[i]);
     
-    python::handle<> l_handle = pyublas::handle_from_new_ptr(l.release());
-    python::handle<> u_handle = pyublas::handle_from_new_ptr(u.release());
-    return Py_BuildValue("(NNO)", l.get(), u.get(), py_permut.ptr());
+    return python::handle<>(Py_BuildValue("(NNO)", 
+        l.to_python().release(), 
+        u.to_python().release(),
+        py_permut.ptr()));
   }
 }
 

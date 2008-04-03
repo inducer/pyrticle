@@ -1,6 +1,6 @@
 from __future__ import division
-import pylinear.array as num
-import pylinear.computation as comp
+import numpy
+import numpy.linalg as la
 import cProfile as profile
 
 
@@ -14,7 +14,7 @@ def main():
             make_cylinder_mesh
     from hedge.discretization import Discretization
     from hedge.visualization import VtkVisualizer, SiloVisualizer
-    from hedge.tools import dot, cross
+    from hedge.tools import cross
     from pytools.arithmetic_container import ArithmeticList
     from kv import KVZIntervalBeam
     from random import seed
@@ -43,12 +43,13 @@ def main():
     # particles setup ---------------------------------------------------------
     nparticles = 10000
 
-    from pyrticle.cloud import ParticleCloud
+    from pyrticle.cloud import ParticleCloud, FaceBasedElementFinder
     from pyrticle.reconstruction import ShapeFunctionReconstructor
     from pyrticle.pusher import MonomialParticlePusher
     cloud = ParticleCloud(discr, units, 
             ShapeFunctionReconstructor(),
             MonomialParticlePusher(),
+            FaceBasedElementFinder(),
             3, 3, verbose_vis=False)
 
     cloud_charge = 1e-9 * units.C
@@ -74,7 +75,7 @@ def main():
     beam.add_to(cloud, discr)
 
     # timestep setup ----------------------------------------------------------
-    vel = cloud.raw_velocities()
+    vel = cloud.velocities()
     def rhs(t, y):
         return ArithmeticList([
             vel, 
@@ -98,7 +99,7 @@ def main():
     add_simulation_quantities(logmgr, dt)
     add_particle_quantities(logmgr, cloud)
     add_beam_quantities(logmgr, cloud, axis=0, beam_axis=2)
-    logmgr.add_quantity(ParticleCurrent(cloud, (1,0), tube_length))
+    logmgr.add_quantity(ParticleCurrent(cloud, (0,0,1), tube_length))
 
     stepper.add_instrumentation(logmgr)
     cloud.add_instrumentation(logmgr)
