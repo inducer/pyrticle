@@ -40,6 +40,7 @@ def main():
 
                 "element_order": 3,
                 "shape_exponent": 2,
+                "shape_bandwidth": "guess",
 
                 "chi": None,
                 "phi_decay": 0,
@@ -69,6 +70,7 @@ def main():
                 "vis_interval": "how often a visualization of the fields is written",
                 "max_volume_inner": "max. tet volume in inner mesh [m^3]",
                 "max_volume_outer": "max. tet volume in outer mesh [m^3]",
+                "shape_bandwidth": "either 'optimize', 'guess' or a positive real number",
                 }
 
         from pyrticle.tools import PICCPyUserInterface
@@ -178,10 +180,9 @@ def main():
             beta=mean_beta)
     beam.add_to(cloud, discr)
 
-    from pyrticle.cloud import optimize_shape_bandwidth, guess_shape_bandwidth
-    optimize_shape_bandwidth(cloud, discr, beam.analytic_rho(discr), 
-            exponent=setup.shape_exponent, plot_l1_errors=True)
-    #guess_shape_bandwidth(cloud)
+    from pyrticle.cloud import set_shape_bandwidth
+    set_shape_bandwidth(cloud, setup.shape_bandwidth, setup.shape_exponent,
+            beam.analytic_rho(discr))
 
     # initial condition -------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition

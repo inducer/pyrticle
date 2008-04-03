@@ -199,23 +199,9 @@ def main():
             sigma_p=gamma*pmass*setup.sigma_v)
     gauss_p.add_to(cloud, setup.nparticles)
 
-    from pyrticle.cloud import optimize_shape_bandwidth, guess_shape_bandwidth
-    if setup.shape_bandwidth.startswith("optimize"):
-        optimize_shape_bandwidth(cloud, discr, gauss_p.analytic_rho(discr),
-                setup.shape_exponent, 
-                plot_l1_errors="plot" in setup.shape_bandwidth,
-                visualize="visualize" in setup.shape_bandwidth,
-                )
-    elif setup.shape_bandwidth == "guess":
-        guess_shape_bandwidth(cloud, setup.shape_exponent)
-    else:
-        from pyrticle._internal import ShapeFunction
-        cloud.reconstructor.set_shape_function(
-                ShapeFunction(
-                    float(setup.shape_bandwidth),
-                    cloud.mesh_data.dimensions,
-                    exponent,
-                    ))
+    from pyrticle.cloud import set_shape_bandwidth
+    set_shape_bandwidth(cloud, setup.shape_bandwidth, setup.shape_exponent,
+            gauss_p.analytic_rho(discr))
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition

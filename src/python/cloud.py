@@ -145,11 +145,12 @@ class ParticleCloud:
 
     def set_ignore_core_warnings(self, ignore):
         from pyrticle.tools import WarningForwarder, WarningIgnorer
-        del self.warning_forwarder
+        import pyrticle.tools
+        del pyrticle.tools.warning_forwarder
         if ignore:
-            self.warning_forwarder = WarningIgnorer()
+            pyrticle.tools.warning_forwarder = WarningIgnorer()
         else:
-            self.warning_forwarder = WarningForwarder()
+            pyrticle.tools.warning_forwarder = WarningForwarder()
 
     def __len__(self):
         return self.pic_algorithm.particle_count
@@ -670,9 +671,11 @@ def guess_shape_bandwidth(cloud, exponent):
 
 
 
-def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent, 
+def optimize_shape_bandwidth(cloud, analytic_rho, exponent, 
         plot_l1_errors=False,
         visualize=False):
+    discr = cloud.discretization
+
     adv_radius = cloud.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**i 
             for i in numpy.linspace(-4, 2, 50)]
@@ -762,6 +765,27 @@ def optimize_shape_bandwidth(cloud, discr, analytic_rho, exponent,
 
     set_radius(chosen_rad)
     cloud.derived_quantity_cache.clear()
+
+
+
+
+def set_shape_bandwidth(cloud, shape_bw, shape_exp, analytic_rho):
+    if shape_bw.startswith("optimize"):
+        optimize_shape_bandwidth(cloud, analytic_rho,
+                shape_exp, 
+                plot_l1_errors="plot" in shape_bw,
+                visualize="visualize" in shape_bw,
+                )
+    elif shape_bw == "guess":
+        guess_shape_bandwidth(cloud, shape_exp)
+    else:
+        from pyrticle._internal import ShapeFunction
+        cloud.reconstructor.set_shape_function(
+                ShapeFunction(
+                    float(setup.shape_bandwidth),
+                    cloud.mesh_data.dimensions,
+                    shape_exp,
+                    ))
 
 
 
