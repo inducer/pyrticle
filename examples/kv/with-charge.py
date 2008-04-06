@@ -247,7 +247,7 @@ def main():
     for step in xrange(nsteps):
         logmgr.tick()
 
-        cloud.upkeep()
+        fields.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
 
         if step % setup.vis_interval == 0:

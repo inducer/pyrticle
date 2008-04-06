@@ -87,8 +87,9 @@ def main():
                 "shape_exponent": 2,
                 "shape_bandwidth": "optimize",
 
-                "chi": None, # 
+                "chi": None,
                 "phi_decay": 0,
+                "phi_filter": None,
 
                 "final_time": 10*units.M/units.VACUUM_LIGHT_SPEED,
 
@@ -111,6 +112,7 @@ def main():
         doc = {
                 "chi": "relative speed of hyp. cleaning (None for no cleaning)",
                 "shape_bandwidth": "either 'optimize', 'guess' or a positive real number",
+                "phi_filter": "a tuple (min_amp, order) or None, describing the filtering applied to phi in hypclean mode",
                 }
 
         from pyrticle.tools import PICCPyUserInterface
@@ -153,11 +155,19 @@ def main():
             mu=units.MU0, 
             upwind_alpha=1)
 
+    em_filters = []
     if setup.chi is not None:
         from pyrticle.hyperbolic import ECleaningMaxwellOperator
         max_op = ECleaningMaxwellOperator(max_op, 
                 chi=setup.chi, 
                 phi_decay=setup.phi_decay)
+
+        if setup.phi_filter is not None:
+            from pyrticle.hyperbolic import PhiFilter
+            from hedge.discretization import Filter, ExponentialFilterResponseFunction
+            em_filters.append(
+                    PhiFilter(max_op, Filter(discr,
+                        ExponentialFilterResponseFunction(*setup.phi_filter))))
 
     div_op = DivergenceOperator(discr)
 
@@ -207,6 +217,8 @@ def main():
     from pyrticle.cloud import compute_initial_condition
     fields = compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
             debug=True)
+    for f in em_filters:
+        fields.add_em_filter(f)
 
     stepper = RK4TimeStepper()
 
@@ -276,7 +288,7 @@ def main():
             visf.close()
             vis_timer.stop()
 
-        cloud.upkeep()
+        fields.upkeep()
         fields = stepper(fields, t, dt, fields.rhs)
 
         t += dt

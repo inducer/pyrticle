@@ -25,23 +25,24 @@ def compare_methods():
     timestamp = get_timestamp()
 
     for rec in [O("RecAdv"), O("RecNormShape"), O("RecShape")]:
-        for pusher in [O("PushMonomial"), O("PushAverage")]:
-            for finder in [
-                    O("FindFaceBased"),
-                    #O("FindHeuristic"),
-                    ]:
-                job = BatchJob(
-                        "compmeth-$DATE/%s-%s-%s" % (cn(rec), cn(pusher), cn(finder)),
-                        "with-charge.py",
-                        timestamp=timestamp,
-                        )
-                job.write_setup([
-                    "pusher = %s" % pusher,
-                    "reconstructor = %s" % rec,
-                    "finder = %s" % finder,
-                    "element_order = 4",
-                    ])
-                job.submit()
+        for eorder in [3,4,5,7]:
+            for pusher in [O("PushMonomial"), O("PushAverage")]:
+                for finder in [
+                        O("FindFaceBased"),
+                        #O("FindHeuristic"),
+                        ]:
+                    job = BatchJob(
+                            "compmeth-$DATE/eo%d-%s-%s-%s" % (eorder, cn(rec), cn(pusher), cn(finder)),
+                            "with-charge.py",
+                            timestamp=timestamp,
+                            )
+                    job.write_setup([
+                        "pusher = %s" % pusher,
+                        "reconstructor = %s" % rec,
+                        "finder = %s" % finder,
+                        "element_order = %d" % eorder,
+                        ])
+                    job.submit()
 
 def compare_element_finders():
     """Submit jobs to compare element finders."""
@@ -77,20 +78,45 @@ def study_cleaning():
 
     timestamp = get_timestamp()
 
-    for rec in [O("RecAdv"), O("RecNormShape"), O("RecShape")]:
-        for pusher in [O("PushAverage")]:
-            for chi in [None, 1, 2, 5]:
-                job = BatchJob(
-                        "cleanstudy-$DATE/%s-chi%s" % (cn(rec), chi),
-                        "with-charge.py",
-                        timestamp=timestamp,
-                        )
-                job.write_setup([
-                    "pusher = %s" % pusher,
-                    "reconstructor = %s" % rec,
-                    "chi = %s" % chi,
-                    ])
-                job.submit()
+    def filt_desc(f):
+        if isinstance(f, tuple):
+            return "-".join(str(i) for i in f)
+        else:
+            return str(f)
+
+    for rec in [
+      #O("RecAdv"), 
+      #O("RecNormShape"), 
+      O("RecShape")
+      ]:
+        for chi in [None, 1, 2, 5]:
+            if chi is None:
+                filters = [None]
+            else:
+                filters = [
+                  None,
+                  (0.6,6),
+                  (0.8,6),
+                  (0.95,6),
+                  (0.6,3),
+                  (0.8,3),
+                  (0.95,3),
+                  ]
+            for filter in filters:
+                for pusher in [O("PushAverage")]:
+                        job = BatchJob(
+                                "cleanstudy-$DATE/%s-chi%s-filt%s" % (cn(rec), chi, filt_desc(filter)),
+                                "with-charge.py",
+                                timestamp=timestamp,
+                                )
+                        job.write_setup([
+                            "pusher = %s" % pusher,
+                            "reconstructor = %s" % rec,
+                            "chi = %s" % chi,
+                            "phi_filter = %s" % str(filter),
+                            "element_order = 4",
+                            ])
+                        job.submit()
 
 def study_advec_filter():
     """Submit jobs to see whether filtering really improves advection."""

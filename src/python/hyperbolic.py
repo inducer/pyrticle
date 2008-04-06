@@ -55,17 +55,16 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         e, h = self.split_eh(w)
         phi = w[e_components+h_components]
 
-        from pytools.arithmetic_container import join_fields
-        from hedge.tools import dot
+        from hedge.tools import join_fields
 
         # see hedge/doc/maxima/eclean.mac for derivation
         strong_flux = 0.5*maxwell_op.c*chi*join_fields(
                 # flux e
-                normal*(phi.int-phi.ext - dot(normal, e.int-e.ext)),
+                normal*(phi.int-phi.ext - numpy.dot(normal, e.int-e.ext)),
                 # flux h
                 len(h)*[0],
                 # flux phi
-                dot(e.int-e.ext, normal)-(phi.int-phi.ext)
+                numpy.dot(e.int-e.ext, normal)-(phi.int-phi.ext)
                 )
         strong_flux += join_fields(maxwell_op.flux, 0)
 
@@ -90,9 +89,8 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         return self.maxwell_op.get_eh_subset()
 
     def rhs(self, t, w, rho):
-        from hedge.tools import dot
         from hedge.discretization import pair_with_boundary, cache_diff_results
-        from pytools.arithmetic_container import join_fields
+        from hedge.tools import join_fields
         
         pec_tag = self.maxwell_op.pec_tag
         nabla = self.maxwell_op.nabla
@@ -124,20 +122,21 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         local_operator = max_local_op + join_fields(
                 c*chi*(nabla*phi_cache),
                 0*h,
-                c*chi*(dot(nabla, e_cache) - rho/self.maxwell_op.epsilon) 
+                c*chi*(numpy.dot(nabla, e_cache) - rho/self.maxwell_op.epsilon) 
                 - self.phi_decay * phi
                 )
 
-        return -local_operator + self.maxwell_op.m_inv*(
+        from hedge.tools import to_obj_array
+        return -local_operator + to_obj_array(self.maxwell_op.m_inv*(
                     self.strong_flux_op * w
                     +self.strong_flux_op * pair_with_boundary(w, pec_bc, pec_tag)
-                    )
+                    ))
 
     def assemble_fields(self, e=None, h=None, phi=None):
         if phi is None:
             phi = self.discr.volume_zeros()
 
-        from pytools.arithmetic_container import join_fields
+        from hedge.tools import join_fields
         return join_fields(
                 self.maxwell_op.assemble_fields(e, h),
                 phi)
@@ -154,3 +153,15 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
 
     def max_eigenvalue(self):
         return self.chi*self.maxwell_op.max_eigenvalue()
+
+
+
+
+class PhiFilter:
+    def __init__(self, maxwell_op, filter):
+        self.maxwell_op = maxwell_op
+        self.filter = filter
+
+    def __call__(self, em_fields):
+        e, h, phi = self.maxwell_op.split_ehphi(em_fields)
+        return self.maxwell_op.assemble_fields(e, h, self.filter(phi))

@@ -568,10 +568,15 @@ class FieldsAndCloud:
         self.em_fields = maxwell_op.assemble_fields(e=e, h=h)
         self.cloud = cloud
 
+        self.em_filters = []
+
         from pytools.log import IntervalTimer
         self.field_solve_timer = IntervalTimer(
                 "t_field",
                 "Time spent in field solver")
+
+    def add_em_filter(self, filt):
+        self.em_filters.append(filt)
 
     @property
     def e(self):
@@ -654,6 +659,12 @@ class FieldsAndCloud:
 
         from hedge.tools import make_obj_array
         return make_obj_array([rhs_em, rhs_cloud])
+
+    def upkeep(self):
+        for f in self.em_filters:
+            self.em_fields = f(self.em_fields)
+
+        self.cloud.upkeep()
 
 
 
