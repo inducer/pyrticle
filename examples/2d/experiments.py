@@ -39,6 +39,7 @@ def compare_methods():
                     "pusher = %s" % pusher,
                     "reconstructor = %s" % rec,
                     "finder = %s" % finder,
+                    "element_order = 4",
                     ])
                 job.submit()
 

@@ -237,7 +237,7 @@ class AdvectiveReconstructor(Reconstructor):
         from pyrticle.tools import NumberShiftableVector
         self.advective_rhs_timer.start()
         result =  NumberShiftableVector(
-                self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.raw_velocities()),
+                self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.velocities()),
                 multiplier=1,
                 signaller=self.rho_shift_signaller
                 )
