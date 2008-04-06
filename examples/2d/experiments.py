@@ -126,22 +126,24 @@ def study_blob_exponent():
 
     timestamp = get_timestamp()
 
-    #for exponent in [1,2,3,4]:
-    for exponent in [5,6,7,8]:
-        #for rec in [O("RecAdv"), O("RecNormShape")]:
-        for rec in [O("RecShape"), O("RecNormShape")]:
-            for push in [O("PushMonomial"), O("PushAverage")]:
-                job = BatchJob(
-                        "expstudy-$DATE/exp%d-%s-%s" % (exponent, cn(rec), cn(push)),
-                        "with-charge.py",
-                        timestamp=timestamp,
-                        )
-                job.write_setup([
-                    "pusher = %s" % push,
-                    "reconstructor = %s" % rec,
-                    "shape_exponent = %s" % exponent,
-                    ])
-                job.submit()
+    for exponent in [1,2,3,4,5,6]:
+        #for rec in [O("RecAdv"), O("RecNormShape"), O("RecNormShape")]:
+        #for rec in [O("RecShape"), ]:
+        for eorder in [2,3,4,5]:
+            for rec in [O("RecShape"), ]:
+                for push in [O("PushMonomial"), O("PushAverage")]:
+                    job = BatchJob(
+                            "expstudy-$DATE/exp%d-eo%d-%s-%s" % (exponent, eorder, cn(rec), cn(push)),
+                            "with-charge.py",
+                            timestamp=timestamp,
+                            )
+                    job.write_setup([
+                        "pusher = %s" % push,
+                        "reconstructor = %s" % rec,
+                        "shape_exponent = %s" % exponent,
+                        "element_order = %s" % eorder,
+                        ])
+                    job.submit()
 
 import sys
 exec sys.argv[1]

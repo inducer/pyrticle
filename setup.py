@@ -77,8 +77,8 @@ def main():
             EXTRA_LIBRARY_DIRS.extend(conf[comp+"_LIBRARY_DIRS"])
             EXTRA_LIBRARIES.extend(conf[comp+"_LIBRARIES"])
 
-    handle_component("BLAS")
     handle_component("LAPACK")
+    handle_component("BLAS")
 
     setup(name="pyrticle",
           version="0.90",
