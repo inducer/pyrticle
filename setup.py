@@ -45,7 +45,8 @@ def main():
 
     INCLUDE_DIRS = ["src/cpp"] \
             + conf["BOOST_BINDINGS_INCLUDE_DIRS"] \
-            + conf["BOOST_INCLUDE_DIRS"]
+            + conf["BOOST_INCLUDE_DIRS"] \
+            + conf["NUMPY_INC_DIRS"]
 
     LIBRARY_DIRS = conf["BOOST_LIBRARY_DIRS"]
     LIBRARIES = conf["BPL_LIBRARIES"]
@@ -85,7 +86,7 @@ def main():
           author=u"Andreas Kloeckner",
           author_email="inform@tiker.net",
           license = "Proprietary",
-          #url="http://news.tiker.net/software/hedge",
+          #url="http://news.tiker.net/software/pyrticle",
           packages=["pyrticle"],
           package_dir={"pyrticle": "src/python"},
           ext_package="pyrticle",
