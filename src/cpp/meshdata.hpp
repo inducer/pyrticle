@@ -134,6 +134,11 @@ namespace pyrticle
         : m_dimensions(dimensions)
       { }
 
+      void set_vertices(py_vector v)
+      { m_mesh_vertices = v; }
+      void set_nodes(py_vector n)
+      { m_mesh_nodes = n; }
+
       static element_number get_INVALID_ELEMENT() { return INVALID_ELEMENT; }
       static axis_number get_INVALID_AXIS() { return INVALID_AXIS; }
 

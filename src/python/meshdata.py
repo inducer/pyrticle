@@ -112,8 +112,7 @@ class MeshData(_internal.MeshData):
                 for other_vi, per_axis in mesh.periodic_opposite_vertices.get(vi, []):
                     vertex_to_element_map.setdefault(other_vi, set()).add((per_axis, el.id))
 
-        self.vertices.reserve(len(mesh.points))
-        self.vertices.extend(mesh.points)
+        self.set_vertices(mesh.points)
 
         from pyrticle._internal import UnsignedVector
         self.vertex_adj_elements.reserve(
@@ -129,8 +128,7 @@ class MeshData(_internal.MeshData):
                     len(self.vertex_adj_elements))
 
         # add nodes -----------------------------------------------------------
-        self.nodes.reserve(len(discr.nodes))
-        self.nodes.extend(discr.nodes)
+        self.set_nodes(discr.nodes)
 
     def min_vertex_distance_for_el(self, el):
         vertices = [self.discr.mesh.points[vi] 

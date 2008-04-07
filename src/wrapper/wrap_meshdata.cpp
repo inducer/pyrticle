@@ -31,6 +31,21 @@ using namespace pyrticle;
 
 
 
+namespace
+{
+  py_vector get_normal(const mesh_data::face_info &fi)
+  { return fi.m_normal; }
+  void set_normal(mesh_data::face_info &fi, py_vector n)
+  { fi.m_normal = n; }
+  py_vector get_face_centroid(const mesh_data::face_info &fi)
+  { return fi.m_face_centroid; }
+  void set_face_centroid(mesh_data::face_info &fi, py_vector n)
+  { fi.m_face_centroid = n; }
+
+}
+
+
+
 
 void expose_meshdata()
 {
@@ -43,10 +58,8 @@ void expose_meshdata()
       .DEF_RO_MEMBER(dimensions)
 
       .DEF_RO_MEMBER(element_info)
-      /*
-      .DEF_RO_MEMBER(vertices)
-      .DEF_RO_MEMBER(nodes)
-      */
+      .DEF_SIMPLE_METHOD(set_vertices)
+      .DEF_SIMPLE_METHOD(set_nodes)
 
       .DEF_RO_MEMBER(vertex_adj_element_starts)
       .DEF_RO_MEMBER(vertex_adj_elements)
@@ -54,21 +67,21 @@ void expose_meshdata()
 
       .DEF_RO_MEMBER(periodicities)
 
-      .DEF_SIMPLE_METHOD(is_in_element<py_vector>)
-      .DEF_SIMPLE_METHOD(find_containing_element<py_vector>)
+      .def("is_in_element", &cl::is_in_element<py_vector>)
+      .def("find_containing_element", &cl::find_containing_element<py_vector>)
       ;
   }
 
   {
     typedef mesh_data::face_info cl;
     python::class_<cl>("FaceInfo")
-      .def(pyublas::by_value_rw_member("normal", &cl::m_normal))
+      .add_property("normal", get_normal, set_normal)
       .DEF_RW_MEMBER(neighbor)
       .DEF_RW_MEMBER(neighbor_periodicity_axis)
 
       .DEF_RW_MEMBER(face_plane_eqn_rhs)
 
-      .def(pyublas::by_value_rw_member("face_centroid", &cl::m_face_centroid))
+      .add_property("face_centroid", get_face_centroid, set_face_centroid)
       .DEF_RW_MEMBER(face_radius_from_centroid)
       ;
   }
