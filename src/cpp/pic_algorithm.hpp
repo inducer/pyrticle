@@ -49,10 +49,10 @@ namespace pyrticle
         unsigned                          m_particle_count;
 
         mesh_data::el_id_vector           m_containing_elements;
-        hedge::vector                     m_positions;
-        hedge::vector                     m_momenta;
-        hedge::vector                     m_charges;
-        hedge::vector                     m_masses;
+        py_vector                         m_positions;
+        py_vector                         m_momenta;
+        py_vector                         m_charges;
+        py_vector                         m_masses;
 
         const double                      m_vacuum_c;
 
@@ -89,11 +89,11 @@ namespace pyrticle
         { return DimensionsVelocity; }
 
         // heavy-lifting routines ---------------------------------------------
-        const hedge::vector velocities() const
+        const py_vector velocities() const
         {
           const unsigned vdim = DimensionsVelocity;
 
-          hedge::vector result(m_particle_count * DimensionsVelocity);
+          py_vector result(m_particle_count * DimensionsVelocity);
 
           for (particle_number pn = 0; pn < m_particle_count; pn++)
           {
@@ -112,8 +112,8 @@ namespace pyrticle
 
 
         void add_rhs(
-            hedge::vector const &dx, 
-            hedge::vector const &dp)
+            py_vector const &dx, 
+            py_vector const &dp)
         {
           noalias(subrange(m_positions, 0, DimensionsPos*m_particle_count))
             += dx;
@@ -132,7 +132,7 @@ namespace pyrticle
           const unsigned x_pstart = i*xdim;
           const unsigned x_pend = (i+1)*xdim;
           
-          const hedge::vector pt = subrange(m_positions, x_pstart, x_pend);
+          const bounded_vector pt = subrange(m_positions, x_pstart, x_pend);
 
           if (prev != mesh_data::INVALID_ELEMENT)
           {
@@ -194,7 +194,7 @@ namespace pyrticle
 
                 BOOST_FOREACH(mesh_data::vertex_number vi, prev_el.m_vertices)
                 {
-                  double dist = norm_2(m_mesh_data.m_vertices[vi] - pt);
+                  double dist = norm_2(m_mesh_data.mesh_vertex(vi) - pt);
                   if (dist < min_dist)
                   {
                     closest_vertex = vi;
@@ -271,7 +271,7 @@ namespace pyrticle
 
           bool periodicity_trip = false;
 
-          hedge::vector pt = subrange(m_positions, x_pstart, x_pend);
+          bounded_vector pt = subrange(m_positions, x_pstart, x_pend);
 
           mesh_data::axis_number per_axis = 0;
           BOOST_FOREACH(const mesh_data::periodicity_axis &pa, 
@@ -389,22 +389,22 @@ namespace pyrticle
 
       // pic_data vector member accessors -------------------------------------
       // (BPL workaround)
-      hedge::vector positions() const { return this->m_positions; }
-      hedge::vector momenta() const { return this->m_momenta; }
-      hedge::vector charges() const { return this->m_charges; }
-      hedge::vector masses() const { return this->m_masses; }
+      py_vector positions() const { return this->m_positions; }
+      py_vector momenta() const { return this->m_momenta; }
+      py_vector charges() const { return this->m_charges; }
+      py_vector masses() const { return this->m_masses; }
 
-      void set_positions(hedge::vector v) { this->m_positions = v; }
-      void set_momenta(hedge::vector v) { this->m_momenta = v; }
-      void set_charges(hedge::vector v) { this->m_charges = v; }
-      void set_masses(hedge::vector v) { this->m_masses = v; }
+      void set_positions(py_vector v) { this->m_positions = v; }
+      void set_momenta(py_vector v) { this->m_momenta = v; }
+      void set_charges(py_vector v) { this->m_charges = v; }
+      void set_masses(py_vector v) { this->m_masses = v; }
 
       // visualization-related ------------------------------------------------
       boost::shared_ptr<visualization_listener> m_vis_listener;
 
       void store_particle_vis_vector(
           const char *name,
-          const hedge::vector &vec,
+          const py_vector &vec,
           unsigned entries_per_particle
           )
       {

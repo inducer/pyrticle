@@ -50,9 +50,9 @@ namespace pyrticle
         {
           public:
             const PICAlgorithm &m_pic_algorithm;
-            const hedge::vector &m_integral_weights;
+            const dyn_vector &m_integral_weights;
             Target m_target;
-            hedge::vector m_shape_interpolant;
+            dyn_vector m_shape_interpolant;
             unsigned m_used_shape_dofs;
 
 
@@ -80,7 +80,7 @@ namespace pyrticle
 
             normalizing_element_target(
                 const PICAlgorithm &pic_algorithm,
-                const hedge::vector &integral_weights,
+                const dyn_vector &integral_weights,
                 Target &target
                 )
               : 
@@ -104,7 +104,7 @@ namespace pyrticle
 
 
             void add_shape_on_element(
-                const hedge::vector &center,
+                const bounded_vector &center,
                 const mesh_data::element_number en
                 )
             {
@@ -112,14 +112,14 @@ namespace pyrticle
               unsigned element_length = einfo.m_end-einfo.m_start;
 
               {
-                hedge::vector centroid = m_pic_algorithm.m_mesh_data.element_centroid(en);
+                bounded_vector centroid = m_pic_algorithm.m_mesh_data.element_centroid(en);
                 m_pic_algorithm.m_centroid_distance_stats.add(norm_2(centroid-center));
               }
 
               // make sure we have enough interpolant dofs available
               while (m_used_shape_dofs + element_length > m_shape_interpolant.size())
               {
-                hedge::vector new_shape_interpolant(2*m_shape_interpolant.size());
+                dyn_vector new_shape_interpolant(2*m_shape_interpolant.size());
                 subrange(new_shape_interpolant, 0, m_shape_interpolant.size()) =
                   m_shape_interpolant;
                 new_shape_interpolant.swap(m_shape_interpolant);
@@ -136,7 +136,7 @@ namespace pyrticle
               for (unsigned i = 0; i < element_length; i++)
               {
                 double shapeval = m_pic_algorithm.m_shape_function(
-                    m_pic_algorithm.m_mesh_data.m_nodes[i+einfo.m_start]-center);
+                    m_pic_algorithm.m_mesh_data.mesh_node(i+einfo.m_start)-center);
 
                 m_shape_interpolant[new_shape_element.m_my_start_index+i] 
                   = shapeval;
@@ -186,7 +186,7 @@ namespace pyrticle
       public:
         // member data --------------------------------------------------------
         shape_function                  m_shape_function;
-        hedge::vector                   m_integral_weights;
+        dyn_vector                      m_integral_weights;
 
         mutable stats_gatherer<double>  m_normalization_stats;
         mutable stats_gatherer<double>  m_centroid_distance_stats;
@@ -196,7 +196,7 @@ namespace pyrticle
 
       
         // initialization -----------------------------------------------------
-        void setup_normalized_shape_reconstructor(const hedge::matrix &mass_matrix)
+        void setup_normalized_shape_reconstructor(const py_matrix &mass_matrix)
         {
           m_integral_weights = prod(mass_matrix, 
               boost::numeric::ublas::scalar_vector<double>

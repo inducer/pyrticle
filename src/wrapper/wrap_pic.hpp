@@ -110,8 +110,8 @@ namespace
     {
       pic_wrap
         .def("forces", &cl::template forces< // full-field case
-            hedge::vector, hedge::vector, hedge::vector,
-            hedge::vector, hedge::vector, hedge::vector>,
+            py_vector, py_vector, py_vector,
+            py_vector, py_vector, py_vector>,
             (arg("ex"), arg("ey"), arg("ez"), 
              arg("bx"), arg("by"), arg("bz"),
              arg("velocities"), arg("verbose_vis")))
@@ -121,14 +121,14 @@ namespace
     {
       pic_wrap
         .def("forces", &cl::template forces< // TM case
-            zero_vector, zero_vector, hedge::vector,
-            hedge::vector, hedge::vector, zero_vector>,
+            zero_vector, zero_vector, py_vector,
+            py_vector, py_vector, zero_vector>,
             (arg("ex"), arg("ey"), arg("ez"), 
              arg("bx"), arg("by"), arg("bz"),
              arg("velocities"), arg("verbose_vis")))
         .def("forces", &cl::template forces< // TE case
-            hedge::vector, hedge::vector, zero_vector,
-            zero_vector, zero_vector, hedge::vector>,
+            py_vector, py_vector, zero_vector,
+            zero_vector, zero_vector, py_vector>,
             (arg("ex"), arg("ey"), arg("ez"), 
              arg("bx"), arg("by"), arg("bz"),
              arg("velocities"), arg("verbose_vis")))

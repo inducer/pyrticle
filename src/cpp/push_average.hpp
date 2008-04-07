@@ -45,12 +45,12 @@ namespace pyrticle
     protected:
       particle_number m_current_particle;
       const mesh_data &m_mesh_data;
-      const hedge::vector &m_integral_weights;
+      const dyn_vector &m_integral_weights;
       const FX       &m_fx;
       const FY       &m_fy;
       const FZ       &m_fz;
-      hedge::vector  *m_particlewise_field;
-      hedge::vector  *m_field_stddev;
+      py_vector      *m_particlewise_field;
+      py_vector      *m_field_stddev;
       field_vector_t m_qfield_accumulator;
       double         m_qfield_square_accumulator;
       double         m_particle_charge;
@@ -58,10 +58,10 @@ namespace pyrticle
     public:
       force_averaging_target(
           const mesh_data &md,
-          const hedge::vector &integral_weights,
+          const dyn_vector &integral_weights,
           const FX &fx, const FY &fy, const FZ &fz,
-          hedge::vector *particlewise_field,
-          hedge::vector *field_stddev
+          py_vector *particlewise_field,
+          py_vector *field_stddev
           )
         : 
           m_current_particle(INVALID_PARTICLE), 
@@ -88,7 +88,7 @@ namespace pyrticle
 
       template <class RhoExpression>
       double weigh_field_component(
-          const hedge::vector &field, 
+          const py_vector &field, 
           const mesh_data::node_number start_idx, 
           const RhoExpression &rho_contrib)
       {
@@ -108,11 +108,11 @@ namespace pyrticle
 
       template <class RhoExpression>
       double weigh_field_component_squared(
-          const hedge::vector &field, 
+          const py_vector &field, 
           const mesh_data::node_number start_idx, 
           const RhoExpression &rho_contrib)
       {
-        boost::numeric::ublas::vector_range<const hedge::vector>
+        boost::numeric::ublas::vector_range<const py_vector>
           field_range(field, 
               boost::numeric::ublas::range(start_idx, start_idx+rho_contrib.size()));
 
@@ -170,7 +170,7 @@ namespace pyrticle
       { 
         if (m_particlewise_field)
         {
-          boost::numeric::ublas::vector_range<hedge::vector>
+          boost::numeric::ublas::vector_range<py_vector>
             particle_field(*m_particlewise_field, 
                 boost::numeric::ublas::range(
                   pn*field_components, 
@@ -222,19 +222,19 @@ namespace pyrticle
     private:
       typedef force_averaging_target<DimensionsVelocity, FX, FY, FZ> super;
       stats_gatherer<double> *m_normalization_stats;
-      const hedge::vector  &m_charges;
-      hedge::vector  &m_result;
+      const py_vector  &m_charges;
+      dyn_vector  &m_result;
 
     public:
       el_force_averaging_target(
           const mesh_data &md,
-          const hedge::vector &integral_weights,
+          const dyn_vector &integral_weights,
           const FX &fx, const FY &fy, const FZ &fz,
-          hedge::vector *particlewise_field,
-          hedge::vector *field_stddev,
+          py_vector *particlewise_field,
+          py_vector *field_stddev,
           stats_gatherer<double> *normalization_stats,
-          const hedge::vector &charges,
-          hedge::vector &result
+          const py_vector &charges,
+          dyn_vector &result
           )
         : 
           super(md, integral_weights, 
@@ -261,7 +261,7 @@ namespace pyrticle
         if (m_normalization_stats)
           m_normalization_stats->add(scale);
 
-        noalias(subrange(this->m_result, pstart, pend)) += 
+        noalias(subrange(m_result, pstart, pend)) += 
           scale*subrange(
               this->m_qfield_accumulator,
               0, DimensionsVelocity);
@@ -277,23 +277,23 @@ namespace pyrticle
   {
     private:
       typedef force_averaging_target<DimensionsVelocity, FX, FY, FZ> super;
-      const hedge::vector               &m_velocities;
+      const py_vector &m_velocities;
       
       stats_gatherer<double> *m_normalization_stats;
-      const hedge::vector  &m_charges;
-      hedge::vector  &m_result;
+      const py_vector &m_charges;
+      dyn_vector &m_result;
 
     public:
       mag_force_averaging_target(
           const mesh_data &md,
-          const hedge::vector &integral_weights,
+          const dyn_vector &integral_weights,
           const FX &fx, const FY &fy, const FZ &fz,
-          const hedge::vector &velocities,
-          hedge::vector *particlewise_field,
-          hedge::vector *field_stddev,
+          const py_vector &velocities,
+          py_vector *particlewise_field,
+          py_vector *field_stddev,
           stats_gatherer<double> *normalization_stats,
-          const hedge::vector &charges,
-          hedge::vector &result
+          const py_vector &charges,
+          dyn_vector &result
           )
         : 
           super(md, integral_weights, 
@@ -321,9 +321,9 @@ namespace pyrticle
         if (m_normalization_stats)
           m_normalization_stats->add(scale);
 
-        noalias(subrange(this->m_result, pstart, pend)) += 
+        noalias(subrange(m_result, pstart, pend)) += 
           subrange(
-              scale*cross(
+              scale*cross<bounded_vector>(
                 subrange(m_velocities, pstart, pend), 
                 this->m_qfield_accumulator),
               0, DimensionsVelocity);
@@ -339,7 +339,7 @@ namespace pyrticle
     class type : public pusher_base
     {
       private:
-        hedge::vector   m_integral_weights;
+        dyn_vector   m_integral_weights;
 
       public:
         stats_gatherer<double> m_e_normalization_stats;
@@ -349,7 +349,7 @@ namespace pyrticle
         { return "Average"; }
 
         // initialization -----------------------------------------------------
-        void setup_averaging_particle_pusher(const hedge::matrix &mass_matrix)
+        void setup_averaging_particle_pusher(const py_matrix &mass_matrix)
         {
           m_integral_weights = prod(mass_matrix, 
               boost::numeric::ublas::scalar_vector<double>
@@ -361,16 +361,16 @@ namespace pyrticle
 
         // force calculation --------------------------------------------------
         // why all these template arguments? In 2D and 1D,
-        // instead of passing a hedge::vector, you may simply
+        // instead of passing a py_vector, you may simply
         // pass a zero_vector, and the field averaging machinery
         // will statically know to not even compute anything, 
         // and just return zero.
         template <class EX, class EY, class EZ, 
                  class BX, class BY, class BZ>
-        hedge::vector forces(
+        py_vector forces(
             const EX &ex, const EY &ey, const EZ &ez,
             const BX &bx, const BY &by, const BZ &bz,
-            const hedge::vector &velocities,
+            const py_vector &velocities,
             bool verbose_vis
             )
         {
@@ -384,22 +384,22 @@ namespace pyrticle
           const unsigned field_components = el_tgt_t::field_components;
           const unsigned pcount = PIC_THIS->m_particle_count;
 
-          hedge::vector el_force = zero_vector(pcount * vdim);
-          hedge::vector mag_force = zero_vector(pcount * vdim);
+          dyn_vector el_force = zero_vector(pcount * vdim);
+          dyn_vector mag_force = zero_vector(pcount * vdim);
 
-          std::auto_ptr<hedge::vector> 
+          std::auto_ptr<py_vector> 
             vis_e, vis_b, vis_e_stddev, vis_b_stddev;
 
           if (verbose_vis)
           {
-            vis_e = std::auto_ptr<hedge::vector>(
-                new hedge::vector(zero_vector(field_components*pcount)));
-            vis_b = std::auto_ptr<hedge::vector>(
-                new hedge::vector(zero_vector(field_components*pcount)));
-            vis_e_stddev = std::auto_ptr<hedge::vector>(
-                new hedge::vector(zero_vector(pcount)));
-            vis_b_stddev = std::auto_ptr<hedge::vector>(
-                new hedge::vector(zero_vector(pcount)));
+            vis_e = std::auto_ptr<py_vector>(
+                new py_vector(zero_vector(field_components*pcount)));
+            vis_b = std::auto_ptr<py_vector>(
+                new py_vector(zero_vector(field_components*pcount)));
+            vis_e_stddev = std::auto_ptr<py_vector>(
+                new py_vector(zero_vector(pcount)));
+            vis_b_stddev = std::auto_ptr<py_vector>(
+                new py_vector(zero_vector(pcount)));
           }
 
           el_tgt_t el_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,

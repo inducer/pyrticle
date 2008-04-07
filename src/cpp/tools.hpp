@@ -27,7 +27,7 @@
 
 #include <utility>
 #include <functional>
-#include <hedge/base.hpp>
+#include <pyublas/numpy.hpp>
 #include <boost/foreach.hpp>
 #include <boost/numeric/ublas/matrix_sparse.hpp>
 
@@ -36,11 +36,28 @@
 
 namespace pyrticle 
 {
+  // common types -------------------------------------------------------------
+  typedef unsigned particle_number;
+  static const particle_number INVALID_PARTICLE = UINT_MAX;
+
+
+
+
+  // vector / matrix types ----------------------------------------------------
+  typedef pyublas::numpy_vector<double> py_vector;
+  typedef pyublas::numpy_matrix<double> py_matrix;
+  typedef boost::numeric::ublas::vector<double> dyn_vector;
   static const unsigned bounded_max_dims = 3;
   typedef boost::numeric::ublas::vector<double, 
           boost::numeric::ublas::bounded_array<double, bounded_max_dims> > bounded_vector;
   typedef boost::numeric::ublas::vector<int, 
           boost::numeric::ublas::bounded_array<int, bounded_max_dims> > bounded_int_vector;
+
+  typedef boost::numeric::ublas::compressed_matrix<
+    double, boost::numeric::ublas::column_major, 0, 
+    boost::numeric::ublas::unbounded_array<int> >
+      csr_matrix;
+  typedef boost::numeric::ublas::zero_vector<double> zero_vector;
 
 
 
@@ -80,6 +97,9 @@ namespace pyrticle
     return result;
   }
 
+
+
+
   // utilities ----------------------------------------------------------------
   template <class Map>
   typename Map::mapped_type const &map_get(
@@ -92,27 +112,6 @@ namespace pyrticle
     else
       return it->second;
   }
-
-
-
-
-  // common types -------------------------------------------------------------
-  typedef unsigned particle_number;
-  static const particle_number INVALID_PARTICLE = UINT_MAX;
-
-
-
-
-  // common ublas types -------------------------------------------------------
-  namespace ublas = boost::numeric::ublas;
-
-  typedef ublas::compressed_matrix<
-    double, ublas::column_major, 0, 
-    ublas::unbounded_array<int> >
-      csr_matrix;
-  typedef ublas::zero_vector<
-    hedge::vector::value_type>
-    zero_vector;
 
 
 
@@ -155,7 +154,7 @@ namespace pyrticle
 
 
   template <class VecType>
-  inline hedge::vector::value_type entry_or_zero(const VecType &v, int i)
+  inline typename VecType::value_type entry_or_zero(const VecType &v, int i)
   {
     if (i >= v.size())
       return 0;
@@ -166,7 +165,8 @@ namespace pyrticle
 
 
 
-  inline hedge::vector::value_type entry_or_zero(const hedge::vector::value_type *v, int i)
+  template <class T>
+  inline T entry_or_zero(const T *v, int i)
   {
     return v[i];
   }
@@ -176,11 +176,11 @@ namespace pyrticle
 
   template <class VecType1, class VecType2>
   inline
-  const hedge::vector cross(
+  const VecType1 cross(
       const VecType1 &a, 
       const VecType2 &b)
   {
-    hedge::vector result(3);
+    VecType1 result(3);
     result[0] = entry_or_zero(a,1)*entry_or_zero(b,2) - entry_or_zero(a,2)*entry_or_zero(b,1);
     result[1] = entry_or_zero(a,2)*entry_or_zero(b,0) - entry_or_zero(a,0)*entry_or_zero(b,2);
     result[2] = entry_or_zero(a,0)*entry_or_zero(b,1) - entry_or_zero(a,1)*entry_or_zero(b,0);
@@ -325,7 +325,7 @@ namespace pyrticle
 
       virtual void store_particle_vis_vector(
           const char *name,
-          const hedge::vector &vec,
+          const py_vector &vec,
           unsigned entries_per_particle
           ) const = 0;
   };

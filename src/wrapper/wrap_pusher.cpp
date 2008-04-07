@@ -38,7 +38,9 @@ void expose_pusher()
     python::class_<cl>("MonomialBasisFunction", python::init<unsigned, unsigned>())
       .def(python::init<unsigned, unsigned, unsigned>())
       .def(python::init<const std::vector<unsigned> & >())
-      .def("__call__", &cl::operator())
+      .def("__call__", 
+          (const double (cl::*)(const py_vector &) const)
+          &cl::operator())
       ;
   }
 

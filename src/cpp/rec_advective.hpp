@@ -37,6 +37,7 @@
 #include <boost/numeric/bindings/blas/blas3.hpp>
 #include <boost/typeof/std/utility.hpp>
 #include <boost/unordered_map.hpp>
+#include <pyublas/unary_op.hpp>
 #include <hedge/face_operators.hpp>
 #include "tools.hpp"
 #include "meshdata.hpp"
@@ -114,14 +115,14 @@ namespace pyrticle
         unsigned                        m_active_elements;
         std::vector<unsigned>           m_freelist;
 
-        hedge::matrix                   m_mass_matrix;
-        hedge::vector                   m_integral_weights;
-        hedge::matrix                   m_inverse_mass_matrix;
-        hedge::matrix                   m_face_mass_matrix;
-        hedge::vector                   m_face_integral_weights;
-        hedge::matrix                   m_filter_matrix;
+        py_matrix                       m_mass_matrix;
+        dyn_vector                      m_integral_weights;
+        py_matrix                       m_inverse_mass_matrix;
+        py_matrix                       m_face_mass_matrix;
+        dyn_vector                      m_face_integral_weights;
+        py_matrix                       m_filter_matrix;
 
-        std::vector<hedge::matrix>      m_local_diff_matrices;
+        std::vector<py_matrix>          m_local_diff_matrices;
 
         boost::shared_ptr<hedge::face_group> m_int_face_group;
         boost::shared_ptr<hedge::face_group> m_bdry_face_group;
@@ -147,7 +148,7 @@ namespace pyrticle
 
         std::vector<advected_particle>  m_advected_particles;
 
-        hedge::vector                   m_rho;
+        dyn_vector                      m_rho;
 
         boost::shared_ptr<number_shift_listener> m_rho_dof_shift_listener;
 
@@ -186,10 +187,6 @@ namespace pyrticle
         template<class Target>
         void reconstruct_densities_on_target(Target &tgt)
         {
-          hedge::vector result(
-              m_dofs_per_element*CONST_PIC_THIS->m_mesh_data.m_element_info.size());
-          result.clear();
-
           particle_number pn = 0;
           BOOST_FOREACH(const advected_particle &p, m_advected_particles)
           {
@@ -207,9 +204,9 @@ namespace pyrticle
 
 
 
-        hedge::vector get_debug_quantity_on_mesh(
+        py_vector get_debug_quantity_on_mesh(
             const std::string &qty, 
-            hedge::vector const &velocities)
+            py_vector const &velocities)
         {
           if (qty == "rhs")
             return map_particle_space_to_mesh_space(
@@ -321,10 +318,10 @@ namespace pyrticle
         void setup_advective_reconstructor(
             unsigned faces_per_element, 
             unsigned dofs_per_element,
-            const hedge::matrix &mass_matrix,
-            const hedge::matrix &inverse_mass_matrix,
-            const hedge::matrix &filter_matrix,
-            const hedge::matrix &face_mass_matrix,
+            const py_matrix &mass_matrix,
+            const py_matrix &inverse_mass_matrix,
+            const py_matrix &filter_matrix,
+            const py_matrix &face_mass_matrix,
             boost::shared_ptr<hedge::face_group> int_face_group,
             boost::shared_ptr<hedge::face_group> bdry_face_group,
             double activation_threshold,
@@ -382,7 +379,7 @@ namespace pyrticle
 
 
 
-        void add_local_diff_matrix(unsigned coordinate, const hedge::matrix &dmat)
+        void add_local_diff_matrix(unsigned coordinate, const py_matrix &dmat)
         {
           if (coordinate != m_local_diff_matrices.size())
             throw std::runtime_error("local diff matrices added out of order");
@@ -426,7 +423,7 @@ namespace pyrticle
           unsigned old_size = m_rho.size();
           unsigned copy_size = std::min(new_size, old_size);
 
-          hedge::vector new_rho(new_size);
+          dyn_vector new_rho(new_size);
           subrange(new_rho, 0, copy_size) = subrange(m_rho, 0, copy_size);
           new_rho.swap(m_rho);
         }
@@ -484,9 +481,10 @@ namespace pyrticle
 
 
 
-        hedge::vector map_particle_space_to_mesh_space(hedge::vector const &pspace) const
+        template <class VecType>
+        py_vector map_particle_space_to_mesh_space(VecType const &pspace) const
         {
-          hedge::vector result(
+          py_vector result(
               m_dofs_per_element*CONST_PIC_THIS->m_mesh_data.m_element_info.size());
           result.clear();
 
@@ -506,9 +504,9 @@ namespace pyrticle
 
 
 
-        hedge::vector get_active_elements() const
+        py_vector get_active_elements() const
         {
-          hedge::vector result(
+          py_vector result(
               m_dofs_per_element*CONST_PIC_THIS->m_mesh_data.m_element_info.size());
           result.clear();
 
@@ -550,7 +548,7 @@ namespace pyrticle
             { }
 
           void add_shape_on_element(
-              const hedge::vector &center,
+              const bounded_vector &center,
               const mesh_data::element_number en
               )
           {
@@ -565,7 +563,7 @@ namespace pyrticle
             for (unsigned i = 0; i < m_pic_algorithm.m_dofs_per_element; ++i)
               m_pic_algorithm.m_rho[start+i] =
                 m_particle.m_shape_function(
-                    m_pic_algorithm.m_mesh_data.m_nodes[einfo.m_start+i]-center);
+                    m_pic_algorithm.m_mesh_data.mesh_node(einfo.m_start+i)-center);
 
             m_particle.m_elements.push_back(new_element);
           }
@@ -648,24 +646,24 @@ namespace pyrticle
 
 
         // rhs calculation ----------------------------------------------------
-        hedge::vector calculate_local_div(hedge::vector const &velocities) const
+        py_vector calculate_local_div(py_vector const &velocities) const
         {
           const unsigned dofs = m_rho.size();
           const unsigned active_contiguous_elements = 
             m_active_elements + m_freelist.size();
 
-          hedge::vector local_div(dofs);
+          py_vector local_div(dofs);
           local_div.clear();
 
           // calculate local rst derivatives ----------------------------------
-          hedge::vector rst_derivs(get_dimensions_mesh()*dofs);
+          dyn_vector rst_derivs(get_dimensions_mesh()*dofs);
           rst_derivs.clear();
           using namespace boost::numeric::bindings;
           using blas::detail::gemm;
 
           for (unsigned loc_axis = 0; loc_axis < get_dimensions_mesh(); ++loc_axis)
           {
-            const hedge::matrix &matrix = m_local_diff_matrices.at(loc_axis);
+            const py_matrix &matrix = m_local_diff_matrices.at(loc_axis);
 
             gemm(
                 'T', // "matrix" is row-major
@@ -689,7 +687,7 @@ namespace pyrticle
             particle_number pn = 0;
             BOOST_FOREACH(const advected_particle &p, m_advected_particles)
             {
-              hedge::vector v = subrange(velocities, 
+              bounded_vector v = subrange(velocities, 
                   PICAlgorithm::dimensions_velocity*pn,
                   PICAlgorithm::dimensions_velocity*(pn+1));
 
@@ -720,15 +718,14 @@ namespace pyrticle
 
 
 
-        hedge::vector calculate_fluxes(hedge::vector const &velocities)
+        py_vector calculate_fluxes(py_vector const &velocities)
         {
           if (m_activation_threshold == 0)
             throw std::runtime_error("zero activation threshold");
 
-          hedge::vector fluxes(m_rho.size());
+          py_vector fluxes(m_rho.size());
           fluxes.clear();
 
-          typedef hedge::vector::value_type scalar_t;
           particle_number pn = 0;
           BOOST_FOREACH(advected_particle &p, m_advected_particles)
           {
@@ -736,7 +733,7 @@ namespace pyrticle
                 boost::numeric::ublas::zero_vector<double>(get_dimensions_mesh()))
               *CONST_PIC_THIS->m_charges[pn];
 
-            const hedge::vector v = subrange(velocities, 
+            const bounded_vector v = subrange(velocities, 
                 PICAlgorithm::dimensions_velocity*pn,
                 PICAlgorithm::dimensions_velocity*(pn+1));
 
@@ -804,7 +801,7 @@ namespace pyrticle
                 }
 
                 // Find information about this face
-                const scalar_t n_dot_v = inner_prod(v, flux_face->normal);
+                const double n_dot_v = inner_prod(v, flux_face->normal);
                 const bool inflow = n_dot_v <= 0;
                 bool active = el->m_connections[fn] != mesh_data::INVALID_ELEMENT;
 
@@ -830,7 +827,7 @@ namespace pyrticle
                   const unsigned face_length = m_face_mass_matrix.size1();
                   assert(face_length == idx_list->size());
 
-                  scalar_t max_density = 0;
+                  double max_density = 0;
                   for (unsigned i = 0; i < face_length; i++)
                     max_density = std::max(max_density, 
                         fabs(m_rho[this_base_idx+(*idx_list)[i]]));
@@ -856,7 +853,7 @@ namespace pyrticle
                     {
                       // allocate_element enlarged the size of the state vector
                       // fluxes needs to be changed as well.
-                      hedge::vector new_fluxes(m_rho.size());
+                      py_vector new_fluxes(m_rho.size());
                       new_fluxes.clear();
                       noalias(subrange(new_fluxes, 0, fluxes.size())) = fluxes;
                       fluxes.swap(new_fluxes);
@@ -950,11 +947,11 @@ namespace pyrticle
                     hedge::index_list::const_iterator ilj_iterator = idx_list->begin();
                     hedge::index_list::const_iterator oilj_iterator = opp_idx_list->begin();
 
-                    scalar_t res_ili_addition = 0;
+                    double res_ili_addition = 0;
 
                     for (unsigned j = 0; j < face_length; j++)
                     {
-                      const scalar_t fmm_entry = m_face_mass_matrix(i, j);
+                      const double fmm_entry = m_face_mass_matrix(i, j);
 
                       const int ilj = this_base_idx+*ilj_iterator++;
                       const int oilj = opp_base_idx+*oilj_iterator++;
@@ -980,7 +977,7 @@ namespace pyrticle
 
                     hedge::index_list::const_iterator ilj_iterator = idx_list->begin();
 
-                    scalar_t res_ili_addition = 0;
+                    double res_ili_addition = 0;
 
                     for (unsigned j = 0; j < face_length; j++)
                       res_ili_addition += m_rho[this_base_idx+*ilj_iterator++]
@@ -1002,9 +999,9 @@ namespace pyrticle
 
 
 
-        hedge::vector apply_elementwise_inverse_mass_matrix(hedge::vector const &operand) const
+        py_vector apply_elementwise_inverse_mass_matrix(py_vector const &operand) const
         {
-          hedge::vector result(m_rho.size());
+          py_vector result(m_rho.size());
           result.clear();
 
           const unsigned active_contiguous_elements = 
@@ -1013,7 +1010,7 @@ namespace pyrticle
           using namespace boost::numeric::bindings;
           using blas::detail::gemm;
 
-          const hedge::matrix &matrix = m_inverse_mass_matrix;
+          const py_matrix &matrix = m_inverse_mass_matrix;
           gemm(
               'T', // "matrix" is row-major
               'N', // a contiguous array of vectors is column-major
@@ -1046,11 +1043,11 @@ namespace pyrticle
 
 
 
-        hedge::vector get_advective_particle_rhs(hedge::vector const &velocities)
+        py_vector get_advective_particle_rhs(py_vector const &velocities)
         {
           // calculate_fluxes may resize the state vector--calculate it first,
           // everything else later.
-          hedge::vector fluxes = calculate_fluxes(velocities);
+          py_vector fluxes = calculate_fluxes(velocities);
 
           return calculate_local_div(velocities) 
           - apply_elementwise_inverse_mass_matrix(fluxes);
@@ -1059,7 +1056,7 @@ namespace pyrticle
 
 
 
-        void apply_advective_particle_rhs(hedge::vector const &rhs)
+        void apply_advective_particle_rhs(py_vector const &rhs)
         {
           if (m_filter_matrix.size1() && m_filter_matrix.size2())
           {
@@ -1069,7 +1066,7 @@ namespace pyrticle
             const unsigned active_contiguous_elements = 
               m_active_elements + m_freelist.size();
 
-            const hedge::matrix &matrix = m_filter_matrix;
+            const py_matrix &matrix = m_filter_matrix;
             gemm(
                 'T', // "matrix" is row-major
                 'N', // a contiguous array of vectors is column-major
@@ -1105,10 +1102,8 @@ namespace pyrticle
         template <class VectorExpression>
         double element_l1(double jacobian, const VectorExpression &ve)
         {
-          hedge::vector u(ve.size());
-          for (unsigned i = 0; i < ve.size(); ++i)
-            u(i) = fabs(ve(i));
-          return jacobian * inner_prod(m_integral_weights, u);
+          return jacobian * inner_prod(m_integral_weights, 
+              pyublas::unary_op<pyublas::unary_ops::fabs>::apply(ve));
         }
     };
   };

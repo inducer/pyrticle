@@ -40,12 +40,13 @@ void expose_meshdata()
       .add_static_property("INVALID_ELEMENT", &cl::get_INVALID_ELEMENT)
       .add_static_property("INVALID_AXIS", &cl::get_INVALID_AXIS)
 
-      .DEF_RW_MEMBER(nodes)
       .DEF_RO_MEMBER(dimensions)
 
       .DEF_RO_MEMBER(element_info)
+      /*
       .DEF_RO_MEMBER(vertices)
       .DEF_RO_MEMBER(nodes)
+      */
 
       .DEF_RO_MEMBER(vertex_adj_element_starts)
       .DEF_RO_MEMBER(vertex_adj_elements)
@@ -53,8 +54,8 @@ void expose_meshdata()
 
       .DEF_RO_MEMBER(periodicities)
 
-      .DEF_SIMPLE_METHOD(is_in_element)
-      .DEF_SIMPLE_METHOD(find_containing_element)
+      .DEF_SIMPLE_METHOD(is_in_element<py_vector>)
+      .DEF_SIMPLE_METHOD(find_containing_element<py_vector>)
       ;
   }
 
@@ -96,5 +97,4 @@ void expose_meshdata()
   expose_std_vector<mesh_data::face_info>("FaceInfo");
   expose_std_vector<mesh_data::element_info>("ElementInfo");
   expose_std_vector<mesh_data::periodicity_axis>("PeriodicityAxis");
-  expose_std_vector<hedge::vector>("Vector");
 }

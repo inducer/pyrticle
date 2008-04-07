@@ -54,10 +54,10 @@ namespace pyrticle
   class rho_reconstruction_target
   {
     private:
-      hedge::vector &m_target_vector;
+      py_vector &m_target_vector;
 
     public:
-      rho_reconstruction_target(hedge::vector &target_vector)
+      rho_reconstruction_target(py_vector &target_vector)
         : m_target_vector(target_vector)
       { 
         m_target_vector.clear();
@@ -78,7 +78,7 @@ namespace pyrticle
       void end_particle(particle_number pn)
       { }
 
-      const hedge::vector &result() const
+      const py_vector &result() const
       {
         return m_target_vector;
       }
@@ -93,14 +93,14 @@ namespace pyrticle
   class j_reconstruction_target
   {
     private:
-      hedge::vector &m_target_vector;
-      const hedge::vector &m_velocities;
+      py_vector &m_target_vector;
+      const py_vector &m_velocities;
       double m_scale_factors[DimensionsVelocity];
 
     public:
       j_reconstruction_target(
-          hedge::vector &target_vector, 
-          const hedge::vector &velocities)
+          py_vector &target_vector, 
+          const py_vector &velocities)
         : m_target_vector(target_vector), m_velocities(velocities)
       { 
         m_target_vector.clear();
@@ -130,7 +130,7 @@ namespace pyrticle
       void end_particle(particle_number pn)
       { }
 
-      const hedge::vector &result() const
+      const py_vector &result() const
       {
         return m_target_vector;
       }
@@ -194,13 +194,11 @@ namespace pyrticle
   {
     public:
       void reconstruct_densities(
-          hedge::vector rho, 
-          hedge::vector j,
-          const hedge::vector &velocities)
+          py_vector rho, py_vector j, const py_vector &velocities)
       {
-        if (rho.size() != PIC_THIS->m_mesh_data.m_nodes.size())
+        if (rho.size() != PIC_THIS->m_mesh_data.node_count())
           throw std::runtime_error("rho field does not have the correct size");
-        if (j.size() != PIC_THIS->m_mesh_data.m_nodes.size() *
+        if (j.size() != PIC_THIS->m_mesh_data.node_count() *
             PIC_THIS->get_dimensions_velocity())
           throw std::runtime_error("j field does not have the correct size");
 
@@ -218,9 +216,9 @@ namespace pyrticle
 
 
 
-      void reconstruct_j(hedge::vector j, const hedge::vector &velocities)
+      void reconstruct_j(py_vector j, const py_vector &velocities)
       {
-        if (j.size() != PIC_THIS->m_mesh_data.m_nodes.size() *
+        if (j.size() != PIC_THIS->m_mesh_data.node_count() *
             PIC_THIS->get_dimensions_velocity())
           throw std::runtime_error("j field does not have the correct size");
 
@@ -233,9 +231,9 @@ namespace pyrticle
 
 
 
-      void reconstruct_rho(hedge::vector rho)
+      void reconstruct_rho(py_vector rho)
       {
-        if (rho.size() != PIC_THIS->m_mesh_data.m_nodes.size())
+        if (rho.size() != PIC_THIS->m_mesh_data.node_count())
           throw std::runtime_error("rho field does not have the correct size");
 
         rho_reconstruction_target rho_tgt(rho);

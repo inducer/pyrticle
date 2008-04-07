@@ -25,7 +25,9 @@
 
 
 
+#include <numeric>
 #include <hedge/base.hpp>
+#include <boost/numeric/ublas/vector_proxy.hpp>
 #include "tools.hpp"
 
 
@@ -33,7 +35,19 @@
 
 namespace pyrticle 
 {
-  const bool is_in_unit_simplex(const hedge::vector &unit_coords);
+  template <class VecType>
+  inline
+  const bool is_in_unit_simplex(const VecType &unit_coords)
+  {
+    const double eps = 1e-10;
+
+    BOOST_FOREACH(typename VecType::value_type ri, unit_coords)
+      if (ri < -1-eps)
+        return false;
+
+    return std::accumulate(unit_coords.begin(), unit_coords.end(), 
+        (double) 0) <= -(signed(unit_coords.size())-2)+eps;
+  }
 
 
 
@@ -61,18 +75,18 @@ namespace pyrticle
       // data structures ------------------------------------------------------
       struct face_info
       {
-        hedge::vector         m_normal;
+        bounded_vector        m_normal;
         element_number        m_neighbor;
         axis_number           m_neighbor_periodicity_axis;
 
         /** The equation for the hyperplane containing this face is
          * m_normal * x = m_face_plane_eqn_rhs.
          */
-        hedge::vector::value_type m_face_plane_eqn_rhs;
+        double                m_face_plane_eqn_rhs;
 
         /** These two specify a bounding circle on the face. */
-        hedge::vector         m_face_centroid;
-        hedge::vector::value_type m_face_radius_from_centroid;
+        bounded_vector        m_face_centroid;
+        double                m_face_radius_from_centroid;
       };
 
       struct element_info
@@ -99,8 +113,11 @@ namespace pyrticle
       const unsigned m_dimensions;
 
       std::vector<element_info> m_element_info;
-      std::vector<hedge::vector> m_vertices, m_nodes;
 
+    private:
+      py_vector m_mesh_vertices, m_mesh_nodes;
+
+    public:
       /** The following three encode the vertex-adjacent elements in a sort
        * of Compressed-Row-Storage format. */
       std::vector<unsigned> m_vertex_adj_element_starts;
@@ -117,9 +134,6 @@ namespace pyrticle
         : m_dimensions(dimensions)
       { }
 
-
-
-
       static element_number get_INVALID_ELEMENT() { return INVALID_ELEMENT; }
       static axis_number get_INVALID_AXIS() { return INVALID_AXIS; }
 
@@ -127,14 +141,37 @@ namespace pyrticle
 
 
       // operations -----------------------------------------------------------
+      unsigned node_count() const
+      { return m_mesh_nodes.size()/m_dimensions; }
+
+      unsigned vertex_count() const
+      { return m_mesh_vertices.size()/m_dimensions; }
+
+      typedef boost::numeric::ublas::vector_range<const py_vector> const_mesh_node_type;
+      typedef boost::numeric::ublas::vector_range<const py_vector> const_mesh_vertex_type;
+      typedef boost::numeric::ublas::vector_range<py_vector> mesh_node_type;
+      typedef boost::numeric::ublas::vector_range<py_vector> mesh_vertex_type;
+
+      const_mesh_vertex_type mesh_vertex(vertex_number vn) const
+      { return subrange(m_mesh_vertices, vn*m_dimensions, (vn+1)*m_dimensions); }
+
+      mesh_vertex_type mesh_vertex(vertex_number vn)
+      { return subrange(m_mesh_vertices, vn*m_dimensions, (vn+1)*m_dimensions); }
+
+      const_mesh_node_type mesh_node(node_number nn) const
+      { return subrange(m_mesh_nodes, nn*m_dimensions, (nn+1)*m_dimensions); }
+
+      mesh_node_type mesh_node(node_number nn)
+      { return subrange(m_mesh_nodes, nn*m_dimensions, (nn+1)*m_dimensions); }
+
       bounded_vector element_centroid(element_number en) const
       {
         const element_info &ei = m_element_info[en];
 
-        bounded_vector result(m_vertices[ei.m_vertices[0]]);
+        bounded_vector result(mesh_vertex(ei.m_vertices[0]));
 
         for (unsigned i = 1; i < ei.m_vertices.size(); ++i)
-          result += m_vertices[ei.m_vertices[i]];
+          result += mesh_vertex(ei.m_vertices[i]);
 
         result /= ei.m_vertices.size();
         return result;
@@ -144,12 +181,12 @@ namespace pyrticle
       {
         const element_info &ei = m_element_info[en];
         bounded_vector
-          min(m_vertices[ei.m_vertices[0]]), 
-          max(m_vertices[ei.m_vertices[0]]);
+          min(mesh_vertex(ei.m_vertices[0])), 
+          max(mesh_vertex(ei.m_vertices[0]));
 
         for (unsigned vi = 0; vi < ei.m_vertices.size(); ++vi)
         {
-          const hedge::vector &vtx = m_vertices[ei.m_vertices[vi]];
+          const_mesh_vertex_type vtx = mesh_vertex(ei.m_vertices[vi]);
           for (unsigned i = 0; i < m_dimensions; ++i)
           {
             if (vtx[i] < min[i]) min[i] = vtx[i];
@@ -160,15 +197,20 @@ namespace pyrticle
         return std::make_pair(min, max);
       }
 
-      const bool is_in_element(element_number en, const hedge::vector &pt) const
+      template <class VecType>
+      const bool is_in_element(element_number en, const VecType &pt) const
       {
-        const element_info &el(m_element_info[en]);
-        hedge::vector uc = el.m_inverse_map(pt);
-        return is_in_unit_simplex(uc);
+        return is_in_unit_simplex(m_element_info[en].m_inverse_map(pt));
       }
 
-      const element_number find_containing_element(
-          const hedge::vector &pt) const;
+      template <class VecType>
+      const element_number find_containing_element(const VecType &pt) const
+      {
+        BOOST_FOREACH(const element_info &el, m_element_info)
+          if (is_in_unit_simplex(el.m_inverse_map(pt)))
+            return el.m_id;
+        return INVALID_ELEMENT;
+      }
   };
 }
 

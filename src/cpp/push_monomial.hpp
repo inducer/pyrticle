@@ -28,7 +28,6 @@
 #include <vector>
 #include <boost/foreach.hpp>
 #include <boost/assign/list_of.hpp> 
-#include <boost/numeric/ublas/vector_proxy.hpp>
 #include <boost/numeric/ublas/triangular.hpp>
 #include "tools.hpp"
 #include "bases.hpp"
@@ -42,6 +41,7 @@ namespace pyrticle
 {
   struct monomial_basis_function
   {
+    /* exponents in each coordinate direction */
     std::vector<unsigned> m_exponents;
 
     monomial_basis_function(const std::vector<unsigned> &exponents)
@@ -54,7 +54,8 @@ namespace pyrticle
     monomial_basis_function(unsigned i, unsigned j, unsigned k)
     { m_exponents = boost::assign::list_of(i)(j)(k); }
 
-    const double operator()(const hedge::vector &v) const
+    template <class VecType>
+    const double operator()(const VecType &v) const
     {
       double result = 1;
       unsigned i = 0;
@@ -72,16 +73,17 @@ namespace pyrticle
   {
     private:
       unsigned m_el_start, m_el_end;
-      hedge::vector m_interpolation_coefficients;
+      py_vector m_interpolation_coefficients;
 
     public:
       interpolator(unsigned el_start, unsigned el_end, 
-          const hedge::vector &intp_coeff)
+          const py_vector &intp_coeff)
         : m_el_start(el_start), m_el_end(el_end),
         m_interpolation_coefficients(intp_coeff)
       { }
 
-      const double operator()(const hedge::vector &data) const
+      template <class VecType>
+      const double operator()(const VecType &data) const
       {
         return inner_prod(m_interpolation_coefficients,
             subrange(data, m_el_start, m_el_end));
@@ -97,8 +99,8 @@ namespace pyrticle
   struct local_monomial_discretization
   {
     std::vector<monomial_basis_function> m_basis;
-    hedge::matrix m_l_vandermonde_t;
-    hedge::matrix m_u_vandermonde_t;
+    py_matrix m_l_vandermonde_t;
+    py_matrix m_u_vandermonde_t;
     csr_matrix m_p_vandermonde_t;
   };
 
@@ -120,7 +122,7 @@ namespace pyrticle
           m_ldis_indices;
 
         const interpolator make_interpolator(
-            const hedge::vector &pt, 
+            const bounded_vector &pt, 
             mesh_data::element_number in_element) const
         {
           const mesh_data::element_info &el_inf = 
@@ -129,25 +131,25 @@ namespace pyrticle
             m_local_discretizations[m_ldis_indices[in_element]];
 
           unsigned basis_length = ldis.m_basis.size();
-          hedge::vector mon_basis_values_at_pt(basis_length);
+          dyn_vector mon_basis_values_at_pt(basis_length);
 
-          hedge::vector unit_pt = el_inf.m_inverse_map(pt);
+          dyn_vector unit_pt = el_inf.m_inverse_map(pt);
 
           for (unsigned i = 0; i < basis_length; i++)
             mon_basis_values_at_pt[i] = ldis.m_basis[i](unit_pt);
 
-          hedge::vector permuted_basis_values = prod(
+          dyn_vector permuted_basis_values = prod(
                     ldis.m_p_vandermonde_t,
                     mon_basis_values_at_pt);
 
-          hedge::vector coeff = 
+          py_vector coeff = 
             solve(
                 ldis.m_u_vandermonde_t,
                 solve(
                   ldis.m_l_vandermonde_t,
                   permuted_basis_values,
-                  ublas::lower_tag()),
-                ublas::upper_tag());
+                  boost::numeric::ublas::lower_tag()),
+                boost::numeric::ublas::upper_tag());
 
           return interpolator(el_inf.m_start, el_inf.m_end, coeff);
         }
@@ -161,30 +163,30 @@ namespace pyrticle
         // not even compute anything, but just return zero.
         template <class EX, class EY, class EZ, 
                  class BX, class BY, class BZ>
-        hedge::vector forces(
+        py_vector forces(
             const EX &ex, const EY &ey, const EZ &ez,
             const BX &bx, const BY &by, const BZ &bz,
-            const hedge::vector &velocities,
+            const py_vector &velocities,
             bool verbose_vis
             )
         {
           const unsigned xdim = CONST_PIC_THIS->get_dimensions_pos();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
 
-          hedge::vector result(CONST_PIC_THIS->m_particle_count * vdim);
-          std::auto_ptr<hedge::vector> 
+          py_vector result(CONST_PIC_THIS->m_particle_count * vdim);
+          std::auto_ptr<py_vector> 
             vis_e, vis_b, vis_el_force, vis_mag_force;
 
           if (verbose_vis)
           {
-            vis_e = std::auto_ptr<hedge::vector>(
-                new hedge::vector(3*PIC_THIS->m_particle_count));
-            vis_b = std::auto_ptr<hedge::vector>(
-                new hedge::vector(3*PIC_THIS->m_particle_count));
-            vis_el_force = std::auto_ptr<hedge::vector>(
-                new hedge::vector(3*PIC_THIS->m_particle_count));
-            vis_mag_force = std::auto_ptr<hedge::vector>(
-                new hedge::vector(3*PIC_THIS->m_particle_count));
+            vis_e = std::auto_ptr<py_vector>(
+                new py_vector(3*PIC_THIS->m_particle_count));
+            vis_b = std::auto_ptr<py_vector>(
+                new py_vector(3*PIC_THIS->m_particle_count));
+            vis_el_force = std::auto_ptr<py_vector>(
+                new py_vector(3*PIC_THIS->m_particle_count));
+            vis_mag_force = std::auto_ptr<py_vector>(
+                new py_vector(3*PIC_THIS->m_particle_count));
           }
 
           for (particle_number i = 0; i < PIC_THIS->m_particle_count; i++)
@@ -198,25 +200,25 @@ namespace pyrticle
             interpolator interp = make_interpolator(
                 subrange(PIC_THIS->m_positions, xdim*i, xdim*(i+1)), in_el);
 
-            hedge::vector e(3);
+            bounded_vector e(3);
             e[0] = interp(ex);
             e[1] = interp(ey);
             e[2] = interp(ez);
 
-            hedge::vector b(3);
+            bounded_vector b(3);
             b[0] = interp(bx);
             b[1] = interp(by);
             b[2] = interp(bz);
 
             const double charge = PIC_THIS->m_charges[i];
 
-            hedge::vector el_force(3);
+            bounded_vector el_force(3);
             el_force[0] = charge*e[0];
             el_force[1] = charge*e[1];
             el_force[2] = charge*e[2];
 
-            const hedge::vector v = subrange(velocities, v_pstart, v_pend);
-            hedge::vector mag_force = cross(v, charge*b);
+            const bounded_vector v = subrange(velocities, v_pstart, v_pend);
+            bounded_vector mag_force = cross(v, charge*b);
 
             // truncate forces to dimensions_velocity entries
             subrange(result, v_pstart, v_pend) = subrange(

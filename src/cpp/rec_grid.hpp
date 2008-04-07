@@ -122,7 +122,7 @@ namespace pyrticle
            * The general assumption is that #(element values) < #(structured values),
            * but this may be violated without much harm.
            */
-          hedge::matrix m_interpolant_pseudo_inv;
+          py_matrix m_interpolant_pseudo_inv;
         };
 
         // member data --------------------------------------------------------
@@ -130,8 +130,8 @@ namespace pyrticle
 
         // setup interface ------------------------------------------------------
         void add_brick(
-            hedge::vector stepwidths,
-            hedge::vector origin,
+            py_vector stepwidths,
+            py_vector origin,
             pyublas::numpy_vector<unsigned> dims)
         {
           brick new_brick;
@@ -199,19 +199,19 @@ namespace pyrticle
         { }
 
         void reconstruct_densities(
-            hedge::vector rho, 
-            hedge::vector j,
-            const hedge::vector &velocities)
+            py_vector rho, 
+            py_vector j,
+            const py_vector &velocities)
         {
 
         }
 
-        void reconstruct_j(hedge::vector j, const hedge::vector &velocities)
+        void reconstruct_j(py_vector j, const py_vector &velocities)
         {
 
         }
 
-        void reconstruct_rho(hedge::vector rho)
+        void reconstruct_rho(py_vector rho)
         {
 
         }

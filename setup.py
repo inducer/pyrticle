@@ -94,7 +94,6 @@ def main():
             Extension("_internal", 
                 [
                     "src/cpp/tools.cpp",
-                    "src/cpp/meshdata.cpp",
                     "src/cpp/rec_shape.cpp",
                     "src/wrapper/wrap_tools.cpp",
                     "src/wrapper/wrap_meshdata.cpp",

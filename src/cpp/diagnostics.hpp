@@ -35,11 +35,11 @@
 namespace pyrticle
 {
   template <class PIC>
-  const hedge::vector kinetic_energies(PIC const &pic)
+  const py_vector kinetic_energies(PIC const &pic)
   {
     const unsigned vdim = pic.get_dimensions_velocity();
 
-    hedge::vector result(pic.m_particle_count);
+    py_vector result(pic.m_particle_count);
 
     const double c_squared = pic.m_vacuum_c*pic.m_vacuum_c;
 
@@ -71,10 +71,10 @@ namespace pyrticle
 
 
   template <class PIC>
-  const hedge::vector particle_momentum(PIC const &pic)
+  const py_vector particle_momentum(PIC const &pic)
   {
     const unsigned vdim = pic.get_dimensions_velocity();
-    hedge::vector result(vdim);
+    py_vector result(vdim);
     result.clear();
 
     for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
@@ -161,7 +161,7 @@ namespace pyrticle
   {
     if (pic.m_particle_count == 0)
       return 0;
-    hedge::vector energies = kinetic_energies(pic);
+    py_vector energies = kinetic_energies(pic);
     return std_dev(energies.begin(), energies.end());
   }
 
@@ -169,11 +169,11 @@ namespace pyrticle
 
 
   template <class PIC>
-  const hedge::vector particle_current(PIC const &pic, hedge::vector const &velocities,
+  const py_vector particle_current(PIC const &pic, py_vector const &velocities,
       double length)
   {
     const unsigned vdim = pic.get_dimensions_velocity();
-    hedge::vector result(vdim);
+    py_vector result(vdim);
     result.clear();
 
     for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
@@ -181,11 +181,6 @@ namespace pyrticle
 
     return result / length;
   }
-
-
-
-
-
 }
 
 

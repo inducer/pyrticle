@@ -42,7 +42,9 @@ void expose_reconstructor()
           (arg("radius"), arg("dimensions"), arg("alpha"))))
       .add_property("radius", &cl::radius)
       .add_property("exponent", &cl::exponent)
-      .def("__call__", &cl::operator())
+      .def("__call__", 
+          (const double (cl::*)(const py_vector &) const)
+          &cl::operator())
       ;
   }
 }

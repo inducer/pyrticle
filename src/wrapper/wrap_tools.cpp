@@ -47,7 +47,7 @@ namespace
   {
     void store_particle_vis_vector(
         const char *name,
-        const hedge::vector &vec,
+        const py_vector &vec,
         unsigned entries_per_particle) const
     {
       this->get_override("store_particle_vis_vector")(name, vec, entries_per_particle);
@@ -113,12 +113,13 @@ namespace
     namespace lapack = boost::numeric::bindings::lapack;
 
     typedef pyublas::numpy_matrix<ValueType> matrix_t;
-    typedef ublas::matrix<ValueType, ublas::column_major> col_matrix_t;
+    typedef boost::numeric::ublas::matrix<
+      ValueType, boost::numeric::ublas::column_major> col_matrix_t;
 
     const unsigned piv_len = std::min(a.size1(), a.size2());
 
     col_matrix_t temp(a);
-    ublas::vector<int> piv(piv_len);
+    boost::numeric::ublas::vector<int> piv(piv_len);
 
     int info = lapack::getrf(temp, piv);
     if (info < 0)
@@ -137,7 +138,7 @@ namespace
       for (; j < a.size2(); j++) u(i,j) = temp(i,j);
     }
 
-    ublas::vector<int> permut(piv_len);
+    boost::numeric::ublas::vector<int> permut(piv_len);
     for (unsigned i = 0; i < piv_len; i++) 
       permut[i] = i;
     for (unsigned i = 0; i < piv_len; i++) 

@@ -45,7 +45,8 @@ namespace pyrticle
     public:
       shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
 
-      const double operator()(const hedge::vector &r) const
+      template <class VecType>
+      const double operator()(const VecType &r) const
       {
         double r_squared = inner_prod(r, r);
         if (r_squared > m_l_squared)
@@ -69,8 +70,9 @@ namespace pyrticle
 
 
 
+  template <class VecType>
   inline
-  bool is_not_near_vertex(hedge::vector const &unit_pt)
+  bool is_not_near_vertex(VecType const &unit_pt)
   {
     bool not_near_vertex = true;
 
@@ -110,7 +112,7 @@ namespace pyrticle
         template <class ElementTarget>
         void add_shape_by_neighbors(
             ElementTarget &target,
-            const hedge::vector &pos,
+            const bounded_vector &pos,
             const mesh_data::element_info &einfo,
             double radius)
         {
@@ -126,7 +128,7 @@ namespace pyrticle
                 target.add_shape_on_element(pos, face.m_neighbor);
               else
               {
-                hedge::vector pos2(pos);
+                bounded_vector pos2(pos);
                 const mesh_data::periodicity_axis &pa = 
                   m_pic_algorithm.m_mesh_data.m_periodicities[per_axis];
 
@@ -151,7 +153,7 @@ namespace pyrticle
         template <class ElementTarget>
         void add_shape_by_vertex(
             ElementTarget &target,
-            const hedge::vector &pos,
+            const bounded_vector &pos,
             const mesh_data::element_info &einfo,
             double radius)
         {
@@ -189,7 +191,7 @@ namespace pyrticle
             {
               const mesh_data::periodicity_axis &pa = md.m_periodicities[per_axis];
 
-              hedge::vector pos2(pos);
+              bounded_vector pos2(pos);
               if (pos[per_axis] - radius < pa.m_min)
               {
                 pos2[per_axis] += (pa.m_max - pa.m_min);
@@ -211,7 +213,7 @@ namespace pyrticle
         void operator()(ElementTarget &target, particle_number pn, double radius)
         {
           const unsigned dim = m_pic_algorithm.get_dimensions_pos();
-          const hedge::vector pos = subrange(
+          const bounded_vector pos = subrange(
               m_pic_algorithm.m_positions, pn*dim, (pn+1)*dim);
           const mesh_data::element_number containing_el = 
             m_pic_algorithm.m_containing_elements[pn];
@@ -276,7 +278,7 @@ namespace pyrticle
 
 
         template <class ElementTarget>
-        void recurse(ElementTarget &target,  const hedge::vector &pos, double radius,
+        void recurse(ElementTarget &target, const bounded_vector &pos, double radius,
             el_set_t &el_set, mesh_data::element_number en)
         {
           target.add_shape_on_element(pos, en);
@@ -313,7 +315,7 @@ namespace pyrticle
               recurse(target, pos, radius, el_set, face.m_neighbor);
             else
             {
-              hedge::vector pos2(pos);
+              bounded_vector pos2(pos);
               const mesh_data::periodicity_axis &pa = 
                 m_pic_algorithm.m_mesh_data.m_periodicities[per_axis];
 
@@ -338,7 +340,7 @@ namespace pyrticle
         void operator()(ElementTarget &target, particle_number pn, double radius)
         {
           const unsigned dim = m_pic_algorithm.get_dimensions_pos();
-          const hedge::vector pos = subrange(
+          const bounded_vector pos = subrange(
               m_pic_algorithm.m_positions, pn*dim, (pn+1)*dim);
 
           el_set_t el_set;
@@ -371,7 +373,7 @@ namespace pyrticle
             { }
 
             void add_shape_on_element(
-                const hedge::vector &center,
+                const bounded_vector &center,
                 const mesh_data::element_number en
                 ) const
             {
@@ -379,12 +381,12 @@ namespace pyrticle
                   m_pic_algorithm.m_mesh_data.m_element_info[en]);
 
               const unsigned el_length = einfo.m_end-einfo.m_start;
-              hedge::vector el_rho(el_length);
+              dyn_vector el_rho(el_length);
 
               for (unsigned i = 0; i < el_length; i++)
                 el_rho[i] = 
                   m_charge * m_pic_algorithm.m_shape_function(
-                      m_pic_algorithm.m_mesh_data.m_nodes[einfo.m_start+i] 
+                      m_pic_algorithm.m_mesh_data.mesh_node(einfo.m_start+i) 
                       - center);
 
               m_target.add_shape_on_element(en, einfo.m_start, el_rho);
