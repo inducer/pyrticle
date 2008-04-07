@@ -28,6 +28,7 @@
 #include "rec_shape.hpp"
 #include "rec_normshape.hpp"
 #include "rec_advective.hpp"
+#include "rec_grid.hpp"
 
 
 
@@ -87,6 +88,21 @@ namespace pyrticle
       .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
       .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
       .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)
+      ;
+  }
+
+
+
+
+  template <class Wrapper, class PIC>
+  void expose_typed_reconstructor(Wrapper &wrp, 
+      typename grid_reconstructor::type<PIC> *)
+  { 
+    typedef grid_reconstructor::type<PIC> cl;
+    wrp
+      .DEF_RW_MEMBER(shape_function)
+      .DEF_SIMPLE_METHOD(add_brick)
+      .DEF_SIMPLE_METHOD(commit_bricks)
       ;
   }
 }

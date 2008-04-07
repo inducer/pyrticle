@@ -87,16 +87,6 @@ namespace pyrticle
 
         std::vector<face_info>      m_faces;
 
-        hedge::vector centroid(const std::vector<hedge::vector> &vertex_points) const
-        {
-          hedge::vector result(vertex_points[m_vertices[0]]);
-
-          for (unsigned i = 1; i < m_vertices.size(); ++i)
-            result += vertex_points[m_vertices[i]];
-
-          result /= m_vertices.size();
-          return result;
-        }
       };
 
 
@@ -137,6 +127,39 @@ namespace pyrticle
 
 
       // operations -----------------------------------------------------------
+      bounded_vector element_centroid(element_number en) const
+      {
+        const element_info &ei = m_element_info[en];
+
+        bounded_vector result(m_vertices[ei.m_vertices[0]]);
+
+        for (unsigned i = 1; i < ei.m_vertices.size(); ++i)
+          result += m_vertices[ei.m_vertices[i]];
+
+        result /= ei.m_vertices.size();
+        return result;
+      }
+
+      bounded_box element_bounding_box(element_number en) const
+      {
+        const element_info &ei = m_element_info[en];
+        bounded_vector
+          min(m_vertices[ei.m_vertices[0]]), 
+          max(m_vertices[ei.m_vertices[0]]);
+
+        for (unsigned vi = 0; vi < ei.m_vertices.size(); ++vi)
+        {
+          const hedge::vector &vtx = m_vertices[ei.m_vertices[vi]];
+          for (unsigned i = 0; i < m_dimensions; ++i)
+          {
+            if (vtx[i] < min[i]) min[i] = vtx[i];
+            if (vtx[i] > max[i]) max[i] = vtx[i];
+          }
+        }
+
+        return std::make_pair(min, max);
+      }
+
       const bool is_in_element(element_number en, const hedge::vector &pt) const
       {
         const element_info &el(m_element_info[en]);

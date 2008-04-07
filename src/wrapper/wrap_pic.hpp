@@ -218,6 +218,16 @@ namespace
     expose_pic_all_dim<Reconstructor, monomial_particle_pusher>();
     expose_pic_all_dim<Reconstructor, averaging_particle_pusher>();
   }
+
+
+
+
+  template <class Reconstructor>
+  inline
+  void expose_pic_nontarget_pushers_all_dim()
+  {
+    expose_pic_all_dim<Reconstructor, monomial_particle_pusher>();
+  }
 }
 
 

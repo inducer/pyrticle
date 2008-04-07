@@ -112,7 +112,7 @@ namespace pyrticle
               unsigned element_length = einfo.m_end-einfo.m_start;
 
               {
-                hedge::vector centroid = einfo.centroid(m_pic_algorithm.m_mesh_data.m_vertices);
+                hedge::vector centroid = m_pic_algorithm.m_mesh_data.element_centroid(en);
                 m_pic_algorithm.m_centroid_distance_stats.add(norm_2(centroid-center));
               }
 

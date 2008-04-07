@@ -253,3 +253,8 @@ class AdvectiveReconstructor(Reconstructor):
         from pyrticle.tools import NumberShiftableVector
         self.cloud.pic_algorithm.apply_advective_particle_rhs(
                 NumberShiftableVector.unwrap(rhs))
+
+class GridReconstructor(Reconstructor):
+    def set_shape_function(self, sf):
+        Reconstructor.set_shape_function(self, sf)
+        self.cloud.pic_algorithm.shape_function = sf

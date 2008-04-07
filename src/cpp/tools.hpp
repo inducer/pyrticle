@@ -25,6 +25,7 @@
 
 
 
+#include <utility>
 #include <functional>
 #include <hedge/base.hpp>
 #include <boost/foreach.hpp>
@@ -35,6 +36,50 @@
 
 namespace pyrticle 
 {
+  static const unsigned bounded_max_dims = 3;
+  typedef boost::numeric::ublas::vector<double, 
+          boost::numeric::ublas::bounded_array<double, bounded_max_dims> > bounded_vector;
+  typedef boost::numeric::ublas::vector<int, 
+          boost::numeric::ublas::bounded_array<int, bounded_max_dims> > bounded_int_vector;
+
+
+
+
+  // box utilties -------------------------------------------------------------
+  typedef std::pair<bounded_vector, bounded_vector> bounded_box;
+  typedef std::pair<bounded_int_vector, bounded_int_vector> bounded_int_box;
+
+  template <class VecType1, class VecType2>
+  std::pair<VecType1, VecType1> intersect(
+      std::pair<VecType1, VecType1> const &b1, 
+      std::pair<VecType2, VecType2> const &b2, 
+      bool *does=0)
+  {
+    const unsigned dims = b1.first.size();
+
+    const VecType1 d_vector_lower(dims);
+    const VecType1 d_vector_upper(dims);
+    std::pair<VecType1, VecType1> result(d_vector_lower, d_vector_upper);
+
+    for (unsigned i = 0; i < dims; ++i)
+    {
+      result.first[i] = std::max(b1.first[i], b2.first[i]);
+      result.second[i] = std::min(b1.second[i], b2.second[i]);
+    }
+
+    if (does)
+    {
+      *does = true;
+      for (unsigned i = 0; i < dims; ++i)
+        if (result.first[i] > result.second[i])
+        {
+          *does = false;
+          return result;
+        }
+    }
+    return result;
+  }
+
   // utilities ----------------------------------------------------------------
   template <class Map>
   typename Map::mapped_type const &map_get(
