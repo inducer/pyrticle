@@ -35,12 +35,6 @@
 
 
 
-#define PIC_THIS static_cast<PICAlgorithm *>(this)
-#define CONST_PIC_THIS static_cast<const PICAlgorithm *>(this)
-
-
-
-
 namespace pyrticle 
 {
   template<unsigned DimensionsPos, unsigned DimensionsVelocity>
@@ -416,59 +410,6 @@ namespace pyrticle
       {
         if (m_vis_listener.get())
           m_vis_listener->store_particle_vis_vector(name, vec, entries_per_particle);
-      }
-
-
-
-
-      // reconstruction -----------------------------------------------------
-      void reconstruct_densities(
-          hedge::vector rho, 
-          hedge::vector j,
-          const hedge::vector &velocities)
-      {
-        if (rho.size() != this->m_mesh_data.m_nodes.size())
-          throw std::runtime_error("rho field does not have the correct size");
-        if (j.size() != this->m_mesh_data.m_nodes.size() *
-            this->get_dimensions_velocity())
-          throw std::runtime_error("j field does not have the correct size");
-
-        rho_reconstruction_target rho_tgt(rho);
-        typedef j_reconstruction_target<pic::dimensions_velocity> j_tgt_t;
-        j_tgt_t j_tgt(j, velocities);
-
-        chained_reconstruction_target<rho_reconstruction_target, j_tgt_t>
-            tgt(rho_tgt, j_tgt);
-        this->reconstruct_densities_on_target(tgt);
-
-        rho = rho_tgt.result();
-      }
-
-
-
-
-      void reconstruct_j(hedge::vector j, const hedge::vector &velocities)
-      {
-        if (j.size() != this->m_mesh_data.m_nodes.size() *
-            this->get_dimensions_velocity())
-          throw std::runtime_error("j field does not have the correct size");
-
-        j_reconstruction_target<pic::dimensions_velocity> j_tgt(
-            j, velocities);
-
-        this->reconstruct_densities_on_target(j_tgt);
-      }
-
-
-
-
-      void reconstruct_rho(hedge::vector rho)
-      {
-        if (rho.size() != this->m_mesh_data.m_nodes.size())
-          throw std::runtime_error("rho field does not have the correct size");
-
-        rho_reconstruction_target rho_tgt(rho);
-        this->reconstruct_densities_on_target(rho_tgt);
       }
   };
 }

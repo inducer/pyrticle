@@ -31,6 +31,7 @@
 #include "tools.hpp"
 #include "bases.hpp"
 #include "meshdata.hpp"
+#include "rec_target.hpp"
 #include "rec_shape.hpp"
 
 
@@ -41,7 +42,7 @@ namespace pyrticle
   struct normalized_shape_function_reconstructor
   {
     template <class PICAlgorithm>
-    class type : public reconstructor_base
+    class type : public target_reconstructor_base<PICAlgorithm>
     {
       private:
         template <class Target>

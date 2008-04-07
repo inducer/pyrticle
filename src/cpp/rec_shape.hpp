@@ -354,7 +354,7 @@ namespace pyrticle
   struct shape_function_reconstructor
   {
     template <class PICAlgorithm>
-    class type : public reconstructor_base
+    class type : public target_reconstructor_base<PICAlgorithm>
     {
       private:
         template <class Target>

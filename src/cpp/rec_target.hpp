@@ -26,6 +26,7 @@
 
 
 #include "meshdata.hpp"
+#include "bases.hpp"
 
 
 
@@ -183,6 +184,64 @@ namespace pyrticle
   {
     return chained_reconstruction_target<T1, T2>(target1, target2);
   }
+
+
+
+
+  // reconstructor base class -------------------------------------------------
+  template <class PICAlgorithm>
+  class target_reconstructor_base : public reconstructor_base
+  {
+    public:
+      void reconstruct_densities(
+          hedge::vector rho, 
+          hedge::vector j,
+          const hedge::vector &velocities)
+      {
+        if (rho.size() != PIC_THIS->m_mesh_data.m_nodes.size())
+          throw std::runtime_error("rho field does not have the correct size");
+        if (j.size() != PIC_THIS->m_mesh_data.m_nodes.size() *
+            PIC_THIS->get_dimensions_velocity())
+          throw std::runtime_error("j field does not have the correct size");
+
+        rho_reconstruction_target rho_tgt(rho);
+        typedef j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt_t;
+        j_tgt_t j_tgt(j, velocities);
+
+        chained_reconstruction_target<rho_reconstruction_target, j_tgt_t>
+            tgt(rho_tgt, j_tgt);
+        PIC_THIS->reconstruct_densities_on_target(tgt);
+
+        rho = rho_tgt.result();
+      }
+
+
+
+
+      void reconstruct_j(hedge::vector j, const hedge::vector &velocities)
+      {
+        if (j.size() != PIC_THIS->m_mesh_data.m_nodes.size() *
+            PIC_THIS->get_dimensions_velocity())
+          throw std::runtime_error("j field does not have the correct size");
+
+        j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt(
+            j, velocities);
+
+        PIC_THIS->reconstruct_densities_on_target(j_tgt);
+      }
+
+
+
+
+      void reconstruct_rho(hedge::vector rho)
+      {
+        if (rho.size() != PIC_THIS->m_mesh_data.m_nodes.size())
+          throw std::runtime_error("rho field does not have the correct size");
+
+        rho_reconstruction_target rho_tgt(rho);
+        PIC_THIS->reconstruct_densities_on_target(rho_tgt);
+      }
+  };
 }
 
 

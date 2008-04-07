@@ -351,4 +351,10 @@ namespace pyrticle
 
 
 
+#define PIC_THIS static_cast<PICAlgorithm *>(this)
+#define CONST_PIC_THIS static_cast<const PICAlgorithm *>(this)
+
+
+
+
 #endif

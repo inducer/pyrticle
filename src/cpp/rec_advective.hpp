@@ -40,6 +40,7 @@
 #include <hedge/face_operators.hpp>
 #include "tools.hpp"
 #include "meshdata.hpp"
+#include "rec_target.hpp"
 #include "rec_shape.hpp"
 
 
@@ -50,7 +51,7 @@ namespace pyrticle
   struct advective_reconstructor 
   {
     template <class PICAlgorithm>
-    class type : public reconstructor_base
+    class type : public target_reconstructor_base<PICAlgorithm>
     {
       public:
         static const unsigned max_faces = 4;
