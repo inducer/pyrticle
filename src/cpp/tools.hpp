@@ -47,6 +47,9 @@ namespace pyrticle
   typedef pyublas::numpy_vector<double> py_vector;
   typedef pyublas::numpy_matrix<double> py_matrix;
   typedef boost::numeric::ublas::vector<double> dyn_vector;
+  typedef boost::numeric::ublas::matrix<double> dyn_matrix;
+  typedef boost::numeric::ublas::matrix<double,
+          boost::numeric::ublas::column_major> dyn_fortran_matrix;
   static const unsigned bounded_max_dims = 3;
   typedef boost::numeric::ublas::vector<double, 
           boost::numeric::ublas::bounded_array<double, bounded_max_dims> > bounded_vector;
@@ -96,6 +99,19 @@ namespace pyrticle
     }
     return result;
   }
+
+  inline
+  bool operator==(bounded_box const &b1, bounded_box const &b2)
+  {
+    return 
+      std::equal(b1.first.begin(), b1.first.end(), b2.first.begin())
+      &&
+      std::equal(b1.second.begin(), b1.second.end(), b2.second.begin());
+  }
+
+  inline
+  bool operator!=(bounded_box const &b1, bounded_box const &b2)
+  { return !operator==(b1, b2); }
 
 
 

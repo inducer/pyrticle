@@ -100,7 +100,6 @@ namespace pyrticle
         vtx_id_vector                  m_vertices;
 
         std::vector<face_info>      m_faces;
-
       };
 
 
