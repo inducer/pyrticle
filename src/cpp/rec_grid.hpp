@@ -32,6 +32,7 @@
 #include <pyublas/unary_op.hpp>
 #include <boost/python.hpp>
 #include <boost/numeric/ublas/banded.hpp>
+#include <boost/numeric/ublas/io.hpp>
 #include <boost/numeric/bindings/lapack/gesvd.hpp>
 
 
@@ -190,6 +191,9 @@ namespace pyrticle
                 m_state[i] = m_bounds.first[i];
               }
 
+              // we overflowed everything back to the origin, we're done
+              m_state = m_bounds.second;
+
               return *this;
             }
 
@@ -338,12 +342,30 @@ namespace pyrticle
             {
               bounded_box brick_bbox = brk.bounding_box();
               bool does_intersect;
+
+              bounded_box el_and_brick_bbox = 
+                intersect(brick_bbox, el_bbox, &does_intersect);
               bounded_int_box el_brick_index_box = 
-                brk.index_range(
-                    intersect(brick_bbox, el_bbox, &does_intersect));
+                brk.index_range(el_and_brick_bbox);
 
               if (!does_intersect)
                 continue;
+              /*
+              std::cout << "element " << el.m_id << std::endl;
+              std::cout << "el_bbox " << el_bbox.first << std::endl;
+              std::cout << "el_bbox " << el_bbox.second << std::endl;
+              std::cout << "brick_bbox " << brick_bbox.first << std::endl;
+              std::cout << "brick_bbox " << brick_bbox.second << std::endl;
+              std::cout << "brick_origin " << brk.m_origin << std::endl;
+              std::cout << "brick_dim " << brk.m_dimensions << std::endl;
+              std::cout << "brick_sw " << brk.m_stepwidths << std::endl;
+              std::cout << "brick_add " << brk.m_origin + element_prod(brk.m_dimensions, brk.m_stepwidths)<< std::endl;
+
+              std::cout << "int_bbox " << el_and_brick_bbox.first << std::endl;
+              std::cout << "int_bbox " << el_and_brick_bbox.second << std::endl;
+              std::cout << "idx_bbox " << el_brick_index_box.first << std::endl;
+              std::cout << "idx_bbox " << el_brick_index_box.second << std::endl;
+              */
 
               brick_iterator it(el_brick_index_box);
 
@@ -365,23 +387,36 @@ namespace pyrticle
             unsigned 
               rows = point_coordinates.size(),
                    cols = el.m_end-el.m_start;
+
+            if (rows < cols/2)
+              throw std::runtime_error(
+                str(boost::format("element has too few structured grid points "
+                    "(element #%d, #nodes=%d #sgridpt=%d)") 
+                  % el.m_id % cols % rows).c_str());
+            std::cout 
+              << boost::format("element %d #nodes=%d sgridpt=%d") % el.m_id % cols % rows
+              << std::endl;
+
             dyn_fortran_matrix interpolant_mat(rows, cols);
             interpolant_mat.clear();
 
-            for (unsigned i = 0; i < point_coordinates.size(); ++i)
+            for (unsigned i = 0; i < rows; ++i)
             {
               py_vector pt(point_coordinates[i]);
 
               using boost::python::object;
 
+              unsigned basis_idx = 0;
               dyn_vector basis_values_at_pt(el.m_end-el.m_start);
               BOOST_FOREACH(object basis_func,
                   std::make_pair(
                     boost::python::stl_input_iterator<object>(basis),
                     boost::python::stl_input_iterator<object>()
                     ))
-                basis_values_at_pt[i] = boost::python::extract<double>(
-                    pt.to_python().get());
+              {
+                basis_values_at_pt[basis_idx++] = boost::python::extract<double>(
+                    basis_func(pt.to_python()));
+              }
 
               row(interpolant_mat, i) = prod(
                   inv_vander_t, basis_values_at_pt);

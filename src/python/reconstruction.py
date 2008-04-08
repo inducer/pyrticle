@@ -24,6 +24,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 import pytools.log
 import numpy
+import numpy.linalg as la
 
 
 
@@ -111,6 +112,7 @@ class NormalizedShapeFunctionReconstructor(Reconstructor):
 
 
 
+# advective reconstruction ----------------------------------------------------
 class ActiveAdvectiveElements(pytools.log.LogQuantity):
     def __init__(self, reconstructor, name="n_advec_elements"):
         pytools.log.LogQuantity.__init__(self, name, "1", "#active advective elements")
@@ -254,7 +256,56 @@ class AdvectiveReconstructor(Reconstructor):
         self.cloud.pic_algorithm.apply_advective_particle_rhs(
                 NumberShiftableVector.unwrap(rhs))
 
+
+
+
+# grid reconstruction ---------------------------------------------------------
+class SingleBrick:
+    def __init__(self, overresolve=1.5):
+        self.overresolve = overresolve
+
+    def __call__(self, discr):
+        from hedge.discretization import integral, ones_on_volume
+        mesh_volume = integral(discr, ones_on_volume(discr))
+        dx =  (mesh_volume/len(discr))**(1/discr.dimensions) \
+                / self.overresolve
+
+        mesh = discr.mesh
+        bbox_min, bbox_max = mesh.bounding_box
+        bbox_size = bbox_max-bbox_min
+        dims = numpy.asarray(bbox_size/dx, dtype=numpy.uint32)+1
+        stepwidths = bbox_size/dims
+        yield stepwidths, bbox_min+(dx/2), dims
+
+
+
+
 class GridReconstructor(Reconstructor):
+    name = "Grid"
+
+    def __init__(self, brick_generator=SingleBrick()):
+        self.brick_generator = brick_generator
+
+    def initialize(self, cloud):
+        Reconstructor.initialize(self, cloud)
+
+        discr = cloud.mesh_data.discr
+
+        from pyublas import why_not
+        for stepwidths, origin, dims in self.brick_generator(discr):
+            self.cloud.pic_algorithm.add_brick(
+                    why_not(stepwidths), why_not(origin), why_not(dims, dtype=numpy.uint32))
+
+        eg, = discr.element_groups
+        ldis = eg.local_discretization
+
+        self.cloud.pic_algorithm.commit_bricks(
+                numpy.asarray(la.inv(ldis.vandermonde().T), order="C"),
+                ldis.basis_functions())
+
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf
+
+
+

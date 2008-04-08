@@ -179,7 +179,9 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
         from pyrticle.reconstruction import \
                 ShapeFunctionReconstructor, \
                 NormalizedShapeFunctionReconstructor, \
-                AdvectiveReconstructor
+                AdvectiveReconstructor, \
+                GridReconstructor
+
         from pyrticle.pusher import \
                 MonomialParticlePusher, \
                 AverageParticlePusher
@@ -194,6 +196,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "RecShape": ShapeFunctionReconstructor,
                 "RecNormShape": NormalizedShapeFunctionReconstructor,
                 "RecAdv": AdvectiveReconstructor,
+                "RecGrid": GridReconstructor,
 
                 "PushMonomial": MonomialParticlePusher,
                 "PushAverage": AverageParticlePusher,
