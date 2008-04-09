@@ -53,46 +53,32 @@ warning_forwarder = WarningForwarder()
 
 
 # number-shifting vectors -----------------------------------------------------
-class NumberShiftSignaller:
+class NumberShiftMultiplexer(_internal.NumberShiftListener):
     def __init__(self):
+        _internal.NumberShiftListener.__init__(self)
         from weakref import WeakKeyDictionary
         self.subscribers = WeakKeyDictionary()
 
-    def subscribe(self, shiftable):
-        self.subscribers[shiftable] = None
+    def subscribe(self, subscriber):
+        assert isinstance(subscriber, _internal.NumberShiftListener)
+        self.subscribers[subscriber] = None
 
-    def change_size(self, new_size):
+    def note_change_size(self, new_size):
         for subscriber in self.subscribers.iterkeys():
-            subscriber.change_size(new_size)
+            subscriber.note_change_size(new_size)
 
-    def move(self, orig, dest, size):
+    def note_move(self, orig, dest, size):
         for subscriber in self.subscribers.iterkeys():
             subscriber.move(orig, dest, size)
 
-    def reset(self, start, size):
+    def note_reset(self, start, size):
         for subscriber in self.subscribers.iterkeys():
             subscriber.reset(start, size)
 
 
 
-class NumberShiftForwarder(_internal.NumberShiftListener, NumberShiftSignaller):
-    def __init__(self):
-        _internal.NumberShiftListener.__init__(self)
-        NumberShiftSignaller.__init__(self)
 
-    def note_change_size(self, new_size):
-        self.change_size(new_size)
-
-    def note_move(self, orig, dest, size):
-        self.move(orig, dest, size)
-
-    def note_reset(self, start, size):
-        self.reset(start, size)
-
-
-
-
-class NumberShiftableVector(object):
+class NumberShiftableVector(_internal.NumberShiftListener):
     """A vector that may be notified of shifts in the DOFs it contains.
 
     This solves the following problem: Particles in 
@@ -103,9 +89,8 @@ class NumberShiftableVector(object):
     L{NumberShiftSignaller}, fulfills that purpose.
     """
 
-    __slots__ = ["vector", "multiplier", "signaller", "__weakref__"]
-
     def __init__(self, vector, multiplier, signaller):
+        _internal.NumberShiftListener.__init__(self)
         self.vector = vector
         self.multiplier = multiplier
         self.signaller = signaller
@@ -146,7 +131,7 @@ class NumberShiftableVector(object):
     __rmul__ = __mul__
 
     # shiftiness --------------------------------------------------------------
-    def change_size(self, new_size):
+    def note_change_size(self, new_size):
         old_size = len(self.vector)
         new_size *= self.multiplier
 
@@ -158,11 +143,11 @@ class NumberShiftableVector(object):
         elif new_size < old_size:
             self.vector = self.vector[:new_size]
 
-    def move(self, orig, dest, size):
+    def note_move(self, orig, dest, size):
         m = self.multiplier
         self.vector[m*dest:m*(dest+size)] = self.vector[m*orig:m*(orig+size)]
 
-    def reset(self, start, size):
+    def note_reset(self, start, size):
         m = self.multiplier
         self.vector[start*m:(start+size)*m] = 0
 

@@ -28,5 +28,3 @@ void expose_grid_pic()
 {
   expose_pic_nontarget_pushers_all_dim<grid_reconstructor>();
 }
-
-

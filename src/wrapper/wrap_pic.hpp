@@ -98,12 +98,13 @@ namespace
       .DEF_SIMPLE_METHOD(velocities)
 
       .DEF_SIMPLE_METHOD(move_particle)
+      .DEF_SIMPLE_METHOD(note_change_particle_count)
+      .DEF_SIMPLE_METHOD(kill_particle)
 
       .DEF_SIMPLE_METHOD(add_rhs)
       .DEF_SIMPLE_METHOD(find_new_containing_element)
       .DEF_SIMPLE_METHOD(update_containing_elements)
 
-      .DEF_SIMPLE_METHOD(kill_particle)
       ;
 
     if (PICAlgorithm::get_dimensions_velocity() == 3)
@@ -187,6 +188,7 @@ namespace
           >
         >();
 
+    /*
     expose_pic_algorithm<
         pic<
           pic_data<3,3>,
@@ -195,6 +197,7 @@ namespace
           face_based_element_finder
           >
         >();
+        */
 
     /*
     expose_pic_algorithm<

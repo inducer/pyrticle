@@ -101,8 +101,8 @@ class ParticleCloud:
         self.mesh_data.fill_from_hedge(discr)
 
         # size change messaging
-        from pyrticle.tools import NumberShiftForwarder
-        self.particle_number_shift_signaller = NumberShiftForwarder()
+        from pyrticle.tools import NumberShiftMultiplexer
+        self.particle_number_shift_signaller = NumberShiftMultiplexer()
         self.pic_algorithm.particle_number_shift_listener = self.particle_number_shift_signaller
 
         # visualization
@@ -267,9 +267,7 @@ class ParticleCloud:
         pic.particle_count += len(containing_elements)
 
         self.check_containment()
-
-        for pn in range(prev_count, pic.particle_count):
-            self.reconstructor.add_particle_hook(pn)
+        pic.note_change_particle_count(pic.particle_count)
 
         self.derived_quantity_cache.clear()
 

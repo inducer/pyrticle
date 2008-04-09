@@ -215,6 +215,27 @@ namespace pyrticle
              * indices 0 and 1 exist in that dimension.
              */
             bounded_int_vector m_dimensions;
+            bounded_int_vector m_strides;
+
+            brick(
+                grid_node_number start_index,
+                bounded_vector stepwidths,
+                bounded_vector origin,
+                bounded_int_vector dimensions)
+              : m_start_index(start_index), m_stepwidths(stepwidths),
+              m_origin(origin), m_dimensions(dimensions)
+            {
+              m_strides.resize(m_dimensions.size());
+              unsigned i = m_dimensions.size();
+              unsigned current_stride = 1;
+              while (i > 0)
+              {
+                --i;
+
+                m_strides[i] = current_stride;
+                current_stride *= m_dimensions[i];
+              }
+            }
 
             unsigned node_count() const
             {
@@ -228,7 +249,7 @@ namespace pyrticle
             { return m_origin + element_prod(idx, m_stepwidths); }
 
             grid_node_number index(const bounded_int_vector &idx) const
-            { return m_start_index + inner_prod(idx, m_dimensions); }
+            { return m_start_index + inner_prod(idx, m_strides); }
 
             bounded_box bounding_box() const
             {
@@ -313,13 +334,7 @@ namespace pyrticle
             py_vector origin,
             pyublas::numpy_vector<unsigned> dims)
         {
-          brick new_brick;
-          new_brick.m_start_index = grid_node_count();
-          new_brick.m_stepwidths = stepwidths;
-          new_brick.m_origin = origin;
-          new_brick.m_dimensions = dims;
-
-          m_bricks.push_back(new_brick);
+          m_bricks.push_back(brick(grid_node_count(), stepwidths, origin, dims));
         }
 
 
@@ -327,6 +342,9 @@ namespace pyrticle
 
         void commit_bricks(py_matrix inv_vander_t, boost::python::object basis)
         {
+          const unsigned gnc = grid_node_count();
+          m_elements_on_grid.reserve(CONST_PIC_THIS->m_mesh_data.m_element_info.size());
+
           BOOST_FOREACH(const mesh_data::element_info &el, 
               CONST_PIC_THIS->m_mesh_data.m_element_info)
           {
@@ -374,6 +392,9 @@ namespace pyrticle
                 bounded_vector point = brk.point(*it);
                 if (CONST_PIC_THIS->m_mesh_data.is_in_element(el.m_id, point))
                 {
+                  grid_node_number gnn = brk.index(*it);
+                  if (gnn >= gnc)
+                    throw std::runtime_error("grid rec: grid node number is out of bounds");
                   point_coordinates.push_back(point);
                   eog.m_grid_nodes.push_back(brk.index(*it));
                 }
@@ -440,15 +461,15 @@ namespace pyrticle
               std::max(rows, cols) *
               norm_inf(s);
 
-            boost::numeric::ublas::diagonal_matrix<double> inv_s(s.size());
+            boost::numeric::ublas::diagonal_matrix<double> inv_s(cols, rows);
             for (unsigned i = 0; i < s.size(); ++i)
               if (fabs(s[i]) > threshold)
                 inv_s(i, i) = 1/s[i];
               else
                 inv_s(i, i) = 0;
 
-            noalias(eog.m_interpolant_pseudo_inv) = prod(
-                trans(vt), dyn_matrix(prod(inv_s, trans(u))));
+            eog.m_interpolant_pseudo_inv = prod(trans(vt), 
+                dyn_matrix(prod(inv_s, trans(u))));
 
             m_elements_on_grid.push_back(eog);
           }
@@ -472,7 +493,8 @@ namespace pyrticle
         void reconstruct_particle_on_one_brick(Target tgt, 
             const brick &brk, 
             const bounded_vector &center,
-            const bounded_box &intersect_box)
+            const bounded_box &intersect_box,
+            double charge)
         {
           bounded_int_box particle_brick_index_box = brk.index_range(intersect_box);
 
@@ -481,7 +503,7 @@ namespace pyrticle
           while (!it.at_end())
           {
             tgt.add_shape_value(brk.index(*it), 
-                m_shape_function(center- brk.point(*it)));
+                charge*m_shape_function(center- brk.point(*it)));
             ++it;
           }
         }
@@ -519,7 +541,8 @@ namespace pyrticle
             if (does_intersect)
             {
               reconstruct_particle_on_one_brick(
-                  tgt, last_brick, center, brick_and_particle);
+                  tgt, last_brick, center, brick_and_particle,
+                  CONST_PIC_THIS->m_charges[pn]);
 
               if (brick_and_particle != particle_box)
                 consider_other_bricks = true;
@@ -544,7 +567,8 @@ namespace pyrticle
                     m_particle_brick_numbers[pn] = bn;
 
                   reconstruct_particle_on_one_brick(
-                      tgt, brk, center, brick_and_particle);
+                      tgt, brk, center, brick_and_particle,
+                      CONST_PIC_THIS->m_charges[pn]);
                 }
 
                 ++bn;
@@ -574,7 +598,8 @@ namespace pyrticle
                 *gv_it++ = from[gnn];
             }
 
-            subrange(to, el.m_start, el.m_end) = prod(
+            // FIXME replace by gemm invocation
+            noalias(subrange(to, el.m_start, el.m_end)) = prod(
                 eog.m_interpolant_pseudo_inv, grid_values);
           }
         }

@@ -319,7 +319,14 @@ namespace pyrticle
 
           --m_particle_count;
           move_particle(m_particle_count, pn);
+          note_change_particle_count(m_particle_count);
+        }
 
+
+
+
+        void note_change_particle_count(unsigned particle_count)
+        {
           if (m_particle_number_shift_listener.get())
             m_particle_number_shift_listener->note_change_size(m_particle_count);
           PIC_THIS->PICAlgorithm::reconstructor::note_change_size(m_particle_count);

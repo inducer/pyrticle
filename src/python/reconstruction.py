@@ -22,6 +22,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
+import pyrticle._internal as _internal
 import pytools.log
 import numpy
 import numpy.linalg as la
@@ -41,9 +42,6 @@ class Reconstructor(object):
         self.shape_function = sf
 
     def add_instrumentation(self, mgr):
-        pass
-
-    def add_particle_hook(self, pn):
         pass
 
     def clear_particles(self):
@@ -124,13 +122,14 @@ class ActiveAdvectiveElements(pytools.log.LogQuantity):
 
 
 
-class AdvectiveReconstructor(Reconstructor):
+class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
     name = "Advective"
 
     def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3, 
             filter_amp=None, filter_order=None, 
             upwind_alpha=1):
         Reconstructor.__init__(self)
+        _internal.NumberShiftListener.__init__(self)
 
         from pyrticle.tools import NumberShiftForwarder
         self.rho_shift_signaller = NumberShiftForwarder()
@@ -167,6 +166,8 @@ class AdvectiveReconstructor(Reconstructor):
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
+
+        cloud.particle_number_shift_signaller.subscribe(self)
 
         discr = cloud.mesh_data.discr
         
@@ -226,10 +227,13 @@ class AdvectiveReconstructor(Reconstructor):
         for pn in xrange(len(self.cloud)):
             self.cloud.pic_algorithm.add_advective_particle(sf, pn)
 
-    def add_particle_hook(self, pn):
-        if self.shape_function is not None:
-            self.cloud.pic_algorithm.add_advective_particle(
-                    self.shape_function, pn)
+    def note_change_size(self, new_size):
+        pic = self.cloud.pic_algorithm
+
+        if (self.shape_function is not None 
+                and new_size > pic.count_advective_particles()):
+            for pn in range(pic.count_advective_particles(), new_size):
+                pic.add_advective_particle(self.shape_function, pn)
 
     def clear_particles(self):
         Reconstructor.clear_particles(self)
