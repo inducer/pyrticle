@@ -101,8 +101,12 @@ namespace pyrticle
     typedef grid_reconstructor::type<PIC> cl;
     wrp
       .DEF_RW_MEMBER(shape_function)
+      .DEF_RW_MEMBER(bricks)
+
       .DEF_SIMPLE_METHOD(add_brick)
       .DEF_SIMPLE_METHOD(commit_bricks)
+
+      .DEF_SIMPLE_METHOD(get_rec_debug_quantity)
       ;
   }
 }

@@ -51,10 +51,8 @@ namespace pyrticle
   typedef boost::numeric::ublas::matrix<double,
           boost::numeric::ublas::column_major> dyn_fortran_matrix;
   static const unsigned bounded_max_dims = 3;
-  typedef boost::numeric::ublas::vector<double, 
-          boost::numeric::ublas::bounded_array<double, bounded_max_dims> > bounded_vector;
-  typedef boost::numeric::ublas::vector<int, 
-          boost::numeric::ublas::bounded_array<int, bounded_max_dims> > bounded_int_vector;
+  typedef boost::numeric::ublas::bounded_vector<double, bounded_max_dims> bounded_vector;
+  typedef boost::numeric::ublas::bounded_vector<int, bounded_max_dims> bounded_int_vector;
 
   typedef boost::numeric::ublas::compressed_matrix<
     double, boost::numeric::ublas::column_major, 0, 

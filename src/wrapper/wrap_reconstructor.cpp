@@ -20,7 +20,9 @@
 
 
 #include "rec_shape.hpp"
+#include "rec_grid.hpp"
 #include "wrap_helpers.hpp"
+#include <pyublas/numpy.hpp>
 
 
 
@@ -47,4 +49,21 @@ void expose_reconstructor()
           &cl::operator())
       ;
   }
+
+  {
+    typedef grid_reconstructor::brick cl;
+    python::class_<cl>("Brick", python::no_init)
+      .DEF_RW_MEMBER(start_index)
+      .DEF_BYVAL_RW_MEMBER(stepwidths)
+      .DEF_BYVAL_RW_MEMBER(origin)
+      .DEF_BYVAL_RW_MEMBER(dimensions)
+      .DEF_BYVAL_RW_MEMBER(strides)
+
+      .def("__len__", &cl::node_count)
+      .DEF_SIMPLE_METHOD(point)
+      .DEF_SIMPLE_METHOD(index)
+      ;
+  }
+
+  expose_std_vector<grid_reconstructor::brick>("BrickVector");
 }

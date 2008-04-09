@@ -213,6 +213,13 @@ def main():
     set_shape_bandwidth(cloud, setup.shape_bandwidth, setup.shape_exponent,
             gauss_p.analytic_rho(discr))
 
+    visf = vis.make_file("rhogrid")
+    vis.add_data(visf, [
+                ("rho", cloud.reconstruct_rho()),
+                ])
+    cloud.reconstructor.write_grid_rho(visf)
+    visf.close()
+
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition
     fields = compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,

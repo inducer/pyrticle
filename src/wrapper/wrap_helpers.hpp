@@ -54,6 +54,10 @@
   def_readonly(#NAME, &cl::m_##NAME)
 #define DEF_RW_MEMBER(NAME) \
   def_readwrite(#NAME, &cl::m_##NAME)
+#define DEF_BYVAL_RO_MEMBER(NAME) \
+  def(pyublas::by_value_ro_member(#NAME, &cl::m_##NAME))
+#define DEF_BYVAL_RW_MEMBER(NAME) \
+  def(pyublas::by_value_rw_member(#NAME, &cl::m_##NAME))
 
 
 

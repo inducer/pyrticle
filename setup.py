@@ -99,9 +99,9 @@ def main():
                     "src/wrapper/wrap_meshdata.cpp",
                     "src/wrapper/wrap_reconstructor.cpp",
                     "src/wrapper/wrap_pusher.cpp",
-                    "src/wrapper/wrap_shape_pic.cpp", 
-                    "src/wrapper/wrap_normshape_pic.cpp", 
-                    "src/wrapper/wrap_advective_pic.cpp", 
+                    #"src/wrapper/wrap_shape_pic.cpp", 
+                    #"src/wrapper/wrap_normshape_pic.cpp", 
+                    #"src/wrapper/wrap_advective_pic.cpp", 
                     "src/wrapper/wrap_grid_pic.cpp", 
                     "src/wrapper/wrap_main.cpp", 
                 ],
@@ -126,7 +126,7 @@ if __name__ == '__main__':
         cflags = cvars.get('OPT')
         if cflags:
             cflags = cflags.split()
-            for bad_prefix in ('-g', '-O', '-Wstrict-prototypes'):
+            for bad_prefix in ('-g', '-O', '-Wstrict-prototypes', '-DNDEBUG'):
                 for i, flag in enumerate(cflags):
                     if flag.startswith(bad_prefix):
                         cflags.pop(i)

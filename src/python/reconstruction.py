@@ -304,12 +304,40 @@ class GridReconstructor(Reconstructor):
         ldis = eg.local_discretization
 
         self.cloud.pic_algorithm.commit_bricks(
-                numpy.asarray(la.inv(ldis.vandermonde().T), order="C"),
+                ldis.vandermonde(),
                 ldis.basis_functions())
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf
+
+    def write_grid_rho(self, silo):
+        dims = self.cloud.dimensions_mesh
+        pic = self.cloud.pic_algorithm
+
+        for i_brick, brick in enumerate(pic.bricks):
+            coords = [
+                numpy.arange(
+                    brick.origin[axis], 
+                    brick.origin[axis] + (brick.dimensions[axis]-0.5) * brick.stepwidths[axis],
+                    brick.stepwidths[axis])
+                for axis in xrange(dims)]
+            for axis in xrange(dims):
+                assert len(coords[axis]) == brick.dimensions[axis]
+
+            mname = "structmesh%d" % i_brick
+            vname = "rho_struct%d" % i_brick
+            silo.put_quadmesh(mname, coords)
+
+            from pylo import DB_NODECENT
+            silo.put_quadvar1(vname, mname, pic.get_rec_debug_quantity("rho_grid"),
+                    [int(x) for x in brick.dimensions], # get rid of array scalars
+                    DB_NODECENT)
+
+
+
+
+
 
 
 

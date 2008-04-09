@@ -28,12 +28,16 @@
 #include <limits>
 #include <pyublas/numpy.hpp>
 #include <boost/foreach.hpp>
-#include "rec_shape.hpp"
-#include <pyublas/unary_op.hpp>
+#include <boost/format.hpp>
 #include <boost/python.hpp>
+#include <boost/python/stl_iterator.hpp>
+#include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/banded.hpp>
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/numeric/bindings/lapack/gesvd.hpp>
+#include <boost/numeric/bindings/lapack/gesdd.hpp>
+#include <pyublas/unary_op.hpp>
+#include "rec_shape.hpp"
 
 
 
@@ -159,168 +163,170 @@ namespace pyrticle
 
   struct grid_reconstructor 
   {
+    class brick_iterator
+    {
+      private:
+        const bounded_int_box &m_bounds;
+        bounded_int_vector m_state;
+
+      public:
+        brick_iterator(const bounded_int_box &bounds)
+          : m_bounds(bounds), m_state(bounds.first)
+        { }
+
+        const bounded_int_vector &operator*() const
+        { return m_state; }
+
+        brick_iterator operator++()
+        {
+          int i = m_state.size();
+
+          while (i > 0)
+          {
+            --i;
+            ++m_state[i];
+            if (m_state[i] < m_bounds.second[i])
+              return *this;
+
+            m_state[i] = m_bounds.first[i];
+          }
+
+          // we overflowed everything back to the origin, we're done
+          m_state = m_bounds.second;
+
+          return *this;
+        }
+
+        bool at_end() const
+        { return m_state[0] >= m_bounds.second[0]; }
+    };
+
+
+
+
+    struct brick
+    {
+      public:
+        grid_node_number m_start_index;
+        bounded_vector m_stepwidths;
+        bounded_vector m_origin;
+
+        /** This is the number of points in each dimension. If it is 2, then the
+         * indices 0 and 1 exist in that dimension.
+         */
+        bounded_int_vector m_dimensions;
+        bounded_int_vector m_strides;
+
+        brick(
+            grid_node_number start_index,
+            bounded_vector stepwidths,
+            bounded_vector origin,
+            bounded_int_vector dimensions)
+          : m_start_index(start_index), m_stepwidths(stepwidths),
+          m_origin(origin), m_dimensions(dimensions)
+        {
+          // This ordering is what Visit expects by default and calls
+          // "row-major" (I suppose Y-major).
+
+          m_strides.resize(m_dimensions.size());
+          unsigned i = 0;
+          unsigned current_stride = 1;
+          while (i < m_dimensions.size())
+          {
+            m_strides[i] = current_stride;
+            current_stride *= m_dimensions[i];
+            ++i;
+          }
+        }
+
+        unsigned node_count() const
+        {
+          unsigned result = 1;
+          BOOST_FOREACH(unsigned d, m_dimensions)
+            result *= d;
+          return result;
+        }
+
+        bounded_vector point(const bounded_int_vector &idx) const
+        { return m_origin + element_prod(idx, m_stepwidths); }
+
+        grid_node_number index(const bounded_int_vector &idx) const
+        { return m_start_index + inner_prod(idx, m_strides); }
+
+        bounded_box bounding_box() const
+        {
+          return std::make_pair(
+              m_origin,
+              m_origin + element_prod(m_dimensions, m_stepwidths) - m_stepwidths
+              );
+        }
+
+      private:
+        struct int_floor
+        {
+          typedef double value_type;
+          typedef const double &argument_type;
+          typedef int result_type;
+
+          static result_type apply(argument_type x)
+          {
+            return int(floor(x));
+          }
+        };
+
+        struct int_ceil
+        {
+          typedef double value_type;
+          typedef const double &argument_type;
+          typedef int result_type;
+
+          static result_type apply(argument_type x)
+          {
+            return int(ceil(x));
+          }
+        };
+
+      public:
+        bounded_int_box index_range(const bounded_box &bbox) const
+        {
+          return bounded_int_box(
+              pyublas::unary_op<int_floor>::apply(
+                element_div(bbox.first-m_origin, m_stepwidths)),
+              pyublas::unary_op<int_ceil>::apply(
+                element_div(bbox.second-m_origin, m_stepwidths))
+              );
+        }
+    };
+
+
+
+
+    struct element_on_grid
+    {
+      std::vector<grid_node_number> m_grid_nodes;
+
+      /** The interpolant matrix maps the values (in-order) on the element
+       * to the structured grid values at indices m_grid_nodes.
+       *
+       * The general assumption is that #(element nodes) < #(grid points in element),
+       * but this may be violated without much harm.
+       */
+      dyn_matrix m_interpolant_pseudo_inv;
+    };
+
+
+
+
+    typedef unsigned brick_number;
+    typedef unsigned brick_node_number;
+
+
+
+
     template <class PICAlgorithm>
     class type : public reconstructor_base
     {
       public:
-        class brick_iterator
-        {
-          private:
-            const bounded_int_box &m_bounds;
-            bounded_int_vector m_state;
-
-          public:
-            brick_iterator(const bounded_int_box &bounds)
-              : m_bounds(bounds), m_state(bounds.first)
-            { }
-
-            const bounded_int_vector &operator*() const
-            { return m_state; }
-
-            brick_iterator operator++()
-            {
-              int i = m_state.size();
-
-              while (i > 0)
-              {
-                --i;
-                ++m_state[i];
-                if (m_state[i] < m_bounds.second[i])
-                  return *this;
-
-                m_state[i] = m_bounds.first[i];
-              }
-
-              // we overflowed everything back to the origin, we're done
-              m_state = m_bounds.second;
-
-              return *this;
-            }
-
-            bool at_end() const
-            { return m_state[0] >= m_bounds.second[0]; }
-        };
-
-
-
-
-        struct brick
-        {
-          public:
-            grid_node_number m_start_index;
-            bounded_vector m_stepwidths;
-            bounded_vector m_origin;
-
-            /** This is the number of points in each dimension. If it is 2, then the
-             * indices 0 and 1 exist in that dimension.
-             */
-            bounded_int_vector m_dimensions;
-            bounded_int_vector m_strides;
-
-            brick(
-                grid_node_number start_index,
-                bounded_vector stepwidths,
-                bounded_vector origin,
-                bounded_int_vector dimensions)
-              : m_start_index(start_index), m_stepwidths(stepwidths),
-              m_origin(origin), m_dimensions(dimensions)
-            {
-              m_strides.resize(m_dimensions.size());
-              unsigned i = m_dimensions.size();
-              unsigned current_stride = 1;
-              while (i > 0)
-              {
-                --i;
-
-                m_strides[i] = current_stride;
-                current_stride *= m_dimensions[i];
-              }
-            }
-
-            unsigned node_count() const
-            {
-              unsigned result = 1;
-              BOOST_FOREACH(unsigned d, m_dimensions)
-                result *= d;
-              return result;
-            }
-
-            bounded_vector point(const bounded_int_vector &idx) const
-            { return m_origin + element_prod(idx, m_stepwidths); }
-
-            grid_node_number index(const bounded_int_vector &idx) const
-            { return m_start_index + inner_prod(idx, m_strides); }
-
-            bounded_box bounding_box() const
-            {
-              return std::make_pair(
-                  m_origin,
-                  m_origin + element_prod(m_dimensions, m_stepwidths) - m_stepwidths
-                  );
-            }
-
-          private:
-            struct int_floor
-            {
-              typedef double value_type;
-              typedef const double &argument_type;
-              typedef int result_type;
-
-              static result_type apply(argument_type x)
-              {
-                return int(floor(x));
-              }
-            };
-
-            struct int_ceil
-            {
-              typedef double value_type;
-              typedef const double &argument_type;
-              typedef int result_type;
-
-              static result_type apply(argument_type x)
-              {
-                return int(ceil(x));
-              }
-            };
-
-          public:
-            bounded_int_box index_range(const bounded_box &bbox) const
-            {
-              return bounded_int_box(
-                  pyublas::unary_op<int_floor>::apply(
-                    element_div(bbox.first-m_origin, m_stepwidths)),
-                  pyublas::unary_op<int_ceil>::apply(
-                    element_div(bbox.second-m_origin, m_stepwidths))
-                  );
-            }
-        };
-
-
-
-
-        struct element_on_grid
-        {
-          std::vector<grid_node_number> m_grid_nodes;
-
-          /** The interpolant matrix maps the values (in-order) on the element
-           * to the structured grid values at indices m_grid_nodes.
-           *
-           * The general assumption is that #(element nodes) < #(grid points in element),
-           * but this may be violated without much harm.
-           */
-          dyn_matrix m_interpolant_pseudo_inv;
-        };
-
-
-
-
-        typedef unsigned brick_number;
-        typedef unsigned brick_node_number;
-
-
-
-
         // member data --------------------------------------------------------
         shape_function   m_shape_function;
 
@@ -406,22 +412,22 @@ namespace pyrticle
             // build the interpolant matrix that maps a element nodal values to
             // values on the brick grid.
             unsigned 
-              rows = point_coordinates.size(),
-                   cols = el.m_end-el.m_start;
+              sgridpts = point_coordinates.size(),
+                   elnodes = el.m_end-el.m_start;
 
-            if (rows < cols/2)
+            if (sgridpts < elnodes/2)
               throw std::runtime_error(
                 str(boost::format("element has too few structured grid points "
                     "(element #%d, #nodes=%d #sgridpt=%d)") 
-                  % el.m_id % cols % rows).c_str());
+                  % el.m_id % elnodes % sgridpts).c_str());
             std::cout 
-              << boost::format("element %d #nodes=%d sgridpt=%d") % el.m_id % cols % rows
+              << boost::format("element %d #nodes=%d sgridpt=%d") % el.m_id % elnodes % sgridpts
               << std::endl;
 
-            dyn_fortran_matrix interpolant_mat(rows, cols);
+            dyn_fortran_matrix interpolant_mat(sgridpts, elnodes);
             interpolant_mat.clear();
 
-            for (unsigned i = 0; i < rows; ++i)
+            for (unsigned i = 0; i < sgridpts; ++i)
             {
               py_vector pt(point_coordinates[i]);
 
@@ -445,31 +451,70 @@ namespace pyrticle
 
             // now find the pseudoinverse of the interpolant matrix
             using boost::numeric::bindings::lapack::gesvd;
+            using boost::numeric::bindings::lapack::gesdd;
 
-            dyn_fortran_matrix u(rows, rows), vt(cols, cols);
-            dyn_vector s(std::min(rows, cols));
+            dyn_vector s(std::min(sgridpts, elnodes));
+            dyn_fortran_matrix u(sgridpts, s.size()), vt(s.size(), elnodes);
             u.clear();
             vt.clear();
             s.clear();
 
-            gesvd(interpolant_mat, s, u, vt);
+            {
+              dyn_fortran_matrix imat_copy(interpolant_mat);
+              // gesdd destroys its first argument
+              int ierr = gesdd(imat_copy, s, u, vt);
+              if (ierr < 0)
+                throw std::runtime_error("rec_grid/svd: invalid argument");
+              else if (ierr > 0)
+                throw std::runtime_error("rec_grid/svd: no convergence for given matrix");
+            }
 
             // from http://en.wikipedia.org/wiki/Moore-Penrose_pseudoinverse
             // Matlab apparently uses this threshold
             const double threshold = 
               std::numeric_limits<double>::epsilon() *
-              std::max(rows, cols) *
+              std::max(sgridpts, elnodes) *
               norm_inf(s);
 
-            boost::numeric::ublas::diagonal_matrix<double> inv_s(cols, rows);
+            boost::numeric::ublas::diagonal_matrix<double> inv_s(s.size());
+            boost::numeric::ublas::diagonal_matrix<double> s_diag(s.size());
             for (unsigned i = 0; i < s.size(); ++i)
+            {
               if (fabs(s[i]) > threshold)
                 inv_s(i, i) = 1/s[i];
               else
                 inv_s(i, i) = 0;
 
+              s_diag(i,i) = s[i];
+            }
+
+            dyn_matrix imat_2 = prod(u, dyn_matrix(prod(s_diag, vt)));
+            if (norm_frobenius(imat_2 - interpolant_mat) > 1e-12)
+              throw std::runtime_error("rec_grid: svd failed");
+
             eog.m_interpolant_pseudo_inv = prod(trans(vt), 
                 dyn_matrix(prod(inv_s, trans(u))));
+
+            double pinv_resid;
+            if (sgridpts > elnodes)
+              pinv_resid = norm_frobenius(
+                  prod(eog.m_interpolant_pseudo_inv, interpolant_mat)
+                  -boost::numeric::ublas::identity_matrix<double>(s.size()));
+            else
+              pinv_resid = norm_frobenius(
+                  prod(interpolant_mat, eog.m_interpolant_pseudo_inv)
+                  -boost::numeric::ublas::identity_matrix<double>(s.size()));
+
+            if (pinv_resid > 1e-8)
+              WARN(str(boost::format(
+                      "rec_grid: pseudoinv failed, element=%d, "
+                      "#nodes=%d, #sgridpts=%d, resid=%.5g") 
+                    % el.m_id % elnodes % sgridpts % pinv_resid));
+
+            /*
+            char buf[100];
+            gets(buf);
+            */
 
             m_elements_on_grid.push_back(eog);
           }
@@ -632,6 +677,23 @@ namespace pyrticle
 
 
 
+        py_vector get_rec_debug_quantity(const std::string &name)
+        {
+          if (name == "rho_grid")
+          {
+            dyn_vector grid_rho(grid_node_count());
+
+            grid_targets::rho_target rho_tgt(grid_rho);
+            reconstruct_densities_on_grid_target(rho_tgt);
+            return grid_rho;
+          }
+          else
+            throw std::runtime_error("invalid debug quantity");
+        }
+
+
+
+
         // public interface -----------------------------------------------------
         static const std::string get_name()
         { return "Grid"; }
@@ -720,13 +782,9 @@ namespace pyrticle
           if (rho.size() != PIC_THIS->m_mesh_data.node_count())
             throw std::runtime_error("rho field does not have the correct size");
 
-          using namespace grid_targets;
+          dyn_vector grid_rho(grid_node_count());
 
-          const unsigned gnc = grid_node_count();
-
-          dyn_vector grid_rho(gnc);
-
-          rho_target rho_tgt(grid_rho);
+          grid_targets::rho_target rho_tgt(grid_rho);
           reconstruct_densities_on_grid_target(rho_tgt);
 
           remap_grid_to_mesh(grid_rho, rho);
