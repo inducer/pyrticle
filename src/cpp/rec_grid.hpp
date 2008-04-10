@@ -34,6 +34,7 @@
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/banded.hpp>
 #include <boost/numeric/ublas/io.hpp>
+#include <boost/numeric/bindings/traits/ublas_matrix.hpp>
 #include <boost/numeric/bindings/lapack/gesvd.hpp>
 #include <boost/numeric/bindings/lapack/gesdd.hpp>
 #include <boost/numeric/bindings/blas/blas2.hpp>
