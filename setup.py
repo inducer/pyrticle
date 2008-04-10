@@ -126,7 +126,7 @@ if __name__ == '__main__':
         cflags = cvars.get('OPT')
         if cflags:
             cflags = cflags.split()
-            for bad_prefix in ('-g', '-O', '-Wstrict-prototypes', '-DNDEBUG'):
+            for bad_prefix in ('-g', '-O', '-Wstrict-prototypes'):
                 for i, flag in enumerate(cflags):
                     if flag.startswith(bad_prefix):
                         cflags.pop(i)

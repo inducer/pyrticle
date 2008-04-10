@@ -165,47 +165,6 @@ namespace pyrticle
 
   struct grid_reconstructor 
   {
-    class brick_iterator
-    {
-      private:
-        const bounded_int_box &m_bounds;
-        bounded_int_vector m_state;
-
-      public:
-        brick_iterator(const bounded_int_box &bounds)
-          : m_bounds(bounds), m_state(bounds.first)
-        { }
-
-        const bounded_int_vector &operator*() const
-        { return m_state; }
-
-        brick_iterator operator++()
-        {
-          int i = m_state.size();
-
-          while (i > 0)
-          {
-            --i;
-            ++m_state[i];
-            if (m_state[i] < m_bounds.second[i])
-              return *this;
-
-            m_state[i] = m_bounds.first[i];
-          }
-
-          // we overflowed everything back to the origin, we're done
-          m_state = m_bounds.second;
-
-          return *this;
-        }
-
-        bool at_end() const
-        { return m_state[0] >= m_bounds.second[0]; }
-    };
-
-
-
-
     struct brick
     {
       public:
@@ -298,6 +257,92 @@ namespace pyrticle
                 element_div(bbox.second-m_origin, m_stepwidths))
               );
         }
+    };
+
+
+
+
+    class brick_iterator
+    {
+      private:
+        const brick &m_brick;
+        const bounded_int_box &m_bounds;
+      private: /* these fields must be updated in lock-step */
+        bounded_int_vector m_state;
+        bounded_vector m_point;
+        grid_node_number m_index;
+
+      public:
+        brick_iterator(brick const &brk, const bounded_int_box &bounds)
+          : m_brick(brk), m_bounds(bounds), m_state(bounds.first), 
+          m_point(brk.point(m_state)),
+          m_index(brk.index(m_state))
+        { 
+        }
+
+        const bounded_int_vector &operator*() const
+        { return m_state; }
+
+      private:
+        brick_iterator &inc_bottom_half(unsigned i)
+        {
+          // getting here means that an overflow occurred, and we'll have to
+          // update both m_index and m_point from scratch (unless somebody
+          // figures out the reset math for those, especially m_index).
+
+          while (i > 0)
+          {
+            --i;
+            ++m_state[i];
+
+            if (m_state[i] < m_bounds.second[i])
+            {
+              m_point = m_brick.point(m_state);
+              m_index = m_brick.index(m_state);
+              return *this;
+            }
+
+            m_state[i] = m_bounds.first[i];
+          }
+
+          // we overflowed everything back to the origin, meaning we're done.
+          // no need to update m_point and m_index.
+
+          m_state = m_bounds.second;
+          return *this;
+
+        }
+
+
+      public:
+        brick_iterator &operator++()
+        {
+          unsigned i = m_state.size() - 1; // silently assuming non-zero size here
+
+          ++m_state[i];
+
+          if (m_state[i] >= m_bounds.second[i])
+          {
+            m_state[i] = m_bounds.first[i];
+
+            // split off the non-default case bottom half of this routine in the
+            // hope that at least the fast default case will get inlined.
+            return inc_bottom_half(i); 
+          }
+
+          m_point[i] += m_brick.m_stepwidths[i];
+          m_index += m_brick.m_strides[i];
+          return *this;
+        }
+
+        bool at_end() const
+        { return m_state[0] >= m_bounds.second[0]; }
+
+        grid_node_number index() const
+        { return m_index; }
+
+        const bounded_vector &point() const
+        { return m_point; }
     };
 
 
@@ -398,18 +443,17 @@ namespace pyrticle
               std::cout << "idx_bbox " << el_brick_index_box.second << std::endl;
               */
 
-              brick_iterator it(el_brick_index_box);
+              brick_iterator it(brk, el_brick_index_box);
 
               while (!it.at_end())
               {
-                bounded_vector point = brk.point(*it);
-                if (CONST_PIC_THIS->m_mesh_data.is_in_element(el.m_id, point, el_tolerance))
+                if (CONST_PIC_THIS->m_mesh_data.is_in_element(
+                      el.m_id, it.point(), el_tolerance))
                 {
-                  grid_node_number gnn = brk.index(*it);
-                  if (gnn >= gnc)
+                  if (it.index() >= gnc)
                     throw std::runtime_error("grid rec: grid node number is out of bounds");
-                  point_coordinates.push_back(point);
-                  eog.m_grid_nodes.push_back(brk.index(*it));
+                  point_coordinates.push_back(it.point());
+                  eog.m_grid_nodes.push_back(it.index());
                 }
 
                 ++it;
@@ -555,12 +599,12 @@ namespace pyrticle
         {
           bounded_int_box particle_brick_index_box = brk.index_range(intersect_box);
 
-          brick_iterator it(particle_brick_index_box);
+          brick_iterator it(brk, particle_brick_index_box);
 
           while (!it.at_end())
           {
-            tgt.add_shape_value(brk.index(*it), 
-                charge*m_shape_function(center- brk.point(*it)));
+            tgt.add_shape_value(it.index(), 
+                charge*m_shape_function(center-it.point()));
             ++it;
           }
         }
