@@ -43,12 +43,13 @@ class Pusher(object):
 
     def forces(self, velocities, verbose_vis, *field_args):
         self.force_timer.start()
-        forces = self.pic_algorithm.forces(
+        forces = self.cloud.pic_algorithm.forces(
                 velocities=velocities,
-                verbose_vis=self.verbose_vis,
+                verbose_vis=verbose_vis,
                 *field_args
                 )
         self.force_timer.stop()
+        return forces
 
 
 

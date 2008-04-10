@@ -386,9 +386,9 @@ class ParticleCloud:
         field_args = tuple(e) + tuple(b)
 
         # compute forces
-        forces = self.pic_algorithm.forces(
-                velocities=velocities,
-                verbose_vis=self.verbose_vis,
+        forces = self.pusher.forces(
+                velocities,
+                self.verbose_vis,
                 *field_args
                 )
         forces = numpy.reshape(forces,
