@@ -37,16 +37,14 @@ namespace pyrticle
 {
   template <class VecType>
   inline
-  const bool is_in_unit_simplex(const VecType &unit_coords)
+  const bool is_in_unit_simplex(const VecType &unit_coords, double tolerance=1e-10)
   {
-    const double eps = 1e-10;
-
     BOOST_FOREACH(typename VecType::value_type ri, unit_coords)
-      if (ri < -1-eps)
+      if (ri < -1-tolerance)
         return false;
 
     return std::accumulate(unit_coords.begin(), unit_coords.end(), 
-        (double) 0) <= -(signed(unit_coords.size())-2)+eps;
+        (double) 0) <= -(signed(unit_coords.size())-2)+tolerance;
   }
 
 
@@ -93,6 +91,7 @@ namespace pyrticle
       {
         element_number                 m_id;
         hedge::affine_map              m_inverse_map;
+        double                         m_norm_forward_map;
         double                         m_jacobian;
 
         unsigned                       m_start, m_end;
@@ -202,9 +201,9 @@ namespace pyrticle
       }
 
       template <class VecType>
-      const bool is_in_element(element_number en, const VecType &pt) const
+      const bool is_in_element(element_number en, const VecType &pt, double tolerance=1e-10) const
       {
-        return is_in_unit_simplex(m_element_info[en].m_inverse_map(pt));
+        return is_in_unit_simplex(m_element_info[en].m_inverse_map(pt), tolerance);
       }
 
       template <class VecType>

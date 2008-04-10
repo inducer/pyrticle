@@ -18,7 +18,6 @@
 
 
 
-
 #include "wrap_pic.hpp"
 
 

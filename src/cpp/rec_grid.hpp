@@ -36,6 +36,7 @@
 #include <boost/numeric/ublas/io.hpp>
 #include <boost/numeric/bindings/lapack/gesvd.hpp>
 #include <boost/numeric/bindings/lapack/gesdd.hpp>
+#include <boost/numeric/bindings/blas/blas2.hpp>
 #include <pyublas/unary_op.hpp>
 #include "rec_shape.hpp"
 
@@ -311,7 +312,7 @@ namespace pyrticle
        * The general assumption is that #(element nodes) < #(grid points in element),
        * but this may be violated without much harm.
        */
-      dyn_matrix m_interpolant_pseudo_inv;
+      dyn_fortran_matrix m_interpolation_matrix;
     };
 
 
@@ -346,16 +347,21 @@ namespace pyrticle
 
 
 
-        void commit_bricks(py_matrix inv_vander_t, boost::python::object basis)
+        void commit_bricks(py_matrix nodal_vdm, boost::python::object basis, double el_tolerance)
         {
+          const unsigned mesh_dims = CONST_PIC_THIS->m_mesh_data.m_dimensions;
           const unsigned gnc = grid_node_count();
           m_elements_on_grid.reserve(CONST_PIC_THIS->m_mesh_data.m_element_info.size());
+
+          typedef boost::numeric::ublas::scalar_vector<double> scalar_vec;
 
           BOOST_FOREACH(const mesh_data::element_info &el, 
               CONST_PIC_THIS->m_mesh_data.m_element_info)
           {
             element_on_grid eog;
             bounded_box el_bbox = CONST_PIC_THIS->m_mesh_data.element_bounding_box(el.m_id);
+            el_bbox.first -= scalar_vec(mesh_dims, el_tolerance*el.m_norm_forward_map);
+            el_bbox.second += scalar_vec(mesh_dims, el_tolerance*el.m_norm_forward_map);
 
             // for each element, and each brick, figure it out the points in the brick
             // that fall inside the element. Add them to point_coordinates and 
@@ -396,7 +402,7 @@ namespace pyrticle
               while (!it.at_end())
               {
                 bounded_vector point = brk.point(*it);
-                if (CONST_PIC_THIS->m_mesh_data.is_in_element(el.m_id, point))
+                if (CONST_PIC_THIS->m_mesh_data.is_in_element(el.m_id, point, el_tolerance))
                 {
                   grid_node_number gnn = brk.index(*it);
                   if (gnn >= gnc)
@@ -411,9 +417,10 @@ namespace pyrticle
 
             // build the interpolant matrix that maps a element nodal values to
             // values on the brick grid.
-            unsigned 
+            const unsigned 
               sgridpts = point_coordinates.size(),
-                   elnodes = el.m_end-el.m_start;
+                   elmodes = el.m_end-el.m_start,
+                   elnodes = elmodes;
 
             if (sgridpts < elnodes/2)
               throw std::runtime_error(
@@ -424,8 +431,7 @@ namespace pyrticle
               << boost::format("element %d #nodes=%d sgridpt=%d") % el.m_id % elnodes % sgridpts
               << std::endl;
 
-            dyn_fortran_matrix interpolant_mat(sgridpts, elnodes);
-            interpolant_mat.clear();
+            dyn_fortran_matrix structured_vdm(sgridpts, elmodes);
 
             for (unsigned i = 0; i < sgridpts; ++i)
             {
@@ -433,7 +439,7 @@ namespace pyrticle
 
               using boost::python::object;
 
-              unsigned basis_idx = 0;
+              unsigned j = 0;
               dyn_vector basis_values_at_pt(el.m_end-el.m_start);
               BOOST_FOREACH(object basis_func,
                   std::make_pair(
@@ -441,28 +447,26 @@ namespace pyrticle
                     boost::python::stl_input_iterator<object>()
                     ))
               {
-                basis_values_at_pt[basis_idx++] = boost::python::extract<double>(
-                    basis_func(pt.to_python()));
+                structured_vdm(i, j++) = boost::python::extract<double>(
+                    basis_func(el.m_inverse_map(pt).to_python()));
               }
-
-              row(interpolant_mat, i) = prod(
-                  inv_vander_t, basis_values_at_pt);
             }
 
-            // now find the pseudoinverse of the interpolant matrix
-            using boost::numeric::bindings::lapack::gesvd;
-            using boost::numeric::bindings::lapack::gesdd;
+            // now find the pseudoinverse of the structured vandermonde matrix
 
-            dyn_vector s(std::min(sgridpts, elnodes));
-            dyn_fortran_matrix u(sgridpts, s.size()), vt(s.size(), elnodes);
+            dyn_vector s(std::min(sgridpts, elmodes));
+            dyn_fortran_matrix u(sgridpts, s.size()), vt(s.size(), elmodes);
             u.clear();
             vt.clear();
             s.clear();
 
             {
-              dyn_fortran_matrix imat_copy(interpolant_mat);
               // gesdd destroys its first argument
-              int ierr = gesdd(imat_copy, s, u, vt);
+              using boost::numeric::bindings::lapack::gesdd;
+
+              dyn_fortran_matrix svdm_copy(structured_vdm);
+
+              int ierr = gesdd(svdm_copy, s, u, vt);
               if (ierr < 0)
                 throw std::runtime_error("rec_grid/svd: invalid argument");
               else if (ierr > 0)
@@ -473,7 +477,7 @@ namespace pyrticle
             // Matlab apparently uses this threshold
             const double threshold = 
               std::numeric_limits<double>::epsilon() *
-              std::max(sgridpts, elnodes) *
+              std::max(sgridpts, elmodes) *
               norm_inf(s);
 
             boost::numeric::ublas::diagonal_matrix<double> inv_s(s.size());
@@ -488,28 +492,35 @@ namespace pyrticle
               s_diag(i,i) = s[i];
             }
 
-            dyn_matrix imat_2 = prod(u, dyn_matrix(prod(s_diag, vt)));
-            if (norm_frobenius(imat_2 - interpolant_mat) > 1e-12)
-              throw std::runtime_error("rec_grid: svd failed");
+            dyn_matrix svdm_2 = prod(u, dyn_matrix(prod(s_diag, vt)));
+            const double svd_resid = norm_frobenius(svdm_2 - structured_vdm);
+            if (svd_resid > 1e-12)
+              WARN(str(boost::format(
+                      "rec_grid: bad svd precision, element=%d, "
+                      "#nodes=%d, #sgridpts=%d, resid=%.5g") 
+                    % el.m_id % elnodes % sgridpts % svd_resid));
 
-            eog.m_interpolant_pseudo_inv = prod(trans(vt), 
+            dyn_matrix svdm_pinv = prod(
+                trans(vt), 
                 dyn_matrix(prod(inv_s, trans(u))));
 
             double pinv_resid;
-            if (sgridpts > elnodes)
+            if (sgridpts > elmodes)
               pinv_resid = norm_frobenius(
-                  prod(eog.m_interpolant_pseudo_inv, interpolant_mat)
+                  prod(svdm_pinv, structured_vdm)
                   -boost::numeric::ublas::identity_matrix<double>(s.size()));
             else
               pinv_resid = norm_frobenius(
-                  prod(interpolant_mat, eog.m_interpolant_pseudo_inv)
+                  prod(structured_vdm, svdm_pinv)
                   -boost::numeric::ublas::identity_matrix<double>(s.size()));
 
             if (pinv_resid > 1e-8)
               WARN(str(boost::format(
-                      "rec_grid: pseudoinv failed, element=%d, "
+                      "rec_grid: bad pseudoinv precision, element=%d, "
                       "#nodes=%d, #sgridpts=%d, resid=%.5g") 
                     % el.m_id % elnodes % sgridpts % pinv_resid));
+
+            eog.m_interpolation_matrix = prod(nodal_vdm, svdm_pinv);
 
             /*
             char buf[100];
@@ -628,7 +639,8 @@ namespace pyrticle
 
 
         template <class FromVec, class ToVec>
-        void remap_grid_to_mesh(const FromVec &from, ToVec &to) const
+        void remap_grid_to_mesh(const FromVec &from, ToVec &to, 
+            const unsigned offset=0, const unsigned increment=1) const
         {
           BOOST_FOREACH(const mesh_data::element_info &el, 
               CONST_PIC_THIS->m_mesh_data.m_element_info)
@@ -640,12 +652,30 @@ namespace pyrticle
             {
               dyn_vector::iterator gv_it = grid_values.begin();
               BOOST_FOREACH(grid_node_number gnn, eog.m_grid_nodes)
-                *gv_it++ = from[gnn];
+                *gv_it++ = from[offset + gnn*increment];
             }
 
-            // FIXME replace by gemm invocation
+            /*
             noalias(subrange(to, el.m_start, el.m_end)) = prod(
-                eog.m_interpolant_pseudo_inv, grid_values);
+                eog.m_interpolation_matrix, grid_values);
+                */
+            {
+              const dyn_fortran_matrix &matrix = eog.m_interpolation_matrix;
+              using namespace boost::numeric::bindings;
+              using blas::detail::gemv;
+              gemv(
+                  'N',
+                  eog.m_interpolation_matrix.size1(),
+                  eog.m_interpolation_matrix.size2(),
+                  /*alpha*/ 1,
+                  traits::matrix_storage(matrix),
+                  traits::leading_dimension(matrix),
+
+                  traits::vector_storage(grid_values), /*incx*/ 1,
+
+                  /*beta*/ 0,
+                  traits::vector_storage(to)+el.m_start+offset, /*incy*/ increment);
+            }
           }
         }
 
@@ -729,15 +759,7 @@ namespace pyrticle
 
           remap_grid_to_mesh(grid_rho, rho);
           for (unsigned i = 0; i < vdim; ++i)
-          {
-            boost::numeric::ublas::vector_slice<py_vector> j_mesh_slice(
-                j, boost::numeric::ublas::slice(
-                  0, vdim, PIC_THIS->m_mesh_data.node_count()));
-
-            remap_grid_to_mesh(
-                subslice(grid_j, 0, vdim, gnc),
-                j_mesh_slice);
-          }
+            remap_grid_to_mesh(grid_j, j, i, vdim);
         }
 
 
@@ -763,15 +785,7 @@ namespace pyrticle
           reconstruct_densities_on_grid_target(j_tgt);
 
           for (unsigned i = 0; i < vdim; ++i)
-          {
-            boost::numeric::ublas::vector_slice<py_vector> j_mesh_slice(
-                j, boost::numeric::ublas::slice(
-                  0, vdim, PIC_THIS->m_mesh_data.node_count()));
-
-            remap_grid_to_mesh(
-                subslice(grid_j, 0, vdim, gnc),
-                j_mesh_slice);
-          }
+            remap_grid_to_mesh(grid_j, j, i, vdim);
         }
 
 

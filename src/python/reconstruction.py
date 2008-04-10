@@ -277,9 +277,9 @@ class SingleBrick:
         mesh = discr.mesh
         bbox_min, bbox_max = mesh.bounding_box
         bbox_size = bbox_max-bbox_min
-        dims = numpy.asarray(bbox_size/dx, dtype=numpy.uint32)+1
-        stepwidths = bbox_size/dims
-        yield stepwidths, bbox_min+(dx/2), dims
+        dims = numpy.asarray(bbox_size/dx, dtype=numpy.uint32)
+        stepwidths = bbox_size/(dims-1)
+        yield stepwidths, bbox_min, dims
 
 
 
@@ -287,8 +287,9 @@ class SingleBrick:
 class GridReconstructor(Reconstructor):
     name = "Grid"
 
-    def __init__(self, brick_generator=SingleBrick()):
+    def __init__(self, brick_generator=SingleBrick(), el_tolerance=0):
         self.brick_generator = brick_generator
+        self.el_tolerance = el_tolerance
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
@@ -305,7 +306,8 @@ class GridReconstructor(Reconstructor):
 
         self.cloud.pic_algorithm.commit_bricks(
                 ldis.vandermonde(),
-                ldis.basis_functions())
+                ldis.basis_functions(),
+                self.el_tolerance)
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
@@ -333,11 +335,3 @@ class GridReconstructor(Reconstructor):
             silo.put_quadvar1(vname, mname, pic.get_rec_debug_quantity("rho_grid"),
                     [int(x) for x in brick.dimensions], # get rid of array scalars
                     DB_NODECENT)
-
-
-
-
-
-
-
-
