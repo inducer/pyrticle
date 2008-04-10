@@ -41,10 +41,8 @@ BOOST_PYTHON_MODULE(_internal)
   expose_meshdata();
   expose_reconstructor();
   expose_pusher();
-  /*
   expose_shape_pic();
   expose_normshape_pic();
   expose_advective_pic();
-  */
   expose_grid_pic();
 }
