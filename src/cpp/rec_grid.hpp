@@ -103,10 +103,11 @@ namespace pyrticle
             m_scale_factors[axis] = m_velocities[pn*DimensionsVelocity+axis];
         }
 
-        void add_shape_value(grid_node_number gnn, double q_shapeval)
+        void add_shape_value(const grid_node_number gnn, const double q_shapeval)
         { 
+          unsigned const base = gnn*DimensionsVelocity;
           for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-            m_target_vector[gnn*DimensionsVelocity+axis] += m_scale_factors[axis]*q_shapeval;
+            m_target_vector[base+axis] += m_scale_factors[axis]*q_shapeval;
         }
 
         void end_particle(particle_number pn)
@@ -752,18 +753,29 @@ namespace pyrticle
 
 
 
-        py_vector get_rec_debug_quantity(const std::string &name)
+        py_vector get_grid_rho()
         {
-          if (name == "rho_grid")
-          {
-            dyn_vector grid_rho(grid_node_count());
+          dyn_vector grid_rho(grid_node_count());
 
-            grid_targets::rho_target rho_tgt(grid_rho);
-            reconstruct_densities_on_grid_target(rho_tgt);
-            return grid_rho;
-          }
-          else
-            throw std::runtime_error("invalid debug quantity");
+          grid_targets::rho_target rho_tgt(grid_rho);
+          reconstruct_densities_on_grid_target(rho_tgt);
+          return grid_rho;
+        }
+
+
+
+
+        py_vector get_grid_j(py_vector const &velocities)
+        {
+          dyn_vector grid_j(
+              CONST_PIC_THIS->get_dimensions_velocity()
+              * grid_node_count());
+
+          dyn_vector velocities_copy(velocities);
+          grid_targets::j_target<PICAlgorithm::dimensions_velocity> 
+            j_tgt(grid_j, velocities_copy);
+          reconstruct_densities_on_grid_target(j_tgt);
+          return grid_j;
         }
 
 

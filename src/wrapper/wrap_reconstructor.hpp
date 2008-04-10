@@ -106,7 +106,8 @@ namespace pyrticle
       .DEF_SIMPLE_METHOD(add_brick)
       .DEF_SIMPLE_METHOD(commit_bricks)
 
-      .DEF_SIMPLE_METHOD(get_rec_debug_quantity)
+      .DEF_SIMPLE_METHOD(get_grid_rho)
+      .DEF_SIMPLE_METHOD(get_grid_j)
       ;
   }
 }

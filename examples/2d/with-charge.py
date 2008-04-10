@@ -285,7 +285,7 @@ def main():
                         time=t, step=step,
                         expressions=[
                             ])
-            #cloud.reconstructor.write_grid_rho(visf)
+            cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
             visf.close()
             vis_timer.stop()
 

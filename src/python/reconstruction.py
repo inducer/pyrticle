@@ -313,8 +313,9 @@ class GridReconstructor(Reconstructor):
         Reconstructor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf
 
-    def write_grid_rho(self, silo):
+    def write_grid_quantities(self, silo, quantities):
         dims = self.cloud.dimensions_mesh
+        vdims = self.cloud.dimensions_velocity
         pic = self.cloud.pic_algorithm
 
         for i_brick, brick in enumerate(pic.bricks):
@@ -328,10 +329,35 @@ class GridReconstructor(Reconstructor):
                 assert len(coords[axis]) == brick.dimensions[axis]
 
             mname = "structmesh%d" % i_brick
-            vname = "rho_struct%d" % i_brick
             silo.put_quadmesh(mname, coords)
 
             from pylo import DB_NODECENT
-            silo.put_quadvar1(vname, mname, pic.get_rec_debug_quantity("rho_grid"),
-                    [int(x) for x in brick.dimensions], # get rid of array scalars
-                    DB_NODECENT)
+
+            # get rid of array scalars
+            brick_dims = [int(x) for x in brick.dimensions] 
+
+            for quant in quantities:
+                if quant == "rho":
+                    vname = "rho_struct%d" % i_brick
+
+                    silo.put_quadvar1(vname, mname, 
+                            pic.get_grid_rho(),
+                            brick_dims, DB_NODECENT)
+                elif quant == "j":
+                    vname = "j_struct%d" % i_brick
+
+                    vnames = [
+                        "%s_coord%d" % (vname, axis) 
+                        for axis in range(vdims)]
+
+                    from pytools import product
+                    j_grid = numpy.reshape(
+                            pic.get_grid_j(self.cloud.velocities()),
+                            (product(brick_dims), vdims))
+
+                    j_grid_compwise = numpy.asarray(j_grid.T, order="C")
+                    
+                    silo.put_quadvar(vname, mname, vnames,
+                            j_grid_compwise,
+                            brick_dims, DB_NODECENT)
+
