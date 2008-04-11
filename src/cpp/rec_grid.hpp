@@ -720,7 +720,8 @@ namespace pyrticle
                   traits::vector_storage(grid_values), /*incx*/ 1,
 
                   /*beta*/ 0,
-                  traits::vector_storage(to)+el.m_start+offset, /*incy*/ increment);
+                  traits::vector_storage(to) + el.m_start*increment + offset, 
+                  /*incy*/ increment);
             }
           }
         }
