@@ -31,6 +31,7 @@
 #include <boost/format.hpp>
 #include <boost/python.hpp>
 #include <boost/python/stl_iterator.hpp>
+#include <boost/unordered_set.hpp>
 #include <boost/numeric/ublas/matrix_proxy.hpp>
 #include <boost/numeric/ublas/banded.hpp>
 #include <boost/numeric/ublas/io.hpp>
@@ -166,9 +167,18 @@ namespace pyrticle
 
   struct grid_reconstructor 
   {
+    typedef int brick_number;
+    typedef unsigned brick_node_number;
+
+    static const brick_number INVALID_BRICK = INT_MAX;
+
+
+
+
     struct brick
     {
       public:
+        brick_number m_number;
         grid_node_number m_start_index;
         bounded_vector m_stepwidths;
         bounded_vector m_origin;
@@ -179,13 +189,34 @@ namespace pyrticle
         bounded_int_vector m_dimensions;
         bounded_int_vector m_strides;
 
+        typedef 
+         boost::numeric::ublas::bounded_vector<brick_number, bounded_max_dims> 
+         adj_vector;
+         
+        /** These numbers specify adjacency information along each axis.
+         * If m_adjacent_bricks_neg[2] is 5, this means that brick#5 is
+         * adjacent to this brick in the -Z direction.
+         * If m_adjacent_bricks_pos[1] is -3, this means that brick#3 is
+         * adjacent to this brick in the +Y direction, but this adjacency
+         * crosses a periodic boundary (as indicated by the negativity
+         * of the brick number).
+         */
+        adj_vector m_adjacent_bricks_neg, m_adjacent_bricks_pos;
+
         brick(
-            grid_node_number start_index,
-            bounded_vector stepwidths,
-            bounded_vector origin,
-            bounded_int_vector dimensions)
-          : m_start_index(start_index), m_stepwidths(stepwidths),
-          m_origin(origin), m_dimensions(dimensions)
+            grid_node_number const &start_index,
+            bounded_vector const &stepwidths,
+            bounded_vector const &origin,
+            bounded_int_vector const &dimensions,
+
+            adj_vector const &adj_neg, 
+            adj_vector const &adj_pos)
+
+          : m_number(0), /* set by commit_bricks, below */
+          m_start_index(start_index), m_stepwidths(stepwidths),
+          m_origin(origin), m_dimensions(dimensions),
+          m_adjacent_bricks_neg(adj_neg),
+          m_adjacent_bricks_pos(adj_pos)
         {
           // This ordering is what Visit expects by default and calls
           // "row-major" (I suppose Y-major).
@@ -365,15 +396,12 @@ namespace pyrticle
 
 
 
-    typedef unsigned brick_number;
-    typedef unsigned brick_node_number;
-
-
-
-
     template <class PICAlgorithm>
     class type : public reconstructor_base
     {
+      private:
+        typedef boost::unordered_set<brick_number> brick_set_t;
+
       public:
         // member data --------------------------------------------------------
         shape_function   m_shape_function;
@@ -383,12 +411,95 @@ namespace pyrticle
         boost::numeric::ublas::vector<brick_number> m_particle_brick_numbers;
 
         // setup interface ------------------------------------------------------
-        void add_brick(
-            py_vector stepwidths,
-            py_vector origin,
-            pyublas::numpy_vector<unsigned> dims)
+        void establish_brick_numbering()
         {
-          m_bricks.push_back(brick(grid_node_count(), stepwidths, origin, dims));
+          brick_number bn = 0;
+          BOOST_FOREACH(const brick &brk, m_bricks)
+            brk.m_number = bn++;
+        }
+
+
+
+        void validate_brick_adjacency() const
+        {
+          const unsigned mesh_dims = CONST_PIC_THIS->m_mesh_data.m_dimensions;
+
+          BOOST_FOREACH(const brick &brk, m_bricks)
+            for (unsigned axis = 0; axis < mesh_dims; ++axis)
+            {
+              mesh_data::periodicity_axis const &per_axis = 
+                CONST_PIC_THIS->m_mesh_data.m_periodicities[axis];
+
+              // first, in the negative direction along axis
+              brick_number neg_adj = brk.m_adjacent_bricks_neg[axis];
+              if (neg_adj != INVALID_BRICK)
+              {
+                bool crosses_periodic_bdry = neg_adj < 0;
+
+                if (abs(neg_adj) >= m_bricks.size())
+                  throw std::runtime_error(
+                      str(boost::format("invalid brick adj index "
+                          "(brick #%d, #axis=%d-)") % brk.m_number % axis).c_str());
+
+                brick const &other_brk(m_bricks[abs(neg_adj)]);
+
+                double target_coord = brk.bounding_box().first[axis];
+                if (crosses_periodic_bdry)
+                  target_coord += per_axis.m_max-per_axis.m_min;
+
+                const double max_diff = 2*std::max(
+                    brk.m_stepwidths[axis],
+                    other_brk.m_stepwidths[axis]);
+
+                if (fabs(
+                      target_coord 
+                      - other_brk.bounding_box().second[axis])
+                    > 2 * max_diff)
+                  throw std::runtime_error(
+                      str(boost::format("invalid brick adjacency "
+                          "(brick #%d, #axis=%d-)") % brk.m_number % axis).c_str());
+
+                if (abs(other_brk.m_adjacent_bricks_pos[axis]) != brk.m_number)
+                  throw std::runtime_error(
+                      str(boost::format("brick adjacency not reflexive "
+                          "(brick #%d, #axis=%d-)") % brk.m_number % axis).c_str());
+              }
+
+              // then, in the positive direction along axis
+              brick_number pos_adj = brk.m_adjacent_bricks_pos[axis];
+              if (pos_adj != INVALID_BRICK)
+              {
+                bool crosses_periodic_bdry = pos_adj < 0;
+
+                if (abs(pos_adj) >= m_bricks.size())
+                  throw std::runtime_error(
+                      str(boost::format("invalid brick adj index "
+                          "(brick #%d, #axis=%d+)") % brk.m_number % axis).c_str());
+
+                brick const &other_brk(m_bricks[abs(pos_adj)]);
+
+                double target_coord = brk.bounding_box().second[axis];
+                if (crosses_periodic_bdry)
+                  target_coord -= per_axis.m_max-per_axis.m_min;
+
+                const double max_diff = 2*std::max(
+                    brk.m_stepwidths[axis],
+                    other_brk.m_stepwidths[axis]);
+
+                if (fabs(
+                      target_coord 
+                      - other_brk.bounding_box().first[axis])
+                    > 2 * max_diff)
+                  throw std::runtime_error(
+                      str(boost::format("invalid brick adjacency "
+                          "(brick #%d, #axis=%d+)") % brk.m_number % axis).c_str());
+
+                if (abs(other_brk.m_adjacent_bricks_neg[axis]) != brk.m_number)
+                  throw std::runtime_error(
+                      str(boost::format("brick adjacency not reflexive "
+                          "(brick #%d, #axis=%d+)") % brk.m_number % axis).c_str());
+              }
+            }
         }
 
 
@@ -396,12 +507,16 @@ namespace pyrticle
 
         void commit_bricks(py_matrix nodal_vdm, boost::python::object basis, double el_tolerance)
         {
-          const unsigned mesh_dims = CONST_PIC_THIS->m_mesh_data.m_dimensions;
+          establish_brick_numbering();
+          validate_brick_adjacency();
+
+          // connect structured grid to unstructured mesh
           const unsigned gnc = grid_node_count();
-          m_elements_on_grid.reserve(CONST_PIC_THIS->m_mesh_data.m_element_info.size());
+          const unsigned mesh_dims = CONST_PIC_THIS->m_mesh_data.m_dimensions;
 
           typedef boost::numeric::ublas::scalar_vector<double> scalar_vec;
 
+          m_elements_on_grid.reserve(CONST_PIC_THIS->m_mesh_data.m_element_info.size());
           BOOST_FOREACH(const mesh_data::element_info &el, 
               CONST_PIC_THIS->m_mesh_data.m_element_info)
           {
@@ -427,22 +542,6 @@ namespace pyrticle
 
               if (!does_intersect)
                 continue;
-              /*
-              std::cout << "element " << el.m_id << std::endl;
-              std::cout << "el_bbox " << el_bbox.first << std::endl;
-              std::cout << "el_bbox " << el_bbox.second << std::endl;
-              std::cout << "brick_bbox " << brick_bbox.first << std::endl;
-              std::cout << "brick_bbox " << brick_bbox.second << std::endl;
-              std::cout << "brick_origin " << brk.m_origin << std::endl;
-              std::cout << "brick_dim " << brk.m_dimensions << std::endl;
-              std::cout << "brick_sw " << brk.m_stepwidths << std::endl;
-              std::cout << "brick_add " << brk.m_origin + element_prod(brk.m_dimensions, brk.m_stepwidths)<< std::endl;
-
-              std::cout << "int_bbox " << el_and_brick_bbox.first << std::endl;
-              std::cout << "int_bbox " << el_and_brick_bbox.second << std::endl;
-              std::cout << "idx_bbox " << el_brick_index_box.first << std::endl;
-              std::cout << "idx_bbox " << el_brick_index_box.second << std::endl;
-              */
 
               brick_iterator it(brk, el_brick_index_box);
 
@@ -568,11 +667,6 @@ namespace pyrticle
 
             eog.m_interpolation_matrix = prod(nodal_vdm, svdm_pinv);
 
-            /*
-            char buf[100];
-            gets(buf);
-            */
-
             m_elements_on_grid.push_back(eog);
           }
         }
@@ -591,13 +685,29 @@ namespace pyrticle
 
 
 
+        /** Reconstruct particle on one brick. If particle bbox 
+         * is not covered entirely by the brick bbox, recurse as 
+         * appropriate, taking into account the set of done_bricks.
+         * Returns true if an intersection was detected, and therefore
+         * the recursion covered the whole particle, if invoked with 
+         * empty done_bricks.
+         */
         template <class Target>
-        void reconstruct_particle_on_one_brick(Target tgt, 
+        bool reconstruct_particle_on_one_brick(
+            Target tgt, 
             const brick &brk, 
+            brick_set_t &done_bricks,
             const bounded_vector &center,
-            const bounded_box &intersect_box,
+            const bounded_box &particle_box,
             double charge)
         {
+          bool does_intersect;
+          bounded_box intersect_box = intersect(
+              brk.bounding_box(), particle_box, &does_intersect);
+
+          if (!does_intersect)
+            return false;
+
           bounded_int_box particle_brick_index_box = brk.index_range(intersect_box);
 
           brick_iterator it(brk, particle_brick_index_box);
@@ -607,6 +717,17 @@ namespace pyrticle
             tgt.add_shape_value(it.index(), 
                 charge*m_shape_function(center-it.point()));
             ++it;
+          }
+
+          for (unsigned axis = 0; 
+              axis < CONST_PIC_THIS->m_mesh_data.m_dimensions;
+              ++axis)
+          {
+            if (intersect_box.first[axis] > particle_box.first[axis])
+            {
+
+            }
+
           }
         }
 
@@ -631,12 +752,9 @@ namespace pyrticle
                 center - scalar_vector<double>(dim, m_shape_function.radius()),
                 center + scalar_vector<double>(dim, m_shape_function.radius()));
 
-            const brick_number last_brick_number = m_particle_brick_numbers[pn];
-            const brick &last_brick = m_bricks[last_brick_number];
+            brick_set_t done_bricks;
+            const brick &last_brick = m_bricks[m_particle_brick_numbers[pn]];
 
-            bool does_intersect;
-            bounded_box brick_and_particle = intersect(
-                last_brick.bounding_box(), particle_box, &does_intersect);
 
             bool consider_other_bricks = !does_intersect;
             bool reset_brick_cache = !does_intersect;

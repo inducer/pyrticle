@@ -103,7 +103,6 @@ namespace pyrticle
       .DEF_RW_MEMBER(shape_function)
       .DEF_RW_MEMBER(bricks)
 
-      .DEF_SIMPLE_METHOD(add_brick)
       .DEF_SIMPLE_METHOD(commit_bricks)
 
       .DEF_SIMPLE_METHOD(get_grid_rho)
