@@ -166,9 +166,9 @@ class AverageParticlePusher(Pusher):
             "normalization constants applied to B-field during averaging particle push"))
 
     def forces(self, velocities, verbose_vis, *field_args):
-            self.cloud.pic_algorithm.e_normalization_stats.reset()
-            self.cloud.pic_algorithm.b_normalization_stats.reset()
-            return Pusher.forces(velocities, verbose_vis, *field_args)
+        self.cloud.pic_algorithm.e_normalization_stats.reset()
+        self.cloud.pic_algorithm.b_normalization_stats.reset()
+        return Pusher.forces(self, velocities, verbose_vis, *field_args)
 
     
 

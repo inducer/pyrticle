@@ -24,9 +24,18 @@ def compare_methods():
 
     timestamp = get_timestamp()
 
-    for rec in [O("RecAdv"), O("RecNormShape"), O("RecShape")]:
+    for rec in [
+        O("RecGrid", el_tolerance=0.2),
+        O("RecAdv"), 
+        O("RecNormShape"), 
+        O("RecShape"), 
+        ]:
         for eorder in [3,4,5,7]:
-            for pusher in [O("PushMonomial"), O("PushAverage")]:
+            if rec.classname == "RecGrid":
+                pushers = [O("PushMonomial")]
+            else:
+                pushers = [O("PushMonomial"), O("PushAverage")]
+            for pusher in pushers:
                 for finder in [
                         O("FindFaceBased"),
                         #O("FindHeuristic"),

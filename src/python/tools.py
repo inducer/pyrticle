@@ -69,11 +69,11 @@ class NumberShiftMultiplexer(_internal.NumberShiftListener):
 
     def note_move(self, orig, dest, size):
         for subscriber in self.subscribers.iterkeys():
-            subscriber.move(orig, dest, size)
+            subscriber.note_move(orig, dest, size)
 
     def note_reset(self, start, size):
         for subscriber in self.subscribers.iterkeys():
-            subscriber.reset(start, size)
+            subscriber.note_reset(start, size)
 
 
 

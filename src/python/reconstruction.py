@@ -131,8 +131,8 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
         Reconstructor.__init__(self)
         _internal.NumberShiftListener.__init__(self)
 
-        from pyrticle.tools import NumberShiftForwarder
-        self.rho_shift_signaller = NumberShiftForwarder()
+        from pyrticle.tools import NumberShiftMultiplexer
+        self.rho_shift_signaller = NumberShiftMultiplexer()
 
         self.activation_threshold = activation_threshold
         self.kill_threshold = kill_threshold
