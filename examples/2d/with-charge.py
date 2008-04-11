@@ -285,7 +285,11 @@ def main():
                         time=t, step=step,
                         expressions=[
                             ])
-            cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
+            try:
+                cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
+            except:
+                pass
+
             visf.close()
             vis_timer.stop()
 

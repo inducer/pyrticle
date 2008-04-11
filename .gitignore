@@ -33,3 +33,4 @@ bin/logtool
 *.orig
 *-journal
 temp-*.cpy
+.nfs*

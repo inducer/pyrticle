@@ -277,7 +277,7 @@ class SingleBrick:
         mesh = discr.mesh
         bbox_min, bbox_max = mesh.bounding_box
         bbox_size = bbox_max-bbox_min
-        dims = numpy.asarray(bbox_size/dx, dtype=numpy.uint32)
+        dims = numpy.asarray(bbox_size/dx, dtype=numpy.int32)
         stepwidths = bbox_size/(dims-1)
         yield stepwidths, bbox_min, dims
 
@@ -296,10 +296,14 @@ class GridReconstructor(Reconstructor):
 
         discr = cloud.mesh_data.discr
 
-        from pyublas import why_not
-        for stepwidths, origin, dims in self.brick_generator(discr):
-            self.cloud.pic_algorithm.add_brick(
-                    why_not(stepwidths), why_not(origin), why_not(dims, dtype=numpy.uint32))
+        from pyrticle._internal import Brick
+
+        pic = self.cloud.pic_algorithm
+        bricks = pic.bricks
+        for i, (stepwidths, origin, dims) in enumerate(
+                self.brick_generator(discr)):
+            bricks.append(Brick(i, pic.grid_node_count(),
+                        stepwidths, origin, dims))
 
         eg, = discr.element_groups
         ldis = eg.local_discretization

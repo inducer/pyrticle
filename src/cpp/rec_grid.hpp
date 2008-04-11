@@ -46,13 +46,16 @@
 
 namespace pyrticle
 {
-  typedef unsigned grid_node_number;
-
-
-
-
-  namespace grid_targets 
+  struct grid_reconstructor 
   {
+    typedef unsigned grid_node_number;
+    typedef unsigned brick_number;
+    typedef unsigned brick_node_number;
+
+
+
+
+    // specialized targets ----------------------------------------------------
     class rho_target
     {
       private:
@@ -153,22 +156,21 @@ namespace pyrticle
 
 
     template <class T1, class T2>
-    inline
+    static 
     chained_target<T1, T2> 
     make_chained_target(T1 &target1, T2 &target2)
     {
       return chained_target<T1, T2>(target1, target2);
     }
-  }
 
 
 
 
-  struct grid_reconstructor 
-  {
+    // brick ------------------------------------------------------------------
     struct brick
     {
       public:
+        brick_number m_number;
         grid_node_number m_start_index;
         bounded_vector m_stepwidths;
         bounded_vector m_origin;
@@ -180,12 +182,14 @@ namespace pyrticle
         bounded_int_vector m_strides;
 
         brick(
+            brick_number number,
             grid_node_number start_index,
             bounded_vector stepwidths,
             bounded_vector origin,
             bounded_int_vector dimensions)
-          : m_start_index(start_index), m_stepwidths(stepwidths),
-          m_origin(origin), m_dimensions(dimensions)
+          : m_number(number), m_start_index(start_index), 
+          m_stepwidths(stepwidths), m_origin(origin), 
+          m_dimensions(dimensions)
         {
           // This ordering is what Visit expects by default and calls
           // "row-major" (I suppose Y-major).
@@ -236,7 +240,7 @@ namespace pyrticle
           }
         };
 
-        struct int_ceil
+        struct int_floor_plus_1
         {
           typedef double value_type;
           typedef const double &argument_type;
@@ -244,7 +248,7 @@ namespace pyrticle
 
           static result_type apply(argument_type x)
           {
-            return int(ceil(x));
+            return int(floor(x))+1;
           }
         };
 
@@ -254,7 +258,7 @@ namespace pyrticle
           return bounded_int_box(
               pyublas::unary_op<int_floor>::apply(
                 element_div(bbox.first-m_origin, m_stepwidths)),
-              pyublas::unary_op<int_ceil>::apply(
+              pyublas::unary_op<int_floor_plus_1>::apply(
                 element_div(bbox.second-m_origin, m_stepwidths))
               );
         }
@@ -263,6 +267,7 @@ namespace pyrticle
 
 
 
+    // brick iterator ---------------------------------------------------------
     class brick_iterator
     {
       private:
@@ -365,12 +370,7 @@ namespace pyrticle
 
 
 
-    typedef unsigned brick_number;
-    typedef unsigned brick_node_number;
-
-
-
-
+    // main reconstructor type ------------------------------------------------
     template <class PICAlgorithm>
     class type : public reconstructor_base
     {
@@ -383,17 +383,6 @@ namespace pyrticle
         boost::numeric::ublas::vector<brick_number> m_particle_brick_numbers;
 
         // setup interface ------------------------------------------------------
-        void add_brick(
-            py_vector stepwidths,
-            py_vector origin,
-            pyublas::numpy_vector<unsigned> dims)
-        {
-          m_bricks.push_back(brick(grid_node_count(), stepwidths, origin, dims));
-        }
-
-
-
-
         void commit_bricks(py_matrix nodal_vdm, boost::python::object basis, double el_tolerance)
         {
           const unsigned mesh_dims = CONST_PIC_THIS->m_mesh_data.m_dimensions;
@@ -427,22 +416,6 @@ namespace pyrticle
 
               if (!does_intersect)
                 continue;
-              /*
-              std::cout << "element " << el.m_id << std::endl;
-              std::cout << "el_bbox " << el_bbox.first << std::endl;
-              std::cout << "el_bbox " << el_bbox.second << std::endl;
-              std::cout << "brick_bbox " << brick_bbox.first << std::endl;
-              std::cout << "brick_bbox " << brick_bbox.second << std::endl;
-              std::cout << "brick_origin " << brk.m_origin << std::endl;
-              std::cout << "brick_dim " << brk.m_dimensions << std::endl;
-              std::cout << "brick_sw " << brk.m_stepwidths << std::endl;
-              std::cout << "brick_add " << brk.m_origin + element_prod(brk.m_dimensions, brk.m_stepwidths)<< std::endl;
-
-              std::cout << "int_bbox " << el_and_brick_bbox.first << std::endl;
-              std::cout << "int_bbox " << el_and_brick_bbox.second << std::endl;
-              std::cout << "idx_bbox " << el_brick_index_box.first << std::endl;
-              std::cout << "idx_bbox " << el_brick_index_box.second << std::endl;
-              */
 
               brick_iterator it(brk, el_brick_index_box);
 
@@ -568,11 +541,6 @@ namespace pyrticle
 
             eog.m_interpolation_matrix = prod(nodal_vdm, svdm_pinv);
 
-            /*
-            char buf[100];
-            gets(buf);
-            */
-
             m_elements_on_grid.push_back(eog);
           }
         }
@@ -592,13 +560,25 @@ namespace pyrticle
 
 
         template <class Target>
-        void reconstruct_particle_on_one_brick(Target tgt, 
+        bool reconstruct_particle_on_one_brick(Target tgt, 
             const brick &brk, 
             const bounded_vector &center,
-            const bounded_box &intersect_box,
-            double charge)
+            const bounded_box &particle_box,
+            double charge,
+            bool *complete = 0)
         {
-          bounded_int_box particle_brick_index_box = brk.index_range(intersect_box);
+          bool does_intersect;
+          const bounded_box intersect_box = intersect(
+              brk.bounding_box(), particle_box, &does_intersect);
+
+          if (complete)
+            *complete = intersect_box == particle_box;
+
+          if (!does_intersect)
+            return false;
+
+          const bounded_int_box particle_brick_index_box = 
+            brk.index_range(intersect_box);
 
           brick_iterator it(brk, particle_brick_index_box);
 
@@ -608,6 +588,140 @@ namespace pyrticle
                 charge*m_shape_function(center-it.point()));
             ++it;
           }
+          
+          return true;
+        }
+
+
+
+
+        template <class Target>
+        void reconstruct_single_particle_with_cache(Target tgt,
+            particle_number pn,
+            bounded_vector const &center,
+            bounded_box const &particle_box)
+        {
+          const double charge = CONST_PIC_THIS->m_charges[pn];
+          brick_number &bn_cache(m_particle_brick_numbers[pn]);
+          const brick &last_brick = m_bricks[bn_cache];
+
+          bool is_complete;
+          bool does_intersect_cached = 
+            reconstruct_particle_on_one_brick(
+                tgt, last_brick, center, particle_box, charge,
+                &is_complete);
+
+          if (!is_complete)
+          {
+            BOOST_FOREACH(brick const &brk, m_bricks)
+            {
+              // don't re-target the cached brick
+              if (brk.m_number == last_brick.m_number)
+                continue;
+
+              if (reconstruct_particle_on_one_brick(
+                    tgt, brk, center, particle_box, charge)
+                  && !does_intersect_cached)
+              {
+                // We did not intersect the cached brick, but we
+                // found a brick that we *did* intersect with.
+                // Update the cache.
+                bn_cache = brk.m_number;
+              }
+            }
+          }
+        }
+
+
+
+
+        template <class Target>
+        void reconstruct_single_particle_without_cache(Target tgt,
+            particle_number pn,
+            bounded_vector const &center,
+            bounded_box const &particle_box)
+        {
+          BOOST_FOREACH(brick const &brk, m_bricks)
+            reconstruct_particle_on_one_brick(
+                tgt, brk, center, particle_box, 
+                CONST_PIC_THIS->m_charges[pn]);
+        }
+
+
+
+
+
+        /** This is a set of bit fields. Each member records the fact
+         * that a particular combination of periodic transitions has
+         * been taken care of.
+         *
+         * The assumption is that a particle will only be big enough
+         * to reach across the boundary normal to each axis exactly
+         * once (regardless of whether that's the +X or -X boundary,
+         * it is assumed to only touch one of them).
+         *
+         * Therefore, a combination of periodic transitions may be 
+         * represented by a bit field where each bit corresponds to 
+         * one axis, and that is exactly what this data type is.
+         */
+        typedef unsigned axis_bitfield;
+        typedef std::vector<axis_bitfield> periodicity_set;
+
+        template <class Target>
+        void reconstruct_periodic_copies(Target tgt, 
+            particle_number pn,
+            bounded_vector const &center,
+            bounded_box const &particle_box,
+            axis_bitfield abf,
+            periodicity_set &pset)
+        {
+          using boost::numeric::ublas::zero_vector;
+
+          const unsigned dim_m = CONST_PIC_THIS->m_mesh_data.m_dimensions;
+
+          if (abf == 0)
+            reconstruct_single_particle_with_cache(
+                tgt, pn, center, particle_box);
+          else
+            reconstruct_single_particle_without_cache(
+                tgt, pn, center, particle_box);
+          pset.push_back(abf);
+
+          for (unsigned axis = 0; axis < dim_m; ++axis)
+          {
+            mesh_data::periodicity_axis &p_axis(
+               CONST_PIC_THIS->m_mesh_data.m_periodicities[axis]);
+
+            if (p_axis.m_min == p_axis.m_max)
+              continue;
+
+            const axis_bitfield abf_plus_this = abf | (1<<axis);
+            if (std::find(pset.begin(), pset.end(), abf_plus_this) != pset.end())
+              continue;
+
+            if (particle_box.first[axis] < p_axis.m_min)
+            {
+              bounded_vector per_offset = zero_vector<double>(dim_m);
+              per_offset[axis] = p_axis.m_max-p_axis.m_min;
+              reconstruct_periodic_copies(tgt,
+                  pn, center+per_offset,
+                  bounded_box(
+                    particle_box.first+per_offset,
+                    particle_box.second+per_offset),
+                  abf_plus_this, pset);
+            }
+            else if (particle_box.second[axis] > p_axis.m_max)
+            {
+              bounded_vector per_offset = zero_vector<double>(dim_m);
+              per_offset[axis] = -(p_axis.m_max-p_axis.m_min);
+              reconstruct_periodic_copies(tgt,
+                  pn, center+per_offset,
+                  bounded_box(
+                    particle_box.first+per_offset,
+                    particle_box.second+per_offset),
+                  abf_plus_this, pset);
+            }
+          }
         }
 
 
@@ -616,67 +730,25 @@ namespace pyrticle
         template <class Target>
         void reconstruct_densities_on_grid_target(Target tgt)
         {
-          const unsigned dim = CONST_PIC_THIS->get_dimensions_pos();
+          const unsigned dim_x = CONST_PIC_THIS->get_dimensions_pos();
+          const unsigned dim_m = CONST_PIC_THIS->m_mesh_data.m_dimensions;
+
+          using boost::numeric::ublas::scalar_vector;
+          const scalar_vector<double> shape_extent(
+              dim_m, m_shape_function.radius());
 
           for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
           {
             tgt.begin_particle(pn);
-
             const bounded_vector center = subrange(
-                CONST_PIC_THIS->m_positions, pn*dim, (pn+1)*dim);
-
-            using boost::numeric::ublas::scalar_vector;
+                CONST_PIC_THIS->m_positions, pn*dim_x, (pn+1)*dim_x);
 
             bounded_box particle_box(
-                center - scalar_vector<double>(dim, m_shape_function.radius()),
-                center + scalar_vector<double>(dim, m_shape_function.radius()));
+                center - shape_extent, 
+                center + shape_extent);
 
-            const brick_number last_brick_number = m_particle_brick_numbers[pn];
-            const brick &last_brick = m_bricks[last_brick_number];
-
-            bool does_intersect;
-            bounded_box brick_and_particle = intersect(
-                last_brick.bounding_box(), particle_box, &does_intersect);
-
-            bool consider_other_bricks = !does_intersect;
-            bool reset_brick_cache = !does_intersect;
-            if (does_intersect)
-            {
-              reconstruct_particle_on_one_brick(
-                  tgt, last_brick, center, brick_and_particle,
-                  CONST_PIC_THIS->m_charges[pn]);
-
-              if (brick_and_particle != particle_box)
-                consider_other_bricks = true;
-            }
-
-            if (consider_other_bricks)
-            {
-              brick_number bn = 0;
-              BOOST_FOREACH(brick const &brk, m_bricks)
-              {
-                // don't re-target the cached brick
-                if (bn == last_brick_number)
-                  continue;
-
-                bool does_intersect;
-                bounded_box brick_and_particle = intersect(
-                    brk.bounding_box(), particle_box, &does_intersect);
-
-                if (does_intersect)
-                {
-                  if (reset_brick_cache)
-                    m_particle_brick_numbers[pn] = bn;
-
-                  reconstruct_particle_on_one_brick(
-                      tgt, brk, center, brick_and_particle,
-                      CONST_PIC_THIS->m_charges[pn]);
-                }
-
-                ++bn;
-              }
-            }
-
+            periodicity_set pset;
+            reconstruct_periodic_copies(tgt, pn, center, particle_box, 0, pset);
             tgt.end_particle(pn);
           }
         }
@@ -758,7 +830,7 @@ namespace pyrticle
         {
           dyn_vector grid_rho(grid_node_count());
 
-          grid_targets::rho_target rho_tgt(grid_rho);
+          rho_target rho_tgt(grid_rho);
           reconstruct_densities_on_grid_target(rho_tgt);
           return grid_rho;
         }
@@ -773,7 +845,7 @@ namespace pyrticle
               * grid_node_count());
 
           dyn_vector velocities_copy(velocities);
-          grid_targets::j_target<PICAlgorithm::dimensions_velocity> 
+          j_target<PICAlgorithm::dimensions_velocity> 
             j_tgt(grid_j, velocities_copy);
           reconstruct_densities_on_grid_target(j_tgt);
           return grid_j;
@@ -797,8 +869,6 @@ namespace pyrticle
           if (j.size() != PIC_THIS->m_mesh_data.node_count() *
               PIC_THIS->get_dimensions_velocity())
             throw std::runtime_error("j field does not have the correct size");
-
-          using namespace grid_targets;
 
           const unsigned gnc = grid_node_count();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
@@ -829,8 +899,6 @@ namespace pyrticle
               PIC_THIS->get_dimensions_velocity())
             throw std::runtime_error("j field does not have the correct size");
 
-          using namespace grid_targets;
-
           const unsigned gnc = grid_node_count();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
 
@@ -856,7 +924,7 @@ namespace pyrticle
 
           dyn_vector grid_rho(grid_node_count());
 
-          grid_targets::rho_target rho_tgt(grid_rho);
+          rho_target rho_tgt(grid_rho);
           reconstruct_densities_on_grid_target(rho_tgt);
 
           remap_grid_to_mesh(grid_rho, rho);

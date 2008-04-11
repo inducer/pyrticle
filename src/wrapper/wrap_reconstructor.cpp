@@ -52,7 +52,13 @@ void expose_reconstructor()
 
   {
     typedef grid_reconstructor::brick cl;
-    python::class_<cl>("Brick", python::no_init)
+    python::class_<cl>("Brick", 
+        python::init<
+        grid_reconstructor::brick_number, 
+        grid_reconstructor::grid_node_number,
+        bounded_vector, bounded_vector, bounded_int_vector>(
+          python::args("number", "start_index", "stepwidths", "origin",
+            "dimensions")))
       .DEF_RW_MEMBER(start_index)
       .DEF_BYVAL_RW_MEMBER(stepwidths)
       .DEF_BYVAL_RW_MEMBER(origin)
@@ -65,5 +71,5 @@ void expose_reconstructor()
       ;
   }
 
-  expose_std_vector<grid_reconstructor::brick>("BrickVector");
+  expose_std_vector<grid_reconstructor::brick>("Brick");
 }
