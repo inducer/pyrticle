@@ -94,6 +94,7 @@ def main():
                 "final_time": 10*units.M/units.VACUUM_LIGHT_SPEED,
 
                 "sigma_x": 0.1*numpy.ones((2,)),
+                "mean_x": numpy.zeros((2,)),
                 "mean_v": numpy.array([c0*0.9, 0]),
                 "sigma_v": numpy.array([c0*0.9*1e-3, c0*0.9*1e-6]),
                 "nparticles": 1000,
@@ -203,7 +204,7 @@ def main():
     gauss_p = GaussianParticleDistribution(
             total_charge=setup.cloud_charge, 
             total_mass=pmass*setup.nparticles,
-            mean_x=numpy.zeros((2,)),
+            mean_x=setup.mean_x,
             mean_p=mean_p,
             sigma_x=setup.sigma_x,
             sigma_p=gamma*pmass*setup.sigma_v)

@@ -38,7 +38,7 @@
 #include <boost/numeric/bindings/lapack/gesvd.hpp>
 #include <boost/numeric/bindings/lapack/gesdd.hpp>
 #include <boost/numeric/bindings/blas/blas2.hpp>
-#include <pyublas/unary_op.hpp>
+#include <pyublas/elementwise_op.hpp>
 #include "rec_shape.hpp"
 
 
@@ -240,7 +240,7 @@ namespace pyrticle
           }
         };
 
-        struct int_floor_plus_1
+        struct int_ceil_plus_1
         {
           typedef double value_type;
           typedef const double &argument_type;
@@ -248,7 +248,7 @@ namespace pyrticle
 
           static result_type apply(argument_type x)
           {
-            return int(floor(x))+1;
+            return int(ceil(x))+1;
           }
         };
 
@@ -256,10 +256,14 @@ namespace pyrticle
         bounded_int_box index_range(const bounded_box &bbox) const
         {
           return bounded_int_box(
-              pyublas::unary_op<int_floor>::apply(
-                element_div(bbox.first-m_origin, m_stepwidths)),
-              pyublas::unary_op<int_floor_plus_1>::apply(
-                element_div(bbox.second-m_origin, m_stepwidths))
+              pyublas::binary_op<pyublas::binary_ops::max<int> >::apply(
+                pyublas::unary_op<int_floor>::apply(
+                  element_div(bbox.first-m_origin, m_stepwidths)),
+                boost::numeric::ublas::zero_vector<int>(m_stepwidths.size())),
+              pyublas::binary_op<pyublas::binary_ops::min<int> >::apply(
+                pyublas::unary_op<int_ceil_plus_1>::apply(
+                  element_div(bbox.second-m_origin, m_stepwidths)),
+                m_dimensions)
               );
         }
     };
@@ -513,7 +517,7 @@ namespace pyrticle
 
             dyn_matrix svdm_2 = prod(u, dyn_matrix(prod(s_diag, vt)));
             const double svd_resid = norm_frobenius(svdm_2 - structured_vdm);
-            if (svd_resid > 1e-12)
+            if (svd_resid > 1e-10)
               WARN(str(boost::format(
                       "rec_grid: bad svd precision, element=%d, "
                       "#nodes=%d, #sgridpts=%d, resid=%.5g") 
@@ -579,6 +583,19 @@ namespace pyrticle
 
           const bounded_int_box particle_brick_index_box = 
             brk.index_range(intersect_box);
+
+          /*
+          std::cout 
+            << "box " 
+            << particle_brick_index_box.first 
+            << ' '
+            << particle_brick_index_box.second
+            << " ibox " 
+            << intersect_box.first 
+            << ' '
+            << intersect_box.second
+            << std::endl;
+            */
 
           brick_iterator it(brk, particle_brick_index_box);
 

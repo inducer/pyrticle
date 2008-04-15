@@ -300,6 +300,7 @@ class GridReconstructor(Reconstructor):
 
         pic = self.cloud.pic_algorithm
         bricks = pic.bricks
+
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
             bricks.append(Brick(i, pic.grid_node_count(),

@@ -37,7 +37,7 @@
 #include <boost/numeric/bindings/blas/blas3.hpp>
 #include <boost/typeof/std/utility.hpp>
 #include <boost/unordered_map.hpp>
-#include <pyublas/unary_op.hpp>
+#include <pyublas/elementwise_op.hpp>
 #include <hedge/face_operators.hpp>
 #include "tools.hpp"
 #include "meshdata.hpp"
