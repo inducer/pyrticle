@@ -445,7 +445,7 @@ namespace pyrticle
                    elmodes = el.m_end-el.m_start,
                    elnodes = elmodes;
 
-            if (sgridpts < elnodes/2)
+            if (sgridpts < elnodes)
               throw std::runtime_error(
                 str(boost::format("element has too few structured grid points "
                     "(element #%d, #nodes=%d #sgridpt=%d)") 
@@ -500,8 +500,7 @@ namespace pyrticle
             // Matlab apparently uses this threshold
             const double threshold = 
               std::numeric_limits<double>::epsilon() *
-              std::max(sgridpts, elmodes) *
-              norm_inf(s);
+              std::max(sgridpts, elmodes) * s[0];
 
             boost::numeric::ublas::diagonal_matrix<double> inv_s(s.size());
             boost::numeric::ublas::diagonal_matrix<double> s_diag(s.size());
@@ -510,7 +509,10 @@ namespace pyrticle
               if (fabs(s[i]) > threshold)
                 inv_s(i, i) = 1/s[i];
               else
+              {
                 inv_s(i, i) = 0;
+
+              }
 
               s_diag(i,i) = s[i];
             }
@@ -523,25 +525,23 @@ namespace pyrticle
                       "#nodes=%d, #sgridpts=%d, resid=%.5g") 
                     % el.m_id % elnodes % sgridpts % svd_resid));
 
-            dyn_matrix svdm_pinv = prod(
+            const dyn_matrix svdm_pinv = prod(
                 trans(vt), 
                 dyn_matrix(prod(inv_s, trans(u))));
 
-            double pinv_resid;
-            if (sgridpts > elmodes)
-              pinv_resid = norm_frobenius(
-                  prod(svdm_pinv, structured_vdm)
-                  -boost::numeric::ublas::identity_matrix<double>(s.size()));
-            else
-              pinv_resid = norm_frobenius(
-                  prod(structured_vdm, svdm_pinv)
-                  -boost::numeric::ublas::identity_matrix<double>(s.size()));
+            // assumes sgridpts < elmodes
+            const double pinv_resid = norm_frobenius(
+              prod(structured_vdm, svdm_pinv)
+              -boost::numeric::ublas::identity_matrix<double>(s.size()));
 
             if (pinv_resid > 1e-8)
+            {
               WARN(str(boost::format(
                       "rec_grid: bad pseudoinv precision, element=%d, "
-                      "#nodes=%d, #sgridpts=%d, resid=%.5g") 
-                    % el.m_id % elnodes % sgridpts % pinv_resid));
+                      "#nodes=%d, #sgridpts=%d, resid=%.5g centroid=%s") 
+                    % el.m_id % elnodes % sgridpts % pinv_resid 
+                    % CONST_PIC_THIS->m_mesh_data.element_centroid(el.m_id)));
+            }
 
             eog.m_interpolation_matrix = prod(nodal_vdm, svdm_pinv);
 
