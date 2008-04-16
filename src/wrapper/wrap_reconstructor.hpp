@@ -102,8 +102,7 @@ namespace pyrticle
     wrp
       .DEF_RW_MEMBER(shape_function)
       .DEF_RW_MEMBER(bricks)
-
-      .DEF_SIMPLE_METHOD(commit_bricks)
+      .DEF_RW_MEMBER(elements_on_grid)
 
       .DEF_SIMPLE_METHOD(grid_node_count)
 

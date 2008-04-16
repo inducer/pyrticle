@@ -264,7 +264,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
 
 # grid reconstruction ---------------------------------------------------------
-class SingleBrick:
+class SingleBrickGenerator:
     def __init__(self, overresolve=1.5):
         self.overresolve = overresolve
 
@@ -275,7 +275,7 @@ class SingleBrick:
                 / self.overresolve
 
         mesh = discr.mesh
-        bbox_min, bbox_max = mesh.bounding_box
+        bbox_min, bbox_max = mesh.bounding_box()
         bbox_size = bbox_max-bbox_min
         dims = numpy.asarray(bbox_size/dx, dtype=numpy.int32)
         stepwidths = bbox_size/(dims-1)
@@ -287,7 +287,7 @@ class SingleBrick:
 class GridReconstructor(Reconstructor):
     name = "Grid"
 
-    def __init__(self, brick_generator=SingleBrick(), el_tolerance=0):
+    def __init__(self, brick_generator=SingleBrickGenerator(), el_tolerance=0):
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
 
@@ -306,13 +306,109 @@ class GridReconstructor(Reconstructor):
             bricks.append(Brick(i, pic.grid_node_count(),
                         stepwidths, origin, dims))
 
-        eg, = discr.element_groups
-        ldis = eg.local_discretization
+        self.prepare_with_pointwise_interpolation()
 
-        self.cloud.pic_algorithm.commit_bricks(
-                ldis.vandermonde(),
-                ldis.basis_functions(),
-                self.el_tolerance)
+    def prepare_with_pointwise_interpolation(self):
+        discr = self.cloud.mesh_data.discr
+        pic = self.cloud.pic_algorithm
+        bricks = pic.bricks
+
+        pic.elements_on_grid.reserve(
+                sum(len(eg.members) for eg in discr.element_groups))
+
+        from pyrticle._internal import BrickIterator, ElementOnGrid, BoxFloat
+
+        # for each element, and each brick, figure it out the points in the brick
+        # that fall inside the element. Add them to point_coordinates and 
+        # eog.m_grid_nodes.
+        for eg in discr.element_groups:
+            ldis = eg.local_discretization
+
+            for el in eg.members:
+                eog = ElementOnGrid()
+
+                el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
+                my_tolerance = self.el_tolerance * la.norm(el.map.matrix, 2)
+                el_bbox.lower -= my_tolerance
+                el_bbox.upper += my_tolerance
+
+                for brk in bricks:
+                    brk_and_el = brk.bounding_box().intersect(el_bbox)
+
+                    if brk_and_el.is_empty():
+                        continue
+
+                    points = []
+                    for coord in BrickIterator(brk, brk.index_range(brk_and_el)):
+                        point = brk.point(coord)
+                        if pic.mesh_data.is_in_element(
+                                el.id, point, self.el_tolerance):
+                            points.append(point)
+                            eog.grid_nodes.append(brk.index(coord))
+
+                    node_count = ldis.node_count()
+                    if len(points) < node_count:
+                        raise RuntimeError(
+                                "element has too few structured grid points "
+                                "(element #%d, #nodes=%d #sgridpt=%d)"
+                                % (el.id, node_count, len(points)))
+
+                    print "element %d #nodes=%d sgridpt=%d" % (
+                            el.id, node_count, len(points))
+
+                    from hedge.polynomial import generic_vandermonde
+                    structured_vdm = generic_vandermonde(
+                            [el.inverse_map(x) for x in points], 
+                            ldis.basis_functions())
+
+                    u, s, vt = la.svd(structured_vdm)
+
+                    inv_s_diag = numpy.zeros(
+                            (node_count, len(points)), 
+                            dtype=float)
+                    thresh = (numpy.finfo(float).eps
+                            * max(structured_vdm.shape) * s[0])
+                    for i, si in enumerate(s):
+                        if abs(si) >= thresh:
+                            inv_s_diag[i,i] = 1/si
+                        else:
+                            inv_s_diag[i,i] = 0
+
+                            # Getting here is not a good sign, we probably shouldn't
+                            # continue. It means that the nodes we have in the 
+                            # structured grid do not adequately separate the triangle
+                            # modes. In particular, there is a combination of modes
+                            # (as given by vt[i,:]) that maps to near-zero on the
+                            # structured grid. So we plot that.
+
+                            zeroed_mode = discr.volume_zeros()
+                            start, stop = discr.find_el_range(el.id)
+                            zeroed_mode[start:stop] = numpy.dot(
+                                    ldis.vandermonde(), vt[i])
+                            self.cloud.vis_listener.store_mesh_vis_vector(
+                                "zeroed_mode_el%d_%d" % (el.id, i),
+                                zeroed_mode)
+
+                    svdm_pinv = numpy.dot(
+                            numpy.dot(vt.T, inv_s_diag),
+                            u.T)
+
+                    pinv_resid = la.norm(
+                        numpy.dot(svdm_pinv, structured_vdm)
+                        - numpy.eye(node_count))
+
+                    if pinv_resid > 1e-8:
+                        from warnings import warn
+                        warn("rec_grid: bad pseudoinv precision, element=%d, "
+                                "#nodes=%d, #sgridpts=%d, resid=%.5g centroid=%s"
+                            % (el.id, node_count, len(points), pinv_resid,
+                                    el.centroid(discr.mesh.points)))
+
+                    eog.interpolation_matrix = numpy.asarray(
+                            numpy.dot(ldis.vandermonde(), svdm_pinv),
+                            order="Fortran")
+
+                    pic.elements_on_grid.append(eog)
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)

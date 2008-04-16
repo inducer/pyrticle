@@ -160,6 +160,21 @@ namespace
         u.to_python().release(),
         py_permut.ptr()));
   }
+
+
+
+  template <class VecT>
+  void expose_box(std::string const &tp_name)
+  {
+    typedef box<VecT> cl;
+    python::class_<cl>(("Box"+tp_name).c_str(),
+        python::init<VecT const &, VecT const &>())
+      .DEF_BYVAL_RW_MEMBER(lower)
+      .DEF_BYVAL_RW_MEMBER(upper)
+      .DEF_SIMPLE_METHOD(is_empty)
+      .def("intersect", &cl::template intersect<VecT>)
+      ;
+  }
 }
 
 
@@ -171,6 +186,8 @@ void expose_tools()
   python::def("acosh", (double (*)(double)) boost::math::acosh);
   python::def("gamma", (double (*)(double)) boost::math::tgamma);
 
+  expose_box<bounded_vector>("Float");
+  expose_box<bounded_int_vector>("Int");
   {
     typedef event_counter cl;
     python::class_<cl>("EventCounter")

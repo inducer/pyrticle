@@ -116,7 +116,7 @@ class KVZIntervalBeam:
         positions = []
         velocities = []
 
-        bbox_min, bbox_max = discr.mesh.bounding_box
+        bbox_min, bbox_max = discr.mesh.bounding_box()
         center = (bbox_min+bbox_max)/2
         center[2] = 0
         size = bbox_max-bbox_min

@@ -41,7 +41,7 @@ class MeshData(_internal.MeshData):
         # add periodicity -----------------------------------------------------
         from pyrticle._internal import PeriodicityAxis
         for axis, ((ax_min, ax_max), periodicity_tags) in enumerate(zip(
-                zip(*discr.mesh.bounding_box), discr.mesh.periodicity)):
+                zip(*discr.mesh.bounding_box()), discr.mesh.periodicity)):
             pa = PeriodicityAxis()
             if periodicity_tags is not None:
                 pa.min = ax_min

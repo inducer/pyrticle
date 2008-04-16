@@ -64,52 +64,58 @@ namespace pyrticle
 
 
   // box utilties -------------------------------------------------------------
-  typedef std::pair<bounded_vector, bounded_vector> bounded_box;
-  typedef std::pair<bounded_int_vector, bounded_int_vector> bounded_int_box;
-
-  template <class VecType1, class VecType2>
-  std::pair<VecType1, VecType1> intersect(
-      std::pair<VecType1, VecType1> const &b1, 
-      std::pair<VecType2, VecType2> const &b2, 
-      bool *does=0)
+  template <class VecT>
+  struct box
   {
-    const unsigned dims = b1.first.size();
+    typedef VecT vector_type;
+    vector_type m_lower, m_upper;
 
-    const VecType1 d_vector_lower(dims);
-    const VecType1 d_vector_upper(dims);
-    std::pair<VecType1, VecType1> result(d_vector_lower, d_vector_upper);
+    box(vector_type const &lower, vector_type const &upper)
+      : m_lower(lower), m_upper(upper)
+    { }
 
-    for (unsigned i = 0; i < dims; ++i)
+    bool operator==(box const &b2) const
     {
-      result.first[i] = std::max(b1.first[i], b2.first[i]);
-      result.second[i] = std::min(b1.second[i], b2.second[i]);
+      return 
+        std::equal(m_lower.begin(), m_lower.end(), b2.m_lower.begin())
+        &&
+        std::equal(m_upper.begin(), m_upper.end(), b2.m_upper.begin());
     }
 
-    if (does)
+    bool operator!=(box const &b2) const
+    { return !operator==(b2); }
+
+    bool is_empty() const
     {
-      *does = true;
+      for (unsigned i = 0; i < m_lower.size(); ++i)
+        if (m_lower[i] >= m_upper[i])
+          return true;
+      return false;
+    }
+
+    template <class VecType2>
+    box intersect(box<VecType2> const &b2)
+    {
+      const unsigned dims = m_lower.size();
+
+      const vector_type d_vector_lower(dims);
+      const vector_type d_vector_upper(dims);
+      box<vector_type> result(d_vector_lower, d_vector_upper);
+
       for (unsigned i = 0; i < dims; ++i)
-        if (result.first[i] > result.second[i])
-        {
-          *does = false;
-          return result;
-        }
+      {
+        result.m_lower[i] = std::max(m_lower[i], b2.m_lower[i]);
+        result.m_upper[i] = std::min(m_upper[i], b2.m_upper[i]);
+      }
+
+      return result;
     }
-    return result;
-  }
+  };
 
-  inline
-  bool operator==(bounded_box const &b1, bounded_box const &b2)
-  {
-    return 
-      std::equal(b1.first.begin(), b1.first.end(), b2.first.begin())
-      &&
-      std::equal(b1.second.begin(), b1.second.end(), b2.second.begin());
-  }
 
-  inline
-  bool operator!=(bounded_box const &b1, bounded_box const &b2)
-  { return !operator==(b1, b2); }
+
+  typedef box<bounded_vector> bounded_box;
+  typedef box<bounded_int_vector> bounded_int_box;
 
 
 

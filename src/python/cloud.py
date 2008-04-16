@@ -38,11 +38,11 @@ class MapStorageVisualizationListener(_internal.VisualizationListener):
         self.particle_vis_map = {}
         self.particle_number_shift_signaller = particle_number_shift_signaller
 
-    def store_mesh_vis_vector(self, name, vec, components):
+    def store_mesh_vis_vector(self, name, vec, components=1):
         self.mesh_vis_map[name] = numpy.reshape(
                 vec, (components, len(vec)//components))
 
-    def store_particle_vis_vector(self, name, vec, entries_per_particle):
+    def store_particle_vis_vector(self, name, vec, entries_per_particle=1):
         from pyrticle.tools import NumberShiftableVector
         # FIXME is this still correct?
         self.particle_vis_map[name] = NumberShiftableVector(vec, 

@@ -221,7 +221,7 @@ namespace pyrticle
 
         bounded_box bounding_box() const
         {
-          return std::make_pair(
+          return bounded_box(
               m_origin,
               m_origin + element_prod(m_dimensions, m_stepwidths) - m_stepwidths
               );
@@ -258,11 +258,11 @@ namespace pyrticle
           return bounded_int_box(
               pyublas::binary_op<pyublas::binary_ops::max<int> >::apply(
                 pyublas::unary_op<int_floor>::apply(
-                  element_div(bbox.first-m_origin, m_stepwidths)),
+                  element_div(bbox.m_lower-m_origin, m_stepwidths)),
                 boost::numeric::ublas::zero_vector<int>(m_stepwidths.size())),
               pyublas::binary_op<pyublas::binary_ops::min<int> >::apply(
                 pyublas::unary_op<int_ceil_plus_1>::apply(
-                  element_div(bbox.second-m_origin, m_stepwidths)),
+                  element_div(bbox.m_upper-m_origin, m_stepwidths)),
                 m_dimensions)
               );
         }
@@ -284,7 +284,7 @@ namespace pyrticle
 
       public:
         brick_iterator(brick const &brk, const bounded_int_box &bounds)
-          : m_brick(brk), m_bounds(bounds), m_state(bounds.first), 
+          : m_brick(brk), m_bounds(bounds), m_state(bounds.m_lower), 
           m_point(brk.point(m_state)),
           m_index(brk.index(m_state))
         { 
@@ -305,20 +305,20 @@ namespace pyrticle
             --i;
             ++m_state[i];
 
-            if (m_state[i] < m_bounds.second[i])
+            if (m_state[i] < m_bounds.m_upper[i])
             {
               m_point = m_brick.point(m_state);
               m_index = m_brick.index(m_state);
               return *this;
             }
 
-            m_state[i] = m_bounds.first[i];
+            m_state[i] = m_bounds.m_lower[i];
           }
 
           // we overflowed everything back to the origin, meaning we're done.
           // no need to update m_point and m_index.
 
-          m_state = m_bounds.second;
+          m_state = m_bounds.m_upper;
           return *this;
 
         }
@@ -331,9 +331,9 @@ namespace pyrticle
 
           ++m_state[i];
 
-          if (m_state[i] >= m_bounds.second[i])
+          if (m_state[i] >= m_bounds.m_upper[i])
           {
-            m_state[i] = m_bounds.first[i];
+            m_state[i] = m_bounds.m_lower[i];
 
             // split off the non-default case bottom half of this routine in the
             // hope that at least the fast default case will get inlined.
@@ -346,7 +346,7 @@ namespace pyrticle
         }
 
         bool at_end() const
-        { return m_state[0] >= m_bounds.second[0]; }
+        { return m_state[0] >= m_bounds.m_upper[0]; }
 
         grid_node_number index() const
         { return m_index; }
@@ -386,189 +386,7 @@ namespace pyrticle
         std::vector<element_on_grid> m_elements_on_grid;
         boost::numeric::ublas::vector<brick_number> m_particle_brick_numbers;
 
-        // setup interface ------------------------------------------------------
-        void commit_bricks(py_matrix nodal_vdm, boost::python::object basis, double el_tolerance)
-        {
-          const unsigned mesh_dims = CONST_PIC_THIS->m_mesh_data.m_dimensions;
-          const unsigned gnc = grid_node_count();
-          m_elements_on_grid.reserve(CONST_PIC_THIS->m_mesh_data.m_element_info.size());
-
-          typedef boost::numeric::ublas::scalar_vector<double> scalar_vec;
-
-          BOOST_FOREACH(const mesh_data::element_info &el, 
-              CONST_PIC_THIS->m_mesh_data.m_element_info)
-          {
-            element_on_grid eog;
-            bounded_box el_bbox = CONST_PIC_THIS->m_mesh_data.element_bounding_box(el.m_id);
-            el_bbox.first -= scalar_vec(mesh_dims, el_tolerance*el.m_norm_forward_map);
-            el_bbox.second += scalar_vec(mesh_dims, el_tolerance*el.m_norm_forward_map);
-
-            // for each element, and each brick, figure it out the points in the brick
-            // that fall inside the element. Add them to point_coordinates and 
-            // eog.m_grid_nodes.
-            std::vector<bounded_vector> point_coordinates;
-
-            BOOST_FOREACH(const brick &brk, m_bricks)
-            {
-              bounded_box brick_bbox = brk.bounding_box();
-              bool does_intersect;
-
-              bounded_box el_and_brick_bbox = 
-                intersect(brick_bbox, el_bbox, &does_intersect);
-              bounded_int_box el_brick_index_box = 
-                brk.index_range(el_and_brick_bbox);
-
-              if (!does_intersect)
-                continue;
-
-              brick_iterator it(brk, el_brick_index_box);
-
-              while (!it.at_end())
-              {
-                if (CONST_PIC_THIS->m_mesh_data.is_in_element(
-                      el.m_id, it.point(), el_tolerance))
-                {
-                  if (it.index() >= gnc)
-                    throw std::runtime_error("grid rec: grid node number is out of bounds");
-                  point_coordinates.push_back(it.point());
-                  eog.m_grid_nodes.push_back(it.index());
-                }
-
-                ++it;
-              }
-            }
-
-            // build the interpolant matrix that maps a element nodal values to
-            // values on the brick grid.
-            const unsigned 
-              sgridpts = point_coordinates.size(),
-                   elmodes = el.m_end-el.m_start,
-                   elnodes = elmodes;
-
-            if (sgridpts < elnodes)
-              throw std::runtime_error(
-                str(boost::format("element has too few structured grid points "
-                    "(element #%d, #nodes=%d #sgridpt=%d)") 
-                  % el.m_id % elnodes % sgridpts).c_str());
-            std::cout 
-              << boost::format("element %d #nodes=%d sgridpt=%d") % el.m_id % elnodes % sgridpts
-              << std::endl;
-
-            dyn_fortran_matrix structured_vdm(sgridpts, elmodes);
-
-            for (unsigned i = 0; i < sgridpts; ++i)
-            {
-              py_vector pt(point_coordinates[i]);
-
-              using boost::python::object;
-
-              unsigned j = 0;
-              dyn_vector basis_values_at_pt(el.m_end-el.m_start);
-              BOOST_FOREACH(object basis_func,
-                  std::make_pair(
-                    boost::python::stl_input_iterator<object>(basis),
-                    boost::python::stl_input_iterator<object>()
-                    ))
-              {
-                structured_vdm(i, j++) = boost::python::extract<double>(
-                    basis_func(el.m_inverse_map(pt).to_python()));
-              }
-            }
-
-            // now find the pseudoinverse of the structured vandermonde matrix
-
-            dyn_vector s(std::min(sgridpts, elmodes));
-            dyn_fortran_matrix u(sgridpts, s.size()), vt(s.size(), elmodes);
-            u.clear();
-            vt.clear();
-            s.clear();
-
-            {
-              // gesdd destroys its first argument
-              using boost::numeric::bindings::lapack::gesdd;
-
-              dyn_fortran_matrix svdm_copy(structured_vdm);
-
-              int ierr = gesdd(svdm_copy, s, u, vt);
-              if (ierr < 0)
-                throw std::runtime_error("rec_grid/svd: invalid argument");
-              else if (ierr > 0)
-                throw std::runtime_error("rec_grid/svd: no convergence for given matrix");
-            }
-
-            // from http://en.wikipedia.org/wiki/Moore-Penrose_pseudoinverse
-            // Matlab apparently uses this threshold
-            const double threshold = 
-              std::numeric_limits<double>::epsilon() *
-              std::max(sgridpts, elmodes) * s[0];
-
-            boost::numeric::ublas::diagonal_matrix<double> inv_s(s.size());
-            boost::numeric::ublas::diagonal_matrix<double> s_diag(s.size());
-            for (unsigned i = 0; i < s.size(); ++i)
-            {
-              if (fabs(s[i]) > threshold)
-                inv_s(i, i) = 1/s[i];
-              else
-              {
-                inv_s(i, i) = 0;
-
-                // Getting here is not a good sign, we probably shouldn't
-                // continue. It means that the nodes we have in the 
-                // structured grid do not adequately separate the triangle
-                // modes. In particular, there is a combination of modes
-                // (as given by vt[i,:]) that maps to near-zero on the
-                // structured grid. So we plot that.
-
-                py_vector zeroed_mode(zero_vector(
-                      CONST_PIC_THIS->m_mesh_data.node_count()));
-
-                subrange(zeroed_mode, el.m_start, el.m_end) = prod(
-                    nodal_vdm, row(vt, i));
-
-                CONST_PIC_THIS->store_mesh_vis_vector(
-                    str(boost::format("zeroed_mode_el%d_%d")
-                      % el.m_id % i).c_str(),
-                    zeroed_mode);
-              }
-
-              s_diag(i,i) = s[i];
-            }
-
-            dyn_matrix svdm_2 = prod(u, dyn_matrix(prod(s_diag, vt)));
-            const double svd_resid = norm_frobenius(svdm_2 - structured_vdm);
-            if (svd_resid > 1e-10)
-              WARN(str(boost::format(
-                      "rec_grid: bad svd precision, element=%d, "
-                      "#nodes=%d, #sgridpts=%d, resid=%.5g") 
-                    % el.m_id % elnodes % sgridpts % svd_resid));
-
-            const dyn_matrix svdm_pinv = prod(
-                trans(vt), 
-                dyn_matrix(prod(inv_s, trans(u))));
-
-            // assumes sgridpts > elmodes
-            const double pinv_resid = norm_frobenius(
-              prod(svdm_pinv, structured_vdm)
-              -boost::numeric::ublas::identity_matrix<double>(s.size()));
-
-            if (pinv_resid > 1e-8)
-            {
-              WARN(str(boost::format(
-                      "rec_grid: bad pseudoinv precision, element=%d, "
-                      "#nodes=%d, #sgridpts=%d, resid=%.5g centroid=%s") 
-                    % el.m_id % elnodes % sgridpts % pinv_resid 
-                    % CONST_PIC_THIS->m_mesh_data.element_centroid(el.m_id)));
-            }
-
-            eog.m_interpolation_matrix = prod(nodal_vdm, svdm_pinv);
-
-            m_elements_on_grid.push_back(eog);
-          }
-        }
-
-
-
-
+        // internals ------------------------------------------------------------
         unsigned grid_node_count() const
         {
           if (m_bricks.size() == 0)
@@ -588,31 +406,17 @@ namespace pyrticle
             double charge,
             bool *complete = 0)
         {
-          bool does_intersect;
-          const bounded_box intersect_box = intersect(
-              brk.bounding_box(), particle_box, &does_intersect);
+          const bounded_box intersect_box = 
+            brk.bounding_box().intersect(particle_box);
 
           if (complete)
             *complete = intersect_box == particle_box;
 
-          if (!does_intersect)
+          if (intersect_box.is_empty())
             return false;
 
           const bounded_int_box particle_brick_index_box = 
             brk.index_range(intersect_box);
-
-          /*
-          std::cout 
-            << "box " 
-            << particle_brick_index_box.first 
-            << ' '
-            << particle_brick_index_box.second
-            << " ibox " 
-            << intersect_box.first 
-            << ' '
-            << intersect_box.second
-            << std::endl;
-            */
 
           brick_iterator it(brk, particle_brick_index_box);
 
@@ -733,26 +537,26 @@ namespace pyrticle
             if (std::find(pset.begin(), pset.end(), abf_plus_this) != pset.end())
               continue;
 
-            if (particle_box.first[axis] < p_axis.m_min)
+            if (particle_box.m_lower[axis] < p_axis.m_min)
             {
               bounded_vector per_offset = zero_vector<double>(dim_m);
               per_offset[axis] = p_axis.m_max-p_axis.m_min;
               reconstruct_periodic_copies(tgt,
                   pn, center+per_offset,
                   bounded_box(
-                    particle_box.first+per_offset,
-                    particle_box.second+per_offset),
+                    particle_box.m_lower+per_offset,
+                    particle_box.m_upper+per_offset),
                   abf_plus_this, pset);
             }
-            else if (particle_box.second[axis] > p_axis.m_max)
+            else if (particle_box.m_upper[axis] > p_axis.m_max)
             {
               bounded_vector per_offset = zero_vector<double>(dim_m);
               per_offset[axis] = -(p_axis.m_max-p_axis.m_min);
               reconstruct_periodic_copies(tgt,
                   pn, center+per_offset,
                   bounded_box(
-                    particle_box.first+per_offset,
-                    particle_box.second+per_offset),
+                    particle_box.m_lower+per_offset,
+                    particle_box.m_upper+per_offset),
                   abf_plus_this, pset);
             }
           }

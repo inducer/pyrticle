@@ -131,7 +131,7 @@ def main():
 
     integrals = []
 
-    bbox = mesh.bounding_box
+    bbox = mesh.bounding_box()
     real_tube_length = bbox[1][0] - bbox[0][0]
 
     for particle in xrange(setup.nparticles):
