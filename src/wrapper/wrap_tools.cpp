@@ -45,6 +45,13 @@ namespace
     visualization_listener,
     python::wrapper<visualization_listener>
   {
+    void store_mesh_vis_vector(
+        const char *name,
+        const py_vector &vec,
+        unsigned components) const
+    {
+      this->get_override("store_mesh_vis_vector")(name, vec, components);
+    }
     void store_particle_vis_vector(
         const char *name,
         const py_vector &vec,
@@ -193,6 +200,7 @@ void expose_tools()
       boost::shared_ptr<visualization_listener_wrap>,
       boost::noncopyable>
       ("VisualizationListener")
+      .DEF_PURE_VIRTUAL_METHOD(store_mesh_vis_vector)
       .DEF_PURE_VIRTUAL_METHOD(store_particle_vis_vector)
       ;
   }

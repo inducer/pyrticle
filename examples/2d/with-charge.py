@@ -56,9 +56,6 @@ class GaussianParticleDistribution(pytools.Record):
 def main():
     from hedge.element import TriangularElement
     from hedge.timestep import RK4TimeStepper
-    from hedge.discretization import \
-            Discretization, \
-            pair_with_boundary
     from hedge.visualization import VtkVisualizer, SiloVisualizer
     from math import sqrt, pi
     from pytools.arithmetic_container import join_fields
@@ -145,8 +142,13 @@ def main():
         mesh = pcon.receive_mesh()
 
     discr = pcon.make_discretization(mesh, TriangularElement(setup.element_order))
+    fine_discr = pcon.make_discretization(mesh, TriangularElement(3*setup.element_order))
     vis = SiloVisualizer(discr)
+    fine_vis = SiloVisualizer(fine_discr)
     #vis = VtkVisualizer(discr, "pic")
+
+    from hedge.discretization import Projector
+    coarse_to_fine = Projector(discr, fine_discr)
 
     from hedge.operators import TEMaxwellOperator, DivergenceOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
@@ -190,6 +192,15 @@ def main():
             setup.reconstructor, setup.pusher, setup.finder,
             dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
+
+    visf = fine_vis.make_file("setup")
+    fine_vis.add_data(visf, [(name, coarse_to_fine(qty))
+            for name, qty in cloud.get_mesh_vis_vars()])
+    try:
+        cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
+    except:
+        pass
+    visf.close()
 
     electrons_per_particle = abs(setup.cloud_charge/setup.nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 

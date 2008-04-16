@@ -512,6 +512,23 @@ namespace pyrticle
               {
                 inv_s(i, i) = 0;
 
+                // Getting here is not a good sign, we probably shouldn't
+                // continue. It means that the nodes we have in the 
+                // structured grid do not adequately separate the triangle
+                // modes. In particular, there is a combination of modes
+                // (as given by vt[i,:]) that maps to near-zero on the
+                // structured grid. So we plot that.
+
+                py_vector zeroed_mode(zero_vector(
+                      CONST_PIC_THIS->m_mesh_data.node_count()));
+
+                subrange(zeroed_mode, el.m_start, el.m_end) = prod(
+                    nodal_vdm, row(vt, i));
+
+                CONST_PIC_THIS->store_mesh_vis_vector(
+                    str(boost::format("zeroed_mode_el%d_%d")
+                      % el.m_id % i).c_str(),
+                    zeroed_mode);
               }
 
               s_diag(i,i) = s[i];
@@ -529,9 +546,9 @@ namespace pyrticle
                 trans(vt), 
                 dyn_matrix(prod(inv_s, trans(u))));
 
-            // assumes sgridpts < elmodes
+            // assumes sgridpts > elmodes
             const double pinv_resid = norm_frobenius(
-              prod(structured_vdm, svdm_pinv)
+              prod(svdm_pinv, structured_vdm)
               -boost::numeric::ublas::identity_matrix<double>(s.size()));
 
             if (pinv_resid > 1e-8)

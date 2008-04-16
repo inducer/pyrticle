@@ -337,6 +337,11 @@ namespace pyrticle
       virtual ~visualization_listener()
       { }
 
+      virtual void store_mesh_vis_vector(
+          const char *name,
+          const py_vector &vec,
+          unsigned components
+          ) const = 0;
       virtual void store_particle_vis_vector(
           const char *name,
           const py_vector &vec,

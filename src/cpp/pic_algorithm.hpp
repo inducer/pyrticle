@@ -409,10 +409,19 @@ namespace pyrticle
       // visualization-related ------------------------------------------------
       boost::shared_ptr<visualization_listener> m_vis_listener;
 
+      void store_mesh_vis_vector(
+          const char *name,
+          const py_vector &vec,
+          unsigned components=1
+          )
+      {
+        if (m_vis_listener.get())
+          m_vis_listener->store_mesh_vis_vector(name, vec, components);
+      }
       void store_particle_vis_vector(
           const char *name,
           const py_vector &vec,
-          unsigned entries_per_particle
+          unsigned entries_per_particle=1
           )
       {
         if (m_vis_listener.get())

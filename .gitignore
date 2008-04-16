@@ -22,6 +22,7 @@ Makefile
 tags
 *.eps
 *.png
+*.tif
 *.pdf
 dump.py
 *-2007-*

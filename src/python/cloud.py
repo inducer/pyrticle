@@ -1,5 +1,7 @@
 """Main state container Python interface"""
 
+from __future__ import division
+
 __copyright__ = "Copyright (C) 2007, 2008 Andreas Kloeckner"
 
 __license__ = """
@@ -30,16 +32,26 @@ from pyrticle.meshdata import MeshData
 
 
 class MapStorageVisualizationListener(_internal.VisualizationListener):
-    def __init__(self, storage_map, particle_number_shift_signaller):
+    def __init__(self, particle_number_shift_signaller):
         _internal.VisualizationListener.__init__(self)
-        self.storage_map = storage_map
+        self.mesh_vis_map = {}
+        self.particle_vis_map = {}
         self.particle_number_shift_signaller = particle_number_shift_signaller
+
+    def store_mesh_vis_vector(self, name, vec, components):
+        self.mesh_vis_map[name] = numpy.reshape(
+                vec, (components, len(vec)//components))
 
     def store_particle_vis_vector(self, name, vec, entries_per_particle):
         from pyrticle.tools import NumberShiftableVector
-        self.storage_map[name] = NumberShiftableVector(vec, 
+        # FIXME is this still correct?
+        self.particle_vis_map[name] = NumberShiftableVector(vec, 
                 multiplier=entries_per_particle,
                 signaller=self.particle_number_shift_signaller)
+
+    def clear(self):
+        self.mesh_vis_map.clear()
+        self.particle_vis_map.clear()
 
 
 
@@ -106,10 +118,10 @@ class ParticleCloud:
         self.pic_algorithm.particle_number_shift_listener = self.particle_number_shift_signaller
 
         # visualization
-        self.vis_info = {}
-        self.pic_algorithm.vis_listener = MapStorageVisualizationListener(
-                    self.vis_info,
-                    self.particle_number_shift_signaller)
+        self.vis_listener = \
+                self.pic_algorithm.vis_listener = \
+                MapStorageVisualizationListener(
+                        self.particle_number_shift_signaller)
 
         # subsystem init
         self.reconstructor.initialize(self)
@@ -289,7 +301,7 @@ class ParticleCloud:
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
         """
-        self.vis_info.clear()
+        self.vis_listener.clear()
         self.pic_algorithm.perform_reconstructor_upkeep()
 
     def reconstruct_densities(self):
@@ -434,12 +446,15 @@ class ParticleCloud:
 
         return self
 
+    def get_mesh_vis_vars(self):
+        return self.vis_listener.mesh_vis_map.items()
+
     def add_to_vis(self, visualizer, vis_file, time=None, step=None, beamaxis=None):
         from hedge.visualization import VtkVisualizer, SiloVisualizer
         if isinstance(visualizer, VtkVisualizer):
             return self._add_to_vtk(visualizer, vis_file, time, step)
         elif isinstance(visualizer, SiloVisualizer):
-            return self._add_to_silo(vis_file, time, step, beamaxis)
+            return self._add_to_silo(visualizer, vis_file, time, step, beamaxis)
         else:
             raise ValueError, "unknown visualizer type `%s'" % type(visualizer)
 
@@ -469,9 +484,9 @@ class ParticleCloud:
                     components=dim)
                 )
 
-        def add_vis_vector(name):
-            if name in self.vis_info:
-                vec = self.vis_info[name]
+        def add_particle_vis_vector(name):
+            if name in self.vis_listener.particle_vis_map:
+                vec = self.vis_listener.particle_vis_map[name]
             else:
                 vec = numpy.zeros((len(self.pic_algorithm.containing_elements) * dim,))
 
@@ -498,7 +513,7 @@ class ParticleCloud:
 
         visualizer.register_pathname(time, pathname)
 
-    def _add_to_silo(self, db, time, step, beamaxis):
+    def _add_to_silo(self, visualizer, db, time, step, beamaxis):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
         from warnings import warn
 
@@ -521,7 +536,7 @@ class ParticleCloud:
             db.put_pointvar("velocity", "particles", 
                     numpy.asarray(self.velocities().T, order="C"))
 
-            for name, value in self.vis_info.iteritems():
+            for name, value in self.vis_listener.particle_vis_map.iteritems():
                 from pyrticle.tools import NumberShiftableVector
                 value = NumberShiftableVector.unwrap(value)
                 dim, remainder = divmod(len(value), pcount)
