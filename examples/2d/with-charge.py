@@ -293,7 +293,8 @@ def main():
             except AttributeError:
                 pass
             else:
-                cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
+                cloud.reconstructor.write_grid_quantities(visf, 
+                        ["rho", "j", "usecount"])
 
             visf.close()
             vis_timer.stop()

@@ -266,8 +266,9 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
 # grid reconstruction ---------------------------------------------------------
 class SingleBrickGenerator:
-    def __init__(self, overresolve=1.5):
+    def __init__(self, overresolve=1.5, larger=True):
         self.overresolve = overresolve
+        self.larger = larger
 
     def __call__(self, discr, tolerance):
         from hedge.discretization import integral, ones_on_volume
@@ -276,6 +277,14 @@ class SingleBrickGenerator:
 
         mesh = discr.mesh
         bbox_min, bbox_max = mesh.bounding_box()
+
+        if self.larger:
+            max_forward_norm_map = max(la.norm(el.map.matrix, 2)
+                    for el in mesh.elements)
+            phys_tolerance = tolerance * max_forward_norm_map
+            bbox_min -= phys_tolerance
+            bbox_max += phys_tolerance
+
         bbox_size = bbox_max-bbox_min
         dims = numpy.asarray(bbox_size/dx, dtype=numpy.int32)
         stepwidths = bbox_size/dims
@@ -287,9 +296,11 @@ class SingleBrickGenerator:
 class GridReconstructor(Reconstructor):
     name = "Grid"
 
-    def __init__(self, brick_generator=SingleBrickGenerator(), el_tolerance=0):
+    def __init__(self, brick_generator=SingleBrickGenerator(), el_tolerance=0,
+            max_extra_points=20):
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
+        self.max_extra_points = max_extra_points
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
@@ -389,10 +400,11 @@ class GridReconstructor(Reconstructor):
                         break
 
                     ep_count += 1
-                    if ep_count > 20:
-                        raise RuntimeError(
-                                "rec_grid: could not regularize structured "
-                                "vandermonde matrix")
+                    if ep_count > self.max_extra_points:
+                        from warnings import warn
+                        warn("rec_grid: could not regularize structured "
+                                "vandermonde matrix for el#%d with #ep bound" % el.id)
+                        break
 
                     zi = zero_indices[0]
 
@@ -415,7 +427,6 @@ class GridReconstructor(Reconstructor):
                             []).append(
                                     (new_point, el.id, len(points)))
 
-                    print new_point, max_node_idx, zeroed_mode_nodal[max_node_idx]
                     points.append(new_point)
 
                     # the final grid_node_number at which this point
@@ -427,6 +438,10 @@ class GridReconstructor(Reconstructor):
                     print "element %d #nodes=%d sgridpt=%d, extra=%d" % (
                             el.id, node_count, len(points), ep_count)
                 node_factors.append(len(points) / node_count)
+
+                nonzero_flags = numpy.abs(si) >= thresh
+                inv_s = numpy.zeros((len(s),), dtype=float)
+                inv_s[nonzero_flags] = 1/s[nonzero_flags]
 
                 # compute the pseudoinverse of the structured
                 # Vandermonde matrix
@@ -489,11 +504,12 @@ class GridReconstructor(Reconstructor):
         pic = self.cloud.pic_algorithm
 
         extra_points = pic.extra_points
-        extra_points = numpy.reshape(extra_points,
-                (len(extra_points)//dims,dims))
+        if len(extra_points):
+            extra_points = numpy.reshape(extra_points,
+                    (len(extra_points)//dims,dims))
 
-        silo.put_pointmesh("rec_grid_extra", dims, 
-                numpy.asarray(extra_points.T, order="C"))
+            silo.put_pointmesh("rec_grid_extra", dims, 
+                    numpy.asarray(extra_points.T, order="C"))
 
         for i_brick, brk in enumerate(pic.bricks):
             coords = [
@@ -538,4 +554,14 @@ class GridReconstructor(Reconstructor):
                     silo.put_quadvar(vname, mname, vnames,
                             j_grid_compwise,
                             brk.dimensions, DB_NODECENT)
-
+                elif quant == "usecount":
+                    vname = "usecount_struct%d" % i_brick
+                    usecount = numpy.zeros((len(brk),), dtype=float)
+                    for eog in pic.elements_on_grid:
+                        for idx in eog.grid_nodes:
+                            if brk_start <= idx < brk_stop:
+                                usecount[idx-brk_start] += 1
+                    silo.put_quadvar1(vname, mname, 
+                            usecount, brk.dimensions, DB_NODECENT)
+                else:
+                    raise ValueError, "invalid vis quantity: %s" % quant
