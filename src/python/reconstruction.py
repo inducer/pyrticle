@@ -266,11 +266,11 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
 # grid reconstruction ---------------------------------------------------------
 class SingleBrickGenerator:
-    def __init__(self, overresolve=1.5, larger=True):
+    def __init__(self, overresolve=1.5, mesh_margin=0):
         self.overresolve = overresolve
-        self.larger = larger
+        self.mesh_margin = mesh_margin
 
-    def __call__(self, discr, tolerance):
+    def __call__(self, discr):
         from hedge.discretization import integral, ones_on_volume
         mesh_volume = integral(discr, ones_on_volume(discr))
         dx =  (mesh_volume / len(discr)/ self.overresolve)**(1/discr.dimensions) \
@@ -278,12 +278,8 @@ class SingleBrickGenerator:
         mesh = discr.mesh
         bbox_min, bbox_max = mesh.bounding_box()
 
-        if self.larger:
-            max_forward_norm_map = max(la.norm(el.map.matrix, 2)
-                    for el in mesh.elements)
-            phys_tolerance = 2 * tolerance * max_forward_norm_map
-            bbox_min -= phys_tolerance
-            bbox_max += phys_tolerance
+        bbox_min -= self.mesh_margin
+        bbox_max += self.mesh_margin
 
         bbox_size = bbox_max-bbox_min
         dims = numpy.asarray(bbox_size/dx, dtype=numpy.int32)
@@ -296,11 +292,14 @@ class SingleBrickGenerator:
 class GridReconstructor(Reconstructor):
     name = "Grid"
 
-    def __init__(self, brick_generator=SingleBrickGenerator(), el_tolerance=0,
-            max_extra_points=20):
+    def __init__(self, brick_generator=SingleBrickGenerator(), 
+            el_tolerance=0,
+            max_extra_points=20,
+            enforce_continuity=False):
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
+        self.enforce_continuity = enforce_continuity
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
@@ -310,9 +309,14 @@ class GridReconstructor(Reconstructor):
         pic = self.cloud.pic_algorithm
         bricks = pic.bricks
 
+        if self.enforce_continuity:
+            self.prepare_average_groups()
+        else:
+            pic.average_group_starts.append(0)
+
         from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
-                self.brick_generator(discr, self.el_tolerance)):
+                self.brick_generator(discr)):
             bricks.append(Brick(i, pic.grid_node_count(),
                         stepwidths, origin, dims))
 
@@ -323,6 +327,47 @@ class GridReconstructor(Reconstructor):
             if brk.bounding_box().contains(pt):
                 return brk
         raise RuntimeError, "no containing brick found for point"
+
+    def prepare_average_groups(self):
+        discr = self.cloud.mesh_data.discr
+        pic = self.cloud.pic_algorithm
+
+        avg_group_finder = {}
+        avg_groups = []
+
+        for fg, fmm in discr.face_groups:
+            for fp in fg.face_pairs:
+                for el_idx, opp_el_idx in zip(
+                        fg.index_lists[fp.face_index_list_number],
+                        fg.index_lists[fp.opp_face_index_list_number]):
+                    idx1 = fp.el_base_index + el_idx
+                    idx2 = fp.opp_el_base_index + opp_el_idx
+
+                    ag1 = avg_group_finder.get(idx1)
+                    ag2 = avg_group_finder.get(idx2)
+
+                    if ag1 is None and ag2 is None:
+                        ag = set([idx1, idx2])
+                        avg_groups.append(ag)
+                    elif (ag1 is not None and ag2 is not None and
+                            ag1 is not ag2):
+                        # need to merge
+                        ag1.update(ag2)
+                        ag2.clear()
+                        ag = ag1
+                    else:
+                        ag = ag1 or ag2
+                        ag.add(idx1)
+                        ag.add(idx2)
+
+                    for idx in ag:
+                        avg_group_finder[idx] = ag
+
+        for ag in avg_groups:
+            pic.average_groups.extend(ag)
+            pic.average_group_starts.append(len(pic.average_groups))
+
+        print len(avg_groups), "average groups"
 
     def prepare_with_pointwise_interpolation(self):
         discr = self.cloud.mesh_data.discr
@@ -384,8 +429,8 @@ class GridReconstructor(Reconstructor):
 
                 node_count = ldis.node_count()
                 if len(points) < node_count:
-                    raise RuntimeError(
-                            "element has too few structured grid points "
+                    from warnings import warn
+                    warn("rec_grid: element has too few structured grid points "
                             "(element #%d, #nodes=%d #sgridpt=%d)"
                             % (el.id, node_count, len(points)))
 

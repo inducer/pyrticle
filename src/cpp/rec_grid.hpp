@@ -435,6 +435,17 @@ namespace pyrticle
         dyn_vector m_extra_points;
         std::vector<unsigned> m_extra_point_brick_starts;
 
+        /** Average groups for continuity enforcement. 
+         *
+         * For each averaging group consisting of node indices,
+         * the corresponding nodes of the result of elementwise remapping
+         * are averaged and written back.
+         *
+         * It is implied that the first average group starts at 0.
+         */
+        std::vector<mesh_data::node_number> m_average_groups;
+        std::vector<unsigned> m_average_group_starts;
+
         // internals ------------------------------------------------------------
         unsigned grid_node_count() const
         {
@@ -677,10 +688,6 @@ namespace pyrticle
                 *gv_it++ = from[offset + gnn*increment];
             }
 
-            /*
-            noalias(subrange(to, el.m_start, el.m_end)) = prod(
-                eog.m_interpolation_matrix, grid_values);
-                */
             {
               const dyn_fortran_matrix &matrix = eog.m_interpolation_matrix;
               using namespace boost::numeric::bindings;
@@ -699,6 +706,39 @@ namespace pyrticle
                   traits::vector_storage(to) + el.m_start*increment + offset, 
                   /*incy*/ increment);
             }
+          }
+
+          // cross-element continuity enforcement
+          typename ToVec::iterator to_it = to.begin();
+
+          std::vector<unsigned>::const_iterator 
+            ag_starts_first = m_average_group_starts.begin(),
+            ag_starts_last = m_average_group_starts.end();
+
+          unsigned ag_start = 0;
+          unsigned ag_end = *ag_starts_first++;
+
+          while (true)
+          {
+            double avg = 0;
+            const std::pair<
+              std::vector<mesh_data::node_number>::const_iterator,
+              std::vector<mesh_data::node_number>::const_iterator
+              > ag_range(
+                m_average_groups.begin()+ag_start,
+                m_average_groups.begin()+ag_end);
+            BOOST_FOREACH(mesh_data::node_number nn, ag_range)
+              avg += to_it[nn];
+            avg /= (ag_end-ag_start);
+
+            BOOST_FOREACH(mesh_data::node_number nn, ag_range)
+              to_it[nn] = avg;
+
+            if (ag_starts_first == ag_starts_last)
+              break;
+
+            ag_start = ag_end;
+            ag_end = *ag_starts_first++;
           }
         }
 

@@ -117,6 +117,9 @@ namespace pyrticle
       .add_property("extra_points", get_extra_points<PIC>, set_extra_points<PIC>)
       .DEF_RW_MEMBER(extra_point_brick_starts)
 
+      .DEF_RW_MEMBER(average_groups)
+      .DEF_RW_MEMBER(average_group_starts)
+
       .DEF_SIMPLE_METHOD(grid_node_count)
 
       .DEF_SIMPLE_METHOD(get_grid_rho)
