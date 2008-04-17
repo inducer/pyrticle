@@ -281,7 +281,7 @@ class SingleBrickGenerator:
         if self.larger:
             max_forward_norm_map = max(la.norm(el.map.matrix, 2)
                     for el in mesh.elements)
-            phys_tolerance = tolerance * max_forward_norm_map
+            phys_tolerance = 2 * tolerance * max_forward_norm_map
             bbox_min -= phys_tolerance
             bbox_max += phys_tolerance
 
@@ -353,9 +353,9 @@ class GridReconstructor(Reconstructor):
                 el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
 
                 # enlarge the element bounding box by the mapped tolerance
-                my_tolerance = self.el_tolerance * la.norm(el.map.matrix, 2)
-                el_bbox.lower -= my_tolerance
-                el_bbox.upper += my_tolerance
+                scaled_tolerance = self.el_tolerance * la.norm(el.map.matrix, 2)
+                el_bbox.lower -= scaled_tolerance
+                el_bbox.upper += scaled_tolerance
 
                 # For each element, find all structured points inside the element.
                 for brk in bricks:
@@ -367,8 +367,16 @@ class GridReconstructor(Reconstructor):
                     points = []
                     for coord in BrickIterator(brk, brk.index_range(brk_and_el)):
                         point = brk.point(coord)
-                        if pic.mesh_data.is_in_element(
-                                el.id, point, self.el_tolerance):
+
+                        in_el = True
+                        md_elinfo = pic.mesh_data.element_info[el.id]
+                        for f in md_elinfo.faces:
+                            if (numpy.dot(f.normal, point) 
+                                    - f.face_plane_eqn_rhs > scaled_tolerance):
+                                in_el = False
+                                break
+
+                        if in_el:
                             points.append(point)
                             grid_node_index = brk.index(coord)
                             assert grid_node_index < grid_node_count
@@ -473,9 +481,6 @@ class GridReconstructor(Reconstructor):
 
                 pic.elements_on_grid.append(eog)
 
-        from pytools import average
-        print "average node factor: %g" % average(node_factors)
-
         # fill in the extra points
         ep_brick_starts = [0]
         extra_points = []
@@ -492,7 +497,12 @@ class GridReconstructor(Reconstructor):
 
         pic.first_extra_point = grid_node_count
         pic.extra_point_brick_starts.extend(ep_brick_starts)
-        pic.extra_points = pyublas.why_not(numpy.array(extra_points))
+        pic.extra_points = numpy.array(extra_points)
+
+        # print some statistics
+        from pytools import average
+        print "average node factor: %g, #extra points: %d" % (
+                average(node_factors), len(extra_points))
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
