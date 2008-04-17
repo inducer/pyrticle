@@ -278,7 +278,7 @@ class SingleBrickGenerator:
         bbox_min, bbox_max = mesh.bounding_box()
         bbox_size = bbox_max-bbox_min
         dims = numpy.asarray(bbox_size/dx, dtype=numpy.int32)
-        stepwidths = bbox_size/(dims-1)
+        stepwidths = bbox_size/dims
         yield stepwidths, bbox_min, dims
 
 
@@ -296,11 +296,10 @@ class GridReconstructor(Reconstructor):
 
         discr = cloud.mesh_data.discr
 
-        from pyrticle._internal import Brick
-
         pic = self.cloud.pic_algorithm
         bricks = pic.bricks
 
+        from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
             bricks.append(Brick(i, pic.grid_node_count(),
@@ -317,6 +316,8 @@ class GridReconstructor(Reconstructor):
                 sum(len(eg.members) for eg in discr.element_groups))
 
         from pyrticle._internal import BrickIterator, ElementOnGrid, BoxFloat
+
+        grid_node_count = pic.grid_node_count()
 
         # for each element, and each brick, figure it out the points in the brick
         # that fall inside the element. Add them to point_coordinates and 
@@ -339,12 +340,15 @@ class GridReconstructor(Reconstructor):
                         continue
 
                     points = []
-                    for coord in BrickIterator(brk, brk.index_range(brk_and_el)):
+                    irange = brk.index_range(brk_and_el)
+                    for coord in BrickIterator(brk, irange):
                         point = brk.point(coord)
                         if pic.mesh_data.is_in_element(
                                 el.id, point, self.el_tolerance):
                             points.append(point)
-                            eog.grid_nodes.append(brk.index(coord))
+                            grid_node_index = brk.index(coord)
+                            assert grid_node_index < grid_node_count
+                            eog.grid_nodes.append(grid_node_index)
 
                     node_count = ldis.node_count()
                     if len(points) < node_count:
@@ -406,9 +410,12 @@ class GridReconstructor(Reconstructor):
 
                     eog.interpolation_matrix = numpy.asarray(
                             numpy.dot(ldis.vandermonde(), svdm_pinv),
-                            order="Fortran")
+                            order="F")
 
                     pic.elements_on_grid.append(eog)
+
+        pic.extra_point_brick_starts.extend(
+                [0] * (len(bricks)+1))
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
@@ -422,8 +429,9 @@ class GridReconstructor(Reconstructor):
         for i_brick, brick in enumerate(pic.bricks):
             coords = [
                 numpy.arange(
-                    brick.origin[axis], 
-                    brick.origin[axis] + (brick.dimensions[axis]-0.5) * brick.stepwidths[axis],
+                    brick.origin[axis] + brick.stepwidths[axis]/2, 
+                    brick.origin[axis] 
+                    + brick.dimensions[axis] * brick.stepwidths[axis], 
                     brick.stepwidths[axis])
                 for axis in xrange(dims)]
             for axis in xrange(dims):

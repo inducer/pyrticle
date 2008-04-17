@@ -260,4 +260,17 @@ void expose_tools()
   }
 
   python::def("lu", lu_wrapper<double>);
+
+  {
+    typedef shape_function cl;
+    python::class_<cl>("ShapeFunction", 
+        python::init<double, unsigned, python::optional<double> >(
+          (python::args("radius", "dimensions", "alpha"))))
+      .add_property("radius", &cl::radius)
+      .add_property("exponent", &cl::exponent)
+      .def("__call__", 
+          (const double (cl::*)(const py_vector &) const)
+          &cl::operator())
+      ;
+  }
 }

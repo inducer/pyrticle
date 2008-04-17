@@ -40,36 +40,6 @@
 
 namespace pyrticle 
 {
-  class shape_function
-  {
-    public:
-      shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
-
-      template <class VecType>
-      const double operator()(const VecType &r) const
-      {
-        double r_squared = inner_prod(r, r);
-        if (r_squared > m_l_squared)
-          return 0;
-        else
-          return m_normalizer * pow(m_l-r_squared/m_l, m_alpha);
-      }
-
-      const double radius() const
-      { return m_l; }
-
-      const double exponent() const
-      { return m_alpha; }
-
-    private:
-      double m_normalizer;
-      double m_alpha;
-      double m_l, m_l_squared;
-  };
-
-
-
-
   template <class VecType>
   inline
   bool is_not_near_vertex(VecType const &unit_pt)

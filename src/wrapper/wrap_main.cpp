@@ -25,7 +25,6 @@
 
 void expose_tools();
 void expose_meshdata();
-void expose_reconstructor();
 void expose_pusher();
 void expose_shape_pic();
 void expose_normshape_pic();
@@ -39,7 +38,6 @@ BOOST_PYTHON_MODULE(_internal)
 {
   expose_tools();
   expose_meshdata();
-  expose_reconstructor();
   expose_pusher();
   expose_shape_pic();
   expose_normshape_pic();

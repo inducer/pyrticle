@@ -193,15 +193,6 @@ def main():
             dimensions_pos=2, dimensions_velocity=2,
             verbose_vis=True)
 
-    visf = fine_vis.make_file("setup")
-    fine_vis.add_data(visf, [(name, coarse_to_fine(qty))
-            for name, qty in cloud.get_mesh_vis_vars()])
-    try:
-        cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
-    except:
-        pass
-    visf.close()
-
     electrons_per_particle = abs(setup.cloud_charge/setup.nparticles/units.EL_CHARGE)
     print "e-/particle = ", electrons_per_particle 
 
@@ -224,6 +215,17 @@ def main():
     from pyrticle.cloud import set_shape_bandwidth
     set_shape_bandwidth(cloud, setup.shape_bandwidth, setup.shape_exponent,
             gauss_p.analytic_rho(discr))
+
+    visf = fine_vis.make_file("setup")
+    fine_vis.add_data(visf, [(name, coarse_to_fine(qty))
+            for name, qty in cloud.get_mesh_vis_vars()])
+    fine_vis.add_data(visf, [("rho", coarse_to_fine(cloud.reconstruct_rho()))])
+    try:
+        cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
+    except:
+        pass
+    visf.close()
+
 
     # intial condition --------------------------------------------------------
     from pyrticle.cloud import compute_initial_condition

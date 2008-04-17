@@ -167,13 +167,33 @@ namespace pyrticle
 
 
     // brick ------------------------------------------------------------------
+    /** A brick defines a cell-centered grid on a certain, box-like region 
+     * of space.
+     * 
+     * .--------------------------------.
+     * | * | * | ...                | * |
+     * |---+---+--------------------+---|
+     * | * | * | ...                | * |
+     * `--------------------------------'
+     *
+     * The thin line above denotes the area said to be "covered" by the 
+     * brick (mostly for the assignment of extra points, see below).
+     * Each "*" symbol denotes one grid point.
+     *
+     * m_stepwidths gives the distance along each axis between gridpoints.
+     * m_dimensions gives the number of cells/grid points in each direction.
+     * m_origin gives the lower left hand corner of the box.
+     * m_origin_plus_half = m_origin + m_stepwidths/2, useful for 
+     * easy computation
+     */
     struct brick
     {
-      public:
+      private:
         brick_number m_number;
         grid_node_number m_start_index;
         bounded_vector m_stepwidths;
         bounded_vector m_origin;
+        bounded_vector m_origin_plus_half;
 
         /** This is the number of points in each dimension. If it is 2, then the
          * indices 0 and 1 exist in that dimension.
@@ -181,6 +201,7 @@ namespace pyrticle
         bounded_int_vector m_dimensions;
         bounded_int_vector m_strides;
 
+      public:
         brick(
             brick_number number,
             grid_node_number start_index,
@@ -189,6 +210,7 @@ namespace pyrticle
             bounded_int_vector dimensions)
           : m_number(number), m_start_index(start_index), 
           m_stepwidths(stepwidths), m_origin(origin), 
+          m_origin_plus_half(origin+stepwidths/2),
           m_dimensions(dimensions)
         {
           // This ordering is what Visit expects by default and calls
@@ -205,6 +227,21 @@ namespace pyrticle
           }
         }
 
+        brick_number number() const
+        { return m_number; }
+
+        grid_node_number start_index() const
+        { return m_start_index; }
+
+        bounded_vector const &stepwidths() const
+        { return m_stepwidths; }
+
+        bounded_vector const &origin() const
+        { return m_origin; }
+
+        bounded_int_vector const &dimensions() const
+        { return m_dimensions; }
+
         unsigned node_count() const
         {
           unsigned result = 1;
@@ -214,7 +251,7 @@ namespace pyrticle
         }
 
         bounded_vector point(const bounded_int_vector &idx) const
-        { return m_origin + element_prod(idx, m_stepwidths); }
+        { return m_origin_plus_half + element_prod(idx, m_stepwidths); }
 
         grid_node_number index(const bounded_int_vector &idx) const
         { return m_start_index + inner_prod(idx, m_strides); }
@@ -223,12 +260,12 @@ namespace pyrticle
         {
           return bounded_box(
               m_origin,
-              m_origin + element_prod(m_dimensions, m_stepwidths) - m_stepwidths
+              m_origin + element_prod(m_dimensions, m_stepwidths)
               );
         }
 
       private:
-        struct int_floor
+        struct int_round
         {
           typedef double value_type;
           typedef const double &argument_type;
@@ -236,19 +273,7 @@ namespace pyrticle
 
           static result_type apply(argument_type x)
           {
-            return int(floor(x));
-          }
-        };
-
-        struct int_ceil_plus_1
-        {
-          typedef double value_type;
-          typedef const double &argument_type;
-          typedef int result_type;
-
-          static result_type apply(argument_type x)
-          {
-            return int(ceil(x))+1;
+            return int(round(x));
           }
         };
 
@@ -256,103 +281,109 @@ namespace pyrticle
         bounded_int_box index_range(const bounded_box &bbox) const
         {
           return bounded_int_box(
-              pyublas::binary_op<pyublas::binary_ops::max<int> >::apply(
-                pyublas::unary_op<int_floor>::apply(
-                  element_div(bbox.m_lower-m_origin, m_stepwidths)),
-                boost::numeric::ublas::zero_vector<int>(m_stepwidths.size())),
-              pyublas::binary_op<pyublas::binary_ops::min<int> >::apply(
-                pyublas::unary_op<int_ceil_plus_1>::apply(
-                  element_div(bbox.m_upper-m_origin, m_stepwidths)),
-                m_dimensions)
+              pyublas::unary_op<int_round>::apply(
+                element_div(bbox.m_lower-m_origin, m_stepwidths)),
+              pyublas::unary_op<int_round>::apply(
+                  element_div(bbox.m_upper-m_origin, m_stepwidths))
               );
         }
-    };
 
 
 
 
-    // brick iterator ---------------------------------------------------------
-    class brick_iterator
-    {
-      private:
-        const brick &m_brick;
-        const bounded_int_box &m_bounds;
-      private: /* these fields must be updated in lock-step */
-        bounded_int_vector m_state;
-        bounded_vector m_point;
-        grid_node_number m_index;
-
-      public:
-        brick_iterator(brick const &brk, const bounded_int_box &bounds)
-          : m_brick(brk), m_bounds(bounds), m_state(bounds.m_lower), 
-          m_point(brk.point(m_state)),
-          m_index(brk.index(m_state))
-        { 
-        }
-
-        const bounded_int_vector &operator*() const
-        { return m_state; }
-
-      private:
-        brick_iterator &inc_bottom_half(unsigned i)
+        class iterator
         {
-          // getting here means that an overflow occurred, and we'll have to
-          // update both m_index and m_point from scratch (unless somebody
-          // figures out the reset math for those, especially m_index).
+          private:
+            const brick &m_brick;
+            const bounded_int_box m_bounds;
 
-          while (i > 0)
-          {
-            --i;
-            ++m_state[i];
+            /* these fields must be updated in lock-step */
+            bounded_int_vector m_state;
+            bounded_vector m_point;
+            grid_node_number m_index;
 
-            if (m_state[i] < m_bounds.m_upper[i])
+          public:
+            iterator(brick const &brk, const bounded_int_box &bounds)
+              : m_brick(brk), m_bounds(bounds), m_state(bounds.m_lower), 
+              m_point(brk.point(m_state)),
+              m_index(brk.index(m_state))
+            { 
+            }
+
+            const bounded_int_vector &operator*() const
+            { return m_state; }
+
+          private:
+            iterator &inc_bottom_half(unsigned i)
             {
-              m_point = m_brick.point(m_state);
-              m_index = m_brick.index(m_state);
+              // getting here means that an overflow occurred, and we'll have to
+              // update both m_index and m_point from scratch (unless somebody
+              // figures out the reset math for those, especially m_index).
+
+              ++i;
+              while (i < m_state.size())
+              {
+                ++m_state[i];
+
+                if (m_state[i] < m_bounds.m_upper[i])
+                {
+                  m_point = m_brick.point(m_state);
+                  m_index = m_brick.index(m_state);
+                  return *this;
+                }
+
+                m_state[i] = m_bounds.m_lower[i];
+                ++i;
+              }
+
+              // we overflowed everything back to the origin, meaning we're done.
+              // no need to update m_point and m_index.
+
+              m_state = m_bounds.m_upper;
               return *this;
             }
 
-            m_state[i] = m_bounds.m_lower[i];
-          }
 
-          // we overflowed everything back to the origin, meaning we're done.
-          // no need to update m_point and m_index.
+          public:
+            iterator &operator++()
+            {
+              const unsigned i = 0; // silently assuming non-zero size here
 
-          m_state = m_bounds.m_upper;
-          return *this;
+              ++m_state[i];
 
-        }
+              if (m_state[i] >= m_bounds.m_upper[i])
+              {
+                m_state[i] = m_bounds.m_lower[i];
 
+                // split off the non-default case bottom half of this routine in the
+                // hope that at least the fast default case will get inlined.
+                return inc_bottom_half(i); 
+              }
 
-      public:
-        brick_iterator &operator++()
+              m_point[i] += m_brick.m_stepwidths[i];
+              m_index += m_brick.m_strides[i];
+              return *this;
+            }
+
+            bool at_end() const
+            { return m_state[0] >= m_bounds.m_upper[0]; }
+
+            grid_node_number index() const
+            { return m_index; }
+
+            const bounded_vector &point() const
+            { return m_point; }
+        };
+
+        iterator get_iterator(bounded_int_box const &bounds) const
         {
-          unsigned i = m_state.size() - 1; // silently assuming non-zero size here
-
-          ++m_state[i];
-
-          if (m_state[i] >= m_bounds.m_upper[i])
-          {
-            m_state[i] = m_bounds.m_lower[i];
-
-            // split off the non-default case bottom half of this routine in the
-            // hope that at least the fast default case will get inlined.
-            return inc_bottom_half(i); 
-          }
-
-          m_point[i] += m_brick.m_stepwidths[i];
-          m_index += m_brick.m_strides[i];
-          return *this;
+          return iterator(*this, bounds);
         }
 
-        bool at_end() const
-        { return m_state[0] >= m_bounds.m_upper[0]; }
-
-        grid_node_number index() const
-        { return m_index; }
-
-        const bounded_vector &point() const
-        { return m_point; }
+        iterator get_iterator(bounded_box const &bounds) const
+        {
+          return iterator(*this, index_range(bounds));
+        }
     };
 
 
@@ -386,13 +417,33 @@ namespace pyrticle
         std::vector<element_on_grid> m_elements_on_grid;
         boost::numeric::ublas::vector<brick_number> m_particle_brick_numbers;
 
+        /** Each brick may have a number of "extra" points to resolve
+         * situations where the structured nodes situated on an element
+         * are not enough to separate element modes. m_extra_points
+         * describes this set of points. Points are subsequent in
+         * m_extra_points, each point taking up a number of scalars
+         * equal to the mesh dimension.
+         *
+         * m_extra_point_brick_starts[brick_number] contains the point
+         * index in m_extra_points at which the extra points for
+         * brick_number are stored, up to (but not including)
+         * m_extra_point_brick_starts[brick_number+1].
+         *
+         * extra point numbering starts at m_first_extra_point.
+         */
+        grid_node_number m_first_extra_point;
+        dyn_vector m_extra_points;
+        std::vector<unsigned> m_extra_point_brick_starts;
+
         // internals ------------------------------------------------------------
         unsigned grid_node_count() const
         {
+          const unsigned extra_pts = m_extra_points.size() 
+            / CONST_PIC_THIS->m_mesh_data.m_dimensions;
           if (m_bricks.size() == 0)
-            return 0;
+            return extra_pts+0;
           else
-            return m_bricks.back().m_start_index + m_bricks.back().node_count();
+            return extra_pts+m_bricks.back().start_index() + m_bricks.back().node_count();
         }
 
 
@@ -404,7 +455,7 @@ namespace pyrticle
             const bounded_vector &center,
             const bounded_box &particle_box,
             double charge,
-            bool *complete = 0)
+            bool *complete = 0) const
         {
           const bounded_box intersect_box = 
             brk.bounding_box().intersect(particle_box);
@@ -418,7 +469,7 @@ namespace pyrticle
           const bounded_int_box particle_brick_index_box = 
             brk.index_range(intersect_box);
 
-          brick_iterator it(brk, particle_brick_index_box);
+          brick::iterator it(brk, particle_brick_index_box);
 
           while (!it.at_end())
           {
@@ -426,6 +477,21 @@ namespace pyrticle
                 charge*m_shape_function(center-it.point()));
             ++it;
           }
+
+          // now treat extra points for this brick
+          const unsigned extra_stop 
+            = m_extra_point_brick_starts[brk.number()+1];
+          const grid_node_number fep = m_first_extra_point;
+          const unsigned mdim = CONST_PIC_THIS->m_mesh_data.m_dimensions;
+
+          for (unsigned extra_i = m_extra_point_brick_starts[brk.number()];
+              extra_i < extra_stop; ++extra_i)
+            tgt.add_shape_value(fep+extra_i, 
+                charge*m_shape_function(
+                  center-subrange(
+                    m_extra_points, 
+                    extra_i*mdim,
+                    (extra_i+1)*mdim)));
           
           return true;
         }
@@ -454,7 +520,7 @@ namespace pyrticle
             BOOST_FOREACH(brick const &brk, m_bricks)
             {
               // don't re-target the cached brick
-              if (brk.m_number == last_brick.m_number)
+              if (brk.number() == last_brick.number())
                 continue;
 
               if (reconstruct_particle_on_one_brick(
@@ -464,7 +530,7 @@ namespace pyrticle
                 // We did not intersect the cached brick, but we
                 // found a brick that we *did* intersect with.
                 // Update the cache.
-                bn_cache = brk.m_number;
+                bn_cache = brk.number();
               }
             }
           }

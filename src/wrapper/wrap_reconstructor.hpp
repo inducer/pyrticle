@@ -104,6 +104,10 @@ namespace pyrticle
       .DEF_RW_MEMBER(bricks)
       .DEF_RW_MEMBER(elements_on_grid)
 
+      .DEF_RW_MEMBER(first_extra_point)
+      .DEF_RW_MEMBER(extra_points)
+      .DEF_RW_MEMBER(extra_point_brick_starts)
+
       .DEF_SIMPLE_METHOD(grid_node_count)
 
       .DEF_SIMPLE_METHOD(get_grid_rho)

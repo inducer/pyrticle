@@ -28,6 +28,7 @@
 #include <utility>
 #include <functional>
 #include <pyublas/numpy.hpp>
+#include <pyublas/elementwise_op.hpp>
 #include <boost/foreach.hpp>
 #include <boost/numeric/ublas/matrix_sparse.hpp>
 
@@ -409,6 +410,36 @@ namespace pyrticle
           std::string const &filename,
           unsigned lineno
           ) const = 0;
+  };
+
+
+
+
+  class shape_function
+  {
+    public:
+      shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
+
+      template <class VecType>
+      const double operator()(const VecType &r) const
+      {
+        const double r_squared = pyublas::square_sum(r);
+        if (r_squared > m_l_squared)
+          return 0;
+        else
+          return m_normalizer * pow(m_l-r_squared/m_l, m_alpha);
+      }
+
+      const double radius() const
+      { return m_l; }
+
+      const double exponent() const
+      { return m_alpha; }
+
+    private:
+      double m_normalizer;
+      double m_alpha;
+      double m_l, m_l_squared;
   };
 
 
