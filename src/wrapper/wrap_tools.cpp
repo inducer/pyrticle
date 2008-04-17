@@ -171,6 +171,10 @@ namespace
         python::init<VecT const &, VecT const &>())
       .DEF_BYVAL_RW_MEMBER(lower)
       .DEF_BYVAL_RW_MEMBER(upper)
+      .def("contains", 
+          (bool (cl::*)(py_vector const &) const) &cl::contains)
+      .def("contains", 
+          (bool (cl::*)(py_vector const &, double) const) &cl::contains)
       .DEF_SIMPLE_METHOD(is_empty)
       .def("intersect", &cl::template intersect<VecT>)
       ;

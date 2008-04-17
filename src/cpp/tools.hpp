@@ -94,6 +94,20 @@ namespace pyrticle
       return false;
     }
 
+    template <class VecType>
+    bool contains(VecType const &pt) const
+    { return contains(pt, 1e-10); }
+
+    template <class VecType>
+    bool contains(VecType const &pt, double threshold) const
+    {
+      for (unsigned i = 0; i < m_lower.size(); ++i)
+        if (pt[i] < m_lower[i] - threshold 
+            || pt[i] > m_upper[i]+threshold)
+          return false;
+      return true;
+    }
+
     template <class VecType2>
     box intersect(box<VecType2> const &b2)
     {
