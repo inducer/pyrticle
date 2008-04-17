@@ -94,6 +94,14 @@ namespace pyrticle
 
 
 
+  template <class PIC>
+  py_vector get_extra_points(const PIC &pic)
+  { return pic.m_extra_points; }
+
+  template <class PIC>
+  void set_extra_points(PIC &pic, py_vector v)
+  { pic.m_extra_points = v; }
+
   template <class Wrapper, class PIC>
   void expose_typed_reconstructor(Wrapper &wrp, 
       typename grid_reconstructor::type<PIC> *)
@@ -105,7 +113,8 @@ namespace pyrticle
       .DEF_RW_MEMBER(elements_on_grid)
 
       .DEF_RW_MEMBER(first_extra_point)
-      .DEF_RW_MEMBER(extra_points)
+      // PyUblas member-in-base-class issue: wrap by hand
+      .add_property("extra_points", get_extra_points<PIC>, set_extra_points<PIC>)
       .DEF_RW_MEMBER(extra_point_brick_starts)
 
       .DEF_SIMPLE_METHOD(grid_node_count)

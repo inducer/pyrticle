@@ -75,6 +75,7 @@ void expose_meshdata()
   {
     typedef mesh_data::face_info cl;
     python::class_<cl>("FaceInfo")
+      // PyUblas member-in-base-class issue: wrap by hand
       .add_property("normal", get_normal, set_normal)
       .DEF_RW_MEMBER(neighbor)
       .DEF_RW_MEMBER(neighbor_periodicity_axis)

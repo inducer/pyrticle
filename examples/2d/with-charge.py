@@ -289,9 +289,11 @@ def main():
                         expressions=[
                             ])
             try:
-                cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
-            except:
+                cloud.reconstructor.write_grid_quantities
+            except AttributeError:
                 pass
+            else:
+                cloud.reconstructor.write_grid_quantities(visf, ["rho", "j"])
 
             visf.close()
             vis_timer.stop()

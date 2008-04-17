@@ -26,6 +26,7 @@ import pyrticle._internal as _internal
 import pytools.log
 import numpy
 import numpy.linalg as la
+import pyublas
 
 
 
@@ -268,11 +269,10 @@ class SingleBrickGenerator:
     def __init__(self, overresolve=1.5):
         self.overresolve = overresolve
 
-    def __call__(self, discr):
+    def __call__(self, discr, tolerance):
         from hedge.discretization import integral, ones_on_volume
         mesh_volume = integral(discr, ones_on_volume(discr))
-        dx =  (mesh_volume/len(discr))**(1/discr.dimensions) \
-                / self.overresolve
+        dx =  (mesh_volume / len(discr)/ self.overresolve)**(1/discr.dimensions) \
 
         mesh = discr.mesh
         bbox_min, bbox_max = mesh.bounding_box()
@@ -301,7 +301,7 @@ class GridReconstructor(Reconstructor):
 
         from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
-                self.brick_generator(discr)):
+                self.brick_generator(discr, self.el_tolerance)):
             bricks.append(Brick(i, pic.grid_node_count(),
                         stepwidths, origin, dims))
 
@@ -329,6 +329,8 @@ class GridReconstructor(Reconstructor):
         # This is used to write out the C++ extra_points structure further
         # down.
         ep_brick_map = {}
+
+        node_factors = []
 
         # Iterate over all elements
         for eg in discr.element_groups:
@@ -386,45 +388,45 @@ class GridReconstructor(Reconstructor):
                     if not zero_indices:
                         break
 
-                    ep_count += len(zero_indices)
-                    if ep_count > 5:
+                    ep_count += 1
+                    if ep_count > 20:
                         raise RuntimeError(
                                 "rec_grid: could not regularize structured "
                                 "vandermonde matrix")
 
-                    for zi in zero_indices:
-                        # Getting here means that a mode
-                        # maps to zero on the structured grid.
-                        # Find it.
-                        zeroed_mode = numpy.dot(
-                                ldis.vandermonde(), vt[zi])
+                    zi = zero_indices[0]
 
-                        # Then, find the point in that mode with
-                        # the highest absolute value.
-                        from pytools import argmax
-                        max_node_idx = argmax(abs(xi) for xi in zeroed_mode)
-                        start, stop = discr.find_el_range(el.id)
+                    # Getting here means that a mode
+                    # maps to zero on the structured grid.
+                    # Find it.
+                    zeroed_mode_nodal = numpy.dot(
+                            ldis.vandermonde(), vt[zi])
 
-                        new_point = discr.nodes[start+max_node_idx]
+                    # Then, find the point in that mode with
+                    # the highest absolute value.
+                    from pytools import argmax
+                    max_node_idx = argmax(abs(xi) for xi in zeroed_mode_nodal)
+                    start, stop = discr.find_el_range(el.id)
 
-                        ep_brick_map.setdefault(
-                                self.find_containing_brick(new_point).number,
-                                []).append(
-                                        (new_point, el.id, len(points)))
+                    new_point = discr.nodes[start+max_node_idx]
 
-                        points.append(new_point)
+                    ep_brick_map.setdefault(
+                            self.find_containing_brick(new_point).number,
+                            []).append(
+                                    (new_point, el.id, len(points)))
 
-                        # the final grid_node_number at which this point
-                        # will end up is as yet unknown. insert a
-                        # placeholder
-                        eog.grid_nodes.append(0)
+                    print new_point, max_node_idx, zeroed_mode_nodal[max_node_idx]
+                    points.append(new_point)
+
+                    # the final grid_node_number at which this point
+                    # will end up is as yet unknown. insert a
+                    # placeholder
+                    eog.grid_nodes.append(0)
 
                 if ep_count:
                     print "element %d #nodes=%d sgridpt=%d, extra=%d" % (
                             el.id, node_count, len(points), ep_count)
-                else:
-                    print "element %d #nodes=%d sgridpt=%d" % (
-                            el.id, node_count, len(points))
+                node_factors.append(len(points) / node_count)
 
                 # compute the pseudoinverse of the structured
                 # Vandermonde matrix
@@ -456,6 +458,9 @@ class GridReconstructor(Reconstructor):
 
                 pic.elements_on_grid.append(eog)
 
+        from pytools import average
+        print "average node factor: %g" % average(node_factors)
+
         # fill in the extra points
         ep_brick_starts = [0]
         extra_points = []
@@ -472,7 +477,7 @@ class GridReconstructor(Reconstructor):
 
         pic.first_extra_point = grid_node_count
         pic.extra_point_brick_starts.extend(ep_brick_starts)
-        pic.extra_points = numpy.array(extra_points)
+        pic.extra_points = pyublas.why_not(numpy.array(extra_points))
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
@@ -483,32 +488,39 @@ class GridReconstructor(Reconstructor):
         vdims = self.cloud.dimensions_velocity
         pic = self.cloud.pic_algorithm
 
-        for i_brick, brick in enumerate(pic.bricks):
+        extra_points = pic.extra_points
+        extra_points = numpy.reshape(extra_points,
+                (len(extra_points)//dims,dims))
+
+        silo.put_pointmesh("rec_grid_extra", dims, 
+                numpy.asarray(extra_points.T, order="C"))
+
+        for i_brick, brk in enumerate(pic.bricks):
             coords = [
                 numpy.arange(
-                    brick.origin[axis] + brick.stepwidths[axis]/2, 
-                    brick.origin[axis] 
-                    + brick.dimensions[axis] * brick.stepwidths[axis], 
-                    brick.stepwidths[axis])
+                    brk.origin[axis] + brk.stepwidths[axis]/2, 
+                    brk.origin[axis] 
+                    + brk.dimensions[axis] * brk.stepwidths[axis], 
+                    brk.stepwidths[axis])
                 for axis in xrange(dims)]
             for axis in xrange(dims):
-                assert len(coords[axis]) == brick.dimensions[axis]
+                assert len(coords[axis]) == brk.dimensions[axis]
 
             mname = "structmesh%d" % i_brick
             silo.put_quadmesh(mname, coords)
 
             from pylo import DB_NODECENT
 
-            # get rid of array scalars
-            brick_dims = [int(x) for x in brick.dimensions] 
+            brk_start = brk.start_index
+            brk_stop = brk.start_index + len(brk)
 
             for quant in quantities:
                 if quant == "rho":
                     vname = "rho_struct%d" % i_brick
 
                     silo.put_quadvar1(vname, mname, 
-                            pic.get_grid_rho(),
-                            brick_dims, DB_NODECENT)
+                            pic.get_grid_rho()[brk_start:brk_stop],
+                            brk.dimensions, DB_NODECENT)
                 elif quant == "j":
                     vname = "j_struct%d" % i_brick
 
@@ -519,11 +531,11 @@ class GridReconstructor(Reconstructor):
                     from pytools import product
                     j_grid = numpy.reshape(
                             pic.get_grid_j(self.cloud.velocities()),
-                            (product(brick_dims), vdims))
+                            (pic.grid_node_count(), vdims))[brk_start:brk_stop]
 
                     j_grid_compwise = numpy.asarray(j_grid.T, order="C")
                     
                     silo.put_quadvar(vname, mname, vnames,
                             j_grid_compwise,
-                            brick_dims, DB_NODECENT)
+                            brk.dimensions, DB_NODECENT)
 
