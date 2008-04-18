@@ -293,13 +293,15 @@ class GridReconstructor(Reconstructor):
     name = "Grid"
 
     def __init__(self, brick_generator=SingleBrickGenerator(), 
-            el_tolerance=0,
+            el_tolerance=0.2,
             max_extra_points=20,
-            enforce_continuity=False):
+            enforce_continuity=False,
+            method="simplex"):
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
         self.enforce_continuity = enforce_continuity
+        self.method = method
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
@@ -320,7 +322,12 @@ class GridReconstructor(Reconstructor):
             bricks.append(Brick(i, pic.grid_node_count(),
                         stepwidths, origin, dims))
 
-        self.prepare_with_pointwise_interpolation()
+        if self.method == "simplex":
+            self.prepare_with_pointwise_projection()
+        elif self.method == "brick":
+            self.prepare_with_brick_interpolation()
+        else:
+            raise RuntimeError, "invalid method specified"
 
     def find_containing_brick(self, pt):
         for brk in self.cloud.pic_algorithm.bricks:
@@ -369,7 +376,7 @@ class GridReconstructor(Reconstructor):
 
         print len(avg_groups), "average groups"
 
-    def prepare_with_pointwise_interpolation(self):
+    def prepare_with_pointwise_projection(self):
         discr = self.cloud.mesh_data.discr
         pic = self.cloud.pic_algorithm
         bricks = pic.bricks
@@ -394,6 +401,7 @@ class GridReconstructor(Reconstructor):
 
             for el in eg.members:
                 eog = ElementOnGrid()
+                eog.element_number = el.id
 
                 el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
 
@@ -548,6 +556,107 @@ class GridReconstructor(Reconstructor):
         from pytools import average
         print "average node factor: %g, #extra points: %d" % (
                 average(node_factors), len(extra_points))
+
+    def prepare_with_brick_interpolation(self):
+        class TensorProductLegendreBasisFunc:
+            def __init__(self, n):
+                from hedge.polynomial import LegendreFunction
+                self.funcs = [LegendreFunction(n_i) for n_i in n]
+
+            def __call__(self, x):
+                result = 1
+                for f_i, x_i in zip(self.funcs, x):
+                    result *= f_i(x_i)
+                return result
+
+        def make_legendre_basis(dimensions):
+            from pytools import generate_nonnegative_integer_tuples_below
+            return [TensorProductLegendreBasisFunc(n)
+                for n in generate_nonnegative_integer_tuples_below(dimensions)]
+
+        discr = self.cloud.mesh_data.discr
+        pic = self.cloud.pic_algorithm
+        bricks = pic.bricks
+
+        pic.elements_on_grid.reserve(
+                sum(len(eg.members) for eg in discr.element_groups))
+
+        from pyrticle._internal import BrickIterator, ElementOnGrid, BoxFloat
+
+        # Iterate over all elements
+        for eg in discr.element_groups:
+            ldis = eg.local_discretization
+
+            for el in eg.members:
+                el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
+
+                scaled_tolerance = self.el_tolerance * la.norm(el.map.matrix, 2)
+                el_bbox.lower -= scaled_tolerance
+                el_bbox.upper += scaled_tolerance
+
+                # For each brick, find all element nodes that lie in it
+                for brk in bricks:
+                    eog = ElementOnGrid()
+                    eog.element_number = el.id
+
+                    brk_bbox = brk.bounding_box()
+                    brk_and_el = brk_bbox.intersect(el_bbox)
+
+                    if brk_and_el.is_empty():
+                        continue
+
+                    el_nodes = []
+                    el_node_indices = []
+                    el_start, el_end = discr.find_el_range(el.id)
+                    el_length = el_end-el_start
+                    if brk_and_el == el_bbox:
+                        # whole element in brick? fantastic.
+                        el_nodes = discr.nodes[el_start:el_end]
+                        el_node_indices = range(el_length)
+                    else:
+                        # no? go through the nodes one by one.
+                        for i, node in enumerate(discr.nodes[el_start:el_end]):
+                            # this containment check has to be exact,
+                            # we positively cannot have nodes belong to
+                            # two bricks
+                            if brk_bbox.contains(node, threshold=0):
+                                el_nodes.append(node)
+                                el_node_indices.append(i)
+
+                    idx_range = brk.index_range(brk_and_el)
+                    lb = make_legendre_basis(idx_range.upper-idx_range.lower)
+
+                    from hedge.polynomial import generic_vandermonde
+                    brk_and_el_points = [brk.point(c) 
+                            for c in BrickIterator(brk, idx_range)]
+                    svdm = generic_vandermonde(
+                            points=brk_and_el_points,
+                            functions=lb)
+
+                    mixed_vdm_pre = generic_vandermonde(
+                            points=el_nodes, functions=lb)
+
+                    if len(el_nodes) < el_length:
+                        mixed_vdm = numpy.zeros((el_length, el_length),
+                                dtype=float)
+                        for i, vdm_row in enumerate(mixed_vdm_pre):
+                            mixed_vdm[el_node_indices[i]] = vdm_row
+                    else:
+                        mixed_vdm = mixed_vdm_pre
+
+                    from hedge.tools import leftsolve
+                    eog.interpolation_matrix = numpy.asarray(
+                            leftsolve(svdm, mixed_vdm),
+                            order="Fortran")
+                    #print eog.interpolation_matrix.shape
+                    #raw_input()
+
+                    eog.grid_nodes.extend(brk.index(c) 
+                            for c in BrickIterator(brk, idx_range))
+                    pic.elements_on_grid.append(eog)
+
+        # we don't need no stinkin' extra points
+        pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)

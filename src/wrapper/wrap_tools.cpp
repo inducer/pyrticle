@@ -172,11 +172,16 @@ namespace
       .DEF_BYVAL_RW_MEMBER(lower)
       .DEF_BYVAL_RW_MEMBER(upper)
       .def("contains", 
-          (bool (cl::*)(py_vector const &) const) &cl::contains)
+          (bool (cl::*)(py_vector const &) const) &cl::contains,
+          python::args("point"))
       .def("contains", 
-          (bool (cl::*)(py_vector const &, double) const) &cl::contains)
+          (bool (cl::*)(py_vector const &, double) const) &cl::contains,
+          python::args("point", "threshold"))
       .DEF_SIMPLE_METHOD(is_empty)
       .def("intersect", &cl::template intersect<VecT>)
+
+      .def(python::self == python::self)
+      .def(python::self != python::self)
       ;
   }
 }

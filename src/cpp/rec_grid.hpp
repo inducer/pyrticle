@@ -391,6 +391,7 @@ namespace pyrticle
 
     struct element_on_grid
     {
+      mesh_data::element_number m_element_number;
       std::vector<grid_node_number> m_grid_nodes;
 
       /** The interpolant matrix maps the values (in-order) on the element
@@ -675,10 +676,11 @@ namespace pyrticle
         void remap_grid_to_mesh(const FromVec &from, ToVec &to, 
             const unsigned offset=0, const unsigned increment=1) const
         {
-          BOOST_FOREACH(const mesh_data::element_info &el, 
-              CONST_PIC_THIS->m_mesh_data.m_element_info)
+          BOOST_FOREACH(const element_on_grid &eog, m_elements_on_grid)
           {
-            const element_on_grid &eog(m_elements_on_grid[el.m_id]);
+            const mesh_data::element_info &el = 
+              CONST_PIC_THIS->m_mesh_data.m_element_info[
+              eog.m_element_number];
 
             dyn_vector grid_values(eog.m_grid_nodes.size());
 
@@ -702,7 +704,7 @@ namespace pyrticle
 
                   traits::vector_storage(grid_values), /*incx*/ 1,
 
-                  /*beta*/ 0,
+                  /*beta*/ 1,
                   traits::vector_storage(to) + el.m_start*increment + offset, 
                   /*incy*/ increment);
             }
@@ -829,6 +831,9 @@ namespace pyrticle
 
           reconstruct_densities_on_grid_target(tgt);
 
+          rho.clear();
+          j.clear();
+
           remap_grid_to_mesh(grid_rho, rho);
           for (unsigned i = 0; i < vdim; ++i)
             remap_grid_to_mesh(grid_j, j, i, vdim);
@@ -854,6 +859,8 @@ namespace pyrticle
 
           reconstruct_densities_on_grid_target(j_tgt);
 
+          j.clear();
+
           for (unsigned i = 0; i < vdim; ++i)
             remap_grid_to_mesh(grid_j, j, i, vdim);
         }
@@ -870,6 +877,8 @@ namespace pyrticle
 
           rho_target rho_tgt(grid_rho);
           reconstruct_densities_on_grid_target(rho_tgt);
+
+          rho.clear();
 
           remap_grid_to_mesh(grid_rho, rho);
         }

@@ -103,7 +103,7 @@ namespace pyrticle
     {
       for (unsigned i = 0; i < m_lower.size(); ++i)
         if (pt[i] < m_lower[i] - threshold 
-            || pt[i] > m_upper[i]+threshold)
+            || pt[i] >= m_upper[i]+threshold)
           return false;
       return true;
     }

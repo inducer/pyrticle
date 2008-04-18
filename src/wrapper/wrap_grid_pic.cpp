@@ -99,6 +99,7 @@ void expose_grid_pic()
   {
     typedef grid_reconstructor::element_on_grid cl;
     python::class_<cl>("ElementOnGrid")
+      .DEF_RW_MEMBER(element_number)
       .DEF_RW_MEMBER(grid_nodes)
       .DEF_BYVAL_RW_MEMBER(interpolation_matrix)
       ;
