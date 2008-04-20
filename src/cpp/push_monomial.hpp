@@ -29,6 +29,9 @@
 #include <boost/foreach.hpp>
 #include <boost/assign/list_of.hpp> 
 #include <boost/numeric/ublas/triangular.hpp>
+#include <boost/numeric/bindings/lapack/gesv.hpp>
+#include <boost/numeric/bindings/traits/ublas_matrix.hpp>
+#include <boost/numeric/bindings/traits/ublas_vector2.hpp>
 #include "tools.hpp"
 #include "bases.hpp"
 #include "meshdata.hpp"
@@ -99,9 +102,8 @@ namespace pyrticle
   struct local_monomial_discretization
   {
     std::vector<monomial_basis_function> m_basis;
-    py_matrix m_l_vandermonde_t;
-    py_matrix m_u_vandermonde_t;
-    csr_matrix m_p_vandermonde_t;
+    py_fortran_matrix m_lu_vandermonde_t;
+    py_int_vector m_lu_piv_vandermonde_t;
   };
 
 
@@ -134,27 +136,23 @@ namespace pyrticle
             m_local_discretizations[m_ldis_indices[in_element]];
 
           unsigned basis_length = ldis.m_basis.size();
-          dyn_vector mon_basis_values_at_pt(basis_length);
+          dyn_vector rhs_and_sol(basis_length);
 
           dyn_vector unit_pt = el_inf.m_inverse_map(pt);
 
           for (unsigned i = 0; i < basis_length; i++)
-            mon_basis_values_at_pt[i] = ldis.m_basis[i](unit_pt);
+            rhs_and_sol[i] = ldis.m_basis[i](unit_pt);
 
-          dyn_vector permuted_basis_values = prod(
-                    ldis.m_p_vandermonde_t,
-                    mon_basis_values_at_pt);
+          namespace lapack = boost::numeric::bindings::lapack;
+          int info = lapack::getrs(
+              ldis.m_lu_vandermonde_t.as_ublas(), 
+              ldis.m_lu_piv_vandermonde_t, 
+              rhs_and_sol);
 
-          py_vector coeff = 
-            solve(
-                ldis.m_u_vandermonde_t,
-                solve(
-                  ldis.m_l_vandermonde_t,
-                  permuted_basis_values,
-                  boost::numeric::ublas::lower_tag()),
-                boost::numeric::ublas::upper_tag());
+          if (info < 0)
+            throw std::runtime_error("invalid argument to getrs");
 
-          return interpolator(el_inf.m_start, el_inf.m_end, coeff);
+          return interpolator(el_inf.m_start, el_inf.m_end, rhs_and_sol);
         }
 
 

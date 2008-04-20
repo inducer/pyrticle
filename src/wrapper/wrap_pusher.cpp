@@ -51,9 +51,8 @@ void expose_pusher()
     typedef local_monomial_discretization cl;
     python::class_<cl>("LocalMonomialDiscretization")
       .DEF_RW_MEMBER(basis)
-      .def(by_value_rw_member("l_vandermonde_t", &cl::m_l_vandermonde_t))
-      .def(by_value_rw_member("u_vandermonde_t", &cl::m_u_vandermonde_t))
-      .DEF_RW_MEMBER(p_vandermonde_t)
+      .DEF_BYVAL_RW_MEMBER(lu_vandermonde_t)
+      .DEF_BYVAL_RW_MEMBER(lu_piv_vandermonde_t)
       ;
   }
 

@@ -337,10 +337,11 @@ def run_setup(casename, setup, discr, pusher):
                 for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
 
         from pyrticle.tools import NumberShiftableVector
+        vis_info = cloud.vis_listener.particle_vis_map
         all_sim_f = NumberShiftableVector.unwrap(
-                cloud.vis_info["mag_force"] + cloud.vis_info["el_force"])
-        all_el_sim_f = NumberShiftableVector.unwrap(cloud.vis_info["el_force"])
-        all_mag_sim_f = NumberShiftableVector.unwrap(cloud.vis_info["mag_force"])
+                vis_info["mag_force"] + vis_info["el_force"])
+        all_el_sim_f = NumberShiftableVector.unwrap(vis_info["el_force"])
+        all_mag_sim_f = NumberShiftableVector.unwrap(vis_info["mag_force"])
 
         local_e = setup.e()
         local_b = units.MU0 * setup.h()

@@ -78,11 +78,7 @@ class MonomialParticlePusher(Pusher):
                     generic_vandermonde(ldis.unit_nodes(), lmd.basis).T,
                     order="C")
 
-            lvt, uvt, perm = lu(mon_vdm_t)
-            from pyublas import permutation_matrix
-            lmd.l_vandermonde_t = numpy.asarray(lvt, order="C")
-            lmd.u_vandermonde_t = numpy.asarray(uvt, order="C")
-            lmd.p_vandermonde_t = permutation_matrix(from_indices=perm)
+            lmd.lu_vandermonde_t, lmd.lu_piv_vandermonde_t = lu(mon_vdm_t)
             cloud.pic_algorithm.local_discretizations.append(lmd)
 
             cloud.pic_algorithm.ldis_indices.extend([i]*len(eg.members))
@@ -105,7 +101,7 @@ class AverageFieldStdDeviation(pytools.log.LogQuantity):
         self.vis_field = "pt_%s_stddev" % field
 
     def __call__(self):
-        vis_info = self.pusher.cloud.vis_info
+        vis_info = self.pusher.cloud.vis_listener.particle_vis_map
         if self.vis_field not in vis_info:
             return None
         sd = vis_info[self.vis_field]
