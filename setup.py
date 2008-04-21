@@ -17,39 +17,51 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import glob
-import os
-import os.path
-import sys
+
+
+
+def get_config_schema():
+    from aksetup_helper import ConfigSchema, Option, \
+            IncludeDir, LibraryDir, Libraries, \
+            Switch, StringListOption
+
+    return ConfigSchema([
+        IncludeDir("BOOST", []),
+        LibraryDir("BOOST", []),
+        Libraries("BOOST_PYTHON", ["boost_python-gcc42-mt"]),
+
+        IncludeDir("NUMPY"),
+
+        IncludeDir("BOOST_BINDINGS", []),
+
+        LibraryDir("BLAS", []),
+        Libraries("BLAS", ["blas"]),
+        LibraryDir("LAPACK", []),
+        Libraries("LAPACK", ["lapack"]),
+
+        Switch("HAVE_MPI", False, "Whether to build with support for MPI"),
+        Option("MPICC", "mpicc",
+            "Path to MPI C compiler"),
+        Option("MPICXX", 
+            help="Path to MPI C++ compiler (defaults to same as MPICC)"),
+        Libraries("BOOST_MPI", ["boost_mpi-gcc42-mt"]),
+
+        StringListOption("CXXFLAGS", [], 
+            help="Any extra C++ compiler options to include"),
+        ])
+
+
+
 
 def main():
-    try:
-        conf = {}
-        execfile("siteconf.py", conf)
-    except IOError:
-        print "*** Please run configure first."
-        sys.exit(1)
+    import glob
+    from aksetup_helper import hack_distutils, get_config, setup, Extension
 
-    from distutils.core import setup,Extension
+    hack_distutils()
+    conf = get_config()
 
-    def non_matching_config():
-        print "*** The version of your configuration template does not match"
-        print "*** the version of the setup script. Please re-run configure."
-        sys.exit(1)
-
-    if "PYRTICLE_CONF_TEMPLATE_VERSION" not in conf:
-        non_matching_config()
-
-    if conf["PYRTICLE_CONF_TEMPLATE_VERSION"] != 3:
-        non_matching_config()
-
-    INCLUDE_DIRS = ["src/cpp"] \
-            + conf["BOOST_BINDINGS_INCLUDE_DIRS"] \
-            + conf["BOOST_INCLUDE_DIRS"] \
-            + conf["NUMPY_INC_DIRS"]
-
-    LIBRARY_DIRS = conf["BOOST_LIBRARY_DIRS"]
-    LIBRARIES = conf["BPL_LIBRARIES"]
+    LIBRARY_DIRS = conf["BOOST_LIB_DIR"]
+    LIBRARIES = conf["BOOST_PYTHON_LIBNAME"]
 
     EXTRA_DEFINES = {}
     EXTRA_INCLUDE_DIRS = []
@@ -59,23 +71,37 @@ def main():
     if conf["HAVE_MPI"]:
         EXTRA_DEFINES["USE_MPI"] = 1
         EXTRA_DEFINES["OMPI_SKIP_MPICXX"] = 1
-        LIBRARIES.extend(conf["BOOST_MPI_LIBRARIES"])
+        LIBRARIES.extend(conf["BOOST_MPI_LIBNAME"])
 
+        from distutils import sysconfig
         cvars = sysconfig.get_config_vars()
         cvars["CC"] = conf["MPICC"]
         cvars["CXX"] = conf["MPICXX"]
 
-    conf["BLAS_INCLUDE_DIRS"] = []
-    conf["LAPACK_INCLUDE_DIRS"] = []
+    if conf["NUMPY_INC_DIR"] is None:
+        try:
+            import numpy
+            from os.path import join
+            conf["NUMPY_INC_DIR"] = [join(numpy.__path__[0], "core", "include")]
+        except:
+            pass
+
+    INCLUDE_DIRS = ["src/cpp"] \
+            + conf["BOOST_BINDINGS_INC_DIR"] \
+            + conf["BOOST_INC_DIR"] \
+            + conf["NUMPY_INC_DIR"]
+
+    conf["BLAS_INC_DIR"] = []
+    conf["LAPACK_INC_DIR"] = []
     conf["USE_BLAS"] = True
     conf["USE_LAPACK"] = True
 
     def handle_component(comp):
         if conf["USE_"+comp]:
             EXTRA_DEFINES["USE_"+comp] = 1
-            EXTRA_INCLUDE_DIRS.extend(conf[comp+"_INCLUDE_DIRS"])
-            EXTRA_LIBRARY_DIRS.extend(conf[comp+"_LIBRARY_DIRS"])
-            EXTRA_LIBRARIES.extend(conf[comp+"_LIBRARIES"])
+            EXTRA_INCLUDE_DIRS.extend(conf[comp+"_INC_DIR"])
+            EXTRA_LIBRARY_DIRS.extend(conf[comp+"_LIB_DIR"])
+            EXTRA_LIBRARIES.extend(conf[comp+"_LIBNAME"])
 
     handle_component("LAPACK")
     handle_component("BLAS")
@@ -85,8 +111,14 @@ def main():
           description="A high-order PIC code using Hedge",
           author=u"Andreas Kloeckner",
           author_email="inform@tiker.net",
-          license = "Proprietary",
-          #url="http://news.tiker.net/software/pyrticle",
+          license = "GPLv3",
+          url="http://mathema.tician.de/software/pyrticle",
+
+          setup_requires=[
+              "hedge[elliptic,silo]>=0.90",
+              "PyUblas>=0.90",
+              ],
+
           packages=["pyrticle"],
           package_dir={"pyrticle": "src/python"},
           ext_package="pyrticle",
@@ -107,33 +139,13 @@ def main():
                 include_dirs=INCLUDE_DIRS + EXTRA_INCLUDE_DIRS,
                 library_dirs=LIBRARY_DIRS + EXTRA_LIBRARY_DIRS,
                 libraries=LIBRARIES + EXTRA_LIBRARIES,
-                extra_compile_args=conf["EXTRA_COMPILE_ARGS"],
+                extra_compile_args=conf["CXXFLAGS"],
                 define_macros=list(EXTRA_DEFINES.iteritems()),
                 )]
          )
 
 
 
-if __name__ == '__main__':
-    # hack distutils.sysconfig to eliminate debug flags
-    # stolen from mpi4py
-    import sys
-    if not sys.platform.lower().startswith("win"):
-        from distutils import sysconfig
 
-        cvars = sysconfig.get_config_vars()
-        cflags = cvars.get('OPT')
-        if cflags:
-            cflags = cflags.split()
-            for bad_prefix in ('-g', '-O', '-Wstrict-prototypes'):
-                for i, flag in enumerate(cflags):
-                    if flag.startswith(bad_prefix):
-                        cflags.pop(i)
-                        break
-                if flag in cflags:
-                    cflags.remove(flag)
-            cflags.append("-O3")
-            cvars['OPT'] = str.join(' ', cflags)
-            cvars["CFLAGS"] = cvars["BASECFLAGS"] + " " + cvars["OPT"]
-    # and now call main
+if __name__ == '__main__':
     main()

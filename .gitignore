@@ -36,3 +36,4 @@ bin/logtool
 temp-*.cpy
 .nfs*
 out
+*.egg-info
