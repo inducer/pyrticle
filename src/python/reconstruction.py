@@ -296,7 +296,7 @@ class GridReconstructor(Reconstructor):
             el_tolerance=0.2,
             max_extra_points=20,
             enforce_continuity=False,
-            method="simplex"):
+            method="simplex_enlarge"):
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
@@ -321,12 +321,14 @@ class GridReconstructor(Reconstructor):
             pic.bricks.append(Brick(i, pic.grid_node_count(),
                         stepwidths, origin, dims))
 
-        if self.method == "simplex":
-            self.prepare_with_pointwise_projection()
+        if self.method == "simplex_extra":
+            self.prepare_with_pointwise_projection_and_extra_points()
+        elif self.method == "simplex_enlarge":
+            self.prepare_with_pointwise_projection_and_enlargement()
         elif self.method == "brick":
             self.prepare_with_brick_interpolation()
         else:
-            raise RuntimeError, "invalid method specified"
+            raise RuntimeError, "invalid rec_grid submethod specified"
 
     def find_containing_brick(self, pt):
         for brk in self.cloud.pic_algorithm.bricks:
@@ -456,7 +458,7 @@ class GridReconstructor(Reconstructor):
                 numpy.dot(ldis.vandermonde(), svdm_pinv),
                 order="F")
 
-    def prepare_with_pointwise_projection(self):
+    def prepare_with_pointwise_projection_and_extra_points(self):
         discr = self.cloud.mesh_data.discr
         pic = self.cloud.pic_algorithm
 
@@ -560,7 +562,6 @@ class GridReconstructor(Reconstructor):
 
             ep_brick_starts.append(len(extra_points))
 
-
         pic.first_extra_point = grid_node_count
         pic.extra_point_brick_starts.extend(ep_brick_starts)
         pic.extra_points = numpy.array(extra_points)
@@ -569,6 +570,71 @@ class GridReconstructor(Reconstructor):
         from pytools import average
         print "average node factor: %g, #extra points: %d" % (
                 average(node_factors), len(extra_points))
+
+    def prepare_with_pointwise_projection_and_enlargement(self):
+        discr = self.cloud.mesh_data.discr
+        pic = self.cloud.pic_algorithm
+
+        pic.elements_on_grid.reserve(
+                sum(len(eg.members) for eg in discr.element_groups))
+
+        node_factors = []
+
+        # Iterate over all elements
+        for eg in discr.element_groups:
+            ldis = eg.local_discretization
+
+            for el in eg.members:
+                # If the structured Vandermonde matrix is singular,
+                # enlarge the element tolerance
+
+                my_tolerance = self.el_tolerance
+                tolerance_bound = 0.8
+
+                while True:
+                    eog, points = self.find_points_in_element(el, my_tolerance)
+
+                    from hedge.polynomial import generic_vandermonde
+                    structured_vdm = generic_vandermonde(
+                            [el.inverse_map(x) for x in points], 
+                            ldis.basis_functions())
+
+                    try:
+                        u, s, vt = svd = la.svd(structured_vdm)
+                        thresh = (numpy.finfo(float).eps
+                                * max(structured_vdm.shape) * s[0])
+                        zero_indices = [i for i, si in enumerate(s)
+                            if abs(si) < thresh]
+                        bad_svd = bool(zero_indices)
+                    except la.LinAlgError:
+                        bad_svd = True
+
+                    if not bad_svd:
+                        break
+
+                    my_tolerance += 0.03
+                    if my_tolerance >= tolerance_bound:
+                        from warnings import warn
+                        warn("rec_grid: could not regularize structured "
+                                "vandermonde matrix for el#%d by enlargement" % el.id)
+                        break
+
+                if my_tolerance > self.el_tolerance:
+                    print "element %d #nodes=%d sgridpt=%d, extra tol=%g" % (
+                            el.id, ldis.node_count(), len(points), my_tolerance-self.el_tolerance)
+                node_factors.append(len(points) / ldis.node_count())
+
+                eog.interpolation_matrix = self.make_pointwise_interpolation_matrix(
+                        el, ldis, svd, structured_vdm)
+
+                pic.elements_on_grid.append(eog)
+
+        # we don't need no stinkin' extra points
+        pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
+
+        # print some statistics
+        from pytools import average
+        print "average node factor: %g" % (average(node_factors))
 
     def prepare_with_brick_interpolation(self):
         class TensorProductLegendreBasisFunc:
