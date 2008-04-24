@@ -58,12 +58,12 @@ def main():
     from aksetup_helper import hack_distutils, get_config, setup, Extension
 
     hack_distutils()
-    conf = get_config()
+    conf = get_config(get_config_schema())
 
     LIBRARY_DIRS = conf["BOOST_LIB_DIR"]
     LIBRARIES = conf["BOOST_PYTHON_LIBNAME"]
 
-    EXTRA_DEFINES = {}
+    EXTRA_DEFINES = { "PYUBLAS_HAVE_BOOST_BINDINGS":1 }
     EXTRA_INCLUDE_DIRS = []
     EXTRA_LIBRARY_DIRS = []
     EXTRA_LIBRARIES = []
