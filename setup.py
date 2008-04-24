@@ -30,8 +30,6 @@ def get_config_schema():
         LibraryDir("BOOST", []),
         Libraries("BOOST_PYTHON", ["boost_python-gcc42-mt"]),
 
-        IncludeDir("NUMPY"),
-
         IncludeDir("BOOST_BINDINGS", []),
 
         LibraryDir("BLAS", []),
@@ -78,18 +76,9 @@ def main():
         cvars["CC"] = conf["MPICC"]
         cvars["CXX"] = conf["MPICXX"]
 
-    if conf["NUMPY_INC_DIR"] is None:
-        try:
-            import numpy
-            from os.path import join
-            conf["NUMPY_INC_DIR"] = [join(numpy.__path__[0], "core", "include")]
-        except:
-            pass
-
     INCLUDE_DIRS = ["src/cpp"] \
             + conf["BOOST_BINDINGS_INC_DIR"] \
-            + conf["BOOST_INC_DIR"] \
-            + conf["NUMPY_INC_DIR"]
+            + conf["BOOST_INC_DIR"]
 
     conf["BLAS_INC_DIR"] = []
     conf["LAPACK_INC_DIR"] = []

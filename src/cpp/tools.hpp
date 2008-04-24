@@ -192,7 +192,7 @@ namespace pyrticle
 
 
   template <class VecType>
-  inline typename VecType::value_type entry_or_zero(const VecType &v, int i)
+  inline typename VecType::value_type entry_or_zero(const VecType &v, unsigned i)
   {
     if (i >= v.size())
       return 0;
