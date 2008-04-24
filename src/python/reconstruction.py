@@ -309,7 +309,6 @@ class GridReconstructor(Reconstructor):
         discr = cloud.mesh_data.discr
 
         pic = self.cloud.pic_algorithm
-        bricks = pic.bricks
 
         if self.enforce_continuity:
             self.prepare_average_groups()
@@ -319,7 +318,7 @@ class GridReconstructor(Reconstructor):
         from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
-            bricks.append(Brick(i, pic.grid_node_count(),
+            pic.bricks.append(Brick(i, pic.grid_node_count(),
                         stepwidths, origin, dims))
 
         if self.method == "simplex":
@@ -376,17 +375,93 @@ class GridReconstructor(Reconstructor):
 
         print len(avg_groups), "average groups"
 
+    def find_points_in_element(self, el, el_tolerance):
+        from pyrticle._internal import BrickIterator, ElementOnGrid, BoxFloat
+        eog = ElementOnGrid()
+        eog.element_number = el.id
+
+        discr = self.cloud.mesh_data.discr
+        pic = self.cloud.pic_algorithm
+
+        el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
+
+        grid_node_count = pic.grid_node_count()
+
+        # enlarge the element bounding box by the mapped tolerance
+        scaled_tolerance = el_tolerance * la.norm(el.map.matrix, 2)
+        el_bbox.lower -= scaled_tolerance
+        el_bbox.upper += scaled_tolerance
+
+        points = []
+
+        # For each element, find all structured points inside the element.
+        for brk in pic.bricks:
+            brk_and_el = brk.bounding_box().intersect(el_bbox)
+
+            if brk_and_el.is_empty():
+                continue
+
+            for coord in BrickIterator(brk, brk.index_range(brk_and_el)):
+                point = brk.point(coord)
+
+                in_el = True
+                md_elinfo = pic.mesh_data.element_info[el.id]
+                for f in md_elinfo.faces:
+                    if (numpy.dot(f.normal, point) 
+                            - f.face_plane_eqn_rhs > scaled_tolerance):
+                        in_el = False
+                        break
+
+                if in_el:
+                    points.append(point)
+                    grid_node_index = brk.index(coord)
+                    assert grid_node_index < grid_node_count
+                    eog.grid_nodes.append(grid_node_index)
+
+        return eog, points
+
+    def make_pointwise_interpolation_matrix(self, el, ldis, svd, structured_vdm):
+        u, s, vt = svd
+
+        point_count = u.shape[0]
+        node_count = vt.shape[1]
+
+        thresh = (numpy.finfo(float).eps * max(s.shape) * s[0])
+
+        nonzero_flags = numpy.abs(s) >= thresh
+        inv_s = numpy.zeros((len(s),), dtype=float)
+        inv_s[nonzero_flags] = 1/s[nonzero_flags]
+
+        # compute the pseudoinverse of the structured
+        # Vandermonde matrix
+        inv_s_diag = numpy.zeros(
+                (node_count, point_count), 
+                dtype=float)
+        inv_s_diag[:len(s),:len(s)] = numpy.diag(1/s)
+
+        svdm_pinv = numpy.dot(numpy.dot(vt.T, inv_s_diag), u.T)
+
+        # check that it's reasonable
+        pinv_resid = la.norm(
+            numpy.dot(svdm_pinv, structured_vdm)
+            - numpy.eye(node_count))
+
+        if pinv_resid > 1e-8:
+            from warnings import warn
+            warn("rec_grid: bad pseudoinv precision, element=%d, "
+                    "#nodes=%d, #sgridpts=%d, resid=%.5g centroid=%s"
+                % (el.id, node_count, point_count, pinv_resid,
+                        el.centroid(discr.mesh.points)))
+        return numpy.asarray(
+                numpy.dot(ldis.vandermonde(), svdm_pinv),
+                order="F")
+
     def prepare_with_pointwise_projection(self):
         discr = self.cloud.mesh_data.discr
         pic = self.cloud.pic_algorithm
-        bricks = pic.bricks
 
         pic.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
-
-        from pyrticle._internal import BrickIterator, ElementOnGrid, BoxFloat
-
-        grid_node_count = pic.grid_node_count()
 
         # map brick numbers to [ (point, el_id, el_structured_point_index),...]
         # This is used to write out the C++ extra_points structure further
@@ -400,47 +475,13 @@ class GridReconstructor(Reconstructor):
             ldis = eg.local_discretization
 
             for el in eg.members:
-                eog = ElementOnGrid()
-                eog.element_number = el.id
+                eog, points = self.find_points_in_element(el, self.el_tolerance)
 
-                el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
-
-                # enlarge the element bounding box by the mapped tolerance
-                scaled_tolerance = self.el_tolerance * la.norm(el.map.matrix, 2)
-                el_bbox.lower -= scaled_tolerance
-                el_bbox.upper += scaled_tolerance
-
-                # For each element, find all structured points inside the element.
-                for brk in bricks:
-                    brk_and_el = brk.bounding_box().intersect(el_bbox)
-
-                    if brk_and_el.is_empty():
-                        continue
-
-                    points = []
-                    for coord in BrickIterator(brk, brk.index_range(brk_and_el)):
-                        point = brk.point(coord)
-
-                        in_el = True
-                        md_elinfo = pic.mesh_data.element_info[el.id]
-                        for f in md_elinfo.faces:
-                            if (numpy.dot(f.normal, point) 
-                                    - f.face_plane_eqn_rhs > scaled_tolerance):
-                                in_el = False
-                                break
-
-                        if in_el:
-                            points.append(point)
-                            grid_node_index = brk.index(coord)
-                            assert grid_node_index < grid_node_count
-                            eog.grid_nodes.append(grid_node_index)
-
-                node_count = ldis.node_count()
-                if len(points) < node_count:
+                if len(points) < ldis.node_count():
                     from warnings import warn
                     warn("rec_grid: element has too few structured grid points "
                             "(element #%d, #nodes=%d #sgridpt=%d)"
-                            % (el.id, node_count, len(points)))
+                            % (el.id, ldis.node_count(), len(points)))
 
                 # If the structured Vandermonde matrix is singular,
                 # add "extra points" to prevent that.
@@ -451,7 +492,7 @@ class GridReconstructor(Reconstructor):
                             [el.inverse_map(x) for x in points], 
                             ldis.basis_functions())
 
-                    u, s, vt = la.svd(structured_vdm)
+                    u, s, vt = svd = la.svd(structured_vdm)
                     thresh = (numpy.finfo(float).eps
                             * max(structured_vdm.shape) * s[0])
                     zero_indices = [i for i, si in enumerate(s)
@@ -497,40 +538,11 @@ class GridReconstructor(Reconstructor):
 
                 if ep_count:
                     print "element %d #nodes=%d sgridpt=%d, extra=%d" % (
-                            el.id, node_count, len(points), ep_count)
-                node_factors.append(len(points) / node_count)
+                            el.id, ldis.node_count(), len(points), ep_count)
+                node_factors.append(len(points) / ldis.node_count())
 
-                nonzero_flags = numpy.abs(si) >= thresh
-                inv_s = numpy.zeros((len(s),), dtype=float)
-                inv_s[nonzero_flags] = 1/s[nonzero_flags]
-
-                # compute the pseudoinverse of the structured
-                # Vandermonde matrix
-                inv_s_diag = numpy.zeros(
-                        (node_count, len(points)), 
-                        dtype=float)
-                inv_s_diag[:len(s),:len(s)] = numpy.diag(1/s)
-
-                svdm_pinv = numpy.dot(
-                        numpy.dot(vt.T, inv_s_diag),
-                        u.T)
-
-                # check that it's reasonable
-                pinv_resid = la.norm(
-                    numpy.dot(svdm_pinv, structured_vdm)
-                    - numpy.eye(node_count))
-
-                if pinv_resid > 1e-8:
-                    from warnings import warn
-                    warn("rec_grid: bad pseudoinv precision, element=%d, "
-                            "#nodes=%d, #sgridpts=%d, resid=%.5g centroid=%s"
-                        % (el.id, node_count, len(points), pinv_resid,
-                                el.centroid(discr.mesh.points)))
-
-                # compose interpolation matrix
-                eog.interpolation_matrix = numpy.asarray(
-                        numpy.dot(ldis.vandermonde(), svdm_pinv),
-                        order="F")
+                eog.interpolation_matrix = self.make_pointwise_interpolation_matrix(
+                        el, ldis, svd, structured_vdm)
 
                 pic.elements_on_grid.append(eog)
 
@@ -538,7 +550,8 @@ class GridReconstructor(Reconstructor):
         ep_brick_starts = [0]
         extra_points = []
         
-        for brk in bricks:
+        grid_node_count = pic.grid_node_count()
+        for brk in pic.bricks:
             for pt, el_id, struc_idx in ep_brick_map.get(brk.number, []):
                 # replace zero placeholder from above
                 pic.elements_on_grid[el_id].grid_nodes[struc_idx] = \
