@@ -470,7 +470,7 @@ class GridReconstructor(Reconstructor):
         # down.
         ep_brick_map = {}
 
-        node_factors = []
+        total_points = 0
 
         # Iterate over all elements
         for eg in discr.element_groups:
@@ -478,12 +478,6 @@ class GridReconstructor(Reconstructor):
 
             for el in eg.members:
                 eog, points = self.find_points_in_element(el, self.el_tolerance)
-
-                if len(points) < ldis.node_count():
-                    from warnings import warn
-                    warn("rec_grid: element has too few structured grid points "
-                            "(element #%d, #nodes=%d #sgridpt=%d)"
-                            % (el.id, ldis.node_count(), len(points)))
 
                 # If the structured Vandermonde matrix is singular,
                 # add "extra points" to prevent that.
@@ -495,10 +489,16 @@ class GridReconstructor(Reconstructor):
                             ldis.basis_functions())
 
                     u, s, vt = svd = la.svd(structured_vdm)
-                    thresh = (numpy.finfo(float).eps
-                            * max(structured_vdm.shape) * s[0])
-                    zero_indices = [i for i, si in enumerate(s)
-                        if abs(si) < thresh]
+
+                    if len(points) >= ldis.node_count():
+                        # case 1: theoretically enough points found
+                        thresh = (numpy.finfo(float).eps
+                                * max(structured_vdm.shape) * s[0])
+                        zero_indices = [i for i, si in enumerate(s)
+                            if abs(si) < thresh]
+                    else:
+                        zero_indices = range(vt.shape[0]-len(s), vt.shape[0])
+                        assert zero_indices
 
                     if not zero_indices:
                         break
@@ -510,13 +510,15 @@ class GridReconstructor(Reconstructor):
                                 "vandermonde matrix for el#%d with #ep bound" % el.id)
                         break
 
-                    zi = zero_indices[0]
-
                     # Getting here means that a mode
                     # maps to zero on the structured grid.
                     # Find it.
-                    zeroed_mode_nodal = numpy.dot(
-                            ldis.vandermonde(), vt[zi])
+
+                    # mode linear combination available for zeroed 
+                    # mode: use it
+                    zeroed_mode = vt[zero_indices[0]]
+                    zeroed_mode_nodal = numpy.dot(ldis.vandermonde(), 
+                            zeroed_mode)
 
                     # Then, find the point in that mode with
                     # the highest absolute value.
@@ -541,7 +543,7 @@ class GridReconstructor(Reconstructor):
                 if ep_count:
                     print "element %d #nodes=%d sgridpt=%d, extra=%d" % (
                             el.id, ldis.node_count(), len(points), ep_count)
-                node_factors.append(len(points) / ldis.node_count())
+                total_points += len(points)
 
                 eog.interpolation_matrix = self.make_pointwise_interpolation_matrix(
                         el, ldis, svd, structured_vdm)
@@ -567,18 +569,22 @@ class GridReconstructor(Reconstructor):
         pic.extra_points = numpy.array(extra_points)
 
         # print some statistics
-        from pytools import average
-        print "average node factor: %g, #extra points: %d" % (
-                average(node_factors), len(extra_points))
+        print("rec_grid.simplex_extra stats: #nodes: %d, "
+                "#points: %d, #points added: %d" % (
+                len(discr), total_points, len(extra_points))
+        )
 
     def prepare_with_pointwise_projection_and_enlargement(self):
+        tolerance_bound = 1.5
+
         discr = self.cloud.mesh_data.discr
         pic = self.cloud.pic_algorithm
 
         pic.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
-        node_factors = []
+        total_points = 0
+        points_added = 0
 
         # Iterate over all elements
         for eg in discr.element_groups:
@@ -590,10 +596,13 @@ class GridReconstructor(Reconstructor):
                 # enlarge the element tolerance
 
                 my_tolerance = self.el_tolerance
-                tolerance_bound = 0.8
+
+                orig_point_count = None
 
                 while True:
                     eog, points = self.find_points_in_element(el, my_tolerance)
+                    if orig_point_count is None:
+                        orig_point_count = len(points)
 
                     from hedge.polynomial import generic_vandermonde
                     structured_vdm = generic_vandermonde(
@@ -623,9 +632,12 @@ class GridReconstructor(Reconstructor):
                         break
 
                 if my_tolerance > self.el_tolerance:
-                    print "element %d #nodes=%d sgridpt=%d, extra tol=%g" % (
-                            el.id, ldis.node_count(), len(points), my_tolerance-self.el_tolerance)
-                node_factors.append(len(points) / ldis.node_count())
+                    print "element %d #nodes=%d sgridpt=%d, extra tol=%g, #extra points=%d" % (
+                            el.id, ldis.node_count(), len(points), 
+                            my_tolerance-self.el_tolerance,
+                            len(points)-orig_point_count)
+                    points_added += len(points)-orig_point_count
+                total_points += len(points)
 
                 eog.interpolation_matrix = self.make_pointwise_interpolation_matrix(
                         el, ldis, svd, structured_vdm)
@@ -637,7 +649,10 @@ class GridReconstructor(Reconstructor):
 
         # print some statistics
         from pytools import average
-        print "average node factor: %g" % (average(node_factors))
+        print("rec_grid.simplex_enlarge stats: #nodes: %d, "
+                "#points: %d, #points added: %d" % (
+                len(discr), total_points, points_added)
+        )
 
     def prepare_with_brick_interpolation(self):
         class TensorProductLegendreBasisFunc:
@@ -664,6 +679,8 @@ class GridReconstructor(Reconstructor):
                 sum(len(eg.members) for eg in discr.element_groups))
 
         from pyrticle._internal import BrickIterator, ElementOnGrid, BoxFloat
+
+        total_points = 0
 
         # Iterate over all elements
         for eg in discr.element_groups:
@@ -714,12 +731,13 @@ class GridReconstructor(Reconstructor):
                     svdm = generic_vandermonde(
                             points=brk_and_el_points,
                             functions=lb)
+                    total_points += len(brk_and_el_points)
 
                     mixed_vdm_pre = generic_vandermonde(
                             points=el_nodes, functions=lb)
 
                     if len(el_nodes) < el_length:
-                        mixed_vdm = numpy.zeros((el_length, el_length),
+                        mixed_vdm = numpy.zeros((el_length, len(lb)),
                                 dtype=float)
                         for i, vdm_row in enumerate(mixed_vdm_pre):
                             mixed_vdm[el_node_indices[i]] = vdm_row
@@ -739,6 +757,9 @@ class GridReconstructor(Reconstructor):
 
         # we don't need no stinkin' extra points
         pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
+
+        print("rec_grid.brick stats: #nodes: %d, #points: %d" % (
+                len(discr), total_points))
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
