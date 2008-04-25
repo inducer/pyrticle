@@ -453,7 +453,7 @@ class GridReconstructor(Reconstructor):
             warn("rec_grid: bad pseudoinv precision, element=%d, "
                     "#nodes=%d, #sgridpts=%d, resid=%.5g centroid=%s"
                 % (el.id, node_count, point_count, pinv_resid,
-                        el.centroid(discr.mesh.points)))
+                        el.centroid(self.cloud.mesh_data.discr.mesh.points)))
         return numpy.asarray(
                 numpy.dot(ldis.vandermonde(), svdm_pinv),
                 order="F")
@@ -583,6 +583,7 @@ class GridReconstructor(Reconstructor):
         # Iterate over all elements
         for eg in discr.element_groups:
             ldis = eg.local_discretization
+            basis = ldis.basis_functions()
 
             for el in eg.members:
                 # If the structured Vandermonde matrix is singular,
@@ -597,19 +598,21 @@ class GridReconstructor(Reconstructor):
                     from hedge.polynomial import generic_vandermonde
                     structured_vdm = generic_vandermonde(
                             [el.inverse_map(x) for x in points], 
-                            ldis.basis_functions())
+                            basis)
 
-                    try:
-                        u, s, vt = svd = la.svd(structured_vdm)
-                        thresh = (numpy.finfo(float).eps
-                                * max(structured_vdm.shape) * s[0])
-                        zero_indices = [i for i, si in enumerate(s)
-                            if abs(si) < thresh]
-                        bad_svd = bool(zero_indices)
-                    except la.LinAlgError:
-                        bad_svd = True
+                    bad_vdm = len(points) < len(basis)
+                    if not bad_vdm:
+                        try:
+                            u, s, vt = svd = la.svd(structured_vdm)
+                            thresh = (numpy.finfo(float).eps
+                                    * max(structured_vdm.shape) * s[0])
+                            zero_indices = [i for i, si in enumerate(s)
+                                if abs(si) < thresh]
+                            bad_vdm = bool(zero_indices)
+                        except la.LinAlgError:
+                            bad_vdm = True
 
-                    if not bad_svd:
+                    if not bad_vdm:
                         break
 
                     my_tolerance += 0.03

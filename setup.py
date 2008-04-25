@@ -53,7 +53,8 @@ def get_config_schema():
 
 def main():
     import glob
-    from aksetup_helper import hack_distutils, get_config, setup, Extension
+    from aksetup_helper import hack_distutils, get_config, setup, \
+            PyUblasExtension
 
     hack_distutils()
     conf = get_config(get_config_schema())
@@ -113,7 +114,7 @@ def main():
           package_dir={"pyrticle": "src/python"},
           ext_package="pyrticle",
           ext_modules=[
-            Extension("_internal", 
+            PyUblasExtension("_internal", 
                 [
                     "src/cpp/tools.cpp",
                     "src/cpp/rec_shape.cpp",
