@@ -64,69 +64,39 @@ def study_rec_grid():
     pusher = O("PushMonomial")
     eorder = 3
 
-    for el_tolerance in [0, 0.1, 0.15, 0.2, 0.3]:
-        for enf_cont in [True, False]:
-            for overres in [1.2, 1.3, 1.4, 1.6, 2]:
-                for mesh_margin in [0, 0.05, 0.1, 0.2]:
-                    job = BatchJob(
-                            "recgrid-$DATE/tol%g-cont%s-or%g-mm%g" % (
-                                el_tolerance, enf_cont, overres, mesh_margin),
-                            "with-charge.py",
-                            timestamp=timestamp,
-                            )
-                    brick_gen = O("SingleBrickGenerator",
-                            overresolve=overres,
-                            mesh_margin=mesh_margin)
-                    rec = O("RecGrid", brick_gen,
-                            el_tolerance=el_tolerance,
-                            enforce_continuity=enf_cont,
-                            method=method)
+    nparticles = 30000
 
-                    job.write_setup([
-                        "pusher = %s" % pusher,
-                        "reconstructor = %s" % rec,
-                        "element_order = %d" % eorder,
-                        ])
-                    job.submit()
+    for method in ["simplex_enlarge", "simplex_extra", "brick"]:
+        for el_tolerance in [0, 0.1, 0.15, 0.2, 0.3]:
+            for enf_cont in [True, False]:
+                for overres in [0.8, 1.0, 1.2, 1.3, 1.4, 1.6, 2]:
+                    for mesh_margin in [0, 0.05, 0.1, 0.2]:
+                        print "JOB"
+                        continue
+                        job = BatchJob(
+                                "recgrid-$DATE/tol%g-cont%s-or%g-mm%g" % (
+                                    el_tolerance, enf_cont, overres, mesh_margin),
+                                "with-charge.py",
+                                timestamp=timestamp,
+                                )
+                        brick_gen = O("SingleBrickGenerator",
+                                overresolve=overres,
+                                mesh_margin=mesh_margin)
+                        rec = O("RecGrid", brick_gen,
+                                el_tolerance=el_tolerance,
+                                enforce_continuity=enf_cont,
+                                method=method)
+
+                        job.write_setup([
+                            "pusher = %s" % pusher,
+                            "reconstructor = %s" % rec,
+                            "element_order = %d" % eorder,
+                            "nparticles = %d" % nparticles,
+                            ])
+                        job.submit()
 
 
 
-
-def study_rec_grid_methods():
-    """Submit jobs to study the behavior of grid reconstruction."""
-
-    O = ConstructorPlaceholder
-
-    timestamp = get_timestamp()
-
-    method = "simplex_enlarge"
-    pusher = O("PushMonomial")
-    eorder = 3
-
-    for el_tolerance in [0, 0.1, 0.15, 0.2, 0.3]:
-        for enf_cont in [True, False]:
-            for overres in [1.2, 1.3, 1.4, 1.6, 2]:
-                for mesh_margin in [0, 0.05, 0.1, 0.2]:
-                    job = BatchJob(
-                            "recgrid-$DATE/tol%g-cont%s-or%g-mm%g" % (
-                                el_tolerance, enf_cont, overres, mesh_margin),
-                            "with-charge.py",
-                            timestamp=timestamp,
-                            )
-                    brick_gen = O("SingleBrickGenerator",
-                            overresolve=overres,
-                            mesh_margin=mesh_margin)
-                    rec = O("RecGrid", brick_gen,
-                            el_tolerance=el_tolerance,
-                            enforce_continuity=enf_cont,
-                            method=method)
-
-                    job.write_setup([
-                        "pusher = %s" % pusher,
-                        "reconstructor = %s" % rec,
-                        "element_order = %d" % eorder,
-                        ])
-                    job.submit()
 
 def compare_element_finders():
     """Submit jobs to compare element finders."""
