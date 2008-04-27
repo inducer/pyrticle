@@ -132,13 +132,6 @@ class ParticleCloud:
         # instrumentation 
         from pytools.log import IntervalTimer, EventCounter
 
-        self.reconstruct_timer = IntervalTimer(
-                "t_reconstruct",
-                "Time spent reconstructing")
-        self.reconstruct_counter = EventCounter(
-                "n_reconstruct",
-                "Number of reconstructions")
-
         self.find_el_timer = IntervalTimer(
                 "t_find",
                 "Time spent finding new elements")
@@ -168,9 +161,6 @@ class ParticleCloud:
         return self.pic_algorithm.particle_count
 
     def add_instrumentation(self, mgr):
-        mgr.add_quantity(self.reconstruct_timer)
-        mgr.add_quantity(self.reconstruct_counter)
-
         mgr.add_quantity(self.find_el_timer)
         mgr.add_quantity(self.find_same_counter)
         mgr.add_quantity(self.find_by_neighbor_counter)
@@ -179,9 +169,6 @@ class ParticleCloud:
 
         self.reconstructor.add_instrumentation(mgr)
         self.pusher.add_instrumentation(mgr)
-
-        mgr.set_constant("reconstructor", self.reconstructor.name)
-        mgr.set_constant("pusher", self.pusher.name)
 
     @property
     def positions(self):
@@ -323,15 +310,11 @@ class ParticleCloud:
                 j = self.reconstruct_j(self.velocities())
                 return rho, j
             else:
-                rho = self.discretization.volume_zeros()
-                j = numpy.zeros((len(self.discretization), self.dimensions_velocity),
-                        dtype=float)
-
                 self.reconstruct_timer.start()
                 self.reconstructor.reconstruct_hook()
-                self.pic_algorithm.reconstruct_densities(rho, j, self.velocities())
                 self.reconstruct_timer.stop()
                 self.reconstruct_counter.add(self.dimensions_velocity+1)
+                rho_j
 
                 j = numpy.asarray(j.T, order="C")
 
@@ -349,17 +332,8 @@ class ParticleCloud:
         if "j" in self.derived_quantity_cache:
             return self.derived_quantity_cache["j"]
 
-        j = numpy.zeros((len(self.discretization), self.dimensions_velocity),
-                dtype=float)
-
-        self.reconstruct_timer.start()
-        self.reconstructor.reconstruct_hook()
-        self.pic_algorithm.reconstruct_j(j, self.velocities())
-        self.reconstruct_timer.stop()
-        self.reconstruct_counter.add(self.dimensions_velocity)
-
+        j = self.reconstructor.reconstruct_j(self.velocities())
         j = numpy.asarray(j.T, order="C")
-
         self.derived_quantity_cache["j"] = j
 
         return j
@@ -371,14 +345,7 @@ class ParticleCloud:
         if "rho" in self.derived_quantity_cache:
             return self.derived_quantity_cache["rho"]
 
-        rho = self.discretization.volume_zeros()
-
-        self.reconstruct_timer.start()
-        self.reconstructor.reconstruct_hook()
-        self.pic_algorithm.reconstruct_rho(rho)
-        self.reconstruct_timer.stop()
-        self.reconstruct_counter.add(1)
-
+        rho = self.pic_algorithm.reconstruct_rho()
         self.derived_quantity_cache["rho"] = rho
 
         return rho

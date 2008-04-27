@@ -33,7 +33,7 @@ import pyublas
 
 class Reconstructor(object):
     def __init__(self):
-        pass
+        self.log_constants = {}
     
     def initialize(self, cloud):
         self.cloud = cloud
@@ -43,7 +43,37 @@ class Reconstructor(object):
         self.shape_function = sf
 
     def add_instrumentation(self, mgr):
-        pass
+        mgr.set_constant("reconstructor", self.name)
+
+        for key, value in self.log_constants.iteritems():
+            mgr.set_constant(key, value)
+
+        from pytools.log import IntervalTimer, EventCounter,\
+                time_and_count_function
+
+        self.reconstruct_timer = IntervalTimer(
+                "t_reconstruct",
+                "Time spent reconstructing")
+        self.reconstruct_counter = EventCounter(
+                "n_reconstruct",
+                "Number of reconstructions")
+
+        self.reconstruct_densities = time_and_count_function(
+                self.reconstruct_densites,
+                self.reconstruct_timer,
+                self.reconstruct_counter,
+                1+self.cloud.dimensions_velocity)
+
+        self.reconstruct_j = time_and_count_function(
+                self.reconstruct_j,
+                self.reconstruct_timer,
+                self.reconstruct_counter,
+                self.cloud.dimensions_velocity)
+
+        self.reconstruct_rho = time_and_count_function(
+                self.reconstruct_rho,
+                self.reconstruct_timer,
+                self.reconstruct_counter)
 
     def clear_particles(self):
         pass
@@ -51,6 +81,18 @@ class Reconstructor(object):
     def reconstruct_hook(self):
         if self.shape_function is None:
             raise RuntimeError, "shape function never set"
+
+    def reconstruct_densites(self, velocities):
+        self.reconstruct_hook()
+        return self.cloud.pic_algorithm.reconstruct_densities(velocities)
+
+    def reconstruct_j(self, velocities):
+        self.reconstruct_hook()
+        return self.cloud.pic_algorithm.reconstruct_j(velocities)
+
+    def reconstruct_rho(self):
+        self.reconstruct_hook()
+        return self.cloud.pic_algorithm.reconstruct_rho()
 
     def rhs(self):
         return 0
@@ -265,7 +307,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
 
 # grid reconstruction ---------------------------------------------------------
-class SingleBrickGenerator:
+class SingleBrickGenerator(object):
     def __init__(self, overresolve=1.5, mesh_margin=0):
         self.overresolve = overresolve
         self.mesh_margin = mesh_margin
@@ -297,6 +339,7 @@ class GridReconstructor(Reconstructor):
             max_extra_points=20,
             enforce_continuity=False,
             method="simplex_enlarge"):
+        Reconstructor.__init__(self)
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
@@ -574,6 +617,10 @@ class GridReconstructor(Reconstructor):
                 len(discr), total_points, len(extra_points))
         )
 
+        self.log_constants["rec_grid_nodes"] = len(discr)
+        self.log_constants["rec_grid_points"] = total_points
+        self.log_constants["rec_grid_added"] = len(extra_points)
+
     def prepare_with_pointwise_projection_and_enlargement(self):
         tolerance_bound = 1.5
 
@@ -648,11 +695,13 @@ class GridReconstructor(Reconstructor):
         pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
 
         # print some statistics
-        from pytools import average
         print("rec_grid.simplex_enlarge stats: #nodes: %d, "
                 "#points: %d, #points added: %d" % (
-                len(discr), total_points, points_added)
-        )
+                len(discr), total_points, points_added))
+
+        self.log_constants["rec_grid_nodes"] = len(discr)
+        self.log_constants["rec_grid_points"] = total_points
+        self.log_constants["rec_grid_added"] = points_added
 
     def prepare_with_brick_interpolation(self):
         class TensorProductLegendreBasisFunc:
@@ -758,12 +807,26 @@ class GridReconstructor(Reconstructor):
         # we don't need no stinkin' extra points
         pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
 
+        # stats
         print("rec_grid.brick stats: #nodes: %d, #points: %d" % (
                 len(discr), total_points))
+
+        self.log_constants["rec_grid_nodes"] = len(discr)
+        self.log_constants["rec_grid_points"] = total_points
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf
+
+    def add_instrumentation(self, mgr):
+        Reconstructor.add_instrumentation(self, mgr)
+
+        mgr.set_constant("rec_grid_overresolve", self.brick_generator.overresolve)
+        mgr.set_constant("rec_grid_mesh_margin", self.brick_generator.mesh_margin)
+        mgr.set_constant("rec_grid_brick_gen", self.brick_generator.__class__.__name__)
+        mgr.set_constant("rec_grid_el_tolerance", self.el_tolerance)
+        mgr.set_constant("rec_grid_enforce_continuity", self.enforce_continuity)
+        mgr.set_constant("rec_grid_method", self.method)
 
     def write_grid_quantities(self, silo, quantities):
         dims = self.cloud.dimensions_mesh

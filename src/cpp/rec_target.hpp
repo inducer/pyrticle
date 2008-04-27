@@ -193,14 +193,15 @@ namespace pyrticle
   class target_reconstructor_base : public reconstructor_base
   {
     public:
-      void reconstruct_densities(
-          py_vector rho, py_vector j, const py_vector &velocities)
+      boost::tuple<py_vector, py_vector> 
+        reconstruct_densities(const py_vector &velocities)
       {
-        if (rho.size() != PIC_THIS->m_mesh_data.node_count())
-          throw std::runtime_error("rho field does not have the correct size");
-        if (j.size() != PIC_THIS->m_mesh_data.node_count() *
-            PIC_THIS->get_dimensions_velocity())
-          throw std::runtime_error("j field does not have the correct size");
+        py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
+        npy_intp dims[] = {
+          CONST_PIC_THIS->m_mesh_data.node_count(),
+          CONST_PIC_THIS->get_dimensions_velocity()
+        };
+        py_vector j(2, dims);
 
         rho_reconstruction_target rho_tgt(rho);
         typedef j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt_t;
@@ -211,13 +212,21 @@ namespace pyrticle
         PIC_THIS->reconstruct_densities_on_target(tgt);
 
         rho = rho_tgt.result();
+
+        return boost::make_tuple(rho, j);
       }
 
 
 
 
-      void reconstruct_j(py_vector j, const py_vector &velocities)
+      py_vector reconstruct_j(const py_vector &velocities)
       {
+        npy_intp dims[] = {
+          CONST_PIC_THIS->m_mesh_data.node_count(),
+          CONST_PIC_THIS->get_dimensions_velocity()
+        };
+
+        py_vector j(2, dims);
         if (j.size() != PIC_THIS->m_mesh_data.node_count() *
             PIC_THIS->get_dimensions_velocity())
           throw std::runtime_error("j field does not have the correct size");
@@ -226,18 +235,19 @@ namespace pyrticle
             j, velocities);
 
         PIC_THIS->reconstruct_densities_on_target(j_tgt);
+        return j;
       }
 
 
 
 
-      void reconstruct_rho(py_vector rho)
+      py_vector reconstruct_rho()
       {
-        if (rho.size() != PIC_THIS->m_mesh_data.node_count())
-          throw std::runtime_error("rho field does not have the correct size");
+        py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
 
         rho_reconstruction_target rho_tgt(rho);
         PIC_THIS->reconstruct_densities_on_target(rho_tgt);
+        return rho;
       }
   };
 }

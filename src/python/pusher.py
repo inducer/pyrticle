@@ -39,6 +39,7 @@ class Pusher(object):
         self.cloud = cloud
 
     def add_instrumentation(self, mgr):
+        mgr.set_constant("pusher", self.name)
         mgr.add_quantity(self.force_timer)
 
     def forces(self, velocities, verbose_vis, *field_args):

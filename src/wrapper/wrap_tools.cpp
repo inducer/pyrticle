@@ -27,6 +27,7 @@
 #include <boost/math/special_functions/acosh.hpp>
 #include <boost/numeric/bindings/lapack/gesv.hpp>
 #include <boost/numeric/bindings/traits/ublas_matrix.hpp>
+#include "wrap_tuples.hpp"
 #include "tools.hpp"
 #include "wrap_helpers.hpp"
 
@@ -256,4 +257,6 @@ void expose_tools()
           &cl::operator())
       ;
   }
+
+  python::register_tuple<boost::tuple<py_vector, py_vector> >();
 }

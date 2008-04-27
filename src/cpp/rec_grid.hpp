@@ -807,14 +807,15 @@ namespace pyrticle
         void perform_reconstructor_upkeep()
         { }
 
-        void reconstruct_densities(
-            py_vector rho, py_vector j, const py_vector &velocities)
+        boost::tuple<py_vector, py_vector> 
+          reconstruct_densities(const py_vector &velocities)
         {
-          if (rho.size() != PIC_THIS->m_mesh_data.node_count())
-            throw std::runtime_error("rho field does not have the correct size");
-          if (j.size() != PIC_THIS->m_mesh_data.node_count() *
-              PIC_THIS->get_dimensions_velocity())
-            throw std::runtime_error("j field does not have the correct size");
+          py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
+          npy_intp dims[] = {
+            CONST_PIC_THIS->m_mesh_data.node_count(),
+            CONST_PIC_THIS->get_dimensions_velocity()
+          };
+          py_vector j(2, dims);
 
           const unsigned gnc = grid_node_count();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
@@ -837,16 +838,20 @@ namespace pyrticle
           remap_grid_to_mesh(grid_rho, rho);
           for (unsigned i = 0; i < vdim; ++i)
             remap_grid_to_mesh(grid_j, j, i, vdim);
+
+          return boost::make_tuple(rho, j);
         }
 
 
 
 
-        void reconstruct_j(py_vector j, const py_vector &velocities)
+        py_vector reconstruct_j(const py_vector &velocities)
         {
-          if (j.size() != PIC_THIS->m_mesh_data.node_count() *
-              PIC_THIS->get_dimensions_velocity())
-            throw std::runtime_error("j field does not have the correct size");
+          npy_intp dims[] = {
+            CONST_PIC_THIS->m_mesh_data.node_count(),
+            CONST_PIC_THIS->get_dimensions_velocity()
+          };
+          py_vector j(2, dims);
 
           const unsigned gnc = grid_node_count();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
@@ -863,16 +868,16 @@ namespace pyrticle
 
           for (unsigned i = 0; i < vdim; ++i)
             remap_grid_to_mesh(grid_j, j, i, vdim);
+
+          return j;
         }
 
 
 
 
-        void reconstruct_rho(py_vector rho)
+        py_vector reconstruct_rho()
         {
-          if (rho.size() != PIC_THIS->m_mesh_data.node_count())
-            throw std::runtime_error("rho field does not have the correct size");
-
+          py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
           dyn_vector grid_rho(grid_node_count());
 
           rho_target rho_tgt(grid_rho);
@@ -881,6 +886,7 @@ namespace pyrticle
           rho.clear();
 
           remap_grid_to_mesh(grid_rho, rho);
+          return rho;
         }
     };
   };
