@@ -98,6 +98,7 @@ def main():
                 "cloud_charge": -1e-9 * units.C,
 
                 "vis_interval": 100,
+                "vis_path": ".",
                 }
         
         from hedge.mesh import make_rect_mesh
@@ -269,7 +270,9 @@ def main():
 
         if step % setup.vis_interval == 0:
             vis_timer.start()
-            visf = vis.make_file("pic-%04d" % step)
+            import os.path
+            visf = vis.make_file(os.path.join(
+                setup.vis_path, "pic-%04d" % step))
 
             cloud.add_to_vis(vis, visf, time=t, step=step, beamaxis=0)
             vis.add_data(visf, [

@@ -53,7 +53,7 @@ def compare_methods():
                         ])
                     job.submit()
 
-def study_rec_grid():
+def study_rec_grid(output_path=None):
     """Submit jobs to study the behavior of grid reconstruction."""
 
     O = ConstructorPlaceholder
@@ -71,11 +71,9 @@ def study_rec_grid():
             for enf_cont in [True, False]:
                 for overres in [0.8, 1.0, 1.2, 1.3, 1.4, 1.6, 2]:
                     for mesh_margin in [0, 0.05, 0.1, 0.2]:
-                        print "JOB"
-                        continue
                         job = BatchJob(
-                                "recgrid-$DATE/tol%g-cont%s-or%g-mm%g" % (
-                                    el_tolerance, enf_cont, overres, mesh_margin),
+                                "recgrid-$DATE/%s-tol%g-cont%s-or%g-mm%g" % (
+                                    method, el_tolerance, enf_cont, overres, mesh_margin),
                                 "with-charge.py",
                                 timestamp=timestamp,
                                 )
@@ -87,12 +85,19 @@ def study_rec_grid():
                                 enforce_continuity=enf_cont,
                                 method=method)
 
-                        job.write_setup([
+                        if output_path is not None:
+                            import os
+                            job_out_path = os.path.join(output_path, job.subdir)
+                            os.makedirs(job_out_path)
+
+                        setup = [
                             "pusher = %s" % pusher,
                             "reconstructor = %s" % rec,
                             "element_order = %d" % eorder,
                             "nparticles = %d" % nparticles,
-                            ])
+                            "vis_path = %s" % repr(job_out_path),
+                            ]
+                        job.write_setup(setup)
                         job.submit()
 
 
