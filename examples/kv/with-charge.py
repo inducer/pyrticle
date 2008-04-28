@@ -31,6 +31,8 @@ def main():
                 AverageParticlePusher
 
         variables = {
+                "mesh": None,
+
                 "radial_subdiv": 15,
                 "tube_length": 0.1*units.M,
                 "tube_radius": 25*units.MM,
@@ -40,7 +42,7 @@ def main():
 
                 "element_order": 3,
                 "shape_exponent": 2,
-                "shape_bandwidth": "guess",
+                "shape_bandwidth": "optimize",
 
                 "chi": None,
                 "phi_decay": 0,
@@ -54,6 +56,7 @@ def main():
                 "beam_length": 5*units.MM,
 
                 "vis_interval": 100,
+                "vis_path": ".",
                 }
 
         constants = {
@@ -81,11 +84,8 @@ def main():
 
     # discretization setup ----------------------------------------------------
     job = Job("mesh")
-    #full_mesh = make_cylinder_mesh(radius=25*units.MM, height=25*units.MM, periodic=True,
-            #max_volume=1000*units.MM**3, radial_subdivisions=10)
-    #full_mesh = make_box_mesh([1,1,2], max_volume=0.01)
 
-    if True:
+    if setup.mesh is None:
         from tubemesh import make_cylinder_with_fine_core
         full_mesh = make_cylinder_with_fine_core(
                 r=setup.tube_radius, inner_r=setup.tube_radius_inner, 
@@ -94,23 +94,9 @@ def main():
                 max_volume_outer=setup.max_volume_outer,
                 radial_subdiv=setup.radial_subdiv,
                 )
-    if False:
-        # pillbox cavity
-        from tubemesh import make_extrusion_with_fine_core
-        full_mesh = make_extrusion_with_fine_core(
-                rz=[
-                    (1*setup.tube_radius,0),
-                    (1*setup.tube_radius,setup.tube_length*0.333),
-                    (2*setup.tube_radius,setup.tube_length*0.333),
-                    (2*setup.tube_radius,setup.tube_length*0.666),
-                    (1*setup.tube_radius,setup.tube_length*0.666),
-                    (1*setup.tube_radius,setup.tube_length),
-                    ],
-                inner_r=setup.tube_radius_inner, 
-                max_volume_inner=setup.max_volume_inner,
-                max_volume_outer=setup.max_volume_outer,
-                radial_subdiv=setup.radial_subdiv,
-                )
+    else:
+        full_mesh = setup.mesh
+
     job.done()
 
     from hedge.parallel import guess_parallelization_context
@@ -252,7 +238,9 @@ def main():
 
         if step % setup.vis_interval == 0:
             vis_timer.start()
-            visf = vis.make_file("pic-%04d" % step)
+            import os.path
+            visf = vis.make_file(os.path.join(
+                setup.vis_path, "pic-%04d" % step))
 
             cloud.add_to_vis(vis, visf, time=t, step=step)
             vis.add_data(visf, [
@@ -262,6 +250,15 @@ def main():
                 ("j", cloud.reconstruct_j()), 
                 ],
                 time=t, step=step)
+
+            try:
+                cloud.reconstructor.write_grid_quantities
+            except AttributeError:
+                pass
+            else:
+                cloud.reconstructor.write_grid_quantities(visf, 
+                        ["rho", "j", "usecount"])
+
             visf.close()
             vis_timer.stop()
 

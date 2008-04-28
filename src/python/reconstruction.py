@@ -312,10 +312,15 @@ class SingleBrickGenerator(object):
         self.overresolve = overresolve
         self.mesh_margin = mesh_margin
 
+    def log_data(self, mgr):
+        mgr.set_constant("rec_grid_brick_gen", self.__class__.__name__)
+        mgr.set_constant("rec_grid_overresolve", self.overresolve)
+        mgr.set_constant("rec_grid_mesh_margin", self.mesh_margin)
+
     def __call__(self, discr):
         from hedge.discretization import integral, ones_on_volume
         mesh_volume = integral(discr, ones_on_volume(discr))
-        dx =  (mesh_volume / len(discr)/ self.overresolve)**(1/discr.dimensions) \
+        dx =  (mesh_volume / len(discr)/ self.overresolve)**(1/discr.dimensions)
 
         mesh = discr.mesh
         bbox_min, bbox_max = mesh.bounding_box()
@@ -327,6 +332,100 @@ class SingleBrickGenerator(object):
         dims = numpy.asarray(bbox_size/dx, dtype=numpy.int32)
         stepwidths = bbox_size/dims
         yield stepwidths, bbox_min, dims
+
+
+
+
+class FineCoreBrickGenerator(object):
+    def __init__(self, overresolve=1.5, mesh_margin=0, 
+            core_axis=None, core_fraction=0.1, core_factor=2):
+        self.overresolve = overresolve
+        self.mesh_margin = mesh_margin
+        self.core_axis = core_axis
+        self.core_fraction = core_fraction
+        self.core_factor = core_factor
+
+        assert isinstance(core_factor, int)
+
+    def log_data(self, mgr):
+        mgr.set_constant("rec_grid_brick_gen", self.__class__.__name__)
+        mgr.set_constant("rec_grid_overresolve", self.overresolve)
+        mgr.set_constant("rec_grid_mesh_margin", self.mesh_margin)
+        mgr.set_constant("rec_grid_core_fraction", self.core_fraction)
+        mgr.set_constant("rec_grid_core_factor", self.core_factor)
+
+    def __call__(self, discr):
+        mesh = discr.mesh
+        bbox_min, bbox_max = mesh.bounding_box()
+        d = len(bbox_min)
+
+        core_axis = self.core_axis
+        if core_axis is None:
+            core_axis = d-1
+
+        # calculate outer bbox, as above
+        from hedge.discretization import integral, ones_on_volume
+        mesh_volume = integral(discr, ones_on_volume(discr))
+        dx =  (mesh_volume / len(discr)/ self.overresolve)**(1/discr.dimensions)
+                
+        bbox_min -= self.mesh_margin
+        bbox_max += self.mesh_margin
+
+        bbox_size = bbox_max-bbox_min
+        dims = numpy.asarray(bbox_size/dx, dtype=numpy.int32)
+        stepwidths = bbox_size/dims
+
+        # calculate inner bbox
+        core_margin_dims = (dims*(1-self.core_fraction)/2).astype(numpy.int32)
+        core_margin_dims[core_axis] = 0
+        core_dx = dx/self.core_factor
+        core_min = bbox_min + stepwidths*core_margin_dims
+        core_max = bbox_max - stepwidths*core_margin_dims
+        core_size = core_max-core_min
+        core_dims = numpy.asarray(core_size/core_dx, dtype=numpy.int32)
+        core_stepwidths = core_size/core_dims
+
+        # yield the core
+        yield core_stepwidths, core_min, core_dims
+
+        # yield the surrounding bricks
+        from hedge.tools import unit_vector
+        axis_vec = unit_vector(d, core_axis, dtype=numpy.int32)
+        if d == 2:
+            margin_dims = core_margin_dims + dims*axis_vec
+            yield stepwidths, bbox_min, margin_dims
+            yield -stepwidths, bbox_max, margin_dims
+        elif d == 3:
+            other_axes = set(range(d)) - set([core_axis])
+            x, y = other_axes
+
+            # ^ y
+            # |
+            # +---------------------+
+            # |    |     2    |     |
+            # |    +----------+     |
+            # | 1  |   core   |  1  |
+            # |    +----------+     |
+            # |    |     2    |     |
+            # +---------------------+--> x
+            # 
+
+            x_vec = unit_vector(d, x, dtype=numpy.int32)
+
+            dims1 = dims.copy()
+            dims1[y] = core_margin_dims[y]
+            dims2 = dims.copy()
+            dims2[x] = dims[x]-2*core_margin_dims[x]
+            dims2[y] = core_margin_dims[y]
+
+            yield stepwidths, bbox_min, dims1
+            yield -stepwidths, bbox_max, dims1
+
+            x_offset_2 = x_vec*core_margin_dims[x]*stepwidths[x]
+            yield stepwidths, bbox_min+x_offset_2, dims2
+            yield -stepwidths, bbox_max-x_offset_2, dims2
+        else:
+            raise ValueError, "invalid dimensionality"
 
 
 
@@ -361,8 +460,8 @@ class GridReconstructor(Reconstructor):
         from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
-            pic.bricks.append(Brick(i, pic.grid_node_count(),
-                        stepwidths, origin, dims))
+            brk = Brick(i, pic.grid_node_count(), stepwidths, origin, dims)
+            pic.bricks.append(brk)
 
         if self.method == "simplex_extra":
             self.prepare_with_pointwise_projection_and_extra_points()
@@ -550,7 +649,7 @@ class GridReconstructor(Reconstructor):
                     if ep_count > self.max_extra_points:
                         from warnings import warn
                         warn("rec_grid: could not regularize structured "
-                                "vandermonde matrix for el#%d with #ep bound" % el.id)
+                                "vandermonde matrix for el #%d with #ep bound" % el.id)
                         break
 
                     # Getting here means that a mode
@@ -675,12 +774,12 @@ class GridReconstructor(Reconstructor):
                     if my_tolerance >= tolerance_bound:
                         from warnings import warn
                         warn("rec_grid: could not regularize structured "
-                                "vandermonde matrix for el#%d by enlargement" % el.id)
+                                "vandermonde matrix for el #%d by enlargement" % el.id)
                         break
 
                 if my_tolerance > self.el_tolerance:
-                    print "element %d #nodes=%d sgridpt=%d, extra tol=%g, #extra points=%d" % (
-                            el.id, ldis.node_count(), len(points), 
+                    print "element %d: #nodes=%d, orig #sgridpt=%d, extra tol=%g, #extra points=%d" % (
+                            el.id, ldis.node_count(), orig_point_count, 
                             my_tolerance-self.el_tolerance,
                             len(points)-orig_point_count)
                     points_added += len(points)-orig_point_count
@@ -821,12 +920,11 @@ class GridReconstructor(Reconstructor):
     def add_instrumentation(self, mgr):
         Reconstructor.add_instrumentation(self, mgr)
 
-        mgr.set_constant("rec_grid_overresolve", self.brick_generator.overresolve)
-        mgr.set_constant("rec_grid_mesh_margin", self.brick_generator.mesh_margin)
-        mgr.set_constant("rec_grid_brick_gen", self.brick_generator.__class__.__name__)
         mgr.set_constant("rec_grid_el_tolerance", self.el_tolerance)
         mgr.set_constant("rec_grid_enforce_continuity", self.enforce_continuity)
         mgr.set_constant("rec_grid_method", self.method)
+
+        self.brick_generator.log_data(mgr)
 
     def write_grid_quantities(self, silo, quantities):
         dims = self.cloud.dimensions_mesh
