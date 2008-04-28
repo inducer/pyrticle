@@ -319,6 +319,8 @@ namespace pyrticle
               m_point(brk.point(m_state)),
               m_index(brk.index(m_state))
             { 
+              if (m_bounds.is_empty())
+                m_state = m_bounds.m_upper;
             }
 
             const bounded_int_vector &operator*() const
@@ -693,10 +695,8 @@ namespace pyrticle
               CONST_PIC_THIS->m_mesh_data.m_element_info[
               eog.m_element_number];
 
-            std::cout<<"A" <<std::endl;
             dyn_vector grid_values(eog.m_grid_nodes.size());
 
-            std::cout<<"B" <<std::endl;
             {
               dyn_vector::iterator gv_it = grid_values.begin();
               BOOST_FOREACH(grid_node_number gnn, eog.m_grid_nodes)
@@ -704,9 +704,7 @@ namespace pyrticle
             }
 
             {
-              std::cout<<"C" <<std::endl;
               const dyn_fortran_matrix &matrix = eog.m_interpolation_matrix;
-              std::cout<<"D" <<std::endl;
               using namespace boost::numeric::bindings;
               using blas::detail::gemv;
               gemv(
@@ -723,10 +721,8 @@ namespace pyrticle
                   traits::vector_storage(to) + el.m_start*increment + offset, 
                   /*incy*/ increment);
             }
-            std::cout<<"E" <<std::endl;
           }
 
-          std::cout<<"F" <<std::endl;
           // cross-element continuity enforcement
           typename ToVec::iterator to_it = to.begin();
 
@@ -759,7 +755,6 @@ namespace pyrticle
             ag_start = ag_end;
             ag_end = *ag_starts_first++;
           }
-          std::cout<<"G" <<std::endl;
         }
 
 
