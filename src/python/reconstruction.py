@@ -911,7 +911,7 @@ class GridReconstructor(Reconstructor):
         from pylo import DB_ZONECENT, DB_QUAD_RECT, DBObjectType
 
         variables = []
-        mname = "rec_grid_b%d"
+        mname = "_rec_grid_b%d"
 
         for brk in pic.bricks:
             coords = [
@@ -932,13 +932,13 @@ class GridReconstructor(Reconstructor):
 
             for quant in quantities:
                 if quant == "rho":
-                    vname = "grid_rho_b%d"
+                    vname = "_rho_grid_b%d"
 
                     silo.put_quadvar1(vname % brk.number, mname % brk.number, 
                             pic.get_grid_rho()[brk_start:brk_stop],
                             brk.dimensions, DB_ZONECENT)
                 elif quant == "j":
-                    vname = "grid_j_b%d" 
+                    vname = "_j_grid_b%d" 
 
                     vnames = [
                         "%s_coord%d" % (vname % brk.number, axis) 
@@ -971,5 +971,5 @@ class GridReconstructor(Reconstructor):
         silo.put_multimesh("rec_grid", 
                 [(mname % brk.number, DB_QUAD_RECT) for brk in pic.bricks])
         for vname in variables:
-            silo.put_multivar(vname.replace("_b%d", ""), 
+            silo.put_multivar(vname.replace("_b%d", "").lstrip("_"), 
                     [(vname % brk.number, DBObjectType.DB_QUADVAR) for brk in pic.bricks])
