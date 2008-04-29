@@ -168,8 +168,9 @@ class KVZIntervalBeam:
         from hedge.discretization import integral
         int_rho = integral(discr, rho)
         vol = integral(discr, unscaled_rho)
-        rel_err = (int_rho-total_charge)/total_charge
-        assert rel_err < 0.2
+        rel_err = abs((int_rho-total_charge)/total_charge)
+        if rel_err > 0.2:
+            raise RuntimeError("analytic charge density imprecise (relerr=%g)" % rel_err)
 
         return rho
 

@@ -684,7 +684,14 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 
     tried_radii = []
     l1_errors = []
-    for step, radius in enumerate(radii[26:]):
+
+    import sys
+
+    sys.stdout.write("optimizing shape bw (%d attempts): " % len(radii))
+    for step, radius in enumerate(radii):
+        sys.stdout.write("%d." % step)
+        sys.stdout.flush()
+
         try:
             cloud.set_ignore_core_warnings(True)
             set_radius(radius)
@@ -699,7 +706,6 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
         cloud.derived_quantity_cache.clear()
         try:
             cloud.set_ignore_core_warnings(True)
-            print "REC_RHO", step, radius
             rec_rho = cloud.reconstruct_rho()
         except RuntimeError, re:
             if "particle mass is zero" in str(re):
@@ -720,14 +726,26 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
                 ("anarho", analytic_rho), 
                 ],
                 time=radius, step=step)
+
+            try:
+                cloud.reconstructor.write_grid_quantities
+            except AttributeError:
+                pass
+            else:
+                cloud.reconstructor.write_grid_quantities(visf, 
+                        ["rho", "usecount"])
+
             visf.close()
+
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
     if visualize:
         vis.close()
 
     if plot_l1_errors:
-        from pylab import plot, show
-        plot(tried_radii, l1_errors)
+        from pylab import semilogx, show
+        semilogx(tried_radii, l1_errors)
         show()
 
     from pytools import argmin
