@@ -120,6 +120,7 @@ namespace pyrticle
       .DEF_RW_MEMBER(average_groups)
       .DEF_RW_MEMBER(average_group_starts)
 
+      .DEF_SIMPLE_METHOD(find_points_in_element)
       .DEF_SIMPLE_METHOD(grid_node_count)
 
       .DEF_SIMPLE_METHOD(get_grid_rho)

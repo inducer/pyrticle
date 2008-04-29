@@ -669,7 +669,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 
     adv_radius = cloud.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**i 
-            for i in numpy.linspace(-4, 2, 50)]
+            for i in numpy.linspace(-4, 4, 50)]
 
     if visualize:
         from hedge.visualization import SiloVisualizer
@@ -684,12 +684,22 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 
     tried_radii = []
     l1_errors = []
+
+    import sys
+
+    sys.stdout.write("optimizing shape bw (%d attempts): " % len(radii))
     for step, radius in enumerate(radii):
+        sys.stdout.write("%d." % step)
+        sys.stdout.flush()
+
         try:
             cloud.set_ignore_core_warnings(True)
             set_radius(radius)
-        except RuntimeError:
-            continue
+        except RuntimeError, re:
+            if "particle mass is zero" in str(re):
+                continue
+            else:
+                raise
         finally:
             cloud.set_ignore_core_warnings(False)
 
@@ -697,8 +707,11 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
         try:
             cloud.set_ignore_core_warnings(True)
             rec_rho = cloud.reconstruct_rho()
-        except RuntimeError:
-            continue
+        except RuntimeError, re:
+            if "particle mass is zero" in str(re):
+                continue
+            else:
+                raise
         finally:
             cloud.set_ignore_core_warnings(False)
 
@@ -713,14 +726,26 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
                 ("anarho", analytic_rho), 
                 ],
                 time=radius, step=step)
+
+            try:
+                cloud.reconstructor.write_grid_quantities
+            except AttributeError:
+                pass
+            else:
+                cloud.reconstructor.write_grid_quantities(visf, 
+                        ["rho", "usecount"])
+
             visf.close()
+
+    sys.stdout.write("\n")
+    sys.stdout.flush()
 
     if visualize:
         vis.close()
 
     if plot_l1_errors:
-        from pylab import plot, show
-        plot(tried_radii, l1_errors)
+        from pylab import semilogx, show
+        semilogx(tried_radii, l1_errors)
         show()
 
     from pytools import argmin

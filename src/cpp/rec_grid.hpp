@@ -319,6 +319,8 @@ namespace pyrticle
               m_point(brk.point(m_state)),
               m_index(brk.index(m_state))
             { 
+              if (m_bounds.is_empty())
+                m_state = m_bounds.m_upper;
             }
 
             const bounded_int_vector &operator*() const
@@ -458,6 +460,10 @@ namespace pyrticle
         std::vector<mesh_data::node_number> m_average_groups;
         std::vector<unsigned> m_average_group_starts;
 
+
+
+
+
         // internals ------------------------------------------------------------
         unsigned grid_node_count() const
         {
@@ -467,6 +473,75 @@ namespace pyrticle
             return extra_pts+0;
           else
             return extra_pts+m_bricks.back().start_index() + m_bricks.back().node_count();
+        }
+
+
+
+
+        py_vector find_points_in_element(element_on_grid &eog, double scaled_tolerance) const
+        {
+          const unsigned mdims = CONST_PIC_THIS->m_mesh_data.m_dimensions;
+          const mesh_data::element_info &el = 
+            CONST_PIC_THIS->m_mesh_data.m_element_info[
+            eog.m_element_number];
+
+          bounded_box el_bbox = CONST_PIC_THIS->m_mesh_data.element_bounding_box(
+              eog.m_element_number);
+
+          using boost::numeric::ublas::scalar_vector;
+          const scalar_vector<double> tolerance_vec(mdims, scaled_tolerance);
+          el_bbox.m_lower -= tolerance_vec;
+          el_bbox.m_upper += tolerance_vec;
+
+          unsigned gnc = grid_node_count();
+
+          std::vector<bounded_vector> points;
+
+          // For each element, find all structured points inside the element.
+          BOOST_FOREACH(brick const &brk, m_bricks)
+          {
+            bounded_box brk_and_el = brk.bounding_box().intersect(el_bbox);
+            if (brk_and_el.is_empty())
+                continue;
+
+            const bounded_int_box el_brick_index_box = 
+              brk.index_range(brk_and_el);
+
+            brick::iterator it(brk, el_brick_index_box);
+
+              while (!it.at_end())
+              {
+                bool in_el = true;
+                
+                bounded_vector point = it.point();
+                
+                BOOST_FOREACH(const mesh_data::face_info &f, el.m_faces)
+                  if (inner_prod(f.m_normal, point) 
+                      - f.m_face_plane_eqn_rhs > scaled_tolerance)
+                  {
+                    in_el = false;
+                    break;
+                  }
+
+                if (in_el)
+                {
+                  points.push_back(point);
+
+                  grid_node_number gni = it.index();
+                  if (gni >= gnc)
+                    throw std::runtime_error("rec_grid: structured point index out of bounds");
+                  eog.m_grid_nodes.push_back(gni);
+                }
+
+                ++it;
+              }
+            }
+
+          npy_intp dims[] = { points.size(), mdims };
+          py_vector points_copy(2, dims);
+          for (unsigned i = 0; i < points.size(); ++i)
+            subrange(points_copy, mdims*i, mdims*(i+1)) = points[i];
+          return points_copy;
         }
 
 
@@ -693,10 +768,8 @@ namespace pyrticle
               CONST_PIC_THIS->m_mesh_data.m_element_info[
               eog.m_element_number];
 
-            std::cout<<"A" <<std::endl;
             dyn_vector grid_values(eog.m_grid_nodes.size());
 
-            std::cout<<"B" <<std::endl;
             {
               dyn_vector::iterator gv_it = grid_values.begin();
               BOOST_FOREACH(grid_node_number gnn, eog.m_grid_nodes)
@@ -704,9 +777,7 @@ namespace pyrticle
             }
 
             {
-              std::cout<<"C" <<std::endl;
               const dyn_fortran_matrix &matrix = eog.m_interpolation_matrix;
-              std::cout<<"D" <<std::endl;
               using namespace boost::numeric::bindings;
               using blas::detail::gemv;
               gemv(
@@ -723,10 +794,8 @@ namespace pyrticle
                   traits::vector_storage(to) + el.m_start*increment + offset, 
                   /*incy*/ increment);
             }
-            std::cout<<"E" <<std::endl;
           }
 
-          std::cout<<"F" <<std::endl;
           // cross-element continuity enforcement
           typename ToVec::iterator to_it = to.begin();
 
@@ -759,7 +828,6 @@ namespace pyrticle
             ag_start = ag_end;
             ag_end = *ag_starts_first++;
           }
-          std::cout<<"G" <<std::endl;
         }
 
 

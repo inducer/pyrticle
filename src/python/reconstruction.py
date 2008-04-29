@@ -413,7 +413,7 @@ class FineCoreBrickGenerator(object):
             x_vec = unit_vector(d, x, dtype=numpy.int32)
 
             dims1 = dims.copy()
-            dims1[y] = core_margin_dims[y]
+            dims1[x] = core_margin_dims[x]
             dims2 = dims.copy()
             dims2[x] = dims[x]-2*core_margin_dims[x]
             dims2[y] = core_margin_dims[y]
@@ -424,6 +424,11 @@ class FineCoreBrickGenerator(object):
             x_offset_2 = x_vec*core_margin_dims[x]*stepwidths[x]
             yield stepwidths, bbox_min+x_offset_2, dims2
             yield -stepwidths, bbox_max-x_offset_2, dims2
+
+            from pytools import product
+            print "surround pts: %d, core pts: %d" % (
+                    product(dims2)*2+product(dims1),
+                    product(core_dims))
         else:
             raise ValueError, "invalid dimensionality"
 
@@ -520,49 +525,13 @@ class GridReconstructor(Reconstructor):
         print len(avg_groups), "average groups"
 
     def find_points_in_element(self, el, el_tolerance):
-        from pyrticle._internal import BrickIterator, ElementOnGrid, BoxFloat
+        pic = self.cloud.pic_algorithm
+
+        from pyrticle._internal import ElementOnGrid
         eog = ElementOnGrid()
         eog.element_number = el.id
 
-        discr = self.cloud.mesh_data.discr
-        pic = self.cloud.pic_algorithm
-
-        el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
-
-        grid_node_count = pic.grid_node_count()
-
-        # enlarge the element bounding box by the mapped tolerance
-        scaled_tolerance = el_tolerance * la.norm(el.map.matrix, 2)
-        el_bbox.lower -= scaled_tolerance
-        el_bbox.upper += scaled_tolerance
-
-        points = []
-
-        # For each element, find all structured points inside the element.
-        for brk in pic.bricks:
-            brk_and_el = brk.bounding_box().intersect(el_bbox)
-
-            if brk_and_el.is_empty():
-                continue
-
-            for coord in BrickIterator(brk, brk.index_range(brk_and_el)):
-                point = brk.point(coord)
-
-                in_el = True
-                md_elinfo = pic.mesh_data.element_info[el.id]
-                for f in md_elinfo.faces:
-                    if (numpy.dot(f.normal, point) 
-                            - f.face_plane_eqn_rhs > scaled_tolerance):
-                        in_el = False
-                        break
-
-                if in_el:
-                    points.append(point)
-                    grid_node_index = brk.index(coord)
-                    assert grid_node_index < grid_node_count
-                    eog.grid_nodes.append(grid_node_index)
-
-        return eog, points
+        return eog, pic.find_points_in_element(eog, el_tolerance * la.norm(el.map.matrix, 2))
 
     def make_pointwise_interpolation_matrix(self, el, ldis, svd, structured_vdm):
         u, s, vt = svd
@@ -939,37 +908,40 @@ class GridReconstructor(Reconstructor):
             silo.put_pointmesh("rec_grid_extra", dims, 
                     numpy.asarray(extra_points.T, order="C"))
 
-        for i_brick, brk in enumerate(pic.bricks):
+        from pylo import DB_ZONECENT, DB_QUAD_RECT, DBObjectType
+
+        variables = []
+        mname = "_rec_grid_b%d"
+
+        for brk in pic.bricks:
             coords = [
                 numpy.arange(
-                    brk.origin[axis] + brk.stepwidths[axis]/2, 
+                    brk.origin[axis], 
                     brk.origin[axis] 
-                    + brk.dimensions[axis] * brk.stepwidths[axis], 
+                    + brk.dimensions[axis] * brk.stepwidths[axis] 
+                    + brk.stepwidths[axis]/2, 
                     brk.stepwidths[axis])
                 for axis in xrange(dims)]
             for axis in xrange(dims):
-                assert len(coords[axis]) == brk.dimensions[axis]
+                assert len(coords[axis]) == brk.dimensions[axis]+1
 
-            mname = "structmesh%d" % i_brick
-            silo.put_quadmesh(mname, coords)
-
-            from pylo import DB_NODECENT
+            silo.put_quadmesh(mname % brk.number, coords)
 
             brk_start = brk.start_index
             brk_stop = brk.start_index + len(brk)
 
             for quant in quantities:
                 if quant == "rho":
-                    vname = "rho_struct%d" % i_brick
+                    vname = "_rho_grid_b%d"
 
-                    silo.put_quadvar1(vname, mname, 
+                    silo.put_quadvar1(vname % brk.number, mname % brk.number, 
                             pic.get_grid_rho()[brk_start:brk_stop],
-                            brk.dimensions, DB_NODECENT)
+                            brk.dimensions, DB_ZONECENT)
                 elif quant == "j":
-                    vname = "j_struct%d" % i_brick
+                    vname = "_j_grid_b%d" 
 
                     vnames = [
-                        "%s_coord%d" % (vname, axis) 
+                        "%s_coord%d" % (vname % brk.number, axis) 
                         for axis in range(vdims)]
 
                     from pytools import product
@@ -979,17 +951,25 @@ class GridReconstructor(Reconstructor):
 
                     j_grid_compwise = numpy.asarray(j_grid.T, order="C")
                     
-                    silo.put_quadvar(vname, mname, vnames,
+                    silo.put_quadvar(vname % brk.number, mname % brk.number, vnames,
                             j_grid_compwise,
-                            brk.dimensions, DB_NODECENT)
+                            brk.dimensions, DB_ZONECENT)
                 elif quant == "usecount":
-                    vname = "usecount_struct%d" % i_brick
+                    vname = "grid_usecount_b%d"
                     usecount = numpy.zeros((len(brk),), dtype=float)
                     for eog in pic.elements_on_grid:
                         for idx in eog.grid_nodes:
                             if brk_start <= idx < brk_stop:
                                 usecount[idx-brk_start] += 1
-                    silo.put_quadvar1(vname, mname, 
-                            usecount, brk.dimensions, DB_NODECENT)
+                    silo.put_quadvar1(vname % brk.number, mname % brk.number, 
+                            usecount, brk.dimensions, DB_ZONECENT)
                 else:
                     raise ValueError, "invalid vis quantity: %s" % quant
+
+                variables.append(vname)
+
+        silo.put_multimesh("rec_grid", 
+                [(mname % brk.number, DB_QUAD_RECT) for brk in pic.bricks])
+        for vname in variables:
+            silo.put_multivar(vname.replace("_b%d", "").lstrip("_"), 
+                    [(vname % brk.number, DBObjectType.DB_QUADVAR) for brk in pic.bricks])
