@@ -264,6 +264,7 @@ def main():
 
     # timestepping ------------------------------------------------------------
     t = 0
+    rec = cloud.reconstructor
 
     for step in xrange(nsteps):
         logmgr.tick()
@@ -292,12 +293,16 @@ def main():
                         expressions=[
                             ])
             try:
-                cloud.reconstructor.write_grid_quantities
+                rec.visualize_grid_quantities
             except AttributeError:
                 pass
             else:
-                cloud.reconstructor.write_grid_quantities(visf, 
-                        ["rho", "j", "usecount"])
+                rec.visualize_grid_quantities(visf, [
+                        ("rho_grid", rec.reconstruct_grid_rho()),
+                        ("j_grid", rec.reconstruct_grid_j(cloud.velocities())),
+                        ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
+                        ("usecount", rec.grid_usecount()),
+                        ])
 
             visf.close()
             vis_timer.stop()

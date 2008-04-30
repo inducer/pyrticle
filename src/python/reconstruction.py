@@ -94,6 +94,9 @@ class Reconstructor(object):
         self.reconstruct_hook()
         return self.cloud.pic_algorithm.reconstruct_rho()
 
+    def upkeep(self):
+        pass
+
     def rhs(self):
         return 0
 
@@ -281,6 +284,9 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
     def clear_particles(self):
         Reconstructor.clear_particles(self)
         self.cloud.pic_algorithm.clear_advective_particles()
+
+    def upkeep(self):
+        self.cloud.pic_algorithm.perform_reconstructor_upkeep()
 
     def rhs(self):
         from pyrticle.tools import NumberShiftableVector
@@ -531,9 +537,35 @@ class GridReconstructor(Reconstructor):
         eog = ElementOnGrid()
         eog.element_number = el.id
 
-        return eog, pic.find_points_in_element(eog, el_tolerance * la.norm(el.map.matrix, 2))
+        points = pic.find_points_in_element(eog, el_tolerance * la.norm(el.map.matrix, 2))
+        for i in range(len(eog.weight_factors)):
+            eog.weight_factors[i] = 1
+        
+        return eog, points
 
-    def make_pointwise_interpolation_matrix(self, el, ldis, svd, structured_vdm):
+    def scaled_vandermonde(self, el, eog, points, ldis):
+        """The remapping procedure in rec_grid relies on a pseudoinverse
+        minimizing the pointwise error on all found interpolation points.
+        But if an element spans bricks with different resolution, the 
+        high-res points get an unfair advantage, because there's so many
+        more of them. Therefore, each point is weighted by its 
+        corresponding cell volume, meaning that the corresponding row of
+        the structured Vandermonde matrix must be scaled by this volume, 
+        as computed by L{find_points_in_element}. This routine returns the
+        scaled Vandermonde matrix.
+        """
+
+        from hedge.polynomial import generic_vandermonde
+        vdm = generic_vandermonde(
+                [el.inverse_map(x) for x in points], 
+                ldis.basis_functions())
+
+        for i, weight in enumerate(eog.weight_factors):
+            vdm[i] *= weight
+
+        return vdm
+
+    def make_pointwise_interpolation_matrix(self, eog, el, ldis, svd, scaled_vdm):
         u, s, vt = svd
 
         point_count = u.shape[0]
@@ -556,7 +588,7 @@ class GridReconstructor(Reconstructor):
 
         # check that it's reasonable
         pinv_resid = la.norm(
-            numpy.dot(svdm_pinv, structured_vdm)
+            numpy.dot(svdm_pinv, scaled_vdm)
             - numpy.eye(node_count))
 
         if pinv_resid > 1e-8:
@@ -565,8 +597,14 @@ class GridReconstructor(Reconstructor):
                     "#nodes=%d, #sgridpts=%d, resid=%.5g centroid=%s"
                 % (el.id, node_count, point_count, pinv_resid,
                         el.centroid(self.cloud.mesh_data.discr.mesh.points)))
-        return numpy.asarray(
+
+        eog.interpolation_matrix = numpy.asarray(
                 numpy.dot(ldis.vandermonde(), svdm_pinv),
+                order="F")
+
+        from hedge.tools import leftsolve
+        eog.inverse_interpolation_matrix = numpy.asarray(
+                leftsolve(ldis.vandermonde(), scaled_vdm),
                 order="F")
 
     def prepare_with_pointwise_projection_and_extra_points(self):
@@ -594,17 +632,14 @@ class GridReconstructor(Reconstructor):
                 # add "extra points" to prevent that.
                 ep_count = 0
                 while True:
-                    from hedge.polynomial import generic_vandermonde
-                    structured_vdm = generic_vandermonde(
-                            [el.inverse_map(x) for x in points], 
-                            ldis.basis_functions())
+                    scaled_vdm = self.scaled_vandermonde(el, eog, points, ldis)
 
-                    u, s, vt = svd = la.svd(structured_vdm)
+                    u, s, vt = svd = la.svd(scaled_vdm)
 
                     if len(points) >= ldis.node_count():
                         # case 1: theoretically enough points found
                         thresh = (numpy.finfo(float).eps
-                                * max(structured_vdm.shape) * s[0])
+                                * max(scaled_vdm.shape) * s[0])
                         zero_indices = [i for i, si in enumerate(s)
                             if abs(si) < thresh]
                     else:
@@ -656,8 +691,7 @@ class GridReconstructor(Reconstructor):
                             el.id, ldis.node_count(), len(points), ep_count)
                 total_points += len(points)
 
-                eog.interpolation_matrix = self.make_pointwise_interpolation_matrix(
-                        el, ldis, svd, structured_vdm)
+                self.make_pointwise_interpolation_matrix(eog, el, ldis, svd, scaled_vdm)
 
                 pic.elements_on_grid.append(eog)
 
@@ -704,7 +738,6 @@ class GridReconstructor(Reconstructor):
         # Iterate over all elements
         for eg in discr.element_groups:
             ldis = eg.local_discretization
-            basis = ldis.basis_functions()
 
             for el in eg.members:
                 # If the structured Vandermonde matrix is singular,
@@ -719,17 +752,14 @@ class GridReconstructor(Reconstructor):
                     if orig_point_count is None:
                         orig_point_count = len(points)
 
-                    from hedge.polynomial import generic_vandermonde
-                    structured_vdm = generic_vandermonde(
-                            [el.inverse_map(x) for x in points], 
-                            basis)
+                    scaled_vdm = self.scaled_vandermonde(el, eog, points, ldis)
 
-                    bad_vdm = len(points) < len(basis)
+                    bad_vdm = len(points) < ldis.node_count()
                     if not bad_vdm:
                         try:
-                            u, s, vt = svd = la.svd(structured_vdm)
+                            u, s, vt = svd = la.svd(scaled_vdm)
                             thresh = (numpy.finfo(float).eps
-                                    * max(structured_vdm.shape) * s[0])
+                                    * max(scaled_vdm.shape) * s[0])
                             zero_indices = [i for i, si in enumerate(s)
                                 if abs(si) < thresh]
                             bad_vdm = bool(zero_indices)
@@ -754,8 +784,7 @@ class GridReconstructor(Reconstructor):
                     points_added += len(points)-orig_point_count
                 total_points += len(points)
 
-                eog.interpolation_matrix = self.make_pointwise_interpolation_matrix(
-                        el, ldis, svd, structured_vdm)
+                self.make_pointwise_interpolation_matrix(eog, el, ldis, svd, scaled_vdm)
 
                 pic.elements_on_grid.append(eog)
 
@@ -895,7 +924,90 @@ class GridReconstructor(Reconstructor):
 
         self.brick_generator.log_data(mgr)
 
-    def write_grid_quantities(self, silo, quantities):
+    # reconstruction onto mesh ------------------------------------------------
+    def remap_grid_to_mesh(self, q_grid):
+        discr = self.cloud.mesh_data.discr
+
+        eff_shape = q_grid.shape[1:]
+        if len(eff_shape) == 0:
+            result = discr.volume_zeros()
+            self.cloud.pic_algorithm.remap_grid_to_mesh(
+                    q_grid, result, 0, 1)
+        elif len(eff_shape) == 1:
+            result = numpy.zeros((len(discr),)+eff_shape, dtype=float)
+            for i in range(eff_shape[0]):
+                self.cloud.pic_algorithm.remap_grid_to_mesh(
+                        q_grid, result, i, eff_shape[0])
+        else:
+            raise ValueError, "invalid effective shape for remap"
+        return result
+
+    def reconstruct_densites(self, velocities):
+        return tuple(
+                self.remap_grid_to_mesh(q_grid) 
+                for q_grid in self.reconstruct_grid_densities(velocities))
+
+    def reconstruct_j(self, velocities):
+        return self.remap_grid_to_mesh(self.reconstruct_grid_j(velocities))
+
+    def reconstruct_rho(self):
+        return self.remap_grid_to_mesh(self.reconstruct_grid_rho())
+
+    # reconstruction onto grid ------------------------------------------------
+    def reconstruct_grid_densities(self, velocities):
+        self.reconstruct_hook()
+        return self.cloud._get_derived_quantities_from_cache(
+                ["rho_grid", "j_grid"],
+                [self.reconstruct_grid_rho, self.reconstruct_grid_j],
+                lambda: self.cloud.pic_algorithm.reconstruct_grid_densities(velocities))
+
+    def reconstruct_grid_j(self, velocities):
+        self.reconstruct_hook()
+        return self.cloud._get_derived_quantity_from_cache("j_grid", 
+                lambda: self.cloud.pic_algorithm.reconstruct_grid_j(velocities))
+
+    def reconstruct_grid_rho(self):
+        self.reconstruct_hook()
+        return self.cloud._get_derived_quantity_from_cache("rho_grid", 
+                self.cloud.pic_algorithm.reconstruct_grid_rho)
+
+    # grid debug quantities ---------------------------------------------------
+    def ones_on_grid(self):
+        return numpy.ones((self.cloud.pic_algorithm.grid_node_count(),), 
+                dtype=float)
+
+    def grid_usecount(self):
+        usecount = numpy.zeros((self.cloud.pic_algorithm.grid_node_count(),), 
+                dtype=float)
+        for eog in self.cloud.pic_algorithm.elements_on_grid:
+            for idx in eog.grid_nodes:
+                usecount[idx] += 1
+        return usecount
+
+    def remap_residual(self, q_grid):
+        discr = self.cloud.mesh_data.discr
+
+        gnc = self.cloud.pic_algorithm.grid_node_count()
+
+        eff_shape = q_grid.shape[1:]
+        if len(eff_shape) == 0:
+            result = numpy.zeros((gnc,), dtype=float)
+            self.cloud.pic_algorithm.remap_residual(
+                    q_grid, result, 0, 1)
+        elif len(eff_shape) == 1:
+            result = numpy.zeros((gnc,)+eff_shape, dtype=float)
+            for i in range(eff_shape[0]):
+                self.cloud.pic_algorithm.remap_residual(
+                        q_grid, result, i, eff_shape[0])
+        else:
+            raise ValueError, "invalid effective shape for remap"
+        return result
+
+
+
+
+    # grid visualization ------------------------------------------------------
+    def visualize_grid_quantities(self, silo, names_and_quantities):
         dims = self.cloud.dimensions_mesh
         vdims = self.cloud.dimensions_velocity
         pic = self.cloud.pic_algorithm
@@ -910,8 +1022,12 @@ class GridReconstructor(Reconstructor):
 
         from pylo import DB_ZONECENT, DB_QUAD_RECT, DBObjectType
 
-        variables = []
-        mname = "_rec_grid_b%d"
+        if len(pic.bricks) > 1:
+            def name_mesh(brick): return "_rec_grid_b%d" % brick
+            def name_var(name, brick): return "_%s_b%d" % (name, brick)
+        else:
+            def name_mesh(brick): return "rec_grid"
+            def name_var(name, brick): return name
 
         for brk in pic.bricks:
             coords = [
@@ -925,51 +1041,32 @@ class GridReconstructor(Reconstructor):
             for axis in xrange(dims):
                 assert len(coords[axis]) == brk.dimensions[axis]+1
 
-            silo.put_quadmesh(mname % brk.number, coords)
+            mname = name_mesh(brk.number)
+            silo.put_quadmesh(mname, coords)
 
             brk_start = brk.start_index
             brk_stop = brk.start_index + len(brk)
 
-            for quant in quantities:
-                if quant == "rho":
-                    vname = "_rho_grid_b%d"
-
-                    silo.put_quadvar1(vname % brk.number, mname % brk.number, 
-                            pic.get_grid_rho()[brk_start:brk_stop],
+            for name, quant in names_and_quantities:
+                eff_shape = quant.shape[1:]
+                vname = name_var(name, brk.number)
+                if len(eff_shape) == 0:
+                    silo.put_quadvar1(vname, mname, 
+                            quant[brk_start:brk_stop], brk.dimensions, DB_ZONECENT)
+                elif len(eff_shape) == 1:
+                    d = eff_shape[0]
+                    silo.put_quadvar(vname, mname, 
+                            ["%s_c%d" % (vname, axis) for axis in range(d)],
+                            numpy.asarray(quant[brk_start:brk_stop].T, order="C"),
                             brk.dimensions, DB_ZONECENT)
-                elif quant == "j":
-                    vname = "_j_grid_b%d" 
-
-                    vnames = [
-                        "%s_coord%d" % (vname % brk.number, axis) 
-                        for axis in range(vdims)]
-
-                    from pytools import product
-                    j_grid = numpy.reshape(
-                            pic.get_grid_j(self.cloud.velocities()),
-                            (pic.grid_node_count(), vdims))[brk_start:brk_stop]
-
-                    j_grid_compwise = numpy.asarray(j_grid.T, order="C")
-                    
-                    silo.put_quadvar(vname % brk.number, mname % brk.number, vnames,
-                            j_grid_compwise,
-                            brk.dimensions, DB_ZONECENT)
-                elif quant == "usecount":
-                    vname = "grid_usecount_b%d"
-                    usecount = numpy.zeros((len(brk),), dtype=float)
-                    for eog in pic.elements_on_grid:
-                        for idx in eog.grid_nodes:
-                            if brk_start <= idx < brk_stop:
-                                usecount[idx-brk_start] += 1
-                    silo.put_quadvar1(vname % brk.number, mname % brk.number, 
-                            usecount, brk.dimensions, DB_ZONECENT)
                 else:
-                    raise ValueError, "invalid vis quantity: %s" % quant
+                    raise ValueError, "invalid effective shape for vis"
 
-                variables.append(vname)
+        if len(pic.bricks) > 1:
+            silo.put_multimesh("rec_grid", 
+                    [(name_mesh(brk.number), DB_QUAD_RECT) for brk in pic.bricks])
 
-        silo.put_multimesh("rec_grid", 
-                [(mname % brk.number, DB_QUAD_RECT) for brk in pic.bricks])
-        for vname in variables:
-            silo.put_multivar(vname.replace("_b%d", "").lstrip("_"), 
-                    [(vname % brk.number, DBObjectType.DB_QUADVAR) for brk in pic.bricks])
+            for name, quant in names_and_quantities:
+                silo.put_multivar(name, 
+                        [(name_var(name, brk.number), DBObjectType.DB_QUADVAR) 
+                            for brk in pic.bricks])

@@ -374,12 +374,6 @@ namespace pyrticle
 
 
 
-        void perform_reconstructor_upkeep()
-        { }
-
-
-
-
         template<class Target>
         void reconstruct_densities_on_target(Target &tgt)
         {

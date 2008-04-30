@@ -289,39 +289,50 @@ class ParticleCloud:
         such as resampling or deleting particles.
         """
         self.vis_listener.clear()
-        self.pic_algorithm.perform_reconstructor_upkeep()
+        self.reconstructor.upkeep()
+        self.pusher.upkeep()
 
+    # derived quantity cache --------------------------------------------------
+    def _get_derived_quantity_from_cache(self, name, getter):
+        try:
+            return self.derived_quantity_cache[name]
+        except KeyError:
+            self.derived_quantity_cache[name] = value = getter()
+            return value
+
+    def _get_derived_quantities_from_cache(self, names, getters, all_getter=None):
+        # all "getters" elements should update the cache themselves
+        cached = tuple(self.derived_quantity_cache.get(name) for name in names)
+        cached_number = sum(1 for v in cached if cached is not None)
+
+        if cached_number == len(names):
+            return cached
+        elif cached_number == 0 and all_getter:
+            all_values = all_getter()
+            for name, value in zip(names, all_values):
+                self.derived_quantity_cache[name] = value
+            return all_values
+        else:
+            return tuple(c or g() for c, g in zip(cached, getters))
+
+
+
+
+    # reconstruction ----------------------------------------------------------
     def reconstruct_densities(self):
         """Return a tuple (charge_density, current_densities), where
         current_densities is an d-by-n array, where d is the number 
         of velocity dimensions, and n is the discretization nodes.
         """
-
-        if "j" in self.derived_quantity_cache:
-            j = self.derived_quantity_cache["j"]
-            if "rho" in self.derived_quantity_cache:
-                rho = self.derived_quantity_cache["rho"]
-            else:
-                rho = self.reconstruct_rho()
+        def all_getter():
+            rho, j = self.reconstructor.reconstruct_densities(self.velocities())
+            j = numpy.asarray(j.T, order="C")
             return rho, j
-        else:
-            if "rho" in self.derived_quantity_cache:
-                rho = self.derived_quantity_cache["rho"]
-                j = self.reconstruct_j(self.velocities())
-                return rho, j
-            else:
-                self.reconstruct_timer.start()
-                self.reconstructor.reconstruct_hook()
-                self.reconstruct_timer.stop()
-                self.reconstruct_counter.add(self.dimensions_velocity+1)
-                rho_j
 
-                j = numpy.asarray(j.T, order="C")
-
-                self.derived_quantity_cache["rho"] = rho
-                self.derived_quantity_cache["j"] = j
-
-                return rho, j
+        return self._get_derived_quantities_from_cache(
+                ["rho", "j"],
+                [self.reconstruct_rho, self.reconstruct_j],
+                all_getter)
 
     def reconstruct_j(self):
         """Return a the current densities as an d-by-n array, where d 
@@ -329,27 +340,23 @@ class ParticleCloud:
         discretization nodes.
         """
 
-        if "j" in self.derived_quantity_cache:
-            return self.derived_quantity_cache["j"]
+        def j_getter():
+            return numpy.asarray(
+                    self.reconstructor.reconstruct_j(self.velocities())
+                    .T, order="C")
 
-        j = self.reconstructor.reconstruct_j(self.velocities())
-        j = numpy.asarray(j.T, order="C")
-        self.derived_quantity_cache["j"] = j
-
-        return j
+        return self._get_derived_quantity_from_cache("j", j_getter)
 
     def reconstruct_rho(self):
-        """Return a the charge_density as a volume vector.
-        """
+        """Return a the charge_density as a volume vector."""
 
-        if "rho" in self.derived_quantity_cache:
-            return self.derived_quantity_cache["rho"]
+        return self._get_derived_quantity_from_cache("rho",
+                self.reconstructor.reconstruct_rho)
 
-        rho = self.pic_algorithm.reconstruct_rho()
-        self.derived_quantity_cache["rho"] = rho
 
-        return rho
 
+
+    # rhs treatment -----------------------------------------------------------
     def rhs(self, t, e, b):
         """Return an ArithmeticList of velocities and forces on the particles.
 
@@ -413,6 +420,10 @@ class ParticleCloud:
 
         return self
 
+
+
+
+    # visualization -----------------------------------------------------------
     def get_mesh_vis_vars(self):
         return self.vis_listener.mesh_vis_map.items()
 
@@ -666,10 +677,11 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
         plot_l1_errors=False,
         visualize=False):
     discr = cloud.discretization
+    rec = cloud.reconstructor
 
     adv_radius = cloud.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**i 
-            for i in numpy.linspace(-4, 4, 50)]
+            for i in numpy.linspace(-4, 2, 50)]
 
     if visualize:
         from hedge.visualization import SiloVisualizer
@@ -728,12 +740,13 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
                 time=radius, step=step)
 
             try:
-                cloud.reconstructor.write_grid_quantities
+                rec.visualize_grid_quantities
             except AttributeError:
                 pass
             else:
-                cloud.reconstructor.write_grid_quantities(visf, 
-                        ["rho", "usecount"])
+                rec.visualize_grid_quantities(visf, [
+                        ("rho_grid", rec.reconstruct_grid_rho()),
+                        ])
 
             visf.close()
 

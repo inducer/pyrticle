@@ -137,14 +137,6 @@ namespace
     }
 
     pic_wrap
-      .DEF_SIMPLE_METHOD(reconstruct_densities)
-      .DEF_SIMPLE_METHOD(reconstruct_rho)
-      .DEF_SIMPLE_METHOD(reconstruct_j)
-
-      .DEF_SIMPLE_METHOD(perform_reconstructor_upkeep)
-      ;
-    
-    pic_wrap
       .DEF_SIMPLE_METHOD(store_particle_vis_vector)
       .DEF_RW_MEMBER(vis_listener)
       ;
