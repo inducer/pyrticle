@@ -1,4 +1,4 @@
-"""Kapchinskij-Vladimirskij beam physics"""
+"""Various initial particle distributions"""
 
 from __future__ import division
 
@@ -21,33 +21,20 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
-
 import numpy
 import numpy.linalg as la
-from pytools.log import SimulationLogQuantity
+import pyrticle.tools
+import pytools.log
 
 
 
 
-def uniform_on_unit_sphere(dim):
-    from random import gauss
-
-    # cf.
-    # http://www-alg.ist.hokudai.ac.jp/~jan/randsphere.pdf
-    # Algorith due to Knuth
-
-    pt = numpy.array([gauss(0,1) for i in range(dim)])
-    n2 = la.norm(pt)
-    return pt/n2
-
-
-
-
-
-    
-
+# joint distribution ----------------------------------------------------------
+class JointParticleDistribution:
+    def __init__(self,
+# kv --------------------------------------------------------------------------
 class KVZIntervalBeam:
-    def __init__(self, units, nparticles, p_charge, p_mass,
+    def __init__(self, units, total_charge, p_mass,
             radii, emittances, beta, z_length, z_pos):
         """Construct a beam that is KV-distributed in (x,y)
         and uniform over an interval along z.
@@ -60,9 +47,7 @@ class KVZIntervalBeam:
 
         self.units = units
 
-        self.nparticles = nparticles
-
-        self.p_charge = p_charge
+        self.total_charge = total_charge
         self.p_mass = p_mass
 
         self.radii = radii
@@ -86,6 +71,7 @@ class KVZIntervalBeam:
         """Return (position, velocity) for a random particle
         according to a Kapchinskij-Vladimirskij distribution.
         """
+        from pytools import uniform_on_unit_sphere
 
         s = uniform_on_unit_sphere(len(self.radii) + len(self.emittances))
         x = [x_i*r_i for x_i, r_i in zip(s[:len(self.radii)], self.radii)]
@@ -109,22 +95,17 @@ class KVZIntervalBeam:
         return (numpy.array(x),
                 z*vz + numpy.array([xp_i*vz for xp_i in xp]))
 
-    def add_to(self, cloud, discr):
+    def add_to(self, cloud, nparticles):
         from random import uniform
         from math import sqrt
 
         positions = []
         velocities = []
 
-        bbox_min, bbox_max = discr.mesh.bounding_box()
-        center = (bbox_min+bbox_max)/2
-        center[2] = 0
-        size = bbox_max-bbox_min
-
         vz = self.beta*self.units.VACUUM_LIGHT_SPEED
         z = numpy.array([0,0,1])
 
-        for i in range(self.nparticles):
+        for i in range(nparticles):
             pos, v = self.make_particle(
                     vz=self.beta*self.units.VACUUM_LIGHT_SPEED,
                     dim_x=cloud.dimensions_pos, dim_p=cloud.dimensions_velocity)
@@ -134,13 +115,11 @@ class KVZIntervalBeam:
             if abs(self.beta) > 1e-4:
                 assert abs(self.beta - my_beta)/self.beta < 1e-4
 
-            positions.append(center
-                    +pos
-                    +z*(self.z_pos+uniform(-self.z_length, self.z_length)/2))
+            positions.append(pos+z*(self.z_pos+uniform(-self.z_length, self.z_length)/2))
             velocities.append(v)
 
         cloud.add_particles(positions, velocities, 
-                self.p_charge, self.p_mass)
+                self.total_charge/nparticles, self.p_mass)
 
     def analytic_rho(self, discr):
         from pytools import product
@@ -160,9 +139,8 @@ class KVZIntervalBeam:
         n = len(self.radii)
         distr_vol = (2*pi)**(n/2) / (gamma(n/2)*n) * product(self.radii) * self.z_length
 
-        total_charge = self.p_charge * self.nparticles 
         unscaled_rho = discr.interpolate_volume_function(distrib)
-        rho = total_charge * unscaled_rho / distr_vol
+        rho = self.total_charge * unscaled_rho / distr_vol
 
         # check for correctness
         from hedge.discretization import integral
@@ -183,17 +161,7 @@ class KVZIntervalBeam:
                 /
                 (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED**2))
 
-        total_charge = abs(self.p_charge*self.nparticles)
-
-        lambda_ = total_charge/(self.z_length*self.units.EL_CHARGE)
-
-        #print "total_charge", total_charge
-        #print "z_length", self.z_length
-        #print "lambda", lambda_
-
-        #print  "beta", self.beta
-        #print  "gamma", self.gamma
-        #print "xi", xi
+        lambda_ = self.total_charge/(self.z_length*self.units.EL_CHARGE)
 
         # factor of 2 here is uncertain
         # from S.Y.Lee, Accelerator Physics, p. 68
@@ -225,70 +193,7 @@ class KVZIntervalBeam:
 
 
 
-class ODEDefinedFunction:
-    def __init__(self, t0, y0, dt):
-        self.t = [t0]
-        self.y = [y0]
-        self.dt = dt
-
-        from hedge.timestep import RK4TimeStepper
-        self.forward_stepper = RK4TimeStepper()
-        self.backward_stepper = RK4TimeStepper()
-
-    def __call__(self, t):
-        def copy_if_necessary(x):
-            try:
-                return x[:]
-            except TypeError:
-                return x
-
-        if t < self.t[0]:
-            steps = int((self.t[0]-t)/self.dt)+1
-            t_list = [self.t[0]]
-            y_list = [self.y[0]]
-            for n in range(steps):
-                y_list.append(self.backward_stepper(
-                    copy_if_necessary(y_list[-1]), 
-                    t_list[-1], -self.dt, self.rhs))
-                t_list.append(t_list[-1]-self.dt)
-
-            self.t = t_list[:0:-1] + self.t
-            self.y = y_list[:0:-1] + self.y
-        elif t >= self.t[-1]:
-            steps = int((t-self.t[-1])/self.dt)+1
-            t_list = [self.t[-1]]
-            y_list = [self.y[-1]]
-            for n in range(steps):
-                y_list.append(self.forward_stepper(
-                    copy_if_necessary(y_list[-1]), 
-                    t_list[-1], self.dt, self.rhs))
-                t_list.append(t_list[-1]+self.dt)
-
-            self.t = self.t + t_list[1:]
-            self.y = self.y + y_list[1:]
-
-        from bisect import bisect_right
-        below_idx = bisect_right(self.t, t)-1
-        assert below_idx >= 0
-        above_idx = below_idx + 1
-
-        assert above_idx < len(self.t)
-        assert self.t[below_idx] <= t <= self.t[above_idx]
-
-        # FIXME linear interpolation, bad
-        slope = ((self.y[above_idx]-self.y[below_idx]) 
-                /
-                (self.t[above_idx]-self.t[below_idx]))
-
-        return self.y[below_idx] + (t-self.t[below_idx]) * slope
-
-    def rhs(self, t, y):
-        raise NotImplementedError
-
-
-
-
-
+# kv bonus stuff --------------------------------------------------------------
 class ChargelessKVRadiusPredictor:
     def __init__(self, a0, eps):
         self.a0 = a0
@@ -301,14 +206,14 @@ class ChargelessKVRadiusPredictor:
 
 
 
-class KVRadiusPredictor(ODEDefinedFunction):
+class KVRadiusPredictor(pyrticle.tools.ODEDefinedFunction):
     """Implement equation (1.74) in Alex Chao's book.
 
     See equation (1.65) for the definition of M{xi}.
     M{Q} is the number of electrons in the beam
     """
     def __init__(self, a0, eps, eB_2E=0, xi=0, dt=1e-4):
-        ODEDefinedFunction.__init__(self, 0, numpy.array([a0, 0]), 
+        pyrticle.tools.ODEDefinedFunction.__init__(self, 0, numpy.array([a0, 0]), 
                 dt=dt*(a0**4/eps**2)**2)
         self.eps = eps
         self.xi = xi
@@ -325,17 +230,17 @@ class KVRadiusPredictor(ODEDefinedFunction):
             ])
 
     def __call__(self, t):
-        return ODEDefinedFunction.__call__(self, t)[0]
+        return pyrticle.tools.ODEDefinedFunction.__call__(self, t)[0]
 
 
 
 
-class KVPredictedRadius(SimulationLogQuantity):
+class KVPredictedRadius(pytools.log.SimulationLogQuantity):
     def __init__(self, dt, beam_v, predictor, suffix, name=None):
         if name is None:
             name = "r%s_theory" % suffix
 
-        SimulationLogQuantity.__init__(self, dt, name, "m", 
+        pytools.log.SimulationLogQuantity.__init__(self, dt, name, "m", 
                 "Theoretical RMS Beam Radius")
 
         self.beam_v = beam_v
@@ -350,32 +255,51 @@ class KVPredictedRadius(SimulationLogQuantity):
 
 
 
-if __name__ == "__main__":
-    class Sin(ODEDefinedFunction):
-        def __init__(self):
-            ODEDefinedFunction.__init__(self, 0, 
-                    numpy.array([0,1]), 1/7*1e-2)
+# gaussian --------------------------------------------------------------------
+class GaussianParticleDistribution(pytools.Record):
+    def __init__(self, total_charge, total_mass, mean_x, mean_p, sigma_x, sigma_p):
+        pytools.Record.__init__(self, locals())
 
-        def rhs(self, t, y):
-            return numpy.array([y[1], -y[0]])
+    def add_to(self, cloud, nparticles):
+        from random import gauss
 
-        def __call__(self, t):
-            return ODEDefinedFunction.__call__(self, t)[0]
+        pmass = self.total_mass/nparticles
+        cloud.add_particles(
+                positions=[
+                    numpy.array([gauss(m, s) for m, s in zip(self.mean_x, self.sigma_x)]) 
+                    for i in range(nparticles)
+                    ],
+                velocities=[cloud.units.v_from_p(pmass, 
+                    numpy.array([gauss(m, s) for m, s in zip(self.mean_p, self.sigma_p)])) 
+                    for i in range(nparticles)
+                    ],
+                charges=self.total_charge/nparticles, 
+                masses=pmass)
 
-    from math import pi
-    s = Sin()
-    assert abs(s(-pi)) < 2e-3
-    assert abs(s(pi)) < 2e-3
-    assert abs(s(-pi/2)+1) < 2e-3
+    def analytic_rho(self, discr):
+        from math import exp, pi
 
-    kv_env_exact = ChargelessKVRadiusPredictor(2.5e-3, 5e-6)
-    kv_env_num = KVRadiusPredictor(2.5e-3, 5e-6)
+        sigma_mat = numpy.diag(self.sigma_x**2)
+        inv_sigma_mat = numpy.diag(self.sigma_x**(-2))
 
-    from hedge.tools import plot_1d
-    steps = 50
-    for i in range(steps):
-        s = kv_env_num.dt/7*i
-        
-        a_exact = kv_env_exact(s)
-        a_num = kv_env_num(s)
-        assert abs(a_exact-a_num)/a_exact < 1e-3
+        from numpy import dot
+
+        normalization = 1/((2*pi)**(len(x)/2) * la.det(sigma_mat)**0.5)
+
+        def distrib(x):
+            x0 = x-self.mean_x
+            return normalization * exp(-0.5*dot(x0, dot(inv_sigma_mat, x0)))
+
+        rho = self.total_charge * discr.interpolate_volume_function(distrib)
+
+        # check for correctness
+        from hedge.discretization import integral
+        int_rho = integral(discr, rho)
+        rel_err = (int_rho-self.total_charge)/self.total_charge
+        assert rel_err < 1e-2
+
+        return rho
+
+
+
+

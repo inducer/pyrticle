@@ -42,6 +42,10 @@ namespace pyrticle
     typedef shape_function_reconstructor::type<PIC> cl;
     wrp
       .DEF_RW_MEMBER(shape_function)
+
+      .DEF_SIMPLE_METHOD(reconstruct_densities)
+      .DEF_SIMPLE_METHOD(reconstruct_rho)
+      .DEF_SIMPLE_METHOD(reconstruct_j)
       ;
   }
 
@@ -57,8 +61,13 @@ namespace pyrticle
       .DEF_RO_MEMBER(normalization_stats)
       .DEF_RO_MEMBER(centroid_distance_stats)
       .DEF_RO_MEMBER(el_per_particle_stats)
-      .DEF_RW_MEMBER(shape_function)
       .DEF_SIMPLE_METHOD(setup_normalized_shape_reconstructor)
+
+      .DEF_RW_MEMBER(shape_function)
+
+      .DEF_SIMPLE_METHOD(reconstruct_densities)
+      .DEF_SIMPLE_METHOD(reconstruct_rho)
+      .DEF_SIMPLE_METHOD(reconstruct_j)
       ;
   }
 
@@ -88,6 +97,12 @@ namespace pyrticle
       .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
       .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
       .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)
+
+      .DEF_SIMPLE_METHOD(reconstruct_densities)
+      .DEF_SIMPLE_METHOD(reconstruct_rho)
+      .DEF_SIMPLE_METHOD(reconstruct_j)
+
+      .DEF_SIMPLE_METHOD(perform_reconstructor_upkeep)
       ;
   }
 
@@ -123,8 +138,12 @@ namespace pyrticle
       .DEF_SIMPLE_METHOD(find_points_in_element)
       .DEF_SIMPLE_METHOD(grid_node_count)
 
-      .DEF_SIMPLE_METHOD(get_grid_rho)
-      .DEF_SIMPLE_METHOD(get_grid_j)
+      .DEF_SIMPLE_METHOD(remap_grid_to_mesh)
+      .DEF_SIMPLE_METHOD(remap_residual)
+
+      .DEF_SIMPLE_METHOD(reconstruct_grid_densities)
+      .DEF_SIMPLE_METHOD(reconstruct_grid_j)
+      .DEF_SIMPLE_METHOD(reconstruct_grid_rho)
       ;
   }
 }

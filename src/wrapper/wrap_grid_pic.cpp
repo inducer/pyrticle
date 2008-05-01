@@ -101,7 +101,9 @@ void expose_grid_pic()
     python::class_<cl>("ElementOnGrid")
       .DEF_RW_MEMBER(element_number)
       .DEF_RW_MEMBER(grid_nodes)
+      .DEF_BYVAL_RW_MEMBER(weight_factors)
       .DEF_BYVAL_RW_MEMBER(interpolation_matrix)
+      .DEF_BYVAL_RW_MEMBER(inverse_interpolation_matrix)
       ;
   }
 

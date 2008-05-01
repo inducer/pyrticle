@@ -21,6 +21,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 import pyrticle._internal as _internal
 import numpy
+import numpy.linalg as la
 import pytools
 
 
@@ -220,3 +221,77 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
 
 
+# math stuff ------------------------------------------------------------------
+def uniform_on_unit_sphere(dim):
+    from random import gauss
+
+    # cf.
+    # http://www-alg.ist.hokudai.ac.jp/~jan/randsphere.pdf
+    # Algorith due to Knuth
+
+    pt = numpy.array([gauss(0,1) for i in range(dim)])
+    n2 = la.norm(pt)
+    return pt/n2
+
+
+
+
+class ODEDefinedFunction:
+    def __init__(self, t0, y0, dt):
+        self.t = [t0]
+        self.y = [y0]
+        self.dt = dt
+
+        from hedge.timestep import RK4TimeStepper
+        self.forward_stepper = RK4TimeStepper()
+        self.backward_stepper = RK4TimeStepper()
+
+    def __call__(self, t):
+        def copy_if_necessary(x):
+            try:
+                return x[:]
+            except TypeError:
+                return x
+
+        if t < self.t[0]:
+            steps = int((self.t[0]-t)/self.dt)+1
+            t_list = [self.t[0]]
+            y_list = [self.y[0]]
+            for n in range(steps):
+                y_list.append(self.backward_stepper(
+                    copy_if_necessary(y_list[-1]), 
+                    t_list[-1], -self.dt, self.rhs))
+                t_list.append(t_list[-1]-self.dt)
+
+            self.t = t_list[:0:-1] + self.t
+            self.y = y_list[:0:-1] + self.y
+        elif t >= self.t[-1]:
+            steps = int((t-self.t[-1])/self.dt)+1
+            t_list = [self.t[-1]]
+            y_list = [self.y[-1]]
+            for n in range(steps):
+                y_list.append(self.forward_stepper(
+                    copy_if_necessary(y_list[-1]), 
+                    t_list[-1], self.dt, self.rhs))
+                t_list.append(t_list[-1]+self.dt)
+
+            self.t = self.t + t_list[1:]
+            self.y = self.y + y_list[1:]
+
+        from bisect import bisect_right
+        below_idx = bisect_right(self.t, t)-1
+        assert below_idx >= 0
+        above_idx = below_idx + 1
+
+        assert above_idx < len(self.t)
+        assert self.t[below_idx] <= t <= self.t[above_idx]
+
+        # FIXME linear interpolation, bad
+        slope = ((self.y[above_idx]-self.y[below_idx]) 
+                /
+                (self.t[above_idx]-self.t[below_idx]))
+
+        return self.y[below_idx] + (t-self.t[below_idx]) * slope
+
+    def rhs(self, t, y):
+        raise NotImplementedError

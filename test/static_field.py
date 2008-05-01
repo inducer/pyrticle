@@ -1,16 +1,13 @@
 from __future__ import division
 import numpy
 import numpy.linalg as la
-import cProfile as profile
-from pyrticle.units import SI
-
-units = SI()
 
 
 
 
 class StaticFieldSetup:
     def __init__(self, mass, charge, c):
+
         self.mass = mass
         self.charge = charge
         self.c = c
@@ -47,8 +44,10 @@ class StaticFieldSetup:
 
 class LarmorScrew(StaticFieldSetup):
     """Implements Section 12.2 in the third edition of Jackson."""
-    def __init__(self, mass, charge, c, vpar, vperp, bz, nparticles):
+    def __init__(self, units, mass, charge, c, vpar, vperp, bz, nparticles):
         from math import pi 
+
+        self.units = units
 
         StaticFieldSetup.__init__(self, mass, charge, c)
         self.vpar = vpar
@@ -79,7 +78,7 @@ class LarmorScrew(StaticFieldSetup):
         return numpy.array([0,0,0])
 
     def h(self):
-        return 1/units.MU0*numpy.array([0, 0, self.bz])
+        return 1/self.units.MU0*numpy.array([0, 0, self.bz])
 
     def fields(self, discr):
         class ZField:
@@ -93,7 +92,7 @@ class LarmorScrew(StaticFieldSetup):
 
         from hedge.data import GivenFunction
         e = discr.volume_zeros(shape=(3,))
-        h = 1/units.MU0*GivenFunction(ZField(self.bz)).volume_interpolant(discr)
+        h = 1/self.units.MU0*GivenFunction(ZField(self.bz)).volume_interpolant(discr)
 
         return e, h
 
@@ -122,7 +121,8 @@ class LarmorScrew(StaticFieldSetup):
 
 class EBParallel(StaticFieldSetup):
     """Implements Problem 12.6b) in the third edition of Jackson."""
-    def __init__(self, mass, charge, c, ez, bz, radius, nparticles):
+    def __init__(self, units, mass, charge, c, ez, bz, radius, nparticles):
+        self.units = units
         self.ez = ez
         self.bz = bz
         StaticFieldSetup.__init__(self, mass, charge, c)
@@ -141,7 +141,7 @@ class EBParallel(StaticFieldSetup):
 
         self.shift = numpy.zeros((3,))
 
-        c = self.c = units.VACUUM_LIGHT_SPEED
+        c = self.c = self.units.VACUUM_LIGHT_SPEED
         self.R = mass*c/(charge*bz) # converted to SI
         self.rho = ez/(c*bz) # converted to SI
 
@@ -198,7 +198,7 @@ class EBParallel(StaticFieldSetup):
         return numpy.array([0,0,self.ez])
 
     def h(self):
-        return 1/units.MU0*numpy.array([0, 0, self.bz])
+        return 1/self.units.MU0*numpy.array([0, 0, self.bz])
 
     def fields(self, discr):
         class ZField:
@@ -212,7 +212,7 @@ class EBParallel(StaticFieldSetup):
 
         from hedge.data import GivenFunction
         e = GivenFunction(ZField(self.ez)).volume_interpolant(discr)
-        h = 1/units.MU0*GivenFunction(ZField(self.bz)).volume_interpolant(discr)
+        h = 1/self.units.MU0*GivenFunction(ZField(self.bz)).volume_interpolant(discr)
 
         return e, h
 
@@ -261,13 +261,12 @@ class EBParallel(StaticFieldSetup):
 
 
 
-def run_setup(casename, setup, discr, pusher):
+def run_setup(units, casename, setup, discr, pusher, visualize=False):
     from hedge.timestep import RK4TimeStepper
-    from hedge.visualization import VtkVisualizer, SiloVisualizer
+    from hedge.visualization import SiloVisualizer
     from hedge.operators import MaxwellOperator
 
     vis = SiloVisualizer(discr)
-    #vis = VtkVisualizer(discr, "pic")
 
     from pyrticle.cloud import ParticleCloud, FaceBasedElementFinder
     from pyrticle.reconstruction import \
@@ -285,9 +284,6 @@ def run_setup(casename, setup, discr, pusher):
     init_positions = setup.positions(0)
     init_velocities = setup.velocities(0)
 
-    #print "x", init_positions
-    #print "v", init_velocities
-
     cloud.add_particles(
             positions=init_positions,
             velocities=init_velocities,
@@ -297,32 +293,12 @@ def run_setup(casename, setup, discr, pusher):
     nsteps = setup.nsteps()
     dt = final_time/nsteps
 
-    print "#elements=%d, dt=%s, #steps=%d" % (
-            len(discr.mesh.elements), dt, nsteps)
-
-    from pytools.log import LogManager, \
-            add_simulation_quantities, \
-            add_general_quantities, \
-            add_run_info, ETA
-    from pyrticle.log import add_particle_quantities
-    logmgr = LogManager("%s.dat" % casename, "w")
-    add_run_info(logmgr)
-    add_general_quantities(logmgr)
-    add_simulation_quantities(logmgr, dt)
-    add_particle_quantities(logmgr, cloud)
-    cloud.add_instrumentation(logmgr)
-
-    logmgr.add_quantity(ETA(nsteps))
-
-    logmgr.add_watches(["step", "t_sim", "t_step", "t_eta", "n_part"])
-
     # timestepping ------------------------------------------------------------
     def rhs(t, y):
         return cloud.rhs(t, e, b)
 
     stepper = RK4TimeStepper()
     from time import time
-    last_tstep = time()
     t = 0
 
     def check_result():
@@ -386,24 +362,13 @@ def run_setup(casename, setup, discr, pusher):
 
     errors = (0, 0, 0)
 
-    from pytools.log import IntervalTimer
-    check_timer = IntervalTimer("t_check", "Time spent checking results")
-    vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
-    logmgr.add_quantity(check_timer)
-    logmgr.add_quantity(vis_timer)
     for step in xrange(nsteps):
-        logmgr.tick()
-        
-        if step % (setup.nsteps()/100) == 0:
-            check_timer.start()
+        if step % (setup.nsteps()/300) == 0:
             errors = tuple(
                     max(old_err, new_err) 
                     for old_err, new_err in zip(errors, check_result()))
-            check_timer.stop()
 
-            last_tstep = time()
-            vis_timer.start()
-            if True:
+            if visualize:
                 visf = vis.make_file("%s-%04d" % (casename, step))
 
                 cloud.add_to_vis(vis, visf, time=t, step=step)
@@ -414,76 +379,19 @@ def run_setup(casename, setup, discr, pusher):
                 else:
                     vis.add_data(visf, [], time=t, step=step)
                 visf.close()
-            vis_timer.stop()
 
         cloud.upkeep()
         cloud = stepper(cloud, t, dt, rhs)
 
         t += dt
 
-    logmgr.tick()
-    logmgr.save()
-
-    print
-    print "l_inf errors (pos,vel,acc):", errors
+    assert errors[0] < 2e-13, casename+"-pos"
+    assert errors[1] < 2e-13, casename+"-vel"
+    assert errors[2] < 2e-4, casename+"-acc"
 
     vis.close()
 
 
 
 
-def main():
-    from hedge.element import TetrahedralElement
-    from hedge.mesh import \
-            make_box_mesh, \
-            make_cylinder_mesh
-    from hedge.discretization import Discretization
 
-    # discretization setup ----------------------------------------------------
-    radius = 1*units.M
-    full_mesh = make_cylinder_mesh(radius=radius, height=2*radius, periodic=True,
-            radial_subdivisions=30)
-
-    from hedge.parallel import guess_parallelization_context
-
-    pcon = guess_parallelization_context()
-
-    if pcon.is_head_rank:
-        mesh = pcon.distribute_mesh(full_mesh)
-    else:
-        mesh = pcon.receive_mesh()
-
-    discr = pcon.make_discretization(mesh, TetrahedralElement(1))
-
-    # particles setup ---------------------------------------------------------
-    def get_setup(case):
-        c = units.VACUUM_LIGHT_SPEED
-        if case == "screw":
-            return LarmorScrew(mass=units.EL_MASS, charge=units.EL_CHARGE, c=c,
-                    vpar=c*0.8, vperp=c*0.1, bz=1e-3, 
-                    nparticles=4)
-        elif case == "epb":
-            return EBParallel(mass=units.EL_MASS, charge=units.EL_CHARGE, c=c,
-                    ez=1e+5, bz=1e-3, radius=0.5*radius, nparticles=1)
-        else:
-            raise ValueError, "invalid test case"
-
-    from pyrticle.pusher import \
-            MonomialParticlePusher, \
-            AverageParticlePusher
-
-    for pusher in [MonomialParticlePusher, AverageParticlePusher]:
-        for case in ["screw", "epb"]:
-            casename = "%s-%s" % (case, pusher.name.lower())
-            print "----------------------------------------------"
-            print casename.upper()
-            print "----------------------------------------------"
-            run_setup(casename, get_setup(case), discr, pusher)
-
-
-
-
-
-if __name__ == "__main__":
-    #profile.run("main()", "pic.prof")
-    main()

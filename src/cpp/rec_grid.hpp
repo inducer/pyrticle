@@ -56,21 +56,22 @@ namespace pyrticle
 
 
     // specialized targets ----------------------------------------------------
+    template <class VecType>
     class rho_target
     {
       private:
-        dyn_vector &m_target_vector;
+        typename VecType::iterator m_target;
 
       public:
-        rho_target(dyn_vector &target_vector)
-          : m_target_vector(target_vector)
-        { m_target_vector.clear(); }
+        rho_target(VecType &target_vector)
+          : m_target(target_vector.begin())
+        { target_vector.clear(); }
 
         void begin_particle(particle_number pn)
         { }
 
         void add_shape_value(grid_node_number gnn, double q_shapeval)
-        { m_target_vector[gnn] += q_shapeval; }
+        { m_target[gnn] += q_shapeval; }
 
         void end_particle(particle_number pn)
         { }
@@ -81,21 +82,19 @@ namespace pyrticle
 
     /** Reconstruction Target for the current density.
      */
-    template<unsigned DimensionsVelocity>
+    template<unsigned DimensionsVelocity, class JVecType, class VVecType>
     class j_target
     {
       private:
-        dyn_vector &m_target_vector;
-        const dyn_vector &m_velocities;
+        typename JVecType::iterator m_target;
+        typename VVecType::const_iterator m_velocities;
         double m_scale_factors[DimensionsVelocity];
 
       public:
-        j_target(
-            dyn_vector &target_vector, 
-            const dyn_vector &velocities)
-          : m_target_vector(target_vector), m_velocities(velocities)
+        j_target(JVecType &target_vector, const VVecType &velocities)
+          : m_target(target_vector.begin()), m_velocities(velocities.begin())
         { 
-          m_target_vector.clear();
+          target_vector.clear();
           for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
             m_scale_factors[axis] = 0;
         }
@@ -110,7 +109,7 @@ namespace pyrticle
         { 
           unsigned const base = gnn*DimensionsVelocity;
           for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-            m_target_vector[base+axis] += m_scale_factors[axis]*q_shapeval;
+            m_target[base+axis] += m_scale_factors[axis]*q_shapeval;
         }
 
         void end_particle(particle_number pn)
@@ -261,6 +260,14 @@ namespace pyrticle
           return result;
         }
 
+        double cell_volume() const
+        {
+          double result = 1;
+          BOOST_FOREACH(double dx, m_stepwidths)
+            result *= dx;
+          return result;
+        }
+
         bounded_vector point(const bounded_int_vector &idx) const
         { return m_origin_plus_half + element_prod(idx, m_stepwidths); }
 
@@ -406,14 +413,16 @@ namespace pyrticle
     {
       mesh_data::element_number m_element_number;
       std::vector<grid_node_number> m_grid_nodes;
+      py_vector m_weight_factors;
 
       /** The interpolant matrix maps the values (in-order) on the element
        * to the structured grid values at indices m_grid_nodes.
        *
-       * The general assumption is that #(element nodes) < #(grid points in element),
-       * but this may be violated without much harm.
+       * The general assumption is that #(element nodes) < #(grid points in element).
        */
       dyn_fortran_matrix m_interpolation_matrix;
+
+      dyn_fortran_matrix m_inverse_interpolation_matrix;
     };
 
 
@@ -429,6 +438,7 @@ namespace pyrticle
 
         std::vector<brick> m_bricks;
         std::vector<element_on_grid> m_elements_on_grid;
+        mutable unsigned m_max_el_grid_values;
         boost::numeric::ublas::vector<brick_number> m_particle_brick_numbers;
 
         /** Each brick may have a number of "extra" points to resolve
@@ -460,6 +470,14 @@ namespace pyrticle
         std::vector<mesh_data::node_number> m_average_groups;
         std::vector<unsigned> m_average_group_starts;
 
+
+
+
+
+        // construction -------------------------------------------------------
+        type()
+          : m_max_el_grid_values(0)
+        { }
 
 
 
@@ -496,10 +514,13 @@ namespace pyrticle
           unsigned gnc = grid_node_count();
 
           std::vector<bounded_vector> points;
+          std::vector<double> weights;
 
           // For each element, find all structured points inside the element.
           BOOST_FOREACH(brick const &brk, m_bricks)
           {
+            const double dV = brk.cell_volume();
+
             bounded_box brk_and_el = brk.bounding_box().intersect(el_bbox);
             if (brk_and_el.is_empty())
                 continue;
@@ -509,33 +530,37 @@ namespace pyrticle
 
             brick::iterator it(brk, el_brick_index_box);
 
-              while (!it.at_end())
-              {
-                bool in_el = true;
-                
-                bounded_vector point = it.point();
-                
-                BOOST_FOREACH(const mesh_data::face_info &f, el.m_faces)
-                  if (inner_prod(f.m_normal, point) 
-                      - f.m_face_plane_eqn_rhs > scaled_tolerance)
-                  {
-                    in_el = false;
-                    break;
-                  }
+            while (!it.at_end())
+            {
+              bool in_el = true;
 
-                if (in_el)
+              bounded_vector point = it.point();
+
+              BOOST_FOREACH(const mesh_data::face_info &f, el.m_faces)
+                if (inner_prod(f.m_normal, point) 
+                    - f.m_face_plane_eqn_rhs > scaled_tolerance)
                 {
-                  points.push_back(point);
-
-                  grid_node_number gni = it.index();
-                  if (gni >= gnc)
-                    throw std::runtime_error("rec_grid: structured point index out of bounds");
-                  eog.m_grid_nodes.push_back(gni);
+                  in_el = false;
+                  break;
                 }
 
-                ++it;
+              if (in_el)
+              {
+                points.push_back(point);
+
+                grid_node_number gni = it.index();
+                if (gni >= gnc)
+                  throw std::runtime_error("rec_grid: structured point index out of bounds");
+                eog.m_grid_nodes.push_back(gni);
+                weights.push_back(sqrt(dV));
               }
+
+              ++it;
             }
+          }
+
+          eog.m_weight_factors.resize(weights.size());
+          std::copy(weights.begin(), weights.end(), eog.m_weight_factors.begin());
 
           npy_intp dims[] = { points.size(), mdims };
           py_vector points_copy(2, dims);
@@ -758,32 +783,43 @@ namespace pyrticle
 
 
 
-        template <class FromVec, class ToVec>
-        void remap_grid_to_mesh(const FromVec &from, ToVec &to, 
+        void remap_grid_to_mesh(const py_vector from, py_vector to, 
             const unsigned offset=0, const unsigned increment=1) const
         {
+          const py_vector::const_iterator from_it = from.begin();
+
+          if (m_max_el_grid_values == 0)
+          {
+            BOOST_FOREACH(const element_on_grid &eog, m_elements_on_grid)
+              m_max_el_grid_values = std::max<unsigned>(
+                  m_max_el_grid_values,
+                  eog.m_grid_nodes.size());
+          }
+
+          dyn_vector grid_values(m_max_el_grid_values);
+
           BOOST_FOREACH(const element_on_grid &eog, m_elements_on_grid)
           {
             const mesh_data::element_info &el = 
               CONST_PIC_THIS->m_mesh_data.m_element_info[
               eog.m_element_number];
 
-            dyn_vector grid_values(eog.m_grid_nodes.size());
+            // pick values off the grid
+            const py_vector::const_iterator weights = eog.m_weight_factors.begin();
 
-            {
-              dyn_vector::iterator gv_it = grid_values.begin();
-              BOOST_FOREACH(grid_node_number gnn, eog.m_grid_nodes)
-                *gv_it++ = from[offset + gnn*increment];
-            }
+            for (unsigned i = 0; i < eog.m_grid_nodes.size(); ++i)
+              grid_values[i] = weights[i]
+                * from_it[offset + eog.m_grid_nodes[i]*increment];
 
+            // and apply the interpolation matrix
             {
               const dyn_fortran_matrix &matrix = eog.m_interpolation_matrix;
               using namespace boost::numeric::bindings;
               using blas::detail::gemv;
               gemv(
                   'N',
-                  eog.m_interpolation_matrix.size1(),
-                  eog.m_interpolation_matrix.size2(),
+                  matrix.size1(),
+                  matrix.size2(),
                   /*alpha*/ 1,
                   traits::matrix_storage(matrix),
                   traits::leading_dimension(matrix),
@@ -797,7 +833,7 @@ namespace pyrticle
           }
 
           // cross-element continuity enforcement
-          typename ToVec::iterator to_it = to.begin();
+          const py_vector::iterator to_it = to.begin();
 
           std::vector<unsigned>::const_iterator 
             ag_starts_first = m_average_group_starts.begin(),
@@ -833,6 +869,80 @@ namespace pyrticle
 
 
 
+        void remap_residual(const py_vector &from, py_vector to, 
+            const unsigned offset=0, const unsigned increment=1) const
+        {
+          unsigned max_el_size = 0;
+          BOOST_FOREACH(const mesh_data::element_info &el, 
+              CONST_PIC_THIS->m_mesh_data.m_element_info)
+            max_el_size = std::max(max_el_size, el.m_end-el.m_start);
+          dyn_vector mesh_values(max_el_size);
+
+          const py_vector::const_iterator from_it = from.begin();
+          const py_vector::iterator to_it = to.begin();
+
+          BOOST_FOREACH(const element_on_grid &eog, m_elements_on_grid)
+          {
+            const py_vector::const_iterator weights = eog.m_weight_factors.begin();
+            dyn_vector grid_values(eog.m_grid_nodes.size());
+
+            // pick values off the grid
+            for (unsigned i = 0; i < eog.m_grid_nodes.size(); ++i)
+              grid_values[i] = weights[i]
+                * from_it[offset + eog.m_grid_nodes[i]*increment];
+
+            // apply the interpolation matrix
+            {
+              const dyn_fortran_matrix &matrix = eog.m_interpolation_matrix;
+              using namespace boost::numeric::bindings;
+              using blas::detail::gemv;
+              gemv(
+                  'N',
+                  matrix.size1(),
+                  matrix.size2(),
+                  /*alpha*/ 1,
+                  traits::matrix_storage(matrix),
+                  traits::leading_dimension(matrix),
+
+                  traits::vector_storage(grid_values), /*incx*/ 1,
+
+                  /*beta*/ 0,
+                  traits::vector_storage(mesh_values), 
+                  /*incy*/ 1);
+            }
+
+            // apply the inverse interpolation matrix
+            {
+              const dyn_fortran_matrix &matrix = eog.m_inverse_interpolation_matrix;
+              using namespace boost::numeric::bindings;
+              using blas::detail::gemv;
+              gemv(
+                  'N',
+                  matrix.size1(),
+                  matrix.size2(),
+                  /*alpha*/ 1,
+                  traits::matrix_storage(matrix),
+                  traits::leading_dimension(matrix),
+
+                  traits::vector_storage(mesh_values), 
+                  /*incx*/ 1,
+
+                  /*beta*/ 0,
+                  traits::vector_storage(grid_values), /*incy*/ 1
+                  );
+            }
+
+            // add squared residuals back onto the grid
+            for (unsigned i = 0; i < eog.m_grid_nodes.size(); ++i)
+              to_it[offset + eog.m_grid_nodes[i]*increment] +=
+                square(grid_values[i] / weights[i]
+                    - from_it[offset + eog.m_grid_nodes[i]*increment]);
+          }
+        }
+
+
+
+
         // particle numbering notifications -----------------------------------
         void note_move(particle_number from, particle_number to, unsigned size)
         {
@@ -858,29 +968,56 @@ namespace pyrticle
 
 
 
-        py_vector get_grid_rho()
+        // gridded output -----------------------------------------------------
+        boost::tuple<py_vector, py_vector> 
+          reconstruct_grid_densities(const py_vector &velocities)
         {
-          dyn_vector grid_rho(grid_node_count());
+          const unsigned gnc = grid_node_count();
+          const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
 
-          rho_target rho_tgt(grid_rho);
-          reconstruct_densities_on_grid_target(rho_tgt);
-          return grid_rho;
+          py_vector grid_rho(gnc);
+          npy_intp dims[] = { gnc, vdim };
+          py_vector grid_j(2, dims);
+
+          rho_target<py_vector> rho_tgt(grid_rho);
+          typedef j_target<PICAlgorithm::dimensions_velocity, py_vector, py_vector> 
+            j_tgt_t;
+          j_tgt_t j_tgt(grid_j, velocities);
+          chained_target<rho_target<py_vector>, j_tgt_t>
+              tgt(rho_tgt, j_tgt);
+
+          reconstruct_densities_on_grid_target(tgt);
+
+          return boost::make_tuple(grid_rho, grid_j);
         }
 
 
 
 
-        py_vector get_grid_j(py_vector const &velocities)
+        py_vector reconstruct_grid_j(py_vector const &velocities)
         {
-          dyn_vector grid_j(
-              CONST_PIC_THIS->get_dimensions_velocity()
-              * grid_node_count());
+          const unsigned gnc = grid_node_count();
+          const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
 
-          dyn_vector velocities_copy(velocities);
-          j_target<PICAlgorithm::dimensions_velocity> 
-            j_tgt(grid_j, velocities_copy);
+          npy_intp dims[] = { gnc, vdim };
+          py_vector grid_j(2, dims);
+
+          j_target<PICAlgorithm::dimensions_velocity, py_vector, py_vector> 
+            j_tgt(grid_j, velocities);
           reconstruct_densities_on_grid_target(j_tgt);
           return grid_j;
+        }
+
+
+
+
+        py_vector reconstruct_grid_rho()
+        {
+          py_vector grid_rho(grid_node_count());
+
+          rho_target<py_vector> rho_tgt(grid_rho);
+          reconstruct_densities_on_grid_target(rho_tgt);
+          return grid_rho;
         }
 
 
@@ -889,91 +1026,6 @@ namespace pyrticle
         // public interface -----------------------------------------------------
         static const std::string get_name()
         { return "Grid"; }
-
-        void perform_reconstructor_upkeep()
-        { }
-
-        boost::tuple<py_vector, py_vector> 
-          reconstruct_densities(const py_vector &velocities)
-        {
-          py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
-          npy_intp dims[] = {
-            CONST_PIC_THIS->m_mesh_data.node_count(),
-            CONST_PIC_THIS->get_dimensions_velocity()
-          };
-          py_vector j(2, dims);
-
-          const unsigned gnc = grid_node_count();
-          const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
-
-          dyn_vector v(velocities);
-          dyn_vector grid_rho(gnc);
-          dyn_vector grid_j(vdim * gnc);
-
-          rho_target rho_tgt(grid_rho);
-          typedef j_target<PICAlgorithm::dimensions_velocity> j_tgt_t;
-          j_tgt_t j_tgt(grid_j, v);
-          chained_target<rho_target, j_tgt_t>
-              tgt(rho_tgt, j_tgt);
-
-          reconstruct_densities_on_grid_target(tgt);
-
-          rho.clear();
-          j.clear();
-
-          remap_grid_to_mesh(grid_rho, rho);
-          for (unsigned i = 0; i < vdim; ++i)
-            remap_grid_to_mesh(grid_j, j, i, vdim);
-
-          return boost::make_tuple(rho, j);
-        }
-
-
-
-
-        py_vector reconstruct_j(const py_vector &velocities)
-        {
-          npy_intp dims[] = {
-            CONST_PIC_THIS->m_mesh_data.node_count(),
-            CONST_PIC_THIS->get_dimensions_velocity()
-          };
-          py_vector j(2, dims);
-
-          const unsigned gnc = grid_node_count();
-          const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
-
-          dyn_vector v(velocities);
-          dyn_vector grid_j(vdim * gnc);
-
-          typedef j_target<PICAlgorithm::dimensions_velocity> j_tgt_t;
-          j_tgt_t j_tgt(grid_j, v);
-
-          reconstruct_densities_on_grid_target(j_tgt);
-
-          j.clear();
-
-          for (unsigned i = 0; i < vdim; ++i)
-            remap_grid_to_mesh(grid_j, j, i, vdim);
-
-          return j;
-        }
-
-
-
-
-        py_vector reconstruct_rho()
-        {
-          py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
-          dyn_vector grid_rho(grid_node_count());
-
-          rho_target rho_tgt(grid_rho);
-          reconstruct_densities_on_grid_target(rho_tgt);
-
-          rho.clear();
-
-          remap_grid_to_mesh(grid_rho, rho);
-          return rho;
-        }
     };
   };
 }

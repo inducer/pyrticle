@@ -42,6 +42,9 @@ class Pusher(object):
         mgr.set_constant("pusher", self.name)
         mgr.add_quantity(self.force_timer)
 
+    def upkeep(self):
+        pass
+
     def forces(self, velocities, verbose_vis, *field_args):
         self.force_timer.start()
         forces = self.cloud.pic_algorithm.forces(
