@@ -219,7 +219,7 @@ class ParticleCloud:
             masses = new_count * [masses]
 
         # convert velocities to momenta
-        momenta = [m*self.units.gamma(v)*v for m, v in zip(masses, velocities)]
+        momenta = [m*self.units.gamma_from_v(v)*v for m, v in zip(masses, velocities)]
 
         # find containing elements
         pic = self.pic_algorithm
@@ -731,10 +731,11 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
         l1_errors.append(integral(discr, numpy.abs(rec_rho-analytic_rho)))
 
         if visualize:
-            visf = vis.make_file("rho-%04d" % step)
+            visf = vis.make_file("bwopt-%04d" % step)
             cloud.add_to_vis(vis, visf, time=radius, step=step)
             vis.add_data(visf, [ 
                 ("rho", rec_rho), 
+                ("j", cloud.reconstruct_j()),
                 ("anarho", analytic_rho), 
                 ],
                 time=radius, step=step)
@@ -746,6 +747,8 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
             else:
                 rec.visualize_grid_quantities(visf, [
                         ("rho_grid", rec.reconstruct_grid_rho()),
+                        ("j_grid", rec.reconstruct_grid_j(cloud.velocities())),
+                        ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
                         ])
 
             visf.close()
@@ -863,7 +866,7 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         phi_tilde = -parallel_cg(pcon, -poisson_op, 
                 poisson_op.prepare_rhs(
                     GivenVolumeInterpolant(discr, rho_tilde/max_op.epsilon)), 
-                debug=True, tol=1e-10)
+                debug=debug, tol=1e-10)
 
     from hedge.tools import ptwise_dot
     e_tilde = ptwise_dot(make_scaling_matrix(1/gamma, 1), poisson_op.grad(phi_tilde))

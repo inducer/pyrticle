@@ -261,7 +261,7 @@ def main():
                 rec.visualize_grid_quantities(visf, [
                         ("rho_grid", rec.reconstruct_grid_rho()),
                         ("j_grid", rec.reconstruct_grid_j(cloud.velocities())),
-                        ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
+                        ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
                         ("usecount", rec.grid_usecount()),
                         ])
 

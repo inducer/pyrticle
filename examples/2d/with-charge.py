@@ -7,52 +7,6 @@ import pytools
 
 
 
-class GaussianParticleDistribution(pytools.Record):
-    def __init__(self, total_charge, total_mass, mean_x, mean_p, sigma_x, sigma_p):
-        pytools.Record.__init__(self, locals())
-
-    def add_to(self, cloud, nparticles):
-        from random import gauss
-
-        pmass = self.total_mass/nparticles
-        cloud.add_particles(
-                positions=[
-                    numpy.array([gauss(m, s) for m, s in zip(self.mean_x, self.sigma_x)]) 
-                    for i in range(nparticles)
-                    ],
-                velocities=[cloud.units.v_from_p(pmass, 
-                    numpy.array([gauss(m, s) for m, s in zip(self.mean_p, self.sigma_p)])) 
-                    for i in range(nparticles)
-                    ],
-                charges=self.total_charge/nparticles, 
-                masses=pmass)
-
-    def analytic_rho(self, discr):
-        from math import exp, pi
-
-        sigma_mat = numpy.diag(self.sigma_x**2)
-        inv_sigma_mat = numpy.diag(self.sigma_x**(-2))
-
-        from numpy import dot
-
-        def distrib(x):
-            x0 = x-self.mean_x
-            return 1/((2*pi)**(len(x)/2) * la.det(sigma_mat)**0.5) \
-                    * exp(-0.5*dot(x0, dot(inv_sigma_mat, x0)))
-
-        rho = self.total_charge * discr.interpolate_volume_function(distrib)
-
-        # check for correctness
-        from hedge.discretization import integral
-        int_rho = integral(discr, rho)
-        rel_err = (int_rho-self.total_charge)/self.total_charge
-        assert rel_err < 1e-2
-
-        return rho
-
-
-
-
 def main():
     from hedge.element import TriangularElement
     from hedge.timestep import RK4TimeStepper
@@ -301,6 +255,7 @@ def main():
                         ("rho_grid", rec.reconstruct_grid_rho()),
                         ("j_grid", rec.reconstruct_grid_j(cloud.velocities())),
                         ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
+                        ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
                         ("usecount", rec.grid_usecount()),
                         ])
 

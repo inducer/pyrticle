@@ -413,7 +413,7 @@ namespace pyrticle
     {
       mesh_data::element_number m_element_number;
       std::vector<grid_node_number> m_grid_nodes;
-      dyn_vector m_weight_factors;
+      py_vector m_weight_factors;
 
       /** The interpolant matrix maps the values (in-order) on the element
        * to the structured grid values at indices m_grid_nodes.
@@ -552,7 +552,7 @@ namespace pyrticle
                 if (gni >= gnc)
                   throw std::runtime_error("rec_grid: structured point index out of bounds");
                 eog.m_grid_nodes.push_back(gni);
-                weights.push_back(dV);
+                weights.push_back(sqrt(dV));
               }
 
               ++it;
@@ -805,8 +805,10 @@ namespace pyrticle
               eog.m_element_number];
 
             // pick values off the grid
+            const py_vector::const_iterator weights = eog.m_weight_factors.begin();
+
             for (unsigned i = 0; i < eog.m_grid_nodes.size(); ++i)
-              grid_values[i] = eog.m_weight_factors[i]
+              grid_values[i] = weights[i]
                 * from_it[offset + eog.m_grid_nodes[i]*increment];
 
             // and apply the interpolation matrix
@@ -831,7 +833,7 @@ namespace pyrticle
           }
 
           // cross-element continuity enforcement
-          py_vector::iterator to_it = to.begin();
+          const py_vector::iterator to_it = to.begin();
 
           std::vector<unsigned>::const_iterator 
             ag_starts_first = m_average_group_starts.begin(),
@@ -877,15 +879,16 @@ namespace pyrticle
           dyn_vector mesh_values(max_el_size);
 
           const py_vector::const_iterator from_it = from.begin();
-          py_vector::iterator to_it = to.begin();
+          const py_vector::iterator to_it = to.begin();
 
           BOOST_FOREACH(const element_on_grid &eog, m_elements_on_grid)
           {
+            const py_vector::const_iterator weights = eog.m_weight_factors.begin();
             dyn_vector grid_values(eog.m_grid_nodes.size());
 
             // pick values off the grid
             for (unsigned i = 0; i < eog.m_grid_nodes.size(); ++i)
-              grid_values[i] = eog.m_weight_factors[i]
+              grid_values[i] = weights[i]
                 * from_it[offset + eog.m_grid_nodes[i]*increment];
 
             // apply the interpolation matrix
@@ -932,7 +935,7 @@ namespace pyrticle
             // add squared residuals back onto the grid
             for (unsigned i = 0; i < eog.m_grid_nodes.size(); ++i)
               to_it[offset + eog.m_grid_nodes[i]*increment] +=
-                square(grid_values[i] / eog.m_weight_factors[i]
+                square(grid_values[i] / weights[i]
                     - from_it[offset + eog.m_grid_nodes[i]*increment]);
           }
         }

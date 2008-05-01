@@ -55,7 +55,7 @@ class SI:
 
     EV = EL_CHARGE * V
 
-    def gamma(self, v):
+    def gamma_from_v(self, v):
         value = 1-numpy.dot(v, v)/self.VACUUM_LIGHT_SPEED**2
         if value <= 0:
             raise RuntimeError, "particle velocity >= speed of light"

@@ -433,7 +433,7 @@ class FineCoreBrickGenerator(object):
 
             from pytools import product
             print "surround pts: %d, core pts: %d" % (
-                    product(dims2)*2+product(dims1),
+                    product(dims2)*2+product(dims1)*2,
                     product(core_dims))
         else:
             raise ValueError, "invalid dimensionality"
@@ -478,11 +478,30 @@ class GridReconstructor(Reconstructor):
             self.prepare_with_pointwise_projection_and_extra_points()
         elif self.method == "simplex_enlarge":
             self.prepare_with_pointwise_projection_and_enlargement()
+        elif self.method == "simplex_pick":
+            self.prepare_with_pointwise_projection_and_picking()
         elif self.method == "brick":
             self.prepare_with_brick_interpolation()
         else:
             raise RuntimeError, "invalid rec_grid submethod specified"
 
+    def set_shape_function(self, sf):
+        Reconstructor.set_shape_function(self, sf)
+        self.cloud.pic_algorithm.shape_function = sf
+
+    def add_instrumentation(self, mgr):
+        Reconstructor.add_instrumentation(self, mgr)
+
+        mgr.set_constant("rec_grid_el_tolerance", self.el_tolerance)
+        mgr.set_constant("rec_grid_enforce_continuity", self.enforce_continuity)
+        mgr.set_constant("rec_grid_method", self.method)
+
+        self.brick_generator.log_data(mgr)
+
+
+
+
+    # preparation helpers -----------------------------------------------------
     def find_containing_brick(self, pt):
         for brk in self.cloud.pic_algorithm.bricks:
             if brk.bounding_box().contains(pt):
@@ -538,10 +557,8 @@ class GridReconstructor(Reconstructor):
         eog.element_number = el.id
 
         points = pic.find_points_in_element(eog, el_tolerance * la.norm(el.map.matrix, 2))
-        for i in range(len(eog.weight_factors)):
-            eog.weight_factors[i] = 1
         
-        return eog, points
+        return eog, list(points)
 
     def scaled_vandermonde(self, el, eog, points, ldis):
         """The remapping procedure in rec_grid relies on a pseudoinverse
@@ -607,6 +624,47 @@ class GridReconstructor(Reconstructor):
                 leftsolve(ldis.vandermonde(), scaled_vdm),
                 order="F")
 
+    def generate_point_statistics(self, cond_claims):
+        pic = self.cloud.pic_algorithm
+        discr = self.cloud.mesh_data.discr
+
+        point_claimers = {}
+
+        for eog in pic.elements_on_grid:
+            for i in eog.grid_nodes:
+                point_claimers.setdefault(i, []).append(eog.element_number)
+
+        claims = 0
+        multiple_claims = 0
+        
+        for i_pt, claimers in point_claimers.iteritems():
+            claims += len(claimers)
+            if len(claimers) > 1:
+                multiple_claims += 1
+
+        claimed_pts = set(point_claimers.iterkeys())
+        all_pts = set(xrange(pic.grid_node_count()))
+        unclaimed_pts = all_pts-claimed_pts
+
+        print("rec_grid.%s stats: #nodes: %d, #points total: %d" 
+                % (self.method, len(discr), len(all_pts)))
+        print("  #points unclaimed: %d #points claimed: %d, "
+                "#points multiply claimed: %d, #claims: %d"
+                % (len(unclaimed_pts), len(claimed_pts), multiple_claims, claims))
+        print("  #claims made for conditioning: %d, #extra points: %d"
+                % (cond_claims, len(pic.extra_points)/discr.dimensions))
+
+        self.log_constants["rec_grid_points"] = len(all_pts)
+        self.log_constants["rec_grid_claimed"] = len(claimed_pts)
+        self.log_constants["rec_grid_claims"] = claims
+        self.log_constants["rec_grid_mulclaims"] = multiple_claims
+        self.log_constants["rec_grid_4cond"] = cond_claims
+        self.log_constants["rec_grid_extra"] = len(pic.extra_points)/discr.dimensions
+
+
+
+
+    # preparation methods -----------------------------------------------------
     def prepare_with_pointwise_projection_and_extra_points(self):
         discr = self.cloud.mesh_data.discr
         pic = self.cloud.pic_algorithm
@@ -619,7 +677,7 @@ class GridReconstructor(Reconstructor):
         # down.
         ep_brick_map = {}
 
-        total_points = 0
+        min_s_values = []
 
         # Iterate over all elements
         for eg in discr.element_groups:
@@ -689,7 +747,7 @@ class GridReconstructor(Reconstructor):
                 if ep_count:
                     print "element %d #nodes=%d sgridpt=%d, extra=%d" % (
                             el.id, ldis.node_count(), len(points), ep_count)
-                total_points += len(points)
+                min_s_values.append(min(s))
 
                 self.make_pointwise_interpolation_matrix(eog, el, ldis, svd, scaled_vdm)
 
@@ -714,14 +772,10 @@ class GridReconstructor(Reconstructor):
         pic.extra_points = numpy.array(extra_points)
 
         # print some statistics
-        print("rec_grid.simplex_extra stats: #nodes: %d, "
-                "#points: %d, #points added: %d" % (
-                len(discr), total_points, len(extra_points))
-        )
+        self.generate_point_statistics(len(extra_points))
 
-        self.log_constants["rec_grid_nodes"] = len(discr)
-        self.log_constants["rec_grid_points"] = total_points
-        self.log_constants["rec_grid_added"] = len(extra_points)
+
+
 
     def prepare_with_pointwise_projection_and_enlargement(self):
         tolerance_bound = 1.5
@@ -732,8 +786,10 @@ class GridReconstructor(Reconstructor):
         pic.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
-        total_points = 0
-        points_added = 0
+        cond_claims = 0
+        min_s_values = []
+        max_s_values = []
+        cond_s_values = []
 
         # Iterate over all elements
         for eg in discr.element_groups:
@@ -776,13 +832,19 @@ class GridReconstructor(Reconstructor):
                                 "vandermonde matrix for el #%d by enlargement" % el.id)
                         break
 
+                #from pytools import average
+                #print average(eog.weight_factors), min(s)
+                #raw_input()
+
                 if my_tolerance > self.el_tolerance:
                     print "element %d: #nodes=%d, orig #sgridpt=%d, extra tol=%g, #extra points=%d" % (
                             el.id, ldis.node_count(), orig_point_count, 
                             my_tolerance-self.el_tolerance,
                             len(points)-orig_point_count)
-                    points_added += len(points)-orig_point_count
-                total_points += len(points)
+                    cond_claims += len(points)-orig_point_count
+                min_s_values.append(min(s))
+                max_s_values.append(max(s))
+                cond_s_values.append(max(s)/min(s))
 
                 self.make_pointwise_interpolation_matrix(eog, el, ldis, svd, scaled_vdm)
 
@@ -792,13 +854,24 @@ class GridReconstructor(Reconstructor):
         pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
 
         # print some statistics
-        print("rec_grid.simplex_enlarge stats: #nodes: %d, "
-                "#points: %d, #points added: %d" % (
-                len(discr), total_points, points_added))
+        self.generate_point_statistics(cond_claims)
 
-        self.log_constants["rec_grid_nodes"] = len(discr)
-        self.log_constants["rec_grid_points"] = total_points
-        self.log_constants["rec_grid_added"] = points_added
+        # conditioning statistics
+        from pylab import hist, show, xlabel, ylabel
+        ylabel("bin count")
+
+        hist(numpy.log10(min_s_values), 100)
+        xlabel(r"$\mathrm{log}\sigma_{\mathrm{min}}(\mathrm{IMat})$")
+        show()
+        hist(numpy.log10(max_s_values), 100)
+        xlabel(r"$\mathrm{log}\sigma_{\mathrm{max}}(\mathrm{IMat})$")
+        show()
+        hist(numpy.log10(cond_s_values), 100)
+        xlabel(r"$\mathrm{log}\frac{\sigma_{\mathrm{max}}}{\sigma_{\mathrm{min}}}$")
+        show()
+
+
+
 
     def prepare_with_brick_interpolation(self):
         class TensorProductLegendreBasisFunc:
@@ -905,24 +978,11 @@ class GridReconstructor(Reconstructor):
         pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
 
         # stats
-        print("rec_grid.brick stats: #nodes: %d, #points: %d" % (
-                len(discr), total_points))
+        self.generate_point_statistics(0)
 
-        self.log_constants["rec_grid_nodes"] = len(discr)
-        self.log_constants["rec_grid_points"] = total_points
 
-    def set_shape_function(self, sf):
-        Reconstructor.set_shape_function(self, sf)
-        self.cloud.pic_algorithm.shape_function = sf
 
-    def add_instrumentation(self, mgr):
-        Reconstructor.add_instrumentation(self, mgr)
 
-        mgr.set_constant("rec_grid_el_tolerance", self.el_tolerance)
-        mgr.set_constant("rec_grid_enforce_continuity", self.enforce_continuity)
-        mgr.set_constant("rec_grid_method", self.method)
-
-        self.brick_generator.log_data(mgr)
 
     # reconstruction onto mesh ------------------------------------------------
     def remap_grid_to_mesh(self, q_grid):
