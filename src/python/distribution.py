@@ -1,4 +1,4 @@
-"""Various initial particle distributions"""
+"""Initial particle distribution construction kit."""
 
 from __future__ import division
 
@@ -29,13 +29,217 @@ import pytools.log
 
 
 
-# joint distribution ----------------------------------------------------------
-class JointParticleDistribution:
-    def __init__(self,
+class ParticleDistribution(object):
+    def count_axes(self):
+        """Return a 4-tuple, as (x_axes, v_axes, q_axes, m_axes).
+
+        Each of the ?_axes variables specifies how many axes of
+
+        * the position
+        * the velocity
+        * the particle charge
+        * the particle mass
+
+        are supplied by this distribution.
+        """
+        return (0,0,0,0)
+
+    def make_particle(self):
+        return ([],[],[],[])
+        
+    def mean(self):
+        return ([],[],[],[])
+
+    def get_rho_distrib(self):
+        """Get a 1-normalized distribution function for the charge density."""
+        raise NotImplementedError
+
+    def get_rho_interpolant(self, discr, total_charge, err_thresh=0.2):
+        rho_norm_1 = \
+                * discr.interpolate_volume_function(self.get_rho_distrib())
+
+        # check for correctness
+        from hedge.discretization import integral
+        int_rho_norm_1 = integral(discr, rho_norm_1)
+
+        if abs(int_rho-total_charge)> err_thresh:
+            raise RuntimeError("analytic charge density imprecise (relerr=%g)" % rel_err)
+
+        return rho_dist * total_charge
+
+    def add_to(self, cloud, nparticles):
+        x_axes, v_axes, q_axes, m_axes = self.count_axes()
+
+        assert x_axes == cloud.dimensions_pos
+        assert v_axes == cloud.dimensions_velocity
+        assert q_axes == 1
+        assert m_axes == 1
+
+        positions = []
+        velocities = []
+        charges = []
+        masses = []
+
+        result = (positions, velocities, charges, masses)
+
+        for i in range(nparticles):
+            particle = self.make_particle(nparticles)
+
+            for res_property, particle_property in zip(result, particle):
+                res_property.append(particle_property)
+
+        cloud.add_particles(positions, velocities, charges, masses)
+
+
+
+
+# joint distributions ---------------------------------------------------------
+class JointParticleDistribution(ParticleDistribution):
+    def __init__(self, distributions):
+        self.distributions = distributions
+        self.contributors = [
+            [d for d in self.distributions() if d.count_axes()[component]]
+            for component in range(4)]
+
+    def count_axes(self):
+        def add_tuples(x, y): 
+            return tuple(xi+yi for xi, yi in zip(x, y))
+
+        return reduce(add_tuples, (d.count_axes() for d in self.distributions))
+
+    def make_particle(self):
+        dist_to_part = dict((d, d.make_particle()) for d in self.distributions)
+        return tuple(
+                [].extend(dist_to_part[d][component] 
+                    for d in self.contributors[component])
+                for component in range(4))
+
+    def mean(self):
+        dist_to_part = dict((d, d.mean()) for d in self.distributions)
+        return tuple(
+                [].extend(dist_to_part[d][component] 
+                    for d in self.contributors[component])
+                for component in range(4))
+
+    def get_rho_distrib(self):
+        slices = []
+        i = 0
+        for d in self.contributors[0]:
+            d_x_count = d.count_axes()[0]
+            slices.append(slice(i, i+d_x_count))
+            i += d_x_count
+
+        from pytools import product
+
+        x_funcs = [d.get_rho_distrib() for d in self.contributors[0]]
+        funcs_and_slices = list(zip(x_funcs, slices))
+
+        def f(x):
+            return product(f(x[sl]) for f, sl in funcs_and_slices)
+
+        return f
+
+
+
+
+# delta distributions ---------------------------------------------------------
+class DeltaVelocity(ParticleDistribution):
+    def __init__(self, velocity):
+        self.velocity = velocity
+
+    def count_axes(self):
+        return (0, len(self.velocity), 0, 0)
+
+    def make_particle(self):
+        return [[], self.velocity, [], []]
+    mean = make_particle
+        
+
+
+
+
+class DeltaCharge(ParticleDistribution):
+    def __init__(self, particle_charge):
+        self.particle_charge = particle_charge
+
+    def count_axes(self):
+        return (0, 0, 1, 0)
+
+    def make_particle(self):
+        return [[], [], [self.particle_charge], []]
+    mean = make_particle
+
+
+
+class DeltaMass(ParticleDistribution):
+    def __init__(self, particle_mass):
+        self.particle_mass = particle_mass
+
+    def count_axes(self):
+        return (0, 0, 0, 1)
+
+    def make_particle(self):
+        return [[], [], [], [self.particle_mass]]
+    mean = make_particle
+
+    def particle_mass(self):
+        return self.particle_mass
+
+
+
+class DeltaChargeMass(ParticleDistribution):
+    def __init__(self, particle_charge, particle_mass):
+        self.particle_charge = particle_charge
+        self.particle_mass = particle_mass
+
+    def count_axes(self):
+        return (0, 0, 1, 1)
+
+    def make_particle(self):
+        return [[], [], [self.particle_charge], [self.particle_mass]]
+    mean = make_particle
+
+
+
+
+# uniform distributions -------------------------------------------------------
+class UniformPos(ParticleDistribution):
+    def __init__(self, lower, uppper):
+        self.lower = lower
+        self.upper = upper
+        self.zipped = list(zip(self.lower, self.uppper))
+
+    def count_axes(self):
+        return (len(self.lower), 0, 0, 0)
+
+    def make_particle(self, count=None):
+        from random import uniform
+        return [[uniform(l, h) for l, h in self.zipped], [], [], []]
+        
+    def mean(self, count):
+        return [[(l+h)/2 for l, h in self.zipped], [], [], []]
+
+    def get_rho_distrib(self):
+        compdata = [i, l, h 
+        for i, (l, h) in enumerate(zip(self.lower, self.upper))]
+
+        from pytools import product
+        normalization = 1/product(h-l for l, h in zip(self.lower, self.upper))
+
+        def f(x):
+            for i, l, h in compdata:
+                if x < l or h < x:
+                    return 0
+            return normalization
+
+        return f
+
+
+
+
 # kv --------------------------------------------------------------------------
-class KVZIntervalBeam:
-    def __init__(self, units, total_charge, p_mass,
-            radii, emittances, beta, z_length, z_pos):
+class KV(ParticleDistribution):
+    def __init__(self, center, radii, emittances, next):
         """Construct a beam that is KV-distributed in (x,y)
         and uniform over an interval along z.
 
@@ -45,19 +249,10 @@ class KVZIntervalBeam:
 
         assert len(radii) == len(emittances)
 
-        self.units = units
-
-        self.total_charge = total_charge
-        self.p_mass = p_mass
-
+        self.center = center
         self.radii = radii
         self.emittances = emittances
-
-        self.beta = beta
-        self.gamma = (1-beta**2)**(-0.5)
-
-        self.z_length = z_length
-        self.z_pos = z_pos
+        self.next = next
 
     @property
     def rms_radii(self):
@@ -67,14 +262,21 @@ class KVZIntervalBeam:
     def rms_emittances(self):
         return [eps/4 for eps in self.emittances]
 
-    def make_particle(self, vz, dim_x, dim_p):
+    def count_axes(self):
+        next_axes = self.next.count_axes()
+        return (len(self.radii)+next_axes[0], 
+                len(self.emittances)+next_axes[1],
+                ) + next_axes[2:]
+
+    def make_particle(self):
         """Return (position, velocity) for a random particle
         according to a Kapchinskij-Vladimirskij distribution.
         """
         from pytools import uniform_on_unit_sphere
 
         s = uniform_on_unit_sphere(len(self.radii) + len(self.emittances))
-        x = [x_i*r_i for x_i, r_i in zip(s[:len(self.radii)], self.radii)]
+        x = [x_i*r_i for x_i, r_i in zip(s[:len(self.radii)], self.radii)] \
+                + [self.
         # xp like xprime
         xp = [s_i/r_i*eps_i 
                 for s_i, r_i, eps_i in 
@@ -85,72 +287,56 @@ class KVZIntervalBeam:
                 for xp_i, r_i, epsi in zip(xp, self.radii, self.emittances))
         assert abs(one-1) < 1e-15
 
-        while len(x) < dim_x:
-            x.append(0)
-        while len(xp) < dim_p:
-            xp.append(0)
+        z, vz, charge, mass = self.next.make_particle()
 
-        z = numpy.array([0,0,1])
+        # caution: these pluses are list extensions, not vector additions
+        return ([xi+ci for xi, ci in zip(x, self.center)] + z, 
+                [xp_i*la.norm(vz) for xp_i in xp] + vz, charge, mass)
 
-        return (numpy.array(x),
-                z*vz + numpy.array([xp_i*vz for xp_i in xp]))
+    def mean(self):
+        next_mean = self.next.mean()
+        return (list(self.center) + next_mean[0],
+                [0 for epsi in self.emittances] + next_mean[1]) + next_mean[2:]
+        
+    def get_rho_distrib(self):
+        z_func = self.next.get_rho_distrib()
+        z_slice = slice(start=len(self.radii), stop=None)
+        my_slice = slice(0, len(self.center))
 
-    def add_to(self, cloud, nparticles):
-        from random import uniform
-        from math import sqrt
-
-        positions = []
-        velocities = []
-
-        vz = self.beta*self.units.VACUUM_LIGHT_SPEED
-        z = numpy.array([0,0,1])
-
-        for i in range(nparticles):
-            pos, v = self.make_particle(
-                    vz=self.beta*self.units.VACUUM_LIGHT_SPEED,
-                    dim_x=cloud.dimensions_pos, dim_p=cloud.dimensions_velocity)
-
-            my_beta = la.norm(v)/self.units.VACUUM_LIGHT_SPEED
-            
-            if abs(self.beta) > 1e-4:
-                assert abs(self.beta - my_beta)/self.beta < 1e-4
-
-            positions.append(pos+z*(self.z_pos+uniform(-self.z_length, self.z_length)/2))
-            velocities.append(v)
-
-        cloud.add_particles(positions, velocities, 
-                self.total_charge/nparticles, self.p_mass)
-
-    def analytic_rho(self, discr):
+        n = len(self.radii)
+        from math import pi
+        from pyrticle._internal import gamma
         from pytools import product
+        distr_vol = (2*pi)**(n/2) / (gamma(n/2)*n) * product(self.radii) * self.z_length
+        normalization = 1/distr_vol
 
-        z_min = self.z_pos - self.z_length/2
-        z_max = self.z_pos + self.z_length/2
-
-        def distrib(x):
-            if (z_min <= x[2] <= z_max and
-                    sum((xi/ri)**2 for xi, ri in zip(x, self.radii)) <= 1):
-                return 1
+        def f(x):
+            if la.norm((x[my_slice]-self.center)/self.radii) <= 1:
+                return normalization*z_func(x[z_slice])
             else:
                 return 0
 
-        from math import pi
-        from pyrticle._internal import gamma
-        n = len(self.radii)
-        distr_vol = (2*pi)**(n/2) / (gamma(n/2)*n) * product(self.radii) * self.z_length
+        return f
 
-        unscaled_rho = discr.interpolate_volume_function(distrib)
-        rho = self.total_charge * unscaled_rho / distr_vol
 
-        # check for correctness
-        from hedge.discretization import integral
-        int_rho = integral(discr, rho)
-        vol = integral(discr, unscaled_rho)
-        rel_err = abs((int_rho-total_charge)/total_charge)
-        if rel_err > 0.2:
-            raise RuntimeError("analytic charge density imprecise (relerr=%g)" % rel_err)
 
-        return rho
+
+class KVZIntervalBeam(KV):
+    def __init__(self, units, total_charge, p_charge, p_mass,
+            radii, emittances, beta, z_length, z_pos):
+        KV.__init__(self, [0 for ri in radii], radii, emittances,
+                JointParticleDistribution([
+                    DeltaChargeMass(p_charge, p_mass),
+                    UniformPos([z_pos-z_length/2, z_pos+z_length/2]),
+                    DeltaVelocity([beta*units.VACUUM_LIGHT_SPEED]),
+                    ])
+
+        self.units = units
+        self.total_charge = total_charge
+        self.particle_charge = p_charge
+        self.particle_mass = p_mass
+        self.beta = beta
+        self.z_length = z_length
 
     def get_total_space_charge_parameter(self):
         from math import pi
@@ -161,14 +347,16 @@ class KVZIntervalBeam:
                 /
                 (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED**2))
 
-        lambda_ = self.total_charge/(self.z_length*self.units.EL_CHARGE)
+        lambda_ = self.total_charge /(self.z_length*self.units.EL_CHARGE)
 
         # factor of 2 here is uncertain
         # from S.Y.Lee, Accelerator Physics, p. 68
         # 2nd ed. 
         # (2.140), space charge term (2.136)
 
-        xi = 4*((lambda_ * r0) / (self.beta**2 * self.gamma**3))
+        gamma = (1-self.beta**2)**(-0.5)
+
+        xi = 4*((lambda_ * r0) / (self.beta**2 * gamma**3))
 
         return xi
 
@@ -188,7 +376,7 @@ class KVZIntervalBeam:
     def get_total_predictor(self, axis):
         return KVRadiusPredictor(
                 self.radii[axis], self.emittances[axis],
-                xi=self.get_total_space_charge_parameter())
+                xi=self.get_total_space_charge_parameter(unit))
 
 
 
@@ -256,27 +444,22 @@ class KVPredictedRadius(pytools.log.SimulationLogQuantity):
 
 
 # gaussian --------------------------------------------------------------------
-class GaussianParticleDistribution(pytools.Record):
-    def __init__(self, total_charge, total_mass, mean_x, mean_p, sigma_x, sigma_p):
-        pytools.Record.__init__(self, locals())
+class GaussianPos(ParticleDistribution):
+    def __init__(self, mean_x, sigma_x):
+        self.mean_x = mean_x
+        self.sigma_x = sigma_x
 
-    def add_to(self, cloud, nparticles):
-        from random import gauss
+    def count_axes(self):
+        return (len(self.mean_x), 0, 0, 0)
 
-        pmass = self.total_mass/nparticles
-        cloud.add_particles(
-                positions=[
-                    numpy.array([gauss(m, s) for m, s in zip(self.mean_x, self.sigma_x)]) 
-                    for i in range(nparticles)
-                    ],
-                velocities=[cloud.units.v_from_p(pmass, 
-                    numpy.array([gauss(m, s) for m, s in zip(self.mean_p, self.sigma_p)])) 
-                    for i in range(nparticles)
-                    ],
-                charges=self.total_charge/nparticles, 
-                masses=pmass)
+    def make_particle(self):
+        return ([gauss(m, s) for m, s in zip(self.mean_x, self.sigma_x)],
+                [],[],[])
 
-    def analytic_rho(self, discr):
+    def mean(self):
+        return (self.mean_x, [],[],[])
+
+    def get_rho_distrib(self, discr):
         from math import exp, pi
 
         sigma_mat = numpy.diag(self.sigma_x**2)
@@ -290,16 +473,25 @@ class GaussianParticleDistribution(pytools.Record):
             x0 = x-self.mean_x
             return normalization * exp(-0.5*dot(x0, dot(inv_sigma_mat, x0)))
 
-        rho = self.total_charge * discr.interpolate_volume_function(distrib)
-
-        # check for correctness
-        from hedge.discretization import integral
-        int_rho = integral(discr, rho)
-        rel_err = (int_rho-self.total_charge)/self.total_charge
-        assert rel_err < 1e-2
-
-        return rho
+        return distrib
 
 
 
 
+class GaussianMomentum(ParticleDistribution):
+    def __init__(self, mean_p, sigma_p, units):
+        self.mean_p = mean_p
+        self.sigma_p = sigma_p
+        self.units = units
+
+    def count_axes(self):
+        return (0, len(self.mean_p), 0, 0)
+
+    def make_particle(self):
+        monentum = self.units_v_from_p(numpy.array(
+                [gauss(m, s) for m, s in zip(self.mean_p, self.sigma_p)]))
+
+        return ([], list(momentum), [], [])
+
+    def mean(self):
+        return ([None for m in self.mean_p], [],[],[])
