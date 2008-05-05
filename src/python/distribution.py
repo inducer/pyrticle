@@ -55,40 +55,20 @@ class ParticleDistribution(object):
         raise NotImplementedError
 
     def get_rho_interpolant(self, discr, total_charge, err_thresh=0.2):
-        rho_norm_1 = \
-                * discr.interpolate_volume_function(self.get_rho_distrib())
+        rho_norm_1 = discr.interpolate_volume_function(self.get_rho_distrib())
 
         # check for correctness
         from hedge.discretization import integral
         int_rho_norm_1 = integral(discr, rho_norm_1)
 
-        if abs(int_rho-total_charge)> err_thresh:
+        if abs(int_rho_norm_1-1) > err_thresh:
             raise RuntimeError("analytic charge density imprecise (relerr=%g)" % rel_err)
 
-        return rho_dist * total_charge
+        return rho_norm_1 * total_charge
 
-    def add_to(self, cloud, nparticles):
-        x_axes, v_axes, q_axes, m_axes = self.count_axes()
-
-        assert x_axes == cloud.dimensions_pos
-        assert v_axes == cloud.dimensions_velocity
-        assert q_axes == 1
-        assert m_axes == 1
-
-        positions = []
-        velocities = []
-        charges = []
-        masses = []
-
-        result = (positions, velocities, charges, masses)
-
-        for i in range(nparticles):
-            particle = self.make_particle(nparticles)
-
-            for res_property, particle_property in zip(result, particle):
-                res_property.append(particle_property)
-
-        cloud.add_particles(positions, velocities, charges, masses)
+    def generate_particles(self):
+        while True:
+            yield self.make_particle()
 
 
 
@@ -98,7 +78,7 @@ class JointParticleDistribution(ParticleDistribution):
     def __init__(self, distributions):
         self.distributions = distributions
         self.contributors = [
-            [d for d in self.distributions() if d.count_axes()[component]]
+            [d for d in self.distributions if d.count_axes()[component]]
             for component in range(4)]
 
     def count_axes(self):
@@ -108,16 +88,28 @@ class JointParticleDistribution(ParticleDistribution):
         return reduce(add_tuples, (d.count_axes() for d in self.distributions))
 
     def make_particle(self):
+        def catlists(lists):
+            result = []
+            for l in lists:
+                result.extend(l)
+            return result
+
         dist_to_part = dict((d, d.make_particle()) for d in self.distributions)
         return tuple(
-                [].extend(dist_to_part[d][component] 
+                catlists(dist_to_part[d][component] 
                     for d in self.contributors[component])
                 for component in range(4))
 
     def mean(self):
+        def catlists(lists):
+            result = []
+            for l in lists:
+                result.extend(l)
+            return result
+
         dist_to_part = dict((d, d.mean()) for d in self.distributions)
         return tuple(
-                [].extend(dist_to_part[d][component] 
+                catlists(dist_to_part[d][component] 
                     for d in self.contributors[component])
                 for component in range(4))
 
@@ -151,7 +143,7 @@ class DeltaVelocity(ParticleDistribution):
         return (0, len(self.velocity), 0, 0)
 
     def make_particle(self):
-        return [[], self.velocity, [], []]
+        return ([], self.velocity, [], [])
     mean = make_particle
         
 
@@ -166,7 +158,7 @@ class DeltaCharge(ParticleDistribution):
         return (0, 0, 1, 0)
 
     def make_particle(self):
-        return [[], [], [self.particle_charge], []]
+        return ([], [], [self.particle_charge], [])
     mean = make_particle
 
 
@@ -179,11 +171,8 @@ class DeltaMass(ParticleDistribution):
         return (0, 0, 0, 1)
 
     def make_particle(self):
-        return [[], [], [], [self.particle_mass]]
+        return ([], [], [], [self.particle_mass])
     mean = make_particle
-
-    def particle_mass(self):
-        return self.particle_mass
 
 
 
@@ -196,7 +185,7 @@ class DeltaChargeMass(ParticleDistribution):
         return (0, 0, 1, 1)
 
     def make_particle(self):
-        return [[], [], [self.particle_charge], [self.particle_mass]]
+        return ([], [], [self.particle_charge], [self.particle_mass])
     mean = make_particle
 
 
@@ -204,10 +193,10 @@ class DeltaChargeMass(ParticleDistribution):
 
 # uniform distributions -------------------------------------------------------
 class UniformPos(ParticleDistribution):
-    def __init__(self, lower, uppper):
+    def __init__(self, lower, upper):
         self.lower = lower
         self.upper = upper
-        self.zipped = list(zip(self.lower, self.uppper))
+        self.zipped = list(zip(self.lower, self.upper))
 
     def count_axes(self):
         return (len(self.lower), 0, 0, 0)
@@ -215,13 +204,13 @@ class UniformPos(ParticleDistribution):
     def make_particle(self, count=None):
         from random import uniform
         return [[uniform(l, h) for l, h in self.zipped], [], [], []]
-        
+
     def mean(self, count):
         return [[(l+h)/2 for l, h in self.zipped], [], [], []]
-
+        
     def get_rho_distrib(self):
-        compdata = [i, l, h 
-        for i, (l, h) in enumerate(zip(self.lower, self.upper))]
+        compdata = [(i, l, h)
+                for i, (l, h) in enumerate(zip(self.lower, self.upper))]
 
         from pytools import product
         normalization = 1/product(h-l for l, h in zip(self.lower, self.upper))
@@ -276,7 +265,6 @@ class KV(ParticleDistribution):
 
         s = uniform_on_unit_sphere(len(self.radii) + len(self.emittances))
         x = [x_i*r_i for x_i, r_i in zip(s[:len(self.radii)], self.radii)] \
-                + [self.
         # xp like xprime
         xp = [s_i/r_i*eps_i 
                 for s_i, r_i, eps_i in 
@@ -297,7 +285,7 @@ class KV(ParticleDistribution):
         next_mean = self.next.mean()
         return (list(self.center) + next_mean[0],
                 [0 for epsi in self.emittances] + next_mean[1]) + next_mean[2:]
-        
+
     def get_rho_distrib(self):
         z_func = self.next.get_rho_distrib()
         z_slice = slice(start=len(self.radii), stop=None)
@@ -327,9 +315,9 @@ class KVZIntervalBeam(KV):
         KV.__init__(self, [0 for ri in radii], radii, emittances,
                 JointParticleDistribution([
                     DeltaChargeMass(p_charge, p_mass),
-                    UniformPos([z_pos-z_length/2, z_pos+z_length/2]),
+                    UniformPos([z_pos-z_length/2], [z_pos+z_length/2]),
                     DeltaVelocity([beta*units.VACUUM_LIGHT_SPEED]),
-                    ])
+                    ]))
 
         self.units = units
         self.total_charge = total_charge
@@ -453,24 +441,27 @@ class GaussianPos(ParticleDistribution):
         return (len(self.mean_x), 0, 0, 0)
 
     def make_particle(self):
+        from random import gauss
         return ([gauss(m, s) for m, s in zip(self.mean_x, self.sigma_x)],
                 [],[],[])
 
     def mean(self):
         return (self.mean_x, [],[],[])
 
-    def get_rho_distrib(self, discr):
+    def get_rho_distrib(self):
         from math import exp, pi
 
-        sigma_mat = numpy.diag(self.sigma_x**2)
-        inv_sigma_mat = numpy.diag(self.sigma_x**(-2))
+        sigma_mat = numpy.diag(numpy.asarray(self.sigma_x)**2)
+        inv_sigma_mat = numpy.diag(numpy.asarray(self.sigma_x)**(-2))
 
         from numpy import dot
 
-        normalization = 1/((2*pi)**(len(x)/2) * la.det(sigma_mat)**0.5)
+        d = len(self.mean_x)
+        normalization = 1/((2*pi)**(d/2) * la.det(sigma_mat)**0.5)
+        mean_x = numpy.asarray(self.mean_x)
 
         def distrib(x):
-            x0 = x-self.mean_x
+            x0 = x-mean_x
             return normalization * exp(-0.5*dot(x0, dot(inv_sigma_mat, x0)))
 
         return distrib
@@ -479,19 +470,28 @@ class GaussianPos(ParticleDistribution):
 
 
 class GaussianMomentum(ParticleDistribution):
-    def __init__(self, mean_p, sigma_p, units):
+    def __init__(self, mean_p, sigma_p, units, next):
         self.mean_p = mean_p
         self.sigma_p = sigma_p
         self.units = units
+        self.next = next
 
     def count_axes(self):
-        return (0, len(self.mean_p), 0, 0)
+        next_axes = self.next.count_axes()
+        return (next_axes[0], 
+                len(self.mean_p)+next_axes[1],
+                ) + next_axes[2:]
 
     def make_particle(self):
-        monentum = self.units_v_from_p(numpy.array(
-                [gauss(m, s) for m, s in zip(self.mean_p, self.sigma_p)]))
+        x, v, q, m = self.next.make_particle()
 
-        return ([], list(momentum), [], [])
+        from random import gauss
+        velocity = self.units.v_from_p(m[0], numpy.array(
+                [gauss(mean, sigma) for mean, sigma in zip(self.mean_p, self.sigma_p)]))
+
+        return (x, list(velocity)+v, q, m)
 
     def mean(self):
-        return ([None for m in self.mean_p], [],[],[])
+        next_mean = self.next.mean()
+        return (next_mean[0],
+                [None for p in self.mean_p] + next_mean[1]) + next_mean[2:]

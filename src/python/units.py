@@ -55,6 +55,9 @@ class SI:
 
     EV = EL_CHARGE * V
 
+    def gamma_from_beta(self, beta):
+        return (1-numpy.dot(beta, beta))**(-0.5)
+
     def gamma_from_v(self, v):
         value = 1-numpy.dot(v, v)/self.VACUUM_LIGHT_SPEED**2
         if value <= 0:

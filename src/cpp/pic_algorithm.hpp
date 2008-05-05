@@ -48,7 +48,7 @@ namespace pyrticle
 
         unsigned                          m_particle_count;
 
-        mesh_data::el_id_vector           m_containing_elements;
+        pyublas::numpy_vector<mesh_data::element_number> m_containing_elements;
         py_vector                         m_positions;
         py_vector                         m_momenta;
         py_vector                         m_charges;
@@ -396,11 +396,15 @@ namespace pyrticle
 
       // pic_data vector member accessors -------------------------------------
       // (BPL workaround)
+      pyublas::numpy_vector<mesh_data::element_number> 
+        containing_elements() const { return this->m_containing_elements; }
       py_vector positions() const { return this->m_positions; }
       py_vector momenta() const { return this->m_momenta; }
       py_vector charges() const { return this->m_charges; }
       py_vector masses() const { return this->m_masses; }
 
+      void set_containing_elements(pyublas::numpy_vector<mesh_data::element_number> v) 
+      { this->m_containing_elements = v; }
       void set_positions(py_vector v) { this->m_positions = v; }
       void set_momenta(py_vector v) { this->m_momenta = v; }
       void set_charges(py_vector v) { this->m_charges = v; }

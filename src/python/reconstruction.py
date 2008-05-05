@@ -856,20 +856,6 @@ class GridReconstructor(Reconstructor):
         # print some statistics
         self.generate_point_statistics(cond_claims)
 
-        # conditioning statistics
-        from pylab import hist, show, xlabel, ylabel
-        ylabel("bin count")
-
-        hist(numpy.log10(min_s_values), 100)
-        xlabel(r"$\mathrm{log}\sigma_{\mathrm{min}}(\mathrm{IMat})$")
-        show()
-        hist(numpy.log10(max_s_values), 100)
-        xlabel(r"$\mathrm{log}\sigma_{\mathrm{max}}(\mathrm{IMat})$")
-        show()
-        hist(numpy.log10(cond_s_values), 100)
-        xlabel(r"$\mathrm{log}\frac{\sigma_{\mathrm{max}}}{\sigma_{\mathrm{min}}}$")
-        show()
-
 
 
 

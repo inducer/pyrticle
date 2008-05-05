@@ -65,7 +65,6 @@ def main():
         doc = {
                 "chi": "relative speed of hyp. cleaning (None for no cleaning)",
                 "shape_bandwidth": "either 'optimize', 'guess' or a positive real number",
-                "phi_filter": "a tuple (min_amp, order) or None, describing the filtering applied to phi in hypclean mode",
                 }
 
         from pyrticle.tools import PICCPyUserInterface
@@ -108,10 +107,6 @@ def main():
     from hedge.operators import TEMaxwellOperator, DivergenceOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
 
-    max_op = TEMaxwellOperator(discr, 
-            epsilon=units.EPSILON0, 
-            mu=units.MU0, 
-            upwind_alpha=1)
 
     em_filters = []
     if setup.chi is not None:

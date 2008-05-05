@@ -80,7 +80,9 @@ namespace
 
       .DEF_RW_MEMBER(particle_count)
 
-      .DEF_RW_MEMBER(containing_elements)
+      .add_property("containing_elements", 
+          &cl::containing_elements, 
+          &cl::set_containing_elements)
       .add_property("positions", &cl::positions, &cl::set_positions)
       .add_property("momenta", &cl::momenta, &cl::set_momenta)
       .add_property("charges", &cl::charges, &cl::set_charges)

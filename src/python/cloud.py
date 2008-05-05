@@ -90,7 +90,7 @@ class ParticleCloud:
 
         dims = (dimensions_pos, dimensions_velocity)
 
-        self.pic_algorithm = getattr(_internal, 
+        pic = self.pic_algorithm = getattr(_internal, 
                 "PIC%s%s%s%d%d" % (
                     self.reconstructor.name,
                     self.pusher.name,
@@ -99,27 +99,29 @@ class ParticleCloud:
                     self.dimensions_velocity
                     ),
                 )(discr.dimensions, units.VACUUM_LIGHT_SPEED)
-        self.pic_algorithm.positions = numpy.zeros((0,), dtype=float)
-        self.pic_algorithm.momenta = numpy.zeros((0,), dtype=float)
-        self.pic_algorithm.charges = numpy.zeros((0,), dtype=float)
-        self.pic_algorithm.masses = numpy.zeros((0,), dtype=float)
+
+        pic.containing_elements = numpy.zeros((0,self.dimensions_pos), 
+                dtype=numpy.uint32)
+        pic.positions = numpy.zeros((0,self.dimensions_pos), dtype=float)
+        pic.momenta = numpy.zeros((0,self.dimensions_velocity), dtype=float)
+        pic.charges = numpy.zeros((0,), dtype=float)
+        pic.masses = numpy.zeros((0,), dtype=float)
 
         # We need to retain this particular Python wrapper
         # of our mesh_data object because we write new stuff
         # to its __dict__. (And every time we access it via
         # pic_algorithm, a new wrapper--with a fresh __dict__--gets
         # created, which is not what we want.)
-        self.mesh_data = self.pic_algorithm.mesh_data
+        self.mesh_data = pic.mesh_data
         self.mesh_data.fill_from_hedge(discr)
 
         # size change messaging
         from pyrticle.tools import NumberShiftMultiplexer
         self.particle_number_shift_signaller = NumberShiftMultiplexer()
-        self.pic_algorithm.particle_number_shift_listener = self.particle_number_shift_signaller
+        pic.particle_number_shift_listener = self.particle_number_shift_signaller
 
         # visualization
-        self.vis_listener = \
-                self.pic_algorithm.vis_listener = \
+        self.vis_listener = pic.vis_listener = \
                 MapStorageVisualizationListener(
                         self.particle_number_shift_signaller)
 
@@ -202,72 +204,54 @@ class ParticleCloud:
             self.derived_quantity_cache["velocities"] = result
             return result
 
-    def add_particles(self, positions, velocities, charges, masses):
-        """Add the particles with the given data to the cloud."""
+    def mean_beta(self):
+        return numpy.average(self.velocities(), axis=0) \
+                / self.units.VACUUM_LIGHT_SPEED
 
-        new_count = len(positions)
+    def add_particles(self, count, iterable):
+        """Add the C{count} particles from C{iterable} to the cloud.
+        
+        C{iterable} is expected to yield tuples 
+        C{(position, velocity, charge, mass)}."""
 
-        # expand scalar masses and charges
-        try:
-            len(charges)
-        except:
-            charges = charges*numpy.ones((new_count,))
-
-        try:
-            len(masses)
-        except:
-            masses = new_count * [masses]
-
-        # convert velocities to momenta
-        momenta = [m*self.units.gamma_from_v(v)*v for m, v in zip(masses, velocities)]
-
-        # find containing elements
         pic = self.pic_algorithm
-        containing_elements = [pic.mesh_data.find_containing_element(p) 
-                for p in positions]
 
-        # weed out uncontained particles
-        deathflags = [ce == MeshData.INVALID_ELEMENT 
-                for ce in containing_elements]
-        containing_elements = [ce for ce in containing_elements 
-                if ce != MeshData.INVALID_ELEMENT]
-        positions = [p for p, dead in zip(positions, deathflags) 
-                if not dead]
-        momenta = [v for v, dead in zip(momenta, deathflags) 
-                if not dead]
-        charges = numpy.array([c for c, dead in zip(charges, deathflags) 
-            if not dead])
-        masses = numpy.array([m for m, dead in zip(masses, deathflags) 
-            if not dead])
+        new_pc = count + pic.particle_count
+        pic.containing_elements = numpy.resize(
+                pic.containing_elements, (new_pc,))
+        pic.positions = numpy.resize(
+                pic.positions, (new_pc, self.dimensions_pos))
+        pic.momenta = numpy.resize(
+                pic.momenta, (new_pc, self.dimensions_velocity))
+        pic.charges = numpy.resize(pic.charges, (new_pc,))
+        pic.masses = numpy.resize(pic.masses, (new_pc,))
 
-        # check vector dimensionalities
-        xdim = self.dimensions_pos
-        vdim = self.dimensions_velocity
-        for x in positions:
-            assert len(x) == xdim
-        for p in momenta:
-            assert len(p) == vdim
+        for pos, vel, charge, mass in iterable:
+            if count == 0:
+                break
+            count -= 1
 
-        # add particles
-        pic.containing_elements[pic.particle_count:] = containing_elements
+            assert len(pos) == self.dimensions_pos
+            assert len(vel) == self.dimensions_velocity
 
-        prev_count = pic.particle_count
-        pic.positions = numpy.hstack(
-                (pic.positions[:prev_count*xdim], numpy.hstack(positions))
-                )
-        pic.momenta = numpy.hstack(
-                (pic.momenta[:prev_count*vdim], numpy.hstack(momenta)))
+            pos = numpy.asarray(pos)
+            vel = numpy.asarray(vel)
+            mom = mass*self.units.gamma_from_v(vel)*vel 
 
-        pic.charges = numpy.hstack(
-                (pic.charges[:prev_count], charges))
-        pic.masses = numpy.hstack(
-                (pic.masses[:prev_count], masses))
+            cont_el = pic.mesh_data.find_containing_element(pos) 
+            if cont_el == MeshData.INVALID_ELEMENT:
+                continue
 
-        pic.particle_count += len(containing_elements)
+            pic.containing_elements[pic.particle_count] = cont_el
+            pic.positions[pic.particle_count] = pos
+            pic.momenta[pic.particle_count] = mom
+            pic.charges[pic.particle_count] = charge[0]
+            pic.masses[pic.particle_count] = mass[0]
+
+            pic.particle_count += 1
 
         self.check_containment()
         pic.note_change_particle_count(pic.particle_count)
-
         self.derived_quantity_cache.clear()
 
     def clear_particles(self):
@@ -801,29 +785,8 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 
 
 
-def set_shape_bandwidth(cloud, shape_bw, shape_exp, analytic_rho):
-    if shape_bw.startswith("optimize"):
-        optimize_shape_bandwidth(cloud, analytic_rho,
-                shape_exp, 
-                plot_l1_errors="plot" in shape_bw,
-                visualize="visualize" in shape_bw,
-                )
-    elif shape_bw == "guess":
-        guess_shape_bandwidth(cloud, shape_exp)
-    else:
-        from pyrticle._internal import ShapeFunction
-        cloud.reconstructor.set_shape_function(
-                ShapeFunction(
-                    float(setup.shape_bandwidth),
-                    cloud.mesh_data.dimensions,
-                    shape_exp,
-                    ))
-
-
-
-
 # initial condition -----------------------------------------------------------
-def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
+def compute_initial_condition(pcon, discr, cloud, max_op,
         debug=False, force_zero=False):
     from hedge.operators import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
@@ -837,7 +800,8 @@ def compute_initial_condition(pcon, discr, cloud, mean_beta, max_op,
         else:
             return err/norm(discr, true)
 
-    gamma = (1-numpy.dot(mean_beta, mean_beta))**(-0.5)
+    mean_beta = cloud.mean_beta()
+    gamma = cloud.units.gamma_from_beta(mean_beta)
 
     # see doc/notes.tm for derivation of IC
 
