@@ -21,6 +21,11 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 
+import numpy
+import numpy.linalg as la
+
+
+
 
 # 2D --------------------------------------------------------------------------
 def make_glued_rect_mesh(a=(0,0), b=(1,1), max_area=None, 

@@ -90,10 +90,9 @@ class NumberShiftableVector(_internal.NumberShiftListener):
     L{NumberShiftSignaller}, fulfills that purpose.
     """
 
-    def __init__(self, vector, multiplier, signaller):
+    def __init__(self, vector, signaller):
         _internal.NumberShiftListener.__init__(self)
         self.vector = vector
-        self.multiplier = multiplier
         self.signaller = signaller
         signaller.subscribe(self)
 
@@ -113,7 +112,6 @@ class NumberShiftableVector(_internal.NumberShiftListener):
             print "---------------------------------------------"
         return NumberShiftableVector(
                 self.vector + self.unwrap(other),
-                self.multiplier,
                 self.signaller)
 
     __radd__ = __add__
@@ -125,7 +123,6 @@ class NumberShiftableVector(_internal.NumberShiftListener):
     def __mul__(self, other):
         result = NumberShiftableVector(
                 self.vector * self.unwrap(other),
-                self.multiplier,
                 self.signaller)
         return result
 
@@ -134,23 +131,17 @@ class NumberShiftableVector(_internal.NumberShiftListener):
     # shiftiness --------------------------------------------------------------
     def note_change_size(self, new_size):
         old_size = len(self.vector)
-        new_size *= self.multiplier
 
         if new_size > old_size:
-            self.vector = numpy.hstack((
-                    self.vector, 
-                    numpy.zeros((new_size-len(self.vector),), 
-                        dtype=self.vector.dtype)))
+            raise NotImplementedError, "vector growing unimplemented"
         elif new_size < old_size:
             self.vector = self.vector[:new_size]
 
     def note_move(self, orig, dest, size):
-        m = self.multiplier
-        self.vector[m*dest:m*(dest+size)] = self.vector[m*orig:m*(orig+size)]
+        self.vector[dest] = self.vector[orig]
 
     def note_reset(self, start, size):
-        m = self.multiplier
-        self.vector[start*m:(start+size)*m] = 0
+        self.vector[start:(start+size)] = 0
 
 
 

@@ -174,20 +174,19 @@ namespace pyrticle
           const unsigned xdim = CONST_PIC_THIS->get_dimensions_pos();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
 
-          py_vector result(CONST_PIC_THIS->m_particle_count * vdim);
-          std::auto_ptr<py_vector> 
+          npy_intp res_dims[] = { PIC_THIS->m_particle_count, vdim };
+          py_vector result(2, res_dims);
+
+          py_vector
             vis_e, vis_b, vis_el_force, vis_mag_force;
 
           if (verbose_vis)
           {
-            vis_e = std::auto_ptr<py_vector>(
-                new py_vector(3*PIC_THIS->m_particle_count));
-            vis_b = std::auto_ptr<py_vector>(
-                new py_vector(3*PIC_THIS->m_particle_count));
-            vis_el_force = std::auto_ptr<py_vector>(
-                new py_vector(3*PIC_THIS->m_particle_count));
-            vis_mag_force = std::auto_ptr<py_vector>(
-                new py_vector(3*PIC_THIS->m_particle_count));
+            npy_intp dims[] = { PIC_THIS->m_particle_count, 3 };
+            vis_e = py_vector(2, dims);
+            vis_b = py_vector(2, dims);
+            vis_el_force = py_vector(2, dims);
+            vis_mag_force = py_vector(2, dims);
           }
 
           for (particle_number i = 0; i < PIC_THIS->m_particle_count; i++)
@@ -227,19 +226,19 @@ namespace pyrticle
 
             if (verbose_vis)
             {
-              subrange(*vis_e, 3*i, 3*(i+1)) = e;
-              subrange(*vis_b, 3*i, 3*(i+1)) = b;
-              subrange(*vis_el_force, 3*i, 3*(i+1)) = el_force;
-              subrange(*vis_mag_force, 3*i, 3*(i+1)) = mag_force;
+              subrange(vis_e, 3*i, 3*(i+1)) = e;
+              subrange(vis_b, 3*i, 3*(i+1)) = b;
+              subrange(vis_el_force, 3*i, 3*(i+1)) = el_force;
+              subrange(vis_mag_force, 3*i, 3*(i+1)) = mag_force;
             }
           }
 
           if (verbose_vis)
           {
-            PIC_THIS->store_particle_vis_vector("pt_e", *vis_e, 3);
-            PIC_THIS->store_particle_vis_vector("pt_b", *vis_b, 3);
-            PIC_THIS->store_particle_vis_vector("el_force", *vis_el_force, 3);
-            PIC_THIS->store_particle_vis_vector("mag_force", *vis_mag_force, 3);
+            PIC_THIS->store_particle_vis_vector("pt_e", vis_e);
+            PIC_THIS->store_particle_vis_vector("pt_b", vis_b);
+            PIC_THIS->store_particle_vis_vector("el_force", vis_el_force);
+            PIC_THIS->store_particle_vis_vector("mag_force", vis_mag_force);
           }
 
           return result;

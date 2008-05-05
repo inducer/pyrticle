@@ -12,7 +12,7 @@ dimensions_velocity = 3
 
 beam_axis = 2
 beam_diag_axis = 0
-tube_length = 100*units.M
+tube_length = 100*units.MM
 
 _cloud_charge = -10e-9 * units.C
 nparticles = 20000

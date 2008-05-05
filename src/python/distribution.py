@@ -61,8 +61,10 @@ class ParticleDistribution(object):
         from hedge.discretization import integral
         int_rho_norm_1 = integral(discr, rho_norm_1)
 
-        if abs(int_rho_norm_1-1) > err_thresh:
-            raise RuntimeError("analytic charge density imprecise (relerr=%g)" % rel_err)
+        rel_err = abs(int_rho_norm_1-1)
+        if rel_err > err_thresh:
+            from warnings import warn
+            warn("analytic charge density imprecise (relerr=%g)" % rel_err)
 
         return rho_norm_1 * total_charge
 
@@ -205,7 +207,7 @@ class UniformPos(ParticleDistribution):
         from random import uniform
         return [[uniform(l, h) for l, h in self.zipped], [], [], []]
 
-    def mean(self, count):
+    def mean(self):
         return [[(l+h)/2 for l, h in self.zipped], [], [], []]
         
     def get_rho_distrib(self):
@@ -228,7 +230,7 @@ class UniformPos(ParticleDistribution):
 
 # kv --------------------------------------------------------------------------
 class KV(ParticleDistribution):
-    def __init__(self, center, radii, emittances, next):
+    def __init__(self, center, radii, emittances, next, axis_first=False):
         """Construct a beam that is KV-distributed in (x,y)
         and uniform over an interval along z.
 
@@ -242,6 +244,8 @@ class KV(ParticleDistribution):
         self.radii = radii
         self.emittances = emittances
         self.next = next
+
+        self.axis_first = axis_first
 
     @property
     def rms_radii(self):
@@ -261,7 +265,7 @@ class KV(ParticleDistribution):
         """Return (position, velocity) for a random particle
         according to a Kapchinskij-Vladimirskij distribution.
         """
-        from pytools import uniform_on_unit_sphere
+        from pyrticle.tools import uniform_on_unit_sphere
 
         s = uniform_on_unit_sphere(len(self.radii) + len(self.emittances))
         x = [x_i*r_i for x_i, r_i in zip(s[:len(self.radii)], self.radii)] \
@@ -277,25 +281,44 @@ class KV(ParticleDistribution):
 
         z, vz, charge, mass = self.next.make_particle()
 
+        norm_vz = la.norm(vz)
+        pos = [xi+ci for xi, ci in zip(x, self.center)]
+        vel = [xp_i*norm_vz for xp_i in xp]
+
         # caution: these pluses are list extensions, not vector additions
-        return ([xi+ci for xi, ci in zip(x, self.center)] + z, 
-                [xp_i*la.norm(vz) for xp_i in xp] + vz, charge, mass)
+        if self.axis_first:
+            return (z + pos, vz + vel, charge, mass)
+        else:
+            return (pos + z, vel + vz, charge, mass)
 
     def mean(self):
         next_mean = self.next.mean()
-        return (list(self.center) + next_mean[0],
-                [0 for epsi in self.emittances] + next_mean[1]) + next_mean[2:]
+        mean_x = list(self.center)
+        mean_v = [0 for epsi in self.emittances]
+        if self.axis_first:
+            return (next_mean[0] + mean_x,
+                    next_mean[1] + mean_v) + next_mean[2:]
+        else:
+            return (mean_x + next_mean[0],
+                    mean_v + next_mean[1]) + next_mean[2:]
 
     def get_rho_distrib(self):
         z_func = self.next.get_rho_distrib()
-        z_slice = slice(start=len(self.radii), stop=None)
-        my_slice = slice(0, len(self.center))
+        z_count = self.next.count_axes()[0]
+        if self.axis_first:
+            z_slice = slice(0, z_count)
+            my_slice = slice(z_count, None)
+        else:
+            z_slice = slice(len(self.radii), None)
+            my_slice = slice(0, len(self.center))
 
         n = len(self.radii)
         from math import pi
         from pyrticle._internal import gamma
         from pytools import product
-        distr_vol = (2*pi)**(n/2) / (gamma(n/2)*n) * product(self.radii) * self.z_length
+        distr_vol = 2 * pi**(n/2) \
+                / (gamma(n/2)*n) \
+                * product(self.radii)
         normalization = 1/distr_vol
 
         def f(x):
@@ -311,13 +334,14 @@ class KV(ParticleDistribution):
 
 class KVZIntervalBeam(KV):
     def __init__(self, units, total_charge, p_charge, p_mass,
-            radii, emittances, beta, z_length, z_pos):
+            radii, emittances, beta, z_length, z_pos, axis_first=False):
         KV.__init__(self, [0 for ri in radii], radii, emittances,
                 JointParticleDistribution([
                     DeltaChargeMass(p_charge, p_mass),
                     UniformPos([z_pos-z_length/2], [z_pos+z_length/2]),
                     DeltaVelocity([beta*units.VACUUM_LIGHT_SPEED]),
-                    ]))
+                    ]),
+                axis_first=axis_first)
 
         self.units = units
         self.total_charge = total_charge

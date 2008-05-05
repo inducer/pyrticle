@@ -38,15 +38,12 @@ class MapStorageVisualizationListener(_internal.VisualizationListener):
         self.particle_vis_map = {}
         self.particle_number_shift_signaller = particle_number_shift_signaller
 
-    def store_mesh_vis_vector(self, name, vec, components=1):
-        self.mesh_vis_map[name] = numpy.reshape(
-                vec, (components, len(vec)//components))
+    def store_mesh_vis_vector(self, name, vec):
+        self.mesh_vis_map[name] = vec
 
-    def store_particle_vis_vector(self, name, vec, entries_per_particle=1):
+    def store_particle_vis_vector(self, name, vec):
         from pyrticle.tools import NumberShiftableVector
-        # FIXME is this still correct?
         self.particle_vis_map[name] = NumberShiftableVector(vec, 
-                multiplier=entries_per_particle,
                 signaller=self.particle_number_shift_signaller)
 
     def clear(self):
@@ -236,7 +233,7 @@ class ParticleCloud:
 
             pos = numpy.asarray(pos)
             vel = numpy.asarray(vel)
-            mom = mass*self.units.gamma_from_v(vel)*vel 
+            mom = mass[0]*self.units.gamma_from_v(vel)*vel 
 
             cont_el = pic.mesh_data.find_containing_element(pos) 
             if cont_el == MeshData.INVALID_ELEMENT:
@@ -368,10 +365,8 @@ class ParticleCloud:
         from hedge.tools import join_fields
         result = join_fields(
             NumberShiftableVector(velocities, 
-                multiplier=self.dimensions_pos,
                 signaller=self.particle_number_shift_signaller),
             NumberShiftableVector(forces, 
-                multiplier=self.dimensions_velocity,
                 signaller=self.particle_number_shift_signaller),
             self.reconstructor.rhs()
             )
@@ -743,11 +738,6 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
     if visualize:
         vis.close()
 
-    if plot_l1_errors:
-        from pylab import semilogx, show
-        semilogx(tried_radii, l1_errors)
-        show()
-
     from pytools import argmin
     min_idx = argmin(l1_errors)
     min_rad = tried_radii[min_idx]
@@ -769,6 +759,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
     local_minima = [idx for idx in range(len(tried_radii)) 
             if is_local_minimum(l1_errors, idx)]
 
+    print local_minima, [l1_errors[lm] for lm in local_minima]
     chosen_idx = max(local_minima)
     chosen_rad = tried_radii[chosen_idx]
     chosen_l1_error = l1_errors[chosen_idx]
@@ -781,6 +772,11 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 
     set_radius(chosen_rad)
     cloud.derived_quantity_cache.clear()
+
+    if plot_l1_errors:
+        from pylab import semilogx, show
+        semilogx(tried_radii, l1_errors)
+        show()
 
 
 

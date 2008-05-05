@@ -47,18 +47,14 @@ namespace
     python::wrapper<visualization_listener>
   {
     void store_mesh_vis_vector(
-        const char *name,
-        const py_vector &vec,
-        unsigned components) const
+        const char *name, const py_vector &vec) const
     {
-      this->get_override("store_mesh_vis_vector")(name, vec, components);
+      this->get_override("store_mesh_vis_vector")(name, vec);
     }
     void store_particle_vis_vector(
-        const char *name,
-        const py_vector &vec,
-        unsigned entries_per_particle) const
+        const char *name, const py_vector &vec) const
     {
-      this->get_override("store_particle_vis_vector")(name, vec, entries_per_particle);
+      this->get_override("store_particle_vis_vector")(name, vec);
     }
   };
 

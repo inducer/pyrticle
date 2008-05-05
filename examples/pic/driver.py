@@ -135,8 +135,10 @@ class PICRunner(object):
     def __init__(self):
         from pyrticle.units import SI
         units = SI()
-
         self.units = SI()
+
+        from pytools.log import LogManager
+        self.logmgr = LogManager("pic.dat", "w")
 
         ui = PICCPyUserInterface(units)
         setup = self.setup = ui.gather()
@@ -233,8 +235,6 @@ class PICRunner(object):
                 max_op=self.max_op, debug=True, force_zero=False)
 
         # instrumentation setup -----------------------------------------------
-        from pytools.log import LogManager
-        self.logmgr = LogManager("pic.dat", "w")
         self.add_instrumentation(self.logmgr)
 
     def add_instrumentation(self, logmgr):
