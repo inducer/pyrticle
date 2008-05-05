@@ -7,8 +7,8 @@ reconstructor = RecGrid(
         el_tolerance=0.1,
         method="simplex_enlarge")
 
-dimensions_pos = 2
-dimensions_velocity = 2
+dimensions_pos = 3
+dimensions_velocity = 3
 
 beam_axis = 2
 beam_diag_axis = 0
