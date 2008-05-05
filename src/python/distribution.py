@@ -319,13 +319,26 @@ class KV(ParticleDistribution):
         distr_vol = 2 * pi**(n/2) \
                 / (gamma(n/2)*n) \
                 * product(self.radii)
-        normalization = 1/distr_vol
 
-        def f(x):
-            if la.norm((x[my_slice]-self.center)/self.radii) <= 1:
-                return normalization*z_func(x[z_slice])
-            else:
-                return 0
+        if n == 2:
+            normalization = 1/distr_vol
+            def f(x):
+                if la.norm((x[my_slice]-self.center)/self.radii) <= 1:
+                    return normalization*z_func(x[z_slice])
+                else:
+                    return 0
+        elif n == 1:
+            normalization = 2/(pi*distr_vol)
+            def f(x):
+                normx = la.norm((x[my_slice]-self.center)/self.radii)
+                if normx <= 1:
+                    return normalization\
+                            *z_func(x[z_slice])\
+                            *(1-normx**2)**-0.5
+                else:
+                    return 0
+        else:
+            raise ValueError, "invalid dimension for KV"
 
         return f
 
