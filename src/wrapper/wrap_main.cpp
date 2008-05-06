@@ -24,6 +24,7 @@
 
 
 void expose_tools();
+void expose_grid();
 void expose_meshdata();
 void expose_pusher();
 void expose_shape_pic();
@@ -37,6 +38,7 @@ void expose_grid_pic();
 BOOST_PYTHON_MODULE(_internal)
 {
   expose_tools();
+  expose_grid();
   expose_meshdata();
   expose_pusher();
   expose_shape_pic();

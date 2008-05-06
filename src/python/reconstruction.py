@@ -480,10 +480,10 @@ class GridReconstructor(Reconstructor):
         else:
             self.filter = None
 
-        from pyrticle._internal import Brick
+        from pyrticle._internal import RecBrick
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
-            brk = Brick(i, pic.grid_node_count(), stepwidths, origin, dims)
+            brk = RecBrick(i, pic.grid_node_count(), stepwidths, origin, dims)
             pic.bricks.append(brk)
 
         if self.method == "simplex_extra":
@@ -896,7 +896,7 @@ class GridReconstructor(Reconstructor):
         pic.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
-        from pyrticle._internal import BrickIterator, ElementOnGrid, BoxFloat
+        from pyrticle._internal import RecBrickIterator, ElementOnGrid, BoxFloat
 
         total_points = 0
 
@@ -945,7 +945,7 @@ class GridReconstructor(Reconstructor):
 
                     from hedge.polynomial import generic_vandermonde
                     brk_and_el_points = [brk.point(c) 
-                            for c in BrickIterator(brk, idx_range)]
+                            for c in RecBrickIterator(brk, idx_range)]
                     svdm = generic_vandermonde(
                             points=brk_and_el_points,
                             functions=lb)
@@ -970,7 +970,7 @@ class GridReconstructor(Reconstructor):
                     #raw_input()
 
                     eog.grid_nodes.extend(brk.index(c) 
-                            for c in BrickIterator(brk, idx_range))
+                            for c in RecBrickIterator(brk, idx_range))
                     pic.elements_on_grid.append(eog)
 
         # we don't need no stinkin' extra points
