@@ -151,12 +151,8 @@ class PICRunner(object):
         else:
             mesh = self.pcon.receive_mesh()
 
-        from hedge.element import ELEMENTS
-        from pytools import one
-        ldis_class = one(ldis_class for ldis_class in ELEMENTS
-                if isinstance(mesh.elements[0], ldis_class.geometry))
         self.discr = discr = \
-                self.pcon.make_discretization(mesh, ldis_class(setup.element_order))
+                self.pcon.make_discretization(mesh, order=setup.element_order)
 
         # em operator ---------------------------------------------------------
         if discr.dimensions == 3:

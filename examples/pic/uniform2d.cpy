@@ -12,14 +12,14 @@ shape_bandwidth = "optimize,visualize,plot"
 
 pusher = PushMonomial()
 reconstructor = RecGrid(
-        FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
+        #FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
         el_tolerance=0.1,
-        filter_min_amplification=0.1,
+        filter_min_amplification=0.01,
         filter_order=6,
         )
 
 _cloud_charge = -10e-9 * units.C
-nparticles = 2000
+nparticles = 50000
 element_order = 7
 final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
@@ -28,7 +28,7 @@ _el_energy = units.EL_REST_ENERGY*10
 _gamma = _el_energy/units.EL_REST_ENERGY
 _beta = (1-1/_gamma**2)**0.5
 _pmass = _electrons_per_particle*units.EL_MASS
-_momentum = _gamma*_pmass*_beta
+_momentum = _gamma*_pmass*_beta*units.VACUUM_LIGHT_SPEED
 
 _tube_width = 33*units.MM
 mesh = pyrticle.geometry.make_fine_center_rect_mesh(
@@ -43,7 +43,9 @@ mesh = pyrticle.geometry.make_fine_center_rect_mesh(
 
 _dist = pyrticle.distribution
 distribution = _dist.JointParticleDistribution([
-    _dist.UniformPos([0,-1.7*units.MM], [5*units.MM, 1.7*units.MM]),
+    _dist.UniformPos(
+        [-5*units.MM,-1.7*units.MM], 
+        [-5*units.MM+tube_length, 1.7*units.MM]),
     _dist.GaussianMomentum(
         [_momentum*0.8, _momentum*0.1], 
         [_momentum*0.1, _momentum*0.1],
