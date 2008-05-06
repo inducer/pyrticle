@@ -407,13 +407,13 @@ class FineCoreBrickGenerator(object):
 
             # ^ y
             # |
-            # +---------------------+
+            # +----+----------+-----+
             # |    |     2    |     |
             # |    +----------+     |
             # | 1  |   core   |  1  |
             # |    +----------+     |
             # |    |     2    |     |
-            # +---------------------+--> x
+            # +----+----------+-----+--> x
             # 
 
             x_vec = unit_vector(d, x, dtype=numpy.int32)
@@ -448,13 +448,18 @@ class GridReconstructor(Reconstructor):
             el_tolerance=0.2,
             max_extra_points=20,
             enforce_continuity=False,
-            method="simplex_enlarge"):
+            method="simplex_enlarge",
+            filter_min_amplification=None,
+            filter_order=None):
         Reconstructor.__init__(self)
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
         self.enforce_continuity = enforce_continuity
         self.method = method
+
+        self.filter_min_amplification = filter_min_amplification
+        self.filter_order = filter_order
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
@@ -467,6 +472,13 @@ class GridReconstructor(Reconstructor):
             self.prepare_average_groups()
         else:
             pic.average_group_starts.append(0)
+
+        if self.filter_min_amplification is not None:
+            from hedge import Filter, ExponentialFilterResponseFunction
+            self.filter = Filter(discr, ExponentialFilterResponseFunction(
+                    self.filter_min_amplification, self.filter_order))
+        else:
+            self.filter = None
 
         from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
@@ -582,7 +594,7 @@ class GridReconstructor(Reconstructor):
 
         return vdm
 
-    def make_pointwise_interpolation_matrix(self, eog, el, ldis, svd, scaled_vdm):
+    def make_pointwise_interpolation_matrix(self, eog, eg, el, ldis, svd, scaled_vdm):
         u, s, vt = svd
 
         point_count = u.shape[0]
@@ -594,8 +606,7 @@ class GridReconstructor(Reconstructor):
         inv_s = numpy.zeros((len(s),), dtype=float)
         inv_s[nonzero_flags] = 1/s[nonzero_flags]
 
-        # compute the pseudoinverse of the structured
-        # Vandermonde matrix
+        # compute the pseudoinverse of the structured Vandermonde matrix
         inv_s_diag = numpy.zeros(
                 (node_count, point_count), 
                 dtype=float)
@@ -619,10 +630,13 @@ class GridReconstructor(Reconstructor):
                 numpy.dot(ldis.vandermonde(), svdm_pinv),
                 order="F")
 
+        imat = leftsolve(ldis.vandermonde(), scaled_vdm)
+
+        if self.filter is not None:
+            imat = numpy.dot(self.filter.get_filter_matrix(eg), imat)
+
         from hedge.tools import leftsolve
-        eog.inverse_interpolation_matrix = numpy.asarray(
-                leftsolve(ldis.vandermonde(), scaled_vdm),
-                order="F")
+        eog.inverse_interpolation_matrix = numpy.asarray(imat, order="F")
 
     def generate_point_statistics(self, cond_claims):
         pic = self.cloud.pic_algorithm
@@ -749,7 +763,7 @@ class GridReconstructor(Reconstructor):
                             el.id, ldis.node_count(), len(points), ep_count)
                 min_s_values.append(min(s))
 
-                self.make_pointwise_interpolation_matrix(eog, el, ldis, svd, scaled_vdm)
+                self.make_pointwise_interpolation_matrix(eog, eg, el, ldis, svd, scaled_vdm)
 
                 pic.elements_on_grid.append(eog)
 
@@ -846,7 +860,7 @@ class GridReconstructor(Reconstructor):
                 max_s_values.append(max(s))
                 cond_s_values.append(max(s)/min(s))
 
-                self.make_pointwise_interpolation_matrix(eog, el, ldis, svd, scaled_vdm)
+                self.make_pointwise_interpolation_matrix(eog, eg, el, ldis, svd, scaled_vdm)
 
                 pic.elements_on_grid.append(eog)
 

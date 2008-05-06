@@ -401,7 +401,7 @@ class KVZIntervalBeam(KV):
     def get_total_predictor(self, axis):
         return KVRadiusPredictor(
                 self.radii[axis], self.emittances[axis],
-                xi=self.get_total_space_charge_parameter(unit))
+                xi=self.get_total_space_charge_parameter())
 
 
 

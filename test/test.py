@@ -90,6 +90,7 @@ class TestPyrticle(unittest.TestCase):
         from pyrticle.distribution import KVZIntervalBeam
         beam = KVZIntervalBeam(units, 
                 total_charge=0, 
+                p_charge=0,
                 p_mass=electrons_per_particle*units.EL_MASS,
                 radii=2*[2.5*units.MM],
                 emittances=2*[5 * units.MM * units.MRAD], 
@@ -97,7 +98,7 @@ class TestPyrticle(unittest.TestCase):
                 z_pos=10*units.MM,
                 beta=beta)
         
-        beam.add_to(cloud, nparticles=nparticles)
+        cloud.add_particles(nparticles, beam.generate_particles())
 
         # diagnostics setup -------------------------------------------------------
         from pytools.log import LogManager
@@ -207,13 +208,14 @@ class TestPyrticle(unittest.TestCase):
 
         from pyrticle.distribution import KVZIntervalBeam
         beam = KVZIntervalBeam(units, total_charge=cloud_charge,
+                p_charge=cloud_charge/nparticles,
                 p_mass=electrons_per_particle*units.EL_MASS,
                 radii=2*[beam_radius],
                 emittances=2*[5 * units.MM * units.MRAD], 
                 z_length=tube_length,
                 z_pos=tube_length/2,
                 beta=beta)
-        beam.add_to(cloud, nparticles)
+        cloud.add_particles(nparticles, beam.generate_particles())
 
         # intial condition --------------------------------------------------------
         from pyrticle.cloud import guess_shape_bandwidth
@@ -222,8 +224,7 @@ class TestPyrticle(unittest.TestCase):
         from pyrticle.cloud import compute_initial_condition
         from hedge.parallel import SerialParallelizationContext
         fields = compute_initial_condition(SerialParallelizationContext(), 
-                discr, cloud, 
-                mean_beta=numpy.array([0, 0, beta]), max_op=max_op)
+                discr, cloud, max_op=max_op)
 
         # check against theory ----------------------------------------------------
         q_per_unit_z = cloud_charge/beam.z_length

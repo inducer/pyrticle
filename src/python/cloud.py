@@ -171,17 +171,11 @@ class ParticleCloud:
 
     @property
     def positions(self):
-        allocated_p_count = len(self.pic_algorithm.containing_elements)
-        return numpy.reshape(self.pic_algorithm.positions,
-                (allocated_p_count, self.dimensions_pos)
-                )[:self.pic_algorithm.particle_count]
+        return self.pic_algorithm.positions[:self.pic_algorithm.particle_count]
 
     @property
     def momenta(self):
-        allocated_p_count = len(self.pic_algorithm.containing_elements)
-        return numpy.reshape(self.pic_algorithm.momenta,
-                (allocated_p_count, self.dimensions_velocity)
-                )[:self.pic_algorithm.particle_count]
+        return self.pic_algorithm.momenta[:self.pic_algorithm.particle_count]
 
     @property
     def masses(self):
@@ -715,8 +709,9 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
             vis.add_data(visf, [ 
                 ("rho", rec_rho), 
                 ("j", cloud.reconstruct_j()),
-                ("anarho", analytic_rho), 
+                ("rho_analytic", analytic_rho), 
                 ],
+                expressions=[("rho_diff", "rho-rho_analytic")],
                 time=radius, step=step)
 
             try:

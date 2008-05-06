@@ -284,10 +284,12 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     init_positions = setup.positions(0)
     init_velocities = setup.velocities(0)
 
-    cloud.add_particles(
-            positions=init_positions,
-            velocities=init_velocities,
-            charges=setup.charge, masses=units.EL_MASS)
+    nparticles = len(init_positions)
+    cloud.add_particles(nparticles, 
+            zip(init_positions, init_velocities, 
+                nparticles * [[setup.charge]],
+                nparticles  * [[units.EL_MASS]],
+                ))
 
     final_time = setup.final_time()
     nsteps = setup.nsteps()
@@ -301,23 +303,28 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     from time import time
     t = 0
 
+    bbox = discr.mesh.bounding_box()
+    z_period = bbox[1][2] - bbox[0][2]
+
     def check_result():
         from hedge.tools import cross
 
         deriv_dt = 1e-12
 
         dim = discr.dimensions
-        all_x = setup.positions(t)
-        all_v = setup.velocities(t)
-        all_f = [(p2-p1)/(2*deriv_dt)
+        true_x = setup.positions(t)
+        true_v = setup.velocities(t)
+        true_f = [(p2-p1)/(2*deriv_dt)
                 for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
 
         from pyrticle.tools import NumberShiftableVector
         vis_info = cloud.vis_listener.particle_vis_map
-        all_sim_f = NumberShiftableVector.unwrap(
+        sim_x = cloud.positions
+        sim_v = cloud.velocities()
+        sim_f = NumberShiftableVector.unwrap(
                 vis_info["mag_force"] + vis_info["el_force"])
-        all_el_sim_f = NumberShiftableVector.unwrap(vis_info["el_force"])
-        all_mag_sim_f = NumberShiftableVector.unwrap(vis_info["mag_force"])
+        sim_el_f = NumberShiftableVector.unwrap(vis_info["el_force"])
+        sim_mag_f = NumberShiftableVector.unwrap(vis_info["mag_force"])
 
         local_e = setup.e()
         local_b = units.MU0 * setup.h()
@@ -327,33 +334,30 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
         f_err = 0
 
         for i in range(len(cloud)):
-            x = all_x[i]
-            sim_x = cloud.positions[i]
-            v = all_v[i]
-            sim_v = cloud.velocities()[i]
-            f = all_f[i]
-            sim_f = all_sim_f[i*dim:(i+1)*dim]
-            el_sim_f = all_el_sim_f[i*dim:(i+1)*dim]
-            mag_sim_f = all_mag_sim_f[i*dim:(i+1)*dim]
+            #real_f = numpy.array(cross(sim_v, setup.charge*local_b)) + setup.charge*local_e
 
-            real_f = numpy.array(cross(sim_v, setup.charge*local_b)) + setup.charge*local_e
-
-            if False:
-                print "particle %d" % i
-                print "pos:", la.norm(x-sim_x)/la.norm(x)
-                print "vel:", la.norm(v-sim_v)/la.norm(v)
-                print "force:", la.norm(f-sim_f)/la.norm(f)
-                print "vel:", v, sim_v
-                print "force%d:..." % i, f, sim_f
-                print "forces%d:..." % i, el_sim_f, mag_sim_f
+            my_true_x = true_x[i]
+            my_true_x[2] = my_true_x[2] % z_period
+            if False and i == 0:
+                #print "particle %d" % i
+                print "pos:", la.norm(true_x[i]-sim_x[i])/la.norm(true_x[i])
+                #print "vel:", la.norm(true_v[i]-sim_v[i])/la.norm(true_v[i])
+                #print "force:", la.norm(true_f[i]-sim_f[i])/la.norm(true_f[i])
+                print "pos:", true_x[i], sim_x[i]
+                #print "vel:", true_v[i], sim_v[i]
+                #print "force:", true_f[i], sim_f[i]
+                #print "forces%d:..." % i, sim_el_f[i], sim_mag_f[i]
                 #print "acc%d:" % i, la.norm(a-sim_a)
                 #u = numpy.vstack((v, sim_v, f, sim_f, real_f))
                 #print "acc%d:\n%s" % (i, u)
                 #raw_input()
 
-            x_err = max(x_err, la.norm(v-sim_v)/la.norm(v))
-            v_err = max(v_err, la.norm(v-sim_v)/la.norm(v))
-            f_err = max(f_err, la.norm(f-sim_f)/la.norm(f))
+            def rel_err(sim, true):
+                return la.norm(true-sim)/la.norm(true)
+
+            x_err = max(x_err, rel_err(sim_x[i], my_true_x))
+            v_err = max(v_err, rel_err(sim_v[i], true_v[i]))
+            f_err = max(f_err, rel_err(sim_f[i], true_f[i]))
 
         return x_err, v_err, f_err
 
@@ -363,7 +367,7 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     errors = (0, 0, 0)
 
     for step in xrange(nsteps):
-        if step % (setup.nsteps()/300) == 0:
+        if step % int(setup.nsteps()/300) == 0:
             errors = tuple(
                     max(old_err, new_err) 
                     for old_err, new_err in zip(errors, check_result()))
@@ -385,7 +389,7 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
 
         t += dt
 
-    assert errors[0] < 2e-13, casename+"-pos"
+    assert errors[0] < 2e-12, casename+"-pos"
     assert errors[1] < 2e-13, casename+"-vel"
     assert errors[2] < 2e-4, casename+"-acc"
 
