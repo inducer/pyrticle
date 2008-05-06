@@ -211,16 +211,18 @@ class UniformPos(ParticleDistribution):
         return [[(l+h)/2 for l, h in self.zipped], [], [], []]
         
     def get_rho_distrib(self):
-        compdata = [(i, l, h)
-                for i, (l, h) in enumerate(zip(self.lower, self.upper))]
+        compdata = [(i, numpy.array(l), numpy.array(h))
+                for i, (l, h) in enumerate(self.zipped)]
 
         from pytools import product
-        normalization = 1/product(h-l for l, h in zip(self.lower, self.upper))
+        normalization = 1/product(h-l for l, h in self.zipped)
+
+        lower = numpy.array(self.lower)
+        upper = numpy.array(self.upper)
 
         def f(x):
-            for i, l, h in compdata:
-                if x < l or h < x:
-                    return 0
+            if (x < lower).any() or (upper < x).any():
+                return 0
             return normalization
 
         return f

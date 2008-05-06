@@ -754,7 +754,6 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
     local_minima = [idx for idx in range(len(tried_radii)) 
             if is_local_minimum(l1_errors, idx)]
 
-    print local_minima, [l1_errors[lm] for lm in local_minima]
     chosen_idx = max(local_minima)
     chosen_rad = tried_radii[chosen_idx]
     chosen_l1_error = l1_errors[chosen_idx]

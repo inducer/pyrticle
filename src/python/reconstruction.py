@@ -474,7 +474,7 @@ class GridReconstructor(Reconstructor):
             pic.average_group_starts.append(0)
 
         if self.filter_min_amplification is not None:
-            from hedge import Filter, ExponentialFilterResponseFunction
+            from hedge.discretization import Filter, ExponentialFilterResponseFunction
             self.filter = Filter(discr, ExponentialFilterResponseFunction(
                     self.filter_min_amplification, self.filter_order))
         else:
@@ -626,17 +626,16 @@ class GridReconstructor(Reconstructor):
                 % (el.id, node_count, point_count, pinv_resid,
                         el.centroid(self.cloud.mesh_data.discr.mesh.points)))
 
-        eog.interpolation_matrix = numpy.asarray(
-                numpy.dot(ldis.vandermonde(), svdm_pinv),
-                order="F")
-
-        imat = leftsolve(ldis.vandermonde(), scaled_vdm)
+        imat = numpy.dot(ldis.vandermonde(), svdm_pinv)
 
         if self.filter is not None:
             imat = numpy.dot(self.filter.get_filter_matrix(eg), imat)
 
+        eog.interpolation_matrix = numpy.asarray(imat, order="F")
+
         from hedge.tools import leftsolve
-        eog.inverse_interpolation_matrix = numpy.asarray(imat, order="F")
+        eog.inverse_interpolation_matrix = numpy.asarray(
+                leftsolve(ldis.vandermonde(), scaled_vdm), order="F")
 
     def generate_point_statistics(self, cond_claims):
         pic = self.cloud.pic_algorithm

@@ -12,7 +12,7 @@ shape_bandwidth = "optimize,visualize,plot"
 
 pusher = PushMonomial()
 reconstructor = RecGrid(
-        #FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
+        FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
         el_tolerance=0.1,
         filter_min_amplification=0.1,
         filter_order=6,
@@ -26,7 +26,9 @@ _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
 _el_energy = units.EL_REST_ENERGY*10
 _gamma = _el_energy/units.EL_REST_ENERGY
-_mean_beta = (1-1/_gamma**2)**0.5
+_beta = (1-1/_gamma**2)**0.5
+_pmass = _electrons_per_particle*units.EL_MASS
+_momentum = _gamma*_pmass*_beta
 
 _tube_width = 33*units.MM
 mesh = pyrticle.geometry.make_fine_center_rect_mesh(
@@ -39,16 +41,14 @@ mesh = pyrticle.geometry.make_fine_center_rect_mesh(
         inner_max_area=0.15*1e-5
         )
 
-distribution = pyrticle.distribution.KVZIntervalBeam(
-        units, total_charge=_cloud_charge, 
-        p_charge=_cloud_charge/nparticles, 
-        p_mass=_electrons_per_particle*units.EL_MASS,
-        radii=[1.7*units.MM],
-        emittances=[5*units.MM*units.MRAD], 
-        z_length=5*units.MM,
-        z_pos=0,
-        beta=_mean_beta,
-        axis_first=True)
+_dist = pyrticle.distribution
+distribution = _dist.JointParticleDistribution([
+    _dist.UniformPos([0,-1.7*units.MM], [5*units.MM, 1.7*units.MM]),
+    _dist.GaussianMomentum(
+        [_momentum*0.8, _momentum*0.1], 
+        [_momentum*0.1, _momentum*0.1],
+        units, _dist.DeltaChargeMass(_cloud_charge/nparticles, _pmass))
+    ])
 
 vis_verbose = True
 vis_interval = 1
@@ -70,3 +70,4 @@ def hook_visualize(runner, vis, visf):
             ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
             ("usecount", rec.grid_usecount()),
             ])
+
