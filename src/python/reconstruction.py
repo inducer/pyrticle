@@ -480,11 +480,18 @@ class GridReconstructor(Reconstructor):
         else:
             self.filter = None
 
-        from pyrticle._internal import RecBrick
+        grid_nodes = []
+        from pyrticle._internal import RecBrick, RecBrickIterator, BoxInt
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
             brk = RecBrick(i, pic.grid_node_count(), stepwidths, origin, dims)
             pic.bricks.append(brk)
+
+            grid_nodes.extend(brk.point(c) 
+                    for c in RecBrickIterator(brk, 
+                        BoxInt(numpy.zeros((len(dims),), dtype=numpy.int32),
+                            brk.dimensions)))
+        self.grid_nodes = numpy.array(grid_nodes)
 
         if self.method == "simplex_extra":
             self.prepare_with_pointwise_projection_and_extra_points()
@@ -1078,6 +1085,9 @@ class GridReconstructor(Reconstructor):
 
             silo.put_pointmesh("rec_grid_extra", dims, 
                     numpy.asarray(extra_points.T, order="C"))
+
+        silo.put_pointmesh("rec_grid_nodes", dims, 
+                numpy.asarray(self.grid_nodes.T, order="C"))
 
         from pylo import DB_ZONECENT, DB_QUAD_RECT, DBObjectType
 

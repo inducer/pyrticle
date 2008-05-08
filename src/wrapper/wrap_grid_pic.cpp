@@ -29,10 +29,44 @@ namespace python = boost::python;
 
 
 
+namespace
+{
+  python::object brick_it_iter(python::object self)
+  { return self; }
+
+  bounded_int_vector brick_it_next(grid_reconstructor::rec_brick::iterator &it)
+  {
+    if (it.at_end())
+    {
+      PyErr_SetNone(PyExc_StopIteration);
+      throw python::error_already_set();
+    }
+
+    bounded_int_vector result = *it;
+    ++it;
+    return result;
+  }
+}
+
+
+
+
 void expose_grid_pic()
 {
   expose_pic_nontarget_pushers_all_dim<grid_reconstructor>();
 
+  {
+    typedef grid_reconstructor::rec_brick::iterator cl;
+    python::class_<cl>("RecBrickIterator", 
+        python::init<
+        grid_reconstructor::rec_brick const &, 
+        bounded_int_box const &>(
+          python::args("brick", "bounds"))[
+        python::with_custodian_and_ward<1,2>()])
+      .def("__iter__", brick_it_iter)
+      .def("next", brick_it_next)
+      ;
+  }
   {
     typedef grid_reconstructor::rec_brick cl;
     python::class_<cl, python::bases<brick> >("RecBrick", 

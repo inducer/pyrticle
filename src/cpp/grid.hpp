@@ -63,7 +63,7 @@ namespace pyrticle
       { return m_state; }
 
     protected:
-      brick_iterator &inc_bottom_half(unsigned i)
+      void inc_bottom_half(unsigned i)
       {
         // getting here means that an overflow occurred, and we'll have to
         // update both m_index and m_point from scratch (unless somebody
@@ -78,7 +78,7 @@ namespace pyrticle
           {
             m_point = m_brick.point(m_state);
             m_index = m_brick.index(m_state);
-            return *this;
+            return;
           }
 
           m_state[i] = m_bounds.m_lower[i];
@@ -89,12 +89,12 @@ namespace pyrticle
         // no need to update m_point and m_index.
 
         m_state = m_bounds.m_upper;
-        return *this;
+        return;
       }
 
 
     public:
-      brick_iterator &operator++()
+      virtual brick_iterator &operator++()
       {
         const unsigned i = 0; // silently assuming non-zero size here
 
@@ -106,11 +106,14 @@ namespace pyrticle
 
           // split off the non-default case bottom half of this routine in the
           // hope that at least the fast default case will get inlined.
-          return inc_bottom_half(i); 
+          inc_bottom_half(i); 
+        }
+        else
+        {
+          m_point[i] += m_brick.stepwidths()[i];
+          m_index += m_brick.strides()[i];
         }
 
-        m_point[i] += m_brick.stepwidths()[i];
-        m_index += m_brick.strides()[i];
         return *this;
       }
 
@@ -148,7 +151,7 @@ namespace pyrticle
    */
   struct brick
   {
-    private:
+    protected:
       grid_node_number m_start_index;
       bounded_vector m_stepwidths;
       bounded_vector m_origin;
@@ -167,33 +170,33 @@ namespace pyrticle
           bounded_vector origin,
           bounded_int_vector dimensions)
         : m_start_index(start_index), m_dimensions(dimensions)
-    {
-      unsigned d = m_dimensions.size();
-
-      for (unsigned i = 0; i < d; ++i)
-        if (stepwidths[i] < 0)
-        {
-          stepwidths[i] *= -1;
-          origin[i] -= stepwidths[i]*dimensions[i];
-        }
-
-      m_stepwidths = stepwidths;
-      m_origin = origin;
-      m_origin_plus_half = origin+stepwidths/2;
-
-      // This ordering is what Visit expects by default and calls
-      // "row-major" (I suppose Y-major).
-
-      m_strides.resize(d);
-      unsigned i = 0;
-      unsigned current_stride = 1;
-      while (i < m_dimensions.size())
       {
-        m_strides[i] = current_stride;
-        current_stride *= m_dimensions[i];
-        ++i;
+        unsigned d = m_dimensions.size();
+
+        for (unsigned i = 0; i < d; ++i)
+          if (stepwidths[i] < 0)
+          {
+            stepwidths[i] *= -1;
+            origin[i] -= stepwidths[i]*dimensions[i];
+          }
+
+        m_stepwidths = stepwidths;
+        m_origin = origin;
+        m_origin_plus_half = origin+stepwidths/2;
+
+        // This ordering is what Visit expects by default and calls
+        // "row-major" (I suppose Y-major).
+
+        m_strides.resize(d);
+        unsigned i = 0;
+        unsigned current_stride = 1;
+        while (i < m_dimensions.size())
+        {
+          m_strides[i] = current_stride;
+          current_stride *= m_dimensions[i];
+          ++i;
+        }
       }
-    }
 
       grid_node_number start_index() const
       { return m_start_index; }
@@ -226,7 +229,7 @@ namespace pyrticle
         return result;
       }
 
-      bounded_vector point(const bounded_int_vector &idx) const
+      virtual bounded_vector point(const bounded_int_vector &idx) const
       { return m_origin_plus_half + element_prod(idx, m_stepwidths); }
 
       grid_node_number index(const bounded_int_vector &idx) const
@@ -267,14 +270,10 @@ namespace pyrticle
       typedef brick_iterator<brick> iterator;
       
       iterator get_iterator(bounded_int_box const &bounds) const
-      {
-        return iterator(*this, bounds);
-      }
+      { return iterator(*this, bounds); }
 
       iterator get_iterator(bounded_box const &bounds) const
-      {
-        return iterator(*this, index_range(bounds));
-      }
+      { return iterator(*this, index_range(bounds)); }
   };
 }
 

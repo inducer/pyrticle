@@ -27,6 +27,7 @@
 #include <vector>
 #include <limits>
 #include <pyublas/numpy.hpp>
+#include <boost/random.hpp>
 #include <boost/foreach.hpp>
 #include <boost/format.hpp>
 #include <boost/python.hpp>
@@ -167,8 +168,11 @@ namespace pyrticle
     struct rec_brick : public brick
     {
       private:
+        static const unsigned point_origin_count = 3;
         brick_number m_number;
         typedef brick super;
+        std::vector<bounded_vector> m_point_origins;
+        std::vector<bounded_vector> m_axis0_offsets;
 
       public:
         rec_brick(
@@ -179,10 +183,96 @@ namespace pyrticle
             bounded_int_vector dimensions)
           : super(start_index, stepwidths, origin, dimensions),
           m_number(number)
-        { }
+        { 
+          boost::variate_generator<
+            boost::mt19937, 
+            boost::uniform_real<> > offset_rng(
+                boost::mt19937(), boost::uniform_real<>(-0.1,0.1));
+
+          for (unsigned i = 0; i < point_origin_count; ++i)
+          {
+            bounded_vector offset(m_origin.size());
+            for (unsigned j = 0; j < m_origin.size(); ++j)
+              offset[j] = offset_rng() * m_stepwidths[j];
+            m_point_origins.push_back(m_origin_plus_half + offset);
+          }
+
+          for (unsigned i = 0; i < point_origin_count; ++i)
+          {
+            bounded_vector axis0_offset(m_origin.size());
+            axis0_offset = m_point_origins[
+              (i+1)%point_origin_count] - m_point_origins[i];
+            axis0_offset[0] += m_stepwidths[0];
+            m_axis0_offsets.push_back(axis0_offset);
+          }
+        }
 
         brick_number number() const
         { return m_number; }
+
+        bounded_vector point(const bounded_int_vector &idx) const
+        { 
+          return m_point_origins[origin_index(idx)]
+            + element_prod(idx, m_stepwidths); 
+        }
+
+        unsigned origin_index(const bounded_int_vector &idx) const
+        { 
+          return std::accumulate(idx.begin(), idx.end(), 0) 
+            % point_origin_count;
+        }
+
+        class iterator : public brick_iterator<rec_brick>
+        {
+          private:
+            typedef brick_iterator<rec_brick> super;
+
+          protected:
+            unsigned m_origin_index;
+
+          public:
+            iterator(rec_brick const &brk, 
+                const bounded_int_box &bounds)
+              : super(brk, bounds)
+            { 
+              update_origin_index();
+            }
+
+          protected:
+            void update_origin_index()
+            { m_origin_index = m_brick.origin_index(m_state); }
+
+          public:
+            iterator &operator++()
+            {
+              ++m_state[0];
+
+              if (m_state[0] < m_bounds.m_upper[0])
+              {
+                m_origin_index = (m_origin_index + 1) % point_origin_count;
+                m_point += m_brick.m_axis0_offsets[m_origin_index];
+                m_index += m_brick.strides()[0];
+              }
+              else
+              {
+                m_state[0] = m_bounds.m_lower[0];
+
+                // split off the non-default case bottom half of this routine in the
+                // hope that at least the fast default case will get inlined.
+                inc_bottom_half(0); 
+                update_origin_index();
+              }
+              return *this;
+            }
+        };
+
+        friend class iterator;
+
+        iterator get_iterator(bounded_int_box const &bounds) const
+        { return iterator(*this, bounds); }
+
+        iterator get_iterator(bounded_box const &bounds) const
+        { return iterator(*this, index_range(bounds)); }
     };
 
 
