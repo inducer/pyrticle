@@ -478,7 +478,7 @@ class ParticleCloud:
 
         if pcount:
             # real-space ------------------------------------------------------
-            db.put_pointmesh("particles", self.dimensions_pos, 
+            db.put_pointmesh("particles", 
                     numpy.asarray(self.positions.T, order="C"), optlist)
             db.put_pointvar1("charge", "particles", self.charges)
             db.put_pointvar1("mass", "particles", self.masses)

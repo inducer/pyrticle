@@ -1083,10 +1083,10 @@ class GridReconstructor(Reconstructor):
             extra_points = numpy.reshape(extra_points,
                     (len(extra_points)//dims,dims))
 
-            silo.put_pointmesh("rec_grid_extra", dims, 
+            silo.put_pointmesh("rec_grid_extra", 
                     numpy.asarray(extra_points.T, order="C"))
 
-        silo.put_pointmesh("rec_grid_nodes", dims, 
+        silo.put_pointmesh("rec_grid_nodes", 
                 numpy.asarray(self.grid_nodes.T, order="C"))
 
         from pylo import DB_ZONECENT, DB_QUAD_RECT, DBObjectType
