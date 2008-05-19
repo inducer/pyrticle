@@ -178,11 +178,6 @@ void expose_tools()
   }
 
   {
-    typedef zero_vector cl;
-    python::class_<cl>("ZeroVector");
-  }
-
-  {
     typedef std::vector<unsigned> cl;
     python::class_<cl>("UnsignedVector")
       .def(python::vector_indexing_suite<cl>())
