@@ -1,8 +1,17 @@
+import numpy
+import numpy.linalg as la
+
+
+
+
 def _angle_distance(start, end):
     from math import pi
     if end < start:
         end += 2*pi
     return end-start
+
+
+
 
 
 def parse_superfish_format(filename, max_point_dist=0.1):
@@ -50,8 +59,6 @@ def parse_superfish_format(filename, max_point_dist=0.1):
 
     # concoct x-y-points
     from math import atan2, sin, cos, pi, ceil
-    import pylinear.array as num
-    import pylinear.computation as comp
     from pytools import argmin
 
     def add_point(pt):
@@ -64,14 +71,14 @@ def parse_superfish_format(filename, max_point_dist=0.1):
             shape_type = p["nt"]
 
         if shape_type == 1:
-            points.append(num.array((p["x"], p["y"])))
+            points.append(numpy.array((p["x"], p["y"])))
         elif shape_type == 2:
             # draw arc
             last_point = points[-1]
             if "x0" in p:
-                center = num.array((p["x0"], p["y0"]))
+                center = numpy.array((p["x0"], p["y0"]))
             else:
-                center = num.zeros((2,))
+                center = numpy.zeros((2,))
 
             if "r" in p or "radius" in p:
                 if "r" in p:
@@ -83,11 +90,11 @@ def parse_superfish_format(filename, max_point_dist=0.1):
 
                 theta = pi/180.*p["theta"]
 
-                tangent = num.array((cos(theta), sin(theta)))
-                upward_normal = num.array((-sin(theta), cos(theta)))
+                tangent = numpy.array((cos(theta), sin(theta)))
+                upward_normal = numpy.array((-sin(theta), cos(theta)))
 
                 #print 180*theta/pi, last_point, center, tangent, upward_normal, last_point-center
-                if (last_point - center)*upward_normal < 0:
+                if numpy.dot(last_point - center, upward_normal) < 0:
                     # draw ccw (positive) arc / upward
                     phi_start = 3*pi/2 + theta
                     phi_end = phi_start + pi/2
@@ -97,10 +104,10 @@ def parse_superfish_format(filename, max_point_dist=0.1):
                     phi_end = phi_start - pi/2
             elif "x" in p:
                 start_pt = last_point - center
-                end_pt = num.array((p["x"], p["y"]))
+                end_pt = numpy.array((p["x"], p["y"]))
 
-                r = comp.norm_2(end_pt)
-                r2 = comp.norm_2(start_pt)
+                r = la.norm(end_pt)
+                r2 = la.norm_2(start_pt)
 
                 assert abs(r-r2)/r < 1e-2
 
@@ -121,7 +128,7 @@ def parse_superfish_format(filename, max_point_dist=0.1):
             phi = phi_start+dphi
 
             for i in range(steps):
-                points.append(center + r*num.array((cos(phi), sin(phi))))
+                points.append(center + r*numpy.array((cos(phi), sin(phi))))
                 phi += dphi
         else:
             raise ValueError, "unhandled shape type: nt=%s" % shape_type

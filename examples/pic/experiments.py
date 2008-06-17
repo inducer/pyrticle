@@ -231,5 +231,19 @@ def study_blob_exponent():
                         ])
                     job.submit()
 
+def run_apsgun():
+    O = ConstructorPlaceholder
+
+    timestamp = get_timestamp()
+
+    job = BatchJob(
+            "apsgun/$DATE",
+            "driver.py",
+            aux_files=["apsgun.cpy"],
+            timestamp=timestamp,
+            )
+    job.write_setup([ "execfile('apsgun.cpy')" ])
+    job.submit()
+
 import sys
 exec sys.argv[1]
