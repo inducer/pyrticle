@@ -578,7 +578,7 @@ class FieldsAndCloud:
     def rhs(self, t, y):
         assert y is self
 
-        from pyrticle._internal import ZeroVector
+        from hedge.tools import ZeroVector
 
         # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
         # inserting ZeroVectors where necessary.
@@ -660,8 +660,6 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
         from hedge.visualization import SiloVisualizer
         vis = SiloVisualizer(discr)
 
-    from hedge.discretization import integral
-    
     def set_radius(r):
         from pyrticle._internal import ShapeFunction
         cloud.reconstructor.set_shape_function(
@@ -701,7 +699,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
             cloud.set_ignore_core_warnings(False)
 
         tried_radii.append(radius)
-        l1_errors.append(integral(discr, numpy.abs(rec_rho-analytic_rho)))
+        l1_errors.append(discr.integral(numpy.abs(rec_rho-analytic_rho)))
 
         if visualize:
             visf = vis.make_file("bwopt-%04d" % step)
@@ -738,7 +736,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
     min_rad = tried_radii[min_idx]
     min_l1_error = l1_errors[min_idx]
 
-    rel_l1_error = abs(min_l1_error / integral(discr, analytic_rho))
+    rel_l1_error = abs(min_l1_error / discr.integral(analytic_rho))
     if rel_l1_error > 0.1:
         from warnings import warn
         warn("Charge density is very poorly resolved (rel L1 error=%g)" % rel_l1_error)
@@ -778,17 +776,16 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 # initial condition -----------------------------------------------------------
 def compute_initial_condition(pcon, discr, cloud, max_op,
         debug=False, force_zero=False):
-    from hedge.operators import WeakPoissonOperator
+    from hedge.pde import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
-    from hedge.discretization import norm
 
     def rel_l2_error(field, true):
-        err = norm(discr, field-true)
+        err = discr.norm(field-true)
         if err == 0:
             return 0
         else:
-            return err/norm(discr, true)
+            return err/discr.norm(true)
 
     mean_beta = cloud.mean_beta()
     gamma = cloud.units.gamma_from_beta(mean_beta)
@@ -828,8 +825,7 @@ def compute_initial_condition(pcon, discr, cloud, max_op,
     h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
 
     if debug:
-        from hedge.discretization import integral
-        reconstructed_charge = integral(discr, rho_prime)
+        reconstructed_charge = discr.integral(rho_prime)
 
         real_charge = sum(cloud.charges)
         print "charge: supposed=%g reconstructed=%g error=%g %%" % (
@@ -838,7 +834,7 @@ def compute_initial_condition(pcon, discr, cloud, max_op,
                 100*abs(reconstructed_charge-real_charge)/abs(real_charge)
                 )
 
-        from hedge.operators import DivergenceOperator
+        from hedge.pde import DivergenceOperator
 
         div_op = DivergenceOperator(discr)
 
@@ -848,7 +844,7 @@ def compute_initial_condition(pcon, discr, cloud, max_op,
         divD_prime_ldg = poisson_op.div(d_prime)
         divD_prime_ldg2 = poisson_op.div(d_prime, max_op.epsilon*gamma*phi_tilde)
         divD_prime_ldg3 = max_op.epsilon*\
-                (discr.inverse_mass_operator*poisson_op.op(gamma*phi_tilde))
+                (discr.inverse_mass_operator.apply(poisson_op.op(gamma*phi_tilde)))
         divD_prime_central = div_op(d_prime)
 
         print "l2 div D_prime error central: %g" % \

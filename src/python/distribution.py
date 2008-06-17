@@ -58,8 +58,7 @@ class ParticleDistribution(object):
         rho_norm_1 = discr.interpolate_volume_function(self.get_rho_distrib())
 
         # check for correctness
-        from hedge.discretization import integral
-        int_rho_norm_1 = integral(discr, rho_norm_1)
+        int_rho_norm_1 = discr.integral(rho_norm_1)
 
         rel_err = abs(int_rho_norm_1-1)
         if rel_err > err_thresh:
@@ -128,8 +127,8 @@ class JointParticleDistribution(ParticleDistribution):
         x_funcs = [d.get_rho_distrib() for d in self.contributors[0]]
         funcs_and_slices = list(zip(x_funcs, slices))
 
-        def f(x):
-            return product(f(x[sl]) for f, sl in funcs_and_slices)
+        def f(x, el):
+            return product(f(x[sl], el) for f, sl in funcs_and_slices)
 
         return f
 
@@ -220,7 +219,7 @@ class UniformPos(ParticleDistribution):
         lower = numpy.array(self.lower)
         upper = numpy.array(self.upper)
 
-        def f(x):
+        def f(x, el):
             if (x < lower).any() or (upper < x).any():
                 return 0
             return normalization
@@ -324,18 +323,18 @@ class KV(ParticleDistribution):
 
         if n == 2:
             normalization = 1/distr_vol
-            def f(x):
+            def f(x, el):
                 if la.norm((x[my_slice]-self.center)/self.radii) <= 1:
-                    return normalization*z_func(x[z_slice])
+                    return normalization*z_func(x[z_slice], el)
                 else:
                     return 0
         elif n == 1:
             normalization = 2/(pi*distr_vol)
-            def f(x):
+            def f(x, el):
                 normx = la.norm((x[my_slice]-self.center)/self.radii)
                 if normx <= 1:
                     return normalization\
-                            *z_func(x[z_slice])\
+                            *z_func(x[z_slice], el)\
                             *(1-normx**2)**-0.5
                 else:
                     return 0
@@ -499,7 +498,7 @@ class GaussianPos(ParticleDistribution):
         normalization = 1/((2*pi)**(d/2) * la.det(sigma_mat)**0.5)
         mean_x = numpy.asarray(self.mean_x)
 
-        def distrib(x):
+        def distrib(x, el):
             x0 = x-mean_x
             return normalization * exp(-0.5*dot(x0, dot(inv_sigma_mat, x0)))
 

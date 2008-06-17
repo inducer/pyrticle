@@ -324,8 +324,8 @@ class SingleBrickGenerator(object):
         mgr.set_constant("rec_grid_mesh_margin", self.mesh_margin)
 
     def __call__(self, discr):
-        from hedge.discretization import integral, ones_on_volume
-        mesh_volume = integral(discr, ones_on_volume(discr))
+        from hedge.discretization import ones_on_volume
+        mesh_volume = discr.integral(ones_on_volume(discr))
         dx =  (mesh_volume / len(discr)/ self.overresolve)**(1/discr.dimensions)
 
         mesh = discr.mesh
@@ -370,8 +370,8 @@ class FineCoreBrickGenerator(object):
             core_axis = d-1
 
         # calculate outer bbox, as above
-        from hedge.discretization import integral, ones_on_volume
-        mesh_volume = integral(discr, ones_on_volume(discr))
+        from hedge.discretization import ones_on_volume
+        mesh_volume = discr.integral(ones_on_volume(discr))
         dx =  (mesh_volume / len(discr)/ self.overresolve)**(1/discr.dimensions)
                 
         bbox_min -= self.mesh_margin

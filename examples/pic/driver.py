@@ -156,13 +156,13 @@ class PICRunner(object):
 
         # em operator ---------------------------------------------------------
         if discr.dimensions == 3:
-            from hedge.operators import MaxwellOperator
+            from hedge.pde import MaxwellOperator
             self.max_op = MaxwellOperator(discr, 
                     epsilon=units.EPSILON0, 
                     mu=units.MU0, 
                     upwind_alpha=1)
         elif discr.dimensions == 2:
-            from hedge.operators import TEMaxwellOperator
+            from hedge.pde import TEMaxwellOperator
             self.max_op = TEMaxwellOperator(discr, 
                     epsilon=units.EPSILON0, 
                     mu=units.MU0, 

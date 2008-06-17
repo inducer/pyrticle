@@ -87,7 +87,7 @@ class LarmorScrew(StaticFieldSetup):
             def __init__(self, zval):
                 self.zval = zval
 
-            def __call__(self, x):
+            def __call__(self, x, el):
                 return numpy.array([0, 0, self.zval])
 
         from hedge.data import GivenFunction
@@ -207,7 +207,7 @@ class EBParallel(StaticFieldSetup):
             def __init__(self, zval):
                 self.zval = zval
 
-            def __call__(self, x):
+            def __call__(self, x, el):
                 return numpy.array([0,0,self.zval])
 
         from hedge.data import GivenFunction
@@ -264,7 +264,7 @@ class EBParallel(StaticFieldSetup):
 def run_setup(units, casename, setup, discr, pusher, visualize=False):
     from hedge.timestep import RK4TimeStepper
     from hedge.visualization import SiloVisualizer
-    from hedge.operators import MaxwellOperator
+    from hedge.pde import MaxwellOperator
 
     vis = SiloVisualizer(discr)
 

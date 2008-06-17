@@ -27,11 +27,6 @@ import pytools
 
 
 
-ZeroVector = _internal.ZeroVector
-
-
-
-
 # warnings --------------------------------------------------------------------
 class WarningForwarder(_internal.WarningListener):
     def note_warning(self, message, filename, lineno):

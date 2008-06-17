@@ -56,7 +56,7 @@ class TestPyrticle(unittest.TestCase):
         # discretization setup ----------------------------------------------------
         from hedge.element import TetrahedralElement
         from hedge.mesh import make_cylinder_mesh
-        from hedge.discretization import Discretization
+        from hedge.discr_precompiled import Discretization
 
         tube_length = 100*units.MM
         mesh = make_cylinder_mesh(radius=25*units.MM, height=tube_length, periodic=True)
@@ -151,7 +151,7 @@ class TestPyrticle(unittest.TestCase):
         from math import sqrt, pi
         from pytools.arithmetic_container import \
                 ArithmeticList, join_fields
-        from hedge.operators import MaxwellOperator, DivergenceOperator
+        from hedge.pde import MaxwellOperator, DivergenceOperator
         from pyrticle.cloud import ParticleCloud
         from random import seed
         from pytools.stopwatch import Job
@@ -178,7 +178,7 @@ class TestPyrticle(unittest.TestCase):
                 radial_subdiv=10,
                 )
 
-        from hedge.discretization import Discretization
+        from hedge.discr_precompiled import Discretization
         discr = Discretization(mesh, TetrahedralElement(3))
 
         max_op = MaxwellOperator(discr, 
@@ -231,7 +231,7 @@ class TestPyrticle(unittest.TestCase):
         class TheoreticalEField():
             shape = (3,)
 
-            def __call__(self, x):
+            def __call__(self, x, el):
                 r = la.norm(x[:2])
                 if r >= max(beam.radii):
                     xy_unit = x/r
@@ -242,7 +242,7 @@ class TestPyrticle(unittest.TestCase):
                 else:
                     return numpy.zeros((3,))
 
-        def theory_indicator(x):
+        def theory_indicator(x, el):
             r = la.norm(x[:2])
             if r >= max(beam.radii):
                 return 1
@@ -256,8 +256,7 @@ class TestPyrticle(unittest.TestCase):
         restricted_e = join_fields(*[e_i * theory_ind for e_i in fields.e])
 
         def l2_error(field, true):
-            from hedge.discretization import norm
-            return norm(discr, field-true)/norm(discr, true)
+            return discr.norm(field-true)/discr.norm(true)
 
         outer_l2 = l2_error(restricted_e, e_theory)
         self.assert_(outer_l2 < 0.08)
