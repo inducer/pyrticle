@@ -23,6 +23,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 
 import numpy
+from pytools import memoize_method
 
 
 
@@ -50,10 +51,9 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         e_components = maxwell_op.count_subset(maxwell_op.get_eh_subset()[0:3])
         h_components = maxwell_op.count_subset(maxwell_op.get_eh_subset()[3:6])
 
-        w = FluxVectorPlaceholder(
-                maxwell_op.count_subset(maxwell_op.get_eh_subset())+1)
-        e, h = self.split_eh(w)
-        phi = w[e_components+h_components]
+        self.component_count = maxwell_op.count_subset(maxwell_op.get_eh_subset())+1
+        w = FluxVectorPlaceholder(self.component_count)
+        e, h, phi = self.split_ehphi(w)
 
         from hedge.tools import join_fields
 
@@ -88,49 +88,68 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
     def get_eh_subset(self):
         return self.maxwell_op.get_eh_subset()
 
-    def rhs(self, t, w, rho):
-        from hedge.discretization import pair_with_boundary, cache_diff_results
+    @memoize_method
+    def op_template(self):
         from hedge.tools import join_fields
-        
-        pec_tag = self.maxwell_op.pec_tag
-        nabla = self.maxwell_op.nabla
+        from hedge.optemplate import make_vector_field, pair_with_boundary
+
+        w = make_vector_field("w", self.component_count)
+        e, h, phi = self.split_ehphi(w)
+        pec_bc = make_vector_field("pec_bc", self.component_count)
+
+        nabla = self.discr.nabla
+        m_inv = self.discr.inverse_mass_operator
+
+        # in conservation form: u_t + A u_x = 0
+        max_local_op = join_fields(self.maxwell_op.local_op(e, h), 0)
 
         c = self.maxwell_op.c
         chi = self.chi
 
+        local_operator = max_local_op + join_fields(
+                c*chi*(nabla*phi),
+                0*h,
+                c*chi*numpy.dot(nabla, e)
+                )
+
+        pec_tag = self.maxwell_op.pec_tag
+
+        return self.discr.compile(
+                -local_operator + m_inv*(
+                    self.strong_flux_op * w
+                    +self.strong_flux_op * pair_with_boundary(w, pec_bc, pec_tag)
+                    )
+                )
+
+    def rhs(self, t, w, rho):
+        from hedge.tools import join_fields
+
         e, h, phi = self.split_ehphi(w)
 
+        pec_tag = self.maxwell_op.pec_tag
         pec_e = self.discr.boundarize_volume_field(e, self.maxwell_op.pec_tag)
         pec_h = self.discr.boundarize_volume_field(h, self.maxwell_op.pec_tag)
         pec_phi = self.discr.boundarize_volume_field(phi, self.maxwell_op.pec_tag)
         pec_n = self.pec_normals
 
+        from hedge.tools import log_shape
+
         from hedge.tools import ptwise_dot
         # see hedge/doc/maxima/eclean.mac for derivation
         pec_bc = join_fields(
                 -pec_e
-                +2*pec_n * ptwise_dot(pec_n, pec_e),
+                +2*pec_n * ptwise_dot(1, 1, pec_n, pec_e),
                 pec_h,
                 -pec_phi)
 
-        e_cache = cache_diff_results(e)
-        h_cache = cache_diff_results(h)
-        phi_cache = cache_diff_results(phi)
-
-        # in conservation form: u_t + A u_x = 0
-        max_local_op = join_fields(self.maxwell_op.local_op(e_cache, h_cache), 0)
-        local_operator = max_local_op + join_fields(
-                c*chi*(nabla*phi_cache),
-                0*h,
-                c*chi*(numpy.dot(nabla, e_cache) - rho/self.maxwell_op.epsilon) 
-                - self.phi_decay * phi
+        c = self.maxwell_op.c
+        chi = self.chi
+        return (
+                self.op_template()(w=w, pec_bc=pec_bc) 
+                +
+                self.assemble_fields(
+                    phi=c*chi*rho/self.maxwell_op.epsilon - self.phi_decay * phi)
                 )
-
-        from hedge.tools import to_obj_array
-        return -local_operator + to_obj_array(self.maxwell_op.m_inv*(
-                    self.strong_flux_op * w
-                    +self.strong_flux_op * pair_with_boundary(w, pec_bc, pec_tag)
-                    ))
 
     def assemble_fields(self, e=None, h=None, phi=None):
         if phi is None:

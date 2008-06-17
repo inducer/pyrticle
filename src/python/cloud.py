@@ -820,8 +820,8 @@ def compute_initial_condition(pcon, discr, cloud, max_op,
                 debug=debug, tol=1e-10)
 
     from hedge.tools import ptwise_dot
-    e_tilde = ptwise_dot(make_scaling_matrix(1/gamma, 1), poisson_op.grad(phi_tilde))
-    e_prime = ptwise_dot(make_scaling_matrix(1, gamma), e_tilde)
+    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), poisson_op.grad(phi_tilde))
+    e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
     h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
 
     if debug:

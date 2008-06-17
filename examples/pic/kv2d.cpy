@@ -8,6 +8,8 @@ beam_axis = 0
 beam_diag_axis = 1
 tube_length = 40*units.MM
 
+chi = 5
+
 #shape_bandwidth = "optimize,visualize,plot"
 shape_bandwidth = "optimize"
 
