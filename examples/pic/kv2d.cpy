@@ -15,14 +15,14 @@ shape_bandwidth = "optimize"
 
 pusher = PushMonomial()
 reconstructor = RecGrid(
-        #FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
+        FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
         el_tolerance=0.1,
         filter_min_amplification=0.1,
         filter_order=6,
         )
 
 _cloud_charge = -10e-9 * units.C
-nparticles = 2000
+nparticles = 20000
 element_order = 3
 final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
@@ -49,12 +49,12 @@ distribution = pyrticle.distribution.KVZIntervalBeam(
         radii=[1.7*units.MM],
         emittances=[5*units.MM*units.MRAD], 
         z_length=5*units.MM,
-        z_pos=0,
+        z_pos=10*units.MM,
         beta=_mean_beta,
         axis_first=True)
 
 vis_verbose = True
-vis_interval = 1
+vis_interval = 10
 
 def hook_vis_quantities(runner):
     return [

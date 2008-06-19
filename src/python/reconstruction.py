@@ -811,6 +811,14 @@ class GridReconstructor(Reconstructor):
         max_s_values = []
         cond_s_values = []
 
+        from hedge.discretization import Projector, Discretization
+        fine_discr = Discretization(discr.mesh, order=8)
+        proj = Projector(discr, fine_discr)
+
+        from hedge.visualization import SiloVisualizer
+        vis = SiloVisualizer(fine_discr)
+
+
         # Iterate over all elements
         for eg in discr.element_groups:
             ldis = eg.local_discretization
@@ -865,6 +873,40 @@ class GridReconstructor(Reconstructor):
                 min_s_values.append(min(s))
                 max_s_values.append(max(s))
                 cond_s_values.append(max(s)/min(s))
+
+                if max(s)/min(s) > 1e2:
+                    for i in range(len(s)):
+                        if s[0]/s[i] > 1e2:
+                            zeroed_mode = vt[i]
+                            zeroed_mode_nodal = numpy.dot(ldis.vandermonde(), 
+                                    zeroed_mode)
+                            print el.id, i, s[0]/s[i]
+                            visf = vis.make_file("nulled-%04d%02d" % (el.id, i))
+                            fromvec = discr.volume_zeros()
+                            fromvec[discr.find_el_range(el.id)] = zeroed_mode_nodal
+
+                            gn = list(eog.grid_nodes)
+                            assert len(gn) == len(u[i])
+
+                            tovec = numpy.zeros((pic.grid_node_count(),), dtype=float)
+                            tovec[gn] = s[i]*u[i]
+
+                            usevec = numpy.zeros((pic.grid_node_count(),), dtype=float)
+                            usevec[gn] = 1
+
+                            vis.add_data(visf, [("meshmode", proj(fromvec))],
+                                    expressions=[
+                                    ("absmesh", "abs(meshmode)"),
+                                    ("absgrid", "abs(gridmode)"),
+                                    ])
+                            self.visualize_grid_quantities(visf, [
+                                    ("gridmode", tovec),
+                                    ("usevec", usevec),
+                                    ],
+                                    )
+                            visf.close()
+                    #print s
+                    #raw_input()
 
                 self.make_pointwise_interpolation_matrix(eog, eg, el, ldis, svd, scaled_vdm)
 

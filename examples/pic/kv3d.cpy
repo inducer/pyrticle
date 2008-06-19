@@ -25,16 +25,16 @@ _gamma = _el_energy/units.EL_REST_ENERGY
 _mean_beta = (1-1/_gamma**2)**0.5
 
 def hook_when_done(runner):
-    _, _, err_table = logmgr.get_expr_dataset("(rx_rms-rx_rms_theory)/rx_rms_theory")
+    _, _, err_table = runner.logmgr.get_expr_dataset("(rx_rms-rx_rms_theory)/rx_rms_theory")
     print "Relative error (rms): %g" % max(err for step, err in err_table)
 
 def hook_startup(runner):
-    from kv import KVPredictedRadius
-    logmgr.add_quantity(KVPredictedRadius(dt, 
+    from pyrticle.distribution import KVPredictedRadius
+    runner.logmgr.add_quantity(KVPredictedRadius(dt, 
         beam_v=mean_beta*units.VACUUM_LIGHT_SPEED,
         predictor=beam.get_rms_predictor(axis=0),
         suffix="x_rms"))
-    logmgr.add_quantity(KVPredictedRadius(dt, 
+    runner.logmgr.add_quantity(KVPredictedRadius(dt, 
         beam_v=mean_beta*units.VACUUM_LIGHT_SPEED,
         predictor=beam.get_total_predictor(axis=0),
         suffix="x_total"))
