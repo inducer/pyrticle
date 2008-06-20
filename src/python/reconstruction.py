@@ -75,6 +75,9 @@ class Reconstructor(object):
                 self.reconstruct_timer,
                 self.reconstruct_counter)
 
+        mgr.add_quantity(self.reconstruct_timer)
+        mgr.add_quantity(self.reconstruct_counter)
+
     def clear_particles(self):
         pass
 
@@ -754,9 +757,9 @@ class GridReconstructor(Reconstructor):
                     # the highest absolute value.
                     from pytools import argmax
                     max_node_idx = argmax(abs(xi) for xi in zeroed_mode_nodal)
-                    start, stop = discr.find_el_range(el.id)
-
-                    new_point = discr.nodes[start+max_node_idx]
+                    new_point = discr.nodes[
+                            discr.find_el_range(el.id).start
+                            +max_node_idx]
 
                     ep_brick_map.setdefault(
                             self.find_containing_brick(new_point).number,
