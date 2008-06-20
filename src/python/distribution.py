@@ -373,7 +373,7 @@ class KVZIntervalBeam(KV):
                 /
                 (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED**2))
 
-        lambda_ = self.total_charge /(self.z_length*self.units.EL_CHARGE)
+        lambda_ = abs(self.total_charge) /(self.z_length*self.units.EL_CHARGE)
 
         # factor of 2 here is uncertain
         # from S.Y.Lee, Accelerator Physics, p. 68
