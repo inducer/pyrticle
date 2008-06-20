@@ -20,7 +20,6 @@ def cn(placeholder):
 def multiline_to_setup(mls):
     lines = mls.split("\n")
 
-    print repr(lines)
     assert lines[0] == ""
     lines.pop(0)
 
@@ -97,7 +96,7 @@ def study_rec_grid(output_path=None):
     tube_length = 2
 
     _cloud_charge = -10e-9 * units.C
-    final_time = 1*units.M/units.VACUUM_LIGHT_SPEED
+    final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
     _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
     _tube_width = 1
@@ -314,6 +313,29 @@ def run_apsgun():
             )
     job.write_setup([ "execfile('apsgun.cpy')" ])
     job.submit()
+
+def run_kv3d():
+    O = ConstructorPlaceholder
+
+    timestamp = get_timestamp()
+
+    for rec in [
+            O("RecShape"), 
+            O("RecGrid", O("FineCoreBrickGenerator", core_axis=2),
+                el_tolerance=0.1,
+                method="simplex_reduce")
+            ]:
+        job = BatchJob(
+                "kv3d-$DATE/%s" % cn(rec),
+                "driver.py",
+                aux_files=["kv3d.cpy"],
+                timestamp=timestamp,
+                )
+        job.write_setup([ 
+            "execfile('kv3d.cpy')",
+            "reconstructor = %s" % rec,
+            ])
+        job.submit()
 
 import sys
 exec sys.argv[1]

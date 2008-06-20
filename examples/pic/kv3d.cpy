@@ -2,10 +2,11 @@ import random as _random
 _random.seed(0)
 
 pusher = PushMonomial()
-reconstructor = RecGrid(
-        FineCoreBrickGenerator(core_axis=2),
-        el_tolerance=0.1,
-        method="simplex_reduce")
+reconstructor = RecShape()
+#reconstructor = RecGrid(
+        #FineCoreBrickGenerator(core_axis=2),
+        #el_tolerance=0.1,
+        #method="simplex_reduce")
 
 dimensions_pos = 3
 dimensions_velocity = 3
