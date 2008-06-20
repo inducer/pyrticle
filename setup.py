@@ -54,7 +54,7 @@ def get_config_schema():
 def main():
     import glob
     from aksetup_helper import hack_distutils, get_config, setup, \
-            PyUblasExtension
+            HedgeExtension
 
     hack_distutils()
     conf = get_config(get_config_schema())
@@ -105,7 +105,7 @@ def main():
           url="http://mathema.tician.de/software/pyrticle",
 
           setup_requires=[
-              "hedge[elliptic,silo]>=0.90",
+              "hedge[silo]>=0.91",
               "PyUblas>=0.90",
               ],
 
@@ -114,7 +114,7 @@ def main():
           package_dir={"pyrticle": "src/python"},
           ext_package="pyrticle",
           ext_modules=[
-            PyUblasExtension("_internal", 
+            HedgeExtension("_internal", 
                 [
                     "src/cpp/tools.cpp",
                     "src/cpp/rec_shape.cpp",

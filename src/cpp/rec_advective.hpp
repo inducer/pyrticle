@@ -257,17 +257,17 @@ namespace pyrticle
               if (el.m_min_life == 0  && element_charge / particle_charge < m_kill_threshold)
               {
                 // retire this element
-                const hedge::element_number en = el.m_element_info->m_id;
+                const hedge::element_number_t en = el.m_element_info->m_id;
 
                 // kill connections
-                for (hedge::face_number fn = 0; fn < m_faces_per_element; ++fn)
+                for (hedge::face_number_t fn = 0; fn < m_faces_per_element; ++fn)
                 {
-                  hedge::element_number connected_en = el.m_connections[fn];
+                  hedge::element_number_t connected_en = el.m_connections[fn];
                   if (connected_en != hedge::INVALID_ELEMENT)
                   {
                     active_element &connected_el = *p.find_element(connected_en);
 
-                    for (hedge::face_number cfn = 0; cfn < m_faces_per_element; ++cfn)
+                    for (hedge::face_number_t cfn = 0; cfn < m_faces_per_element; ++cfn)
                     {
                       if (connected_el.m_connections[cfn] == en)
                         connected_el.m_connections[cfn] = hedge::INVALID_ELEMENT;
@@ -352,12 +352,12 @@ namespace pyrticle
           // build m_el_face_to_face_pair_locator
           BOOST_FOREACH(const hedge::face_pair &fp, int_face_group->face_pairs)
           {
-            hedge::fluxes::face &f = int_face_group->flux_faces[fp.flux_face_index];
+            const hedge::fluxes::face &f = fp.loc;
             m_el_face_to_face_pair_locator
               [std::make_pair(f.element_id, f.face_id)] = 
               face_pair_locator(*int_face_group, fp);
 
-            hedge::fluxes::face &opp_f = int_face_group->flux_faces[fp.opp_flux_face_index];
+            const hedge::fluxes::face &opp_f = fp.opp;
             m_el_face_to_face_pair_locator
               [std::make_pair(opp_f.element_id, opp_f.face_id)] = 
               face_pair_locator(*int_face_group, fp);
@@ -365,7 +365,7 @@ namespace pyrticle
 
           BOOST_FOREACH(const hedge::face_pair &fp, bdry_face_group->face_pairs)
           {
-            hedge::fluxes::face &f = bdry_face_group->flux_faces[fp.flux_face_index];
+            const hedge::fluxes::face &f = fp.loc;
             m_el_face_to_face_pair_locator
               [std::make_pair(f.element_id, f.face_id)] = 
               face_pair_locator(*bdry_face_group, fp);
@@ -741,7 +741,7 @@ namespace pyrticle
             {
               active_element const *el = &p.m_elements[i_el];
 
-              for (hedge::face_number fn = 0; fn < m_faces_per_element; ++fn)
+              for (hedge::face_number_t fn = 0; fn < m_faces_per_element; ++fn)
               {
                 const mesh_data::element_number en = el->m_element_info->m_id;
 
@@ -758,10 +758,10 @@ namespace pyrticle
                  * identifies, guarding against an unpopulated "opp" side.
                  */
                 bool is_boundary;
-                const hedge::fluxes::face *flux_face;
-                const hedge::fluxes::face *opposite_flux_face;
-                const hedge::index_list *idx_list;
-                const hedge::index_list *opp_idx_list;
+                const hedge::face_pair::side *flux_face;
+                const hedge::face_pair::side *opposite_flux_face;
+                hedge::index_lists_t::const_iterator idx_list;
+                hedge::index_lists_t::const_iterator opp_idx_list;
 
                 {
                   const face_pair_locator &fp_locator = map_get(
@@ -771,17 +771,16 @@ namespace pyrticle
                   const hedge::face_group &fg(*fp_locator.m_face_group);
                   const hedge::face_pair &fp(*fp_locator.m_face_pair);
 
-                  const hedge::fluxes::face &flux_face_a = fg.flux_faces[
-                    fp.flux_face_index];
+                  const hedge::face_pair::side &flux_face_a = fp.loc;
 
                   const bool is_face_b = en != flux_face_a.element_id;
 
                   is_boundary = 
-                    fp.opp_flux_face_index == hedge::face_pair::INVALID_INDEX;
+                    fp.opp.el_base_index == hedge::INVALID_ELEMENT;
 
-                  const hedge::fluxes::face *flux_face_b = 0;
+                  const hedge::face_pair::side *flux_face_b = 0;
                   if (!is_boundary)
-                    flux_face_b = &fg.flux_faces[fp.opp_flux_face_index];
+                    flux_face_b = &fp.opp;
 
                   if (is_boundary && is_face_b)
                     throw std::runtime_error("looking for non-existant cross-boundary element");
@@ -792,12 +791,8 @@ namespace pyrticle
                   flux_face = is_face_b ? flux_face_b : &flux_face_a;
                   opposite_flux_face = is_face_b ? &flux_face_a : flux_face_b;
 
-                  idx_list = is_face_b ?
-                      &fg.index_lists[fp.opp_face_index_list_number]
-                      : &fg.index_lists[fp.face_index_list_number];
-                  opp_idx_list = is_face_b ?
-                      &fg.index_lists[fp.face_index_list_number]
-                      : &fg.index_lists[fp.opp_face_index_list_number];
+                  idx_list = fg.index_list(flux_face->face_index_list_number);
+                  idx_list = fg.index_list(opposite_flux_face->face_index_list_number);
                 }
 
                 // Find information about this face
@@ -830,14 +825,14 @@ namespace pyrticle
                   double max_density = 0;
                   for (unsigned i = 0; i < face_length; i++)
                     max_density = std::max(max_density, 
-                        fabs(m_rho[this_base_idx+(*idx_list)[i]]));
+                        fabs(m_rho[this_base_idx+idx_list[i]]));
 
                   // std::cout << max_density << ' ' << shape_peak << std::endl;
                   if (max_density > m_activation_threshold*fabs(shape_peak))
                   {
                     // yes, activate the opposite element
 
-                    const hedge::element_number opp_en = opposite_flux_face->element_id;
+                    const hedge::element_number_t opp_en = opposite_flux_face->element_id;
 
                     const mesh_data::element_info &opp_einfo(
                         CONST_PIC_THIS->m_mesh_data.m_element_info[opp_en]);
@@ -862,10 +857,10 @@ namespace pyrticle
                     opp_element.m_min_life = 10;
 
                     // update connections
-                    hedge::face_number opp_fn = 0;
+                    hedge::face_number_t opp_fn = 0;
                     BOOST_FOREACH(const mesh_data::face_info &opp_face, opp_einfo.m_faces)
                     {
-                      const hedge::element_number opp_neigh_en = opp_face.m_neighbor;
+                      const hedge::element_number_t opp_neigh_en = opp_face.m_neighbor;
                       active_element *opp_neigh_el = p.find_element(opp_neigh_en);
                       if (opp_neigh_el)
                       {
@@ -942,10 +937,10 @@ namespace pyrticle
 
                   for (unsigned i = 0; i < face_length; i++)
                   {
-                    const int ili = this_base_idx+(*idx_list)[i];
+                    const int ili = this_base_idx+idx_list[i];
 
-                    hedge::index_list::const_iterator ilj_iterator = idx_list->begin();
-                    hedge::index_list::const_iterator oilj_iterator = opp_idx_list->begin();
+                    hedge::index_lists_t::const_iterator ilj_iterator = idx_list;
+                    hedge::index_lists_t::const_iterator oilj_iterator = opp_idx_list;
 
                     double res_ili_addition = 0;
 
@@ -973,9 +968,9 @@ namespace pyrticle
 
                   for (unsigned i = 0; i < face_length; i++)
                   {
-                    const int ili = this_base_idx+(*idx_list)[i];
+                    const int ili = this_base_idx+idx_list[i];
 
-                    hedge::index_list::const_iterator ilj_iterator = idx_list->begin();
+                    hedge::index_lists_t::const_iterator ilj_iterator = idx_list;
 
                     double res_ili_addition = 0;
 

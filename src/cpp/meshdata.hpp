@@ -53,13 +53,13 @@ namespace pyrticle
   class mesh_data : boost::noncopyable
   {
     public:
-      typedef hedge::element_number element_number;
-      typedef hedge::face_number face_number;
-      typedef hedge::vertex_number vertex_number;
-      typedef hedge::node_index node_number;
+      typedef hedge::element_number_t element_number;
+      typedef hedge::face_number_t face_number;
+      typedef hedge::vertex_number_t vertex_number;
+      typedef hedge::node_number_t node_number;
       typedef hedge::el_id_vector el_id_vector;
       typedef hedge::vtx_id_vector vtx_id_vector;
-      typedef hedge::el_face el_face;
+      typedef hedge::el_face_t el_face;
 
       typedef unsigned axis_number;
 
