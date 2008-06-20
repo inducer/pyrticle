@@ -497,8 +497,8 @@ class GridReconstructor(Reconstructor):
             self.prepare_with_pointwise_projection_and_extra_points()
         elif self.method == "simplex_enlarge":
             self.prepare_with_pointwise_projection_and_enlargement()
-        elif self.method == "simplex_pick":
-            self.prepare_with_pointwise_projection_and_picking()
+        elif self.method == "simplex_reduce":
+            self.prepare_with_pointwise_projection_and_basis_reduction()
         elif self.method == "brick":
             self.prepare_with_brick_interpolation()
         else:
@@ -579,7 +579,7 @@ class GridReconstructor(Reconstructor):
         
         return eog, list(points)
 
-    def scaled_vandermonde(self, el, eog, points, ldis):
+    def scaled_vandermonde(self, el, eog, points, basis):
         """The remapping procedure in rec_grid relies on a pseudoinverse
         minimizing the pointwise error on all found interpolation points.
         But if an element spans bricks with different resolution, the 
@@ -594,14 +594,15 @@ class GridReconstructor(Reconstructor):
         from hedge.polynomial import generic_vandermonde
         vdm = generic_vandermonde(
                 [el.inverse_map(x) for x in points], 
-                ldis.basis_functions())
+                basis)
 
         for i, weight in enumerate(eog.weight_factors):
             vdm[i] *= weight
 
         return vdm
 
-    def make_pointwise_interpolation_matrix(self, eog, eg, el, ldis, svd, scaled_vdm):
+    def make_pointwise_interpolation_matrix(self, eog, eg, el, ldis, svd, scaled_vdm,
+            basis_subset=None):
         u, s, vt = svd
 
         point_count = u.shape[0]
@@ -633,18 +634,22 @@ class GridReconstructor(Reconstructor):
                 % (el.id, node_count, point_count, pinv_resid,
                         el.centroid(self.cloud.mesh_data.discr.mesh.points)))
 
-        imat = numpy.dot(ldis.vandermonde(), svdm_pinv)
+        el_vdm = ldis.vandermonde()
+        if basis_subset is not None:
+            el_vdm = el_vdm[:,basis_subset]
+        imat = numpy.dot(el_vdm, svdm_pinv)
 
         if self.filter is not None:
             imat = numpy.dot(self.filter.get_filter_matrix(eg), imat)
 
         eog.interpolation_matrix = numpy.asarray(imat, order="F")
 
-        from hedge.tools import leftsolve
-        eog.inverse_interpolation_matrix = numpy.asarray(
-                leftsolve(ldis.vandermonde(), scaled_vdm), order="F")
+        if basis_subset is None:
+            from hedge.tools import leftsolve
+            eog.inverse_interpolation_matrix = numpy.asarray(
+                    leftsolve(el_vdm, scaled_vdm), order="F")
 
-    def generate_point_statistics(self, cond_claims):
+    def generate_point_statistics(self, cond_claims=0):
         pic = self.cloud.pic_algorithm
         discr = self.cloud.mesh_data.discr
 
@@ -710,7 +715,8 @@ class GridReconstructor(Reconstructor):
                 # add "extra points" to prevent that.
                 ep_count = 0
                 while True:
-                    scaled_vdm = self.scaled_vandermonde(el, eog, points, ldis)
+                    scaled_vdm = self.scaled_vandermonde(el, eog, points, 
+                            ldis.basis_functions())
 
                     u, s, vt = svd = la.svd(scaled_vdm)
 
@@ -818,7 +824,6 @@ class GridReconstructor(Reconstructor):
         from hedge.visualization import SiloVisualizer
         vis = SiloVisualizer(fine_discr)
 
-
         # Iterate over all elements
         for eg in discr.element_groups:
             ldis = eg.local_discretization
@@ -836,7 +841,8 @@ class GridReconstructor(Reconstructor):
                     if orig_point_count is None:
                         orig_point_count = len(points)
 
-                    scaled_vdm = self.scaled_vandermonde(el, eog, points, ldis)
+                    scaled_vdm = self.scaled_vandermonde(el, eog, points, 
+                            ldis.basis_functions())
 
                     bad_vdm = len(points) < ldis.node_count()
                     if not bad_vdm:
@@ -881,7 +887,6 @@ class GridReconstructor(Reconstructor):
                             zeroed_mode_nodal = numpy.dot(ldis.vandermonde(), 
                                     zeroed_mode)
                             print el.id, i, s[0]/s[i]
-                            visf = vis.make_file("nulled-%04d%02d" % (el.id, i))
                             fromvec = discr.volume_zeros()
                             fromvec[discr.find_el_range(el.id)] = zeroed_mode_nodal
 
@@ -894,6 +899,7 @@ class GridReconstructor(Reconstructor):
                             usevec = numpy.zeros((pic.grid_node_count(),), dtype=float)
                             usevec[gn] = 1
 
+                            visf = vis.make_file("nulled-%04d%02d" % (el.id, i))
                             vis.add_data(visf, [("meshmode", proj(fromvec))],
                                     expressions=[
                                     ("absmesh", "abs(meshmode)"),
@@ -917,6 +923,124 @@ class GridReconstructor(Reconstructor):
 
         # print some statistics
         self.generate_point_statistics(cond_claims)
+
+
+
+
+    def prepare_with_pointwise_projection_and_basis_reduction(self):
+        discr = self.cloud.mesh_data.discr
+        pic = self.cloud.pic_algorithm
+
+        pic.elements_on_grid.reserve(
+                sum(len(eg.members) for eg in discr.element_groups))
+
+        min_s_values = []
+        max_s_values = []
+        cond_s_values = []
+
+        basis_len_vec = discr.volume_zeros()
+        el_condition_vec = discr.volume_zeros()
+        point_count_vec = discr.volume_zeros()
+
+        # Iterate over all elements
+        for eg in discr.element_groups:
+            ldis = eg.local_discretization
+
+            mode_id_to_index = dict(
+                    (bid, i) for i, bid in enumerate(ldis.generate_mode_identifiers()))
+
+            for el in eg.members:
+                basis = list(zip(
+                    ldis.generate_mode_identifiers(), 
+                    ldis.basis_functions()))
+
+                eog, points = self.find_points_in_element(el, self.el_tolerance)
+
+                while True:
+                    scaled_vdm = self.scaled_vandermonde(el, eog, points, 
+                            [bf for bid, bf in basis])
+
+                    max_bid_sum = max(sum(bid) for bid, bf in basis)
+                    killable_basis_elements = [
+                            (i, bid) for i, (bid, bf) in enumerate(basis)
+                            if sum(bid) == max_bid_sum]
+
+                    try:
+                        u, s, vt = svd = la.svd(scaled_vdm)
+
+                        thresh = (numpy.finfo(float).eps
+                                * max(scaled_vdm.shape) * s[0])
+
+                        assert s[-1] == numpy.min(s)
+                        assert s[0] == numpy.max(s)
+                        
+                        if len(basis) > len(points) or s[0]/s[-1] > 10:
+                            retry = True
+
+                            # badly conditioned, kill a basis entry
+                            vti = vt[-1]
+
+                            from pytools import argmax2
+                            kill_idx, kill_bid = argmax2(
+                                    ((j, bid), abs(vti[j])) 
+                                    for j, bid in killable_basis_elements)
+
+                            assert kill_bid == basis[kill_idx][0]
+                            basis.pop(kill_idx)
+                        else:
+                            retry = False
+
+                    except la.LinAlgError:
+                        # SVD likely didn't converge. Lacking an SVD, we don't have 
+                        # much guidance on what modes to kill. Any of the killable
+                        # ones will do.
+
+                        # Bang, you're dead.
+                        basis.pop(killable_basis_elements[0][0])
+
+                        retry = True
+
+                    if not retry:
+                        break
+
+                    if len(basis) == 1:
+                        raise RuntimeError(
+                                "basis reduction has killed almost the entire basis on element %d"
+                                % el.id)
+
+                print "element %d: #nodes=%d, leftover modes=%d" % (
+                        el.id, ldis.node_count(), len(basis),)
+
+                basis_len_vec[discr.find_el_range(el.id)] = len(basis)
+                el_condition_vec[discr.find_el_range(el.id)] = s[0]/s[-1]
+                point_count_vec[discr.find_el_range(el.id)] = len(points)
+
+                min_s_values.append(min(s))
+                max_s_values.append(max(s))
+                cond_s_values.append(max(s)/min(s))
+
+                self.make_pointwise_interpolation_matrix(eog, eg, el, ldis, svd, scaled_vdm,
+                        basis_subset=[mode_id_to_index[bid] for bid, bf in basis])
+
+                pic.elements_on_grid.append(eog)
+
+
+        # visualize basis length for each element
+        from hedge.visualization import SiloVisualizer
+        vis = SiloVisualizer(discr)
+        visf = vis.make_file("rec-debug")
+        vis.add_data(visf, [
+            ("basis_len", basis_len_vec),
+            ("el_condition", el_condition_vec),
+            ("point_count", point_count_vec),
+            ])
+        visf.close()
+
+        # we don't need no stinkin' extra points
+        pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
+
+        # print some statistics
+        self.generate_point_statistics()
 
 
 

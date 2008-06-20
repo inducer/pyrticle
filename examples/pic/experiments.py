@@ -17,6 +17,26 @@ def cn(placeholder):
     else:
         return result.lower()
 
+def multiline_to_setup(mls):
+    lines = mls.split("\n")
+
+    print repr(lines)
+    assert lines[0] == ""
+    lines.pop(0)
+
+    first_line = lines[0]
+    indent = 0
+    while first_line[indent] == " " and indent < len(first_line):
+        indent += 1
+
+    indent_str = indent*" "
+
+    def remove_indent(s):
+        assert s.startswith(indent_str) or len(s) == 0
+        return s[indent:]
+
+    return [remove_indent(line) for line in lines]
+
 def compare_methods():
     """Submit jobs to compare reconstruction/pushing methods."""
 
@@ -60,21 +80,68 @@ def study_rec_grid(output_path=None):
 
     timestamp = get_timestamp()
 
-    method = "simplex_enlarge"
     pusher = O("PushMonomial")
     eorder = 3
 
     nparticles = 30000
 
-    for method in ["simplex_enlarge", "simplex_extra", "brick"]:
-        for el_tolerance in [0, 0.1, 0.15, 0.2, 0.3]:
-            for enf_cont in [True, False]:
-                for overres in [0.8, 1.0, 1.2, 1.3, 1.4, 1.6, 2]:
-                    for mesh_margin in [0, 0.05, 0.1, 0.2]:
+    basic_setup = multiline_to_setup("""
+    import random as _random
+    _random.seed(0)
+
+    dimensions_pos = 2
+    dimensions_velocity = 2
+
+    beam_axis = 0
+    beam_diag_axis = 1
+    tube_length = 2
+
+    _cloud_charge = -10e-9 * units.C
+    final_time = 1*units.M/units.VACUUM_LIGHT_SPEED
+    _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
+
+    _tube_width = 1
+    import hedge.mesh as _mesh
+    mesh = _mesh.make_rect_mesh(
+            a=(-0.5, -_tube_width/2),
+            b=(-0.5+tube_length, _tube_width/2),
+            periodicity=(True, False),
+            subdivisions=(10,5),
+            max_area=0.02)
+
+    _c0 = units.VACUUM_LIGHT_SPEED
+
+    _mean_v = numpy.array([_c0*0.9,0])
+    _sigma_v = numpy.array([_c0*0.9*1e-3, _c0*1e-5])
+
+    _mean_beta = _mean_v/units.VACUUM_LIGHT_SPEED
+    _gamma = units.gamma_from_v(_mean_v)
+    _pmass = _electrons_per_particle*units.EL_MASS
+    _mean_p = _gamma*_pmass*_mean_v
+
+    distribution = pyrticle.distribution.JointParticleDistribution([
+        pyrticle.distribution.GaussianPos([0,0], [0.1, 0.1]),
+        pyrticle.distribution.GaussianMomentum(
+            _mean_p, _sigma_v*_gamma*_pmass, units,
+            pyrticle.distribution.DeltaChargeMass(
+                _cloud_charge/nparticles,
+                _pmass))
+        ])
+    """)
+
+    for method in ["simplex_enlarge", "simplex_extra", "simplex_reduce"]:
+        #for el_tolerance in [0, 0.1, 0.15, 0.2]:
+        for el_tolerance in [0.1, 0.15]:
+            #for enf_cont in [True, False]:
+            for enf_cont in [False]:
+                #for overres in [0.8, 1.0, 1.2, 1.3, 1.4, 1.6, 2]:
+                for overres in [1.2, 1.4, 1.6, 2]:
+                    for mesh_margin in [0]:
+                    #for mesh_margin in [0, 0.05, 0.1, 0.2]:
                         job = BatchJob(
                                 "recgrid-$DATE/%s-tol%g-cont%s-or%g-mm%g" % (
                                     method, el_tolerance, enf_cont, overres, mesh_margin),
-                                "with-charge.py",
+                                "driver.py",
                                 timestamp=timestamp,
                                 )
                         brick_gen = O("SingleBrickGenerator",
@@ -85,18 +152,21 @@ def study_rec_grid(output_path=None):
                                 enforce_continuity=enf_cont,
                                 method=method)
 
-                        if output_path is not None:
-                            import os
-                            job_out_path = os.path.join(output_path, job.subdir)
-                            os.makedirs(job_out_path)
-
                         setup = [
                             "pusher = %s" % pusher,
                             "reconstructor = %s" % rec,
                             "element_order = %d" % eorder,
                             "nparticles = %d" % nparticles,
-                            "vis_path = %s" % repr(job_out_path),
-                            ]
+                            ]+basic_setup
+
+                        if output_path is not None:
+                            import os
+                            job_out_path = os.path.join(output_path, job.subdir)
+                            os.makedirs(job_out_path)
+
+                            setup.append(
+                                    "vis_path = %s" % repr(job_out_path),
+                                    )
                         job.write_setup(setup)
                         job.submit()
 

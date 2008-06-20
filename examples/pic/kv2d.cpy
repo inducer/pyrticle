@@ -15,10 +15,11 @@ shape_bandwidth = "optimize"
 
 pusher = PushMonomial()
 reconstructor = RecGrid(
-        FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
+        #FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
         el_tolerance=0.1,
-        filter_min_amplification=0.1,
-        filter_order=6,
+        method="simplex_reduce",
+        #filter_min_amplification=0.1,
+        #filter_order=6,
         )
 
 _cloud_charge = -10e-9 * units.C

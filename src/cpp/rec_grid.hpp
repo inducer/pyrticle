@@ -290,8 +290,7 @@ namespace pyrticle
        * The general assumption is that #(element nodes) < #(grid points in element).
        */
       dyn_fortran_matrix m_interpolation_matrix;
-
-      dyn_fortran_matrix m_inverse_interpolation_matrix;
+      py_fortran_matrix m_inverse_interpolation_matrix;
     };
 
 
@@ -752,6 +751,9 @@ namespace pyrticle
 
           BOOST_FOREACH(const element_on_grid &eog, m_elements_on_grid)
           {
+            if (!eog.m_inverse_interpolation_matrix.is_valid())
+              break;
+
             const py_vector::const_iterator weights = eog.m_weight_factors.begin();
             dyn_vector grid_values(eog.m_grid_nodes.size());
 

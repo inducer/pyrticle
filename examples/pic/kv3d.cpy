@@ -5,7 +5,7 @@ pusher = PushMonomial()
 reconstructor = RecGrid(
         FineCoreBrickGenerator(core_axis=2),
         el_tolerance=0.1,
-        method="simplex_enlarge")
+        method="simplex_reduce")
 
 dimensions_pos = 3
 dimensions_velocity = 3
@@ -30,13 +30,13 @@ def hook_when_done(runner):
 
 def hook_startup(runner):
     from pyrticle.distribution import KVPredictedRadius
-    runner.logmgr.add_quantity(KVPredictedRadius(dt, 
-        beam_v=mean_beta*units.VACUUM_LIGHT_SPEED,
-        predictor=beam.get_rms_predictor(axis=0),
+    runner.logmgr.add_quantity(KVPredictedRadius(runner.dt, 
+        beam_v=distribution.beta*units.VACUUM_LIGHT_SPEED,
+        predictor=distribution.get_rms_predictor(axis=0),
         suffix="x_rms"))
-    runner.logmgr.add_quantity(KVPredictedRadius(dt, 
-        beam_v=mean_beta*units.VACUUM_LIGHT_SPEED,
-        predictor=beam.get_total_predictor(axis=0),
+    runner.logmgr.add_quantity(KVPredictedRadius(runner.dt, 
+        beam_v=distribution.beta*units.VACUUM_LIGHT_SPEED,
+        predictor=distribution.get_total_predictor(axis=0),
         suffix="x_total"))
 
 mesh = pyrticle.geometry.make_cylinder_with_fine_core(
