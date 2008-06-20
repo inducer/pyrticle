@@ -25,7 +25,7 @@ while test "$1" != "" && test "$1" != "--"; do
   id="$1"
   #id=${id%-20??-??-??-??????} # remove timestamp
   #id=${id#*-}
-  file=`first_existing $id/{*.log,2d.dat}`
+  file=`first_existing $id/{*.log,2d.dat,pic.dat}`
   cmdline="$cmdline $file prefix $id: plot t_sim,$PLOTTERM"
   shift
 done
