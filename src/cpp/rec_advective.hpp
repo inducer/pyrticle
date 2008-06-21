@@ -776,11 +776,9 @@ namespace pyrticle
                   const bool is_face_b = en != flux_face_a.element_id;
 
                   is_boundary = 
-                    fp.opp.el_base_index == hedge::INVALID_ELEMENT;
+                    fp.opp.element_id == hedge::INVALID_ELEMENT;
 
-                  const hedge::face_pair::side *flux_face_b = 0;
-                  if (!is_boundary)
-                    flux_face_b = &fp.opp;
+                  const hedge::face_pair::side *flux_face_b = &fp.opp;
 
                   if (is_boundary && is_face_b)
                     throw std::runtime_error("looking for non-existant cross-boundary element");
@@ -792,7 +790,7 @@ namespace pyrticle
                   opposite_flux_face = is_face_b ? &flux_face_a : flux_face_b;
 
                   idx_list = fg.index_list(flux_face->face_index_list_number);
-                  idx_list = fg.index_list(opposite_flux_face->face_index_list_number);
+                  opp_idx_list = fg.index_list(opposite_flux_face->face_index_list_number);
                 }
 
                 // Find information about this face
@@ -820,7 +818,6 @@ namespace pyrticle
                 if (!is_boundary && !active && !inflow)
                 {
                   const unsigned face_length = m_face_mass_matrix.size1();
-                  assert(face_length == idx_list->size());
 
                   double max_density = 0;
                   for (unsigned i = 0; i < face_length; i++)
@@ -932,8 +929,6 @@ namespace pyrticle
                   }
 
                   const unsigned face_length = m_face_mass_matrix.size1();
-                  assert(face_length == idx_list->size());
-                  assert(face_length == opp_idx_list->size());
 
                   for (unsigned i = 0; i < face_length; i++)
                   {
@@ -964,7 +959,6 @@ namespace pyrticle
                 else if (inflow)
                 {
                   const unsigned face_length = m_face_mass_matrix.size1();
-                  assert(face_length == idx_list->size());
 
                   for (unsigned i = 0; i < face_length; i++)
                   {

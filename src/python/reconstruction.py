@@ -221,13 +221,13 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
         discr = cloud.mesh_data.discr
         
         eg, = discr.element_groups
-        (fg, fmm), = discr.face_groups
+        fg, = discr.face_groups
         ldis = eg.local_discretization
 
         from hedge.mesh import TAG_ALL
-        bdry = discr._get_boundary(TAG_ALL)
+        bdry = discr.get_boundary(TAG_ALL)
 
-        (bdry_fg, _), = bdry.face_groups_and_ldis
+        bdry_fg, = bdry.face_groups
 
         if self.filter_response:
             from hedge.discretization import Filter
@@ -242,7 +242,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
                 ldis.mass_matrix(),
                 ldis.inverse_mass_matrix(),
                 filter_mat,
-                fmm,
+                ldis.face_mass_matrix(),
                 fg,
                 bdry_fg,
                 self.activation_threshold,
@@ -296,7 +296,6 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
         self.advective_rhs_timer.start()
         result =  NumberShiftableVector(
                 self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.velocities()),
-                multiplier=1,
                 signaller=self.rho_shift_signaller
                 )
         self.advective_rhs_timer.stop()

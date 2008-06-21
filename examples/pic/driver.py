@@ -249,7 +249,9 @@ class PICRunner(object):
         add_particle_quantities(logmgr, self.cloud)
         add_field_quantities(logmgr, self.fields)
         if setup.beam_axis is not None and setup.beam_diag_axis is not None:
-            add_beam_quantities(logmgr, self.cloud, axis=setup.beam_diag_axis, beam_axis=2)
+            add_beam_quantities(logmgr, self.cloud, 
+                    axis=setup.beam_diag_axis, 
+                    beam_axis=setup.beam_axis)
         if setup.tube_length is not None:
             from hedge.tools import unit_vector
             add_currents(logmgr, self.fields, 

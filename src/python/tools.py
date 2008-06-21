@@ -128,7 +128,13 @@ class NumberShiftableVector(_internal.NumberShiftListener):
         old_size = len(self.vector)
 
         if new_size > old_size:
-            raise NotImplementedError, "vector growing unimplemented"
+            new_shape = list(self.vector.shape)
+            new_shape[0] = new_size
+            new_vector = numpy.empty(
+                    new_shape, 
+                    dtype=self.vector.dtype)
+            new_vector[:old_size] = self.vector
+            self.vector = new_vector
         elif new_size < old_size:
             self.vector = self.vector[:new_size]
 
