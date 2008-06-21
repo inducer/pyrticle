@@ -10,6 +10,32 @@ import unittest
 
 
 
+class TestMathStuff(unittest.TestCase):
+    def test_variance(self):
+
+        def sg_variance(iterable, entire_pop):
+            from pyrticle._internal import StatsGatherer
+            sg = StatsGatherer()
+            for i in iterable:
+                sg.add(i)
+
+            if entire_pop:
+                return sg.variance()
+            else:
+                return sg.variance_sample()
+
+
+        for entire_pop in [False, True]:
+            data = [4, 7, 13, 16]
+            from pytools import variance
+            orig_variance = variance(data, entire_pop)
+            assert abs(sg_variance(data, entire_pop) 
+                    - orig_variance) < 1e-15
+
+            data = [1e9 + x for x in data]
+            assert abs(sg_variance(data, entire_pop) 
+                    - orig_variance) < 1e-15
+
 class TestPyrticle(unittest.TestCase):
     def test_ode_defined_function(self):
         from pyrticle.tools import ODEDefinedFunction

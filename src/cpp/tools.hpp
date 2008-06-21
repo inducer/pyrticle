@@ -289,21 +289,19 @@ namespace pyrticle
   template <class T>
   class stats_gatherer
   {
+    // http://en.wikipedia.org/wiki/Algorithms_for_calculating_variance
     private:
       unsigned m_count;
-      T m_sum, m_square_sum;
+      T m_mean, m_m2;
       T m_min, m_max;
 
     public:
       stats_gatherer()
-        : m_count(0), m_sum(0), m_square_sum(0)
+        : m_count(0), m_mean(0), m_m2(0)
       { }
 
       void add(T x)
       {
-        m_sum += x;
-        m_square_sum += square(x);
-
         if (m_count == 0 || x < m_min)
           m_min = x;
 
@@ -311,13 +309,16 @@ namespace pyrticle
           m_max = x;
 
         ++m_count;
+        T delta = x - m_mean;
+        m_mean += delta/T(m_count);
+        m_m2 += delta*(x - m_mean);
       }
 
       void reset()
       {
         m_count = 0;
-        m_sum = 0;
-        m_square_sum = 0;
+        m_mean = 0;
+        m_m2 = 0;
       }
 
       unsigned count() const
@@ -334,15 +335,28 @@ namespace pyrticle
         if (m_count == 0)
           throw std::runtime_error("attempted to take empty mean");
 
-        return m_sum/m_count;
+        return m_mean;
+      }
+
+      T variance_sample() const
+      {
+        if (m_count < 2)
+          throw std::runtime_error("sample too small for sample variance");
+
+        return m_m2/(m_count-1);
+      }
+
+      T standard_deviation_sample() const
+      {
+        return sqrt(variance_sample());
       }
 
       T variance() const
       {
         if (m_count == 0)
-          throw std::runtime_error("attempted to take empty mean");
+          throw std::runtime_error("attempted to take empty variance");
 
-        return m_square_sum/m_count - square(mean());
+        return m_m2/m_count;
       }
 
       T standard_deviation() const

@@ -229,6 +229,8 @@ void expose_tools()
       .DEF_SIMPLE_METHOD(minimum)
       .DEF_SIMPLE_METHOD(maximum)
       .DEF_SIMPLE_METHOD(mean)
+      .DEF_SIMPLE_METHOD(variance_sample)
+      .DEF_SIMPLE_METHOD(standard_deviation_sample)
       .DEF_SIMPLE_METHOD(variance)
       .DEF_SIMPLE_METHOD(standard_deviation)
       ;
