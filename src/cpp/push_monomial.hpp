@@ -72,38 +72,49 @@ namespace pyrticle
 
 
 
-  class interpolator
-  {
-    private:
-      unsigned m_el_start, m_el_end;
-      py_vector m_interpolation_coefficients;
-
-    public:
-      interpolator(unsigned el_start, unsigned el_end, 
-          const py_vector &intp_coeff)
-        : m_el_start(el_start), m_el_end(el_end),
-        m_interpolation_coefficients(intp_coeff)
-      { }
-
-      template <class VecType>
-      const double operator()(const VecType &data) const
-      {
-        return inner_prod(m_interpolation_coefficients,
-            subrange(data, m_el_start, m_el_end));
-      }
-
-      const double operator()(zero_vector) const
-      { return 0; }
-  };
-
-
-
-
   struct local_monomial_discretization
   {
     std::vector<monomial_basis_function> m_basis;
     py_fortran_matrix m_lu_vandermonde_t;
     py_int_vector m_lu_piv_vandermonde_t;
+  };
+
+
+
+
+  class interpolator
+  {
+    public:
+      const local_monomial_discretization &m_ldis;
+      dyn_vector m_interpolation_coefficients;
+
+      interpolator(
+          const local_monomial_discretization &ldis,
+          unsigned particle_count)
+        : m_ldis(ldis),
+        m_interpolation_coefficients(ldis.m_basis.size()*particle_count)
+      { }
+
+      template <class VecType>
+      const double operator()(
+          const particle_number pn,
+          const mesh_data::mesh_data::element_number en,
+          const VecType &data) const
+      {
+        const unsigned basis_size = m_ldis.m_basis.size();
+        return inner_prod(
+            subrange(m_interpolation_coefficients,
+              pn*basis_size, (pn+1)*basis_size),
+            subrange(data, 
+              en*basis_size, (en+1)*basis_size)
+            );
+      }
+
+      const double operator()(
+          const particle_number pn,
+          const mesh_data::mesh_data::element_number en,
+          zero_vector) const
+      { return 0; }
   };
 
 
@@ -126,33 +137,62 @@ namespace pyrticle
 
 
 
-        const interpolator make_interpolator(
-            const bounded_vector &pt, 
-            mesh_data::element_number in_element) const
+        interpolator make_interpolator() const
         {
-          const mesh_data::element_info &el_inf = 
-            CONST_PIC_THIS->m_mesh_data.m_element_info[in_element];
-          const local_monomial_discretization &ldis = 
-            m_local_discretizations[m_ldis_indices[in_element]];
+          const unsigned xdim = CONST_PIC_THIS->get_dimensions_pos();
+          
+          interpolator result(
+              m_local_discretizations[0],
+              CONST_PIC_THIS->m_particle_count);
 
-          unsigned basis_length = ldis.m_basis.size();
-          dyn_vector rhs_and_sol(basis_length);
+          for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; pn++)
+          {
+            mesh_data::mesh_data::element_number in_el = 
+              CONST_PIC_THIS->m_containing_elements[pn];
+            const mesh_data::element_info &el_inf = 
+              CONST_PIC_THIS->m_mesh_data.m_element_info[in_el];
+          
+            if (m_ldis_indices[in_el] != 0)
+              throw std::runtime_error("more than one "
+                  "local discretization is currently not "
+                  "supported");
 
-          dyn_vector unit_pt = el_inf.m_inverse_map(pt);
+            bounded_vector unit_pt = el_inf.m_inverse_map
+              .operator()<bounded_vector>(
+                  subrange(CONST_PIC_THIS->m_positions, xdim*pn, xdim*(pn+1))
+                  );
+            unsigned base_idx = result.m_ldis.m_basis.size()*pn;
 
-          for (unsigned i = 0; i < basis_length; i++)
-            rhs_and_sol[i] = ldis.m_basis[i](unit_pt);
+            for (unsigned i = 0; i < result.m_ldis.m_basis.size(); i++)
+              result.m_interpolation_coefficients[base_idx+i] 
+                = result.m_ldis.m_basis[i](unit_pt);
+          }
 
-          namespace lapack = boost::numeric::bindings::lapack;
-          int info = lapack::getrs(
-              ldis.m_lu_vandermonde_t.as_ublas(), 
-              ldis.m_lu_piv_vandermonde_t, 
-              rhs_and_sol);
+          {
+            using namespace boost::numeric::bindings;
+            
+            const py_fortran_matrix &matrix = 
+              result.m_ldis.m_lu_vandermonde_t;
 
-          if (info < 0)
-            throw std::runtime_error("invalid argument to getrs");
+            int info;
+            lapack::detail::getrs(
+                'N', 
+                /*n*/ matrix.size1(),
+                /*nrhs*/ CONST_PIC_THIS->m_particle_count,
+                traits::matrix_storage(matrix.as_ublas()),
+                /*lda*/ matrix.size1(),
+                traits::vector_storage(
+                  result.m_ldis.m_lu_piv_vandermonde_t),
+                traits::vector_storage(
+                  result.m_interpolation_coefficients),
+                /*ldb*/ matrix.size1(),
+                &info);
 
-          return interpolator(el_inf.m_start, el_inf.m_end, rhs_and_sol);
+            if (info < 0)
+              throw std::runtime_error("invalid argument to getrs");
+          }
+
+          return result;
         }
 
 
@@ -171,7 +211,6 @@ namespace pyrticle
             bool verbose_vis
             )
         {
-          const unsigned xdim = CONST_PIC_THIS->get_dimensions_pos();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
 
           npy_intp res_dims[] = { PIC_THIS->m_particle_count, vdim };
@@ -189,28 +228,27 @@ namespace pyrticle
             vis_mag_force = py_vector(2, dims);
           }
 
-          for (particle_number i = 0; i < PIC_THIS->m_particle_count; i++)
+          interpolator interp = make_interpolator();
+
+          for (particle_number pn = 0; pn < PIC_THIS->m_particle_count; pn++)
           {
-            const unsigned v_pstart = vdim*i;
-            const unsigned v_pend = vdim*(i+1);
+            const unsigned v_pstart = vdim*pn;
+            const unsigned v_pend = vdim*(pn+1);
 
             mesh_data::mesh_data::element_number in_el = 
-              PIC_THIS->m_containing_elements[i];
-
-            interpolator interp = make_interpolator(
-                subrange(PIC_THIS->m_positions, xdim*i, xdim*(i+1)), in_el);
+              PIC_THIS->m_containing_elements[pn];
 
             bounded_vector e(3);
-            e[0] = interp(ex);
-            e[1] = interp(ey);
-            e[2] = interp(ez);
+            e[0] = interp(pn, in_el, ex);
+            e[1] = interp(pn, in_el, ey);
+            e[2] = interp(pn, in_el, ez);
 
             bounded_vector b(3);
-            b[0] = interp(bx);
-            b[1] = interp(by);
-            b[2] = interp(bz);
+            b[0] = interp(pn, in_el, bx);
+            b[1] = interp(pn, in_el, by);
+            b[2] = interp(pn, in_el, bz);
 
-            const double charge = PIC_THIS->m_charges[i];
+            const double charge = PIC_THIS->m_charges[pn];
 
             bounded_vector el_force(3);
             el_force[0] = charge*e[0];
@@ -226,10 +264,10 @@ namespace pyrticle
 
             if (verbose_vis)
             {
-              subrange(vis_e, 3*i, 3*(i+1)) = e;
-              subrange(vis_b, 3*i, 3*(i+1)) = b;
-              subrange(vis_el_force, 3*i, 3*(i+1)) = el_force;
-              subrange(vis_mag_force, 3*i, 3*(i+1)) = mag_force;
+              subrange(vis_e, 3*pn, 3*(pn+1)) = e;
+              subrange(vis_b, 3*pn, 3*(pn+1)) = b;
+              subrange(vis_el_force, 3*pn, 3*(pn+1)) = el_force;
+              subrange(vis_mag_force, 3*pn, 3*(pn+1)) = mag_force;
             }
           }
 

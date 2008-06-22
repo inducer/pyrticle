@@ -5,7 +5,8 @@ pusher = PushMonomial()
 #reconstructor = RecGrid(
         #el_tolerance=0.1,
         #method="simplex_enlarge")
-reconstructor = RecAdv()
+#reconstructor = RecAdv()
+reconstructor = RecShape()
 
 dimensions_pos = 2
 dimensions_velocity = 2
