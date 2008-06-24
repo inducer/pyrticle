@@ -71,8 +71,7 @@ void expose_grid_pic()
     typedef grid_reconstructor::rec_brick cl;
     python::class_<cl, python::bases<brick> >("RecBrick", 
         python::init<
-        grid_reconstructor::brick_number, 
-        grid_node_number,
+        brick_number, grid_node_number,
         bounded_vector, bounded_vector, bounded_int_vector>(
           python::args("number", "start_index", "stepwidths", "origin",
             "dimensions")))

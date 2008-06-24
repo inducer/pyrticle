@@ -1,12 +1,12 @@
 // Pyrticle - Particle in Cell in Python
-// Base classes for reconstructors/pushers
-// Copyright (C) 2007 Andreas Kloeckner
+// Python wrapper for PIC algorithm
+// Copyright (C) 2008 Andreas Kloeckner
 // 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
+// the Free Software Foundation, either version 3 of the License, or 
+// (at your option) any later version.  
+//  
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
@@ -18,30 +18,20 @@
 
 
 
-
-#ifndef _AFAYYTAA_PYRTICLE_BASES_HPP_INCLUDED
-#define _AFAYYTAA_PYRTICLE_BASES_HPP_INCLUDED
+#include "wrap_pic.hpp"
 
 
 
 
-#include "tools.hpp"
+using namespace pyrticle;
+namespace python = boost::python;
 
 
 
 
-namespace pyrticle
+void expose_grid_find_pic()
 {
-  class pusher_base : public number_shift_listener
-  {
-  };
-
-  class reconstructor_base : public number_shift_listener
-  {
-  };
+  expose_pic_nontarget_pushers_all_dim<grid_find_reconstructor>();
+  expose_std_vector<brick>("Brick");
 }
 
-
-
-
-#endif

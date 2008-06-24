@@ -29,6 +29,7 @@
 #include "rec_normshape.hpp"
 #include "rec_advective.hpp"
 #include "rec_grid.hpp"
+#include "rec_grid_find.hpp"
 
 
 
@@ -144,6 +145,28 @@ namespace pyrticle
       .DEF_SIMPLE_METHOD(reconstruct_grid_densities)
       .DEF_SIMPLE_METHOD(reconstruct_grid_j)
       .DEF_SIMPLE_METHOD(reconstruct_grid_rho)
+      ;
+  }
+
+
+
+
+  template <class Wrapper, class PIC>
+  void expose_typed_reconstructor(Wrapper &wrp, 
+      typename grid_find_reconstructor::type<PIC> *)
+  { 
+    typedef grid_find_reconstructor::type<PIC> cl;
+    wrp
+      .DEF_RW_MEMBER(shape_function)
+      .DEF_RW_MEMBER(bricks)
+      .DEF_RW_MEMBER(node_number_list_starts)
+      .DEF_RW_MEMBER(node_number_lists)
+
+      .DEF_SIMPLE_METHOD(grid_node_count)
+
+      .DEF_SIMPLE_METHOD(reconstruct_densities)
+      .DEF_SIMPLE_METHOD(reconstruct_j)
+      .DEF_SIMPLE_METHOD(reconstruct_rho)
       ;
   }
 }

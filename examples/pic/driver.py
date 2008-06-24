@@ -13,6 +13,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 NormalizedShapeFunctionReconstructor, \
                 AdvectiveReconstructor, \
                 GridReconstructor, \
+                GridFindReconstructor, \
                 SingleBrickGenerator, \
                 FineCoreBrickGenerator
 
@@ -38,6 +39,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "RecNormShape": NormalizedShapeFunctionReconstructor,
                 "RecAdv": AdvectiveReconstructor,
                 "RecGrid": GridReconstructor,
+                "RecGridFind": GridFindReconstructor,
 
                 "SingleBrickGenerator": SingleBrickGenerator,
                 "FineCoreBrickGenerator": FineCoreBrickGenerator,

@@ -69,10 +69,10 @@ void expose_grid()
   {
     typedef brick cl;
     python::class_<cl>("Brick", 
-        python::init<
+        python::init<brick_number,
         grid_node_number, bounded_vector, bounded_vector, 
         bounded_int_vector>(
-          python::args("start_index", "stepwidths", "origin",
+          python::args("number", "start_index", "stepwidths", "origin",
             "dimensions")))
       .add_property("start_index", &cl::start_index)
       .add_property("stepwidths", 
@@ -88,6 +88,7 @@ void expose_grid()
       .def("__len__", &cl::node_count)
       .DEF_SIMPLE_METHOD(point)
       .DEF_SIMPLE_METHOD(index)
+      .DEF_SIMPLE_METHOD(which_cell)
       .DEF_SIMPLE_METHOD(bounding_box)
       .DEF_SIMPLE_METHOD(index_range)
       ;

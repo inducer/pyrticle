@@ -126,6 +126,7 @@ def main():
                     "src/wrapper/wrap_normshape_pic.cpp", 
                     "src/wrapper/wrap_advective_pic.cpp", 
                     "src/wrapper/wrap_grid_pic.cpp", 
+                    "src/wrapper/wrap_grid_find_pic.cpp", 
                     "src/wrapper/wrap_main.cpp", 
                 ],
                 include_dirs=INCLUDE_DIRS + EXTRA_INCLUDE_DIRS,

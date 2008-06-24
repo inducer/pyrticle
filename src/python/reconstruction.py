@@ -314,7 +314,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
 
 
-# grid reconstruction ---------------------------------------------------------
+# grid reconstruction : brick generation --------------------------------------
 class SingleBrickGenerator(object):
     def __init__(self, overresolve=1.5, mesh_margin=0):
         self.overresolve = overresolve
@@ -443,6 +443,7 @@ class FineCoreBrickGenerator(object):
 
 
 
+# pure grid reconstruction ----------------------------------------------------
 class GridReconstructor(Reconstructor):
     name = "Grid"
 
@@ -1066,7 +1067,6 @@ class GridReconstructor(Reconstructor):
 
         discr = self.cloud.mesh_data.discr
         pic = self.cloud.pic_algorithm
-        bricks = pic.bricks
 
         pic.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
@@ -1087,7 +1087,7 @@ class GridReconstructor(Reconstructor):
                 el_bbox.upper += scaled_tolerance
 
                 # For each brick, find all element nodes that lie in it
-                for brk in bricks:
+                for brk in pic.bricks:
                     eog = ElementOnGrid()
                     eog.element_number = el.id
 
@@ -1307,3 +1307,56 @@ class GridReconstructor(Reconstructor):
                 silo.put_multivar(name, 
                         [(name_var(name, brk.number), DBObjectType.DB_QUADVAR) 
                             for brk in pic.bricks])
+
+
+
+
+# grid find reconstruction ----------------------------------------------------
+class GridFindReconstructor(Reconstructor):
+    name = "GridFind"
+
+    def __init__(self, brick_generator=SingleBrickGenerator()):
+        Reconstructor.__init__(self)
+        self.brick_generator = brick_generator
+
+    def initialize(self, cloud):
+        Reconstructor.initialize(self, cloud)
+
+        discr = cloud.mesh_data.discr
+        pic = self.cloud.pic_algorithm
+
+        grid_node_num_to_nodes = {}
+
+        from pyrticle._internal import Brick
+        for i, (stepwidths, origin, dims) in enumerate(
+                self.brick_generator(discr)):
+            pic.bricks.append(
+                    Brick(i, pic.grid_node_count(), stepwidths, origin, dims))
+
+        from pyrticle._internal import BoxFloat
+        for eg in discr.element_groups:
+            ldis = eg.local_discretization
+
+            for el in eg.members:
+                el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
+                el_slice = discr.find_el_range(el.id)
+
+                for brk in pic.bricks:
+                    if brk.bounding_box().intersect(el_bbox).is_empty():
+                        continue
+
+                    for node_num in range(el_slice.start, el_slice.stop):
+                        grid_node_num_to_nodes.setdefault(
+                                brk.index(brk.which_cell(
+                                    discr.nodes[node_num])),
+                                []).append(node_num)
+                        
+        for gnn in range(pic.grid_node_count()):
+            pic.node_number_list_starts.append(len(pic.node_number_lists))
+            pic.node_number_lists.extend(
+                    grid_node_num_to_nodes.get(gnn, []))
+        pic.node_number_list_starts.append(len(pic.node_number_lists))
+
+    def set_shape_function(self, sf):
+        Reconstructor.set_shape_function(self, sf)
+        self.cloud.pic_algorithm.shape_function = sf
