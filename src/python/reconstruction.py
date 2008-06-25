@@ -448,10 +448,10 @@ class GridReconstructor(Reconstructor):
     name = "Grid"
 
     def __init__(self, brick_generator=SingleBrickGenerator(), 
-            el_tolerance=0.2,
+            el_tolerance=0.12,
             max_extra_points=20,
             enforce_continuity=False,
-            method="simplex_enlarge",
+            method="simplex_reduce",
             filter_min_amplification=None,
             filter_order=None):
         Reconstructor.__init__(self)

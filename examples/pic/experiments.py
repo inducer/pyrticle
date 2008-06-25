@@ -36,55 +36,12 @@ def multiline_to_setup(mls):
 
     return [remove_indent(line) for line in lines]
 
-def compare_methods():
-    """Submit jobs to compare reconstruction/pushing methods."""
 
-    O = ConstructorPlaceholder
 
-    timestamp = get_timestamp()
 
-    for rec in [
-        O("RecGrid", el_tolerance=0.2),
-        O("RecAdv"), 
-        O("RecNormShape"), 
-        O("RecShape"), 
-        ]:
-        for eorder in [3,4,5,7]:
-            if rec.classname == "RecGrid":
-                pushers = [O("PushMonomial")]
-            else:
-                pushers = [O("PushMonomial"), O("PushAverage")]
-            for pusher in pushers:
-                for finder in [
-                        O("FindFaceBased"),
-                        #O("FindHeuristic"),
-                        ]:
-                    job = BatchJob(
-                            "compmeth-$DATE/eo%d-%s-%s-%s" % (eorder, cn(rec), cn(pusher), cn(finder)),
-                            "with-charge.py",
-                            timestamp=timestamp,
-                            )
-                    job.write_setup([
-                        "pusher = %s" % pusher,
-                        "reconstructor = %s" % rec,
-                        "finder = %s" % finder,
-                        "element_order = %d" % eorder,
-                        ])
-                    job.submit()
-
-def study_rec_grid(output_path=None):
-    """Submit jobs to study the behavior of grid reconstruction."""
-
-    O = ConstructorPlaceholder
-
-    timestamp = get_timestamp()
-
-    pusher = O("PushMonomial")
-    eorder = 3
-
-    nparticles = 30000
-
-    basic_setup = multiline_to_setup("""
+# basic setups ----------------------------------------------------------------
+def basic_2d_gauss_setup():
+    return multiline_to_setup("""
     import random as _random
     _random.seed(0)
 
@@ -128,6 +85,66 @@ def study_rec_grid(output_path=None):
         ])
     """)
 
+
+
+
+# experiments -----------------------------------------------------------------
+def compare_methods():
+    """Submit jobs to compare reconstruction/pushing methods."""
+
+    O = ConstructorPlaceholder
+
+    timestamp = get_timestamp()
+
+    for rec in [
+        O("RecGrid"),
+        O("RecGridFind"),
+        #O("RecAdv"), 
+        #O("RecNormShape"), 
+        O("RecShape"), 
+        ]:
+        for eorder in [2,3,4,]:
+            for sexp in [2,3,4,5]:
+                #if rec.classname == "RecGrid":
+                    #pushers = [O("PushMonomial")]
+                #else:
+                    #pushers = [O("PushMonomial"), O("PushAverage")]
+                pushers = [O("PushMonomial")]
+                for pusher in pushers:
+                    for finder in [
+                            O("FindFaceBased"),
+                            #O("FindHeuristic"),
+                            ]:
+                        job = BatchJob(
+                                "compmeth-$DATE/eo%d-se%d-%s-%s-%s" % (
+                                    eorder, sexp, cn(rec), cn(pusher), cn(finder)),
+                                "driver.py",
+                                timestamp=timestamp,
+                                )
+                        job.write_setup([
+                            "pusher = %s" % pusher,
+                            "reconstructor = %s" % rec,
+                            "finder = %s" % finder,
+                            "element_order = %d" % eorder,
+                            "shape_exponent = %d" % sexp,
+                            ]
+                            +basic_2d_gauss_setup()
+                            )
+                        job.submit()
+
+def study_rec_grid(output_path=None):
+    """Submit jobs to study the behavior of grid reconstruction."""
+
+    O = ConstructorPlaceholder
+
+    timestamp = get_timestamp()
+
+    pusher = O("PushMonomial")
+    eorder = 3
+
+    nparticles = 30000
+
+
     for method in ["simplex_enlarge", "simplex_extra", "simplex_reduce"]:
         #for el_tolerance in [0, 0.1, 0.15, 0.2]:
         for el_tolerance in [0.1, 0.15]:
@@ -156,7 +173,7 @@ def study_rec_grid(output_path=None):
                             "reconstructor = %s" % rec,
                             "element_order = %d" % eorder,
                             "nparticles = %d" % nparticles,
-                            ]+basic_setup
+                            ]+basic_2d_gauss_setup()
 
                         if output_path is not None:
                             import os
