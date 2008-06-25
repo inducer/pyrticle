@@ -208,23 +208,27 @@ class PICRunner(object):
                 setup.distribution.generate_particles())
 
         self.total_charge = setup.nparticles*setup.distribution.mean()[2][0]
-        if setup.shape_bandwidth.startswith("optimize"):
-            optimize_shape_bandwidth(cloud, 
-                    setup.distribution.get_rho_interpolant(
-                        discr, self.total_charge),
-                    setup.shape_exponent, 
-                    plot_l1_errors="plot" in setup.shape_bandwidth,
-                    visualize="visualize" in setup.shape_bandwidth,
-                    )
-        elif setup.shape_bandwidth == "guess":
-            guess_shape_bandwidth(cloud, setup.shape_exp)
+        if isinstance(setup.shape_bandwidth, str):
+            if setup.shape_bandwidth.startswith("optimize"):
+                optimize_shape_bandwidth(cloud, 
+                        setup.distribution.get_rho_interpolant(
+                            discr, self.total_charge),
+                        setup.shape_exponent, 
+                        plot_l1_errors="plot" in setup.shape_bandwidth,
+                        visualize="visualize" in setup.shape_bandwidth,
+                        )
+            elif setup.shape_bandwidth == "guess":
+                guess_shape_bandwidth(cloud, setup.shape_exponent)
+            else:
+                raise ValueError, "invalid shape bandwidth setting '%s'" % (
+                        setup.shape_bandwidth)
         else:
             from pyrticle._internal import ShapeFunction
             cloud.reconstructor.set_shape_function(
                     ShapeFunction(
                         float(setup.shape_bandwidth),
                         cloud.mesh_data.dimensions,
-                        shape_exp,
+                        setup.shape_exponent,
                         ))
 
         # initial condition ---------------------------------------------------
