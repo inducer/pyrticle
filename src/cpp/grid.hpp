@@ -357,8 +357,14 @@ namespace pyrticle
 
       bounded_int_vector which_cell(const bounded_vector &pt) const
       {
-        return pyublas::unary_op<int_floor>::apply(
+        bounded_int_vector result = pyublas::unary_op<int_floor>::apply(
               element_div(pt-m_origin, m_stepwidths));
+        
+        for (unsigned i = 0; i < result.size(); ++i)
+          if (result[i] < 0 || result[i] >= m_dimensions[i])
+            throw std::invalid_argument("point is out of this brick's bounds");
+
+        return result;
       }
 
       bounded_box bounding_box() const

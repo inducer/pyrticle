@@ -4,7 +4,7 @@ _random.seed(0)
 pusher = PushMonomial()
 #reconstructor = RecGrid(
         #el_tolerance=0.1,
-        #method="simplex_enlarge")
+        #method="simplex_reduce")
 #reconstructor = RecAdv()
 #reconstructor = RecShape()
 reconstructor = RecGridFind()
@@ -44,7 +44,7 @@ _pmass = _electrons_per_particle*units.EL_MASS
 _mean_p = _gamma*_pmass*_mean_v
 
 distribution = pyrticle.distribution.JointParticleDistribution([
-    pyrticle.distribution.GaussianPos([0,0], [0.1, 0.1]),
+    pyrticle.distribution.GaussianPos([1,0], [0.1, 0.1]),
     pyrticle.distribution.GaussianMomentum(
         _mean_p, _sigma_v*_gamma*_pmass, units,
         pyrticle.distribution.DeltaChargeMass(

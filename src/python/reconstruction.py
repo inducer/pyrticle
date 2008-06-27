@@ -1315,7 +1315,7 @@ class GridReconstructor(Reconstructor):
 class GridFindReconstructor(Reconstructor):
     name = "GridFind"
 
-    def __init__(self, brick_generator=SingleBrickGenerator()):
+    def __init__(self, brick_generator=None):
         Reconstructor.__init__(self)
         self.brick_generator = brick_generator
 
@@ -1326,6 +1326,12 @@ class GridFindReconstructor(Reconstructor):
         pic = self.cloud.pic_algorithm
 
         grid_node_num_to_nodes = {}
+
+        if self.brick_generator is None:
+            bbox_min, bbox_max = discr.mesh.bounding_box()
+            max_bbox_size = max(bbox_max-bbox_min)
+            self.brick_generator = SingleBrickGenerator(
+                    mesh_margin=1e-1*max_bbox_size)
 
         from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
@@ -1346,11 +1352,24 @@ class GridFindReconstructor(Reconstructor):
                         continue
 
                     for node_num in range(el_slice.start, el_slice.stop):
-                        grid_node_num_to_nodes.setdefault(
-                                brk.index(brk.which_cell(
-                                    discr.nodes[node_num])),
-                                []).append(node_num)
+                        try:
+                            cell_number = brk.which_cell(
+                                        discr.nodes[node_num])
+                        except ValueError:
+                            pass
+                        else:
+                            grid_node_num_to_nodes.setdefault(
+                                    brk.index(cell_number), []).append(node_num)
                         
+        from pytools import flatten
+        unassigned_nodes = (set(xrange(len(discr))) 
+                - set(flatten(grid_node_num_to_nodes.itervalues())))
+
+        if unassigned_nodes:
+            raise RuntimeError("rec_grid_find: unassigned mesh nodes found. "
+                    "you should specify a mesh_margin when generating "
+                    "bricks")
+
         for gnn in range(pic.grid_node_count()):
             pic.node_number_list_starts.append(len(pic.node_number_lists))
             pic.node_number_lists.extend(
