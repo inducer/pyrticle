@@ -74,6 +74,9 @@ void expose_grid()
         bounded_int_vector>(
           python::args("number", "start_index", "stepwidths", "origin",
             "dimensions")))
+
+      .add_property("number", &cl::number)
+
       .add_property("start_index", &cl::start_index)
       .add_property("stepwidths", 
           make_function(&cl::stepwidths, 

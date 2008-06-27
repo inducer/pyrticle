@@ -67,15 +67,30 @@ class ParticleCloud:
     """State container for a cloud of particles. Supports particle
     problems of any dimension, examples below are given for three
     dimensions for simplicity.
+
+    @arg debug: A set of strings telling what to debug. So far, the
+      following debug flags are in use:
+    
+      - reconstructor: Debug the reconstructor.
+      - verbose_vis: Generate E and B fields and force 
+        visualizations at particle locations.
+      - ic: Check the initial condition when it's generated.
+      - discretization: (See driver.py.) Turn on debug mode for the
+        discretization.
+      - shape_bw: Debug the finding of the optimal shape bandwidth.
+
+      - interactive: Allow debug measures that require user interaction.
+      - vis_files: Allow debug measures that write extra visualization
+        files.
     """
     def __init__(self, discr, units, 
             reconstructor, pusher, finder,
             dimensions_pos, dimensions_velocity,
-            verbose_vis=False):
+            debug=set()):
 
         self.units = units
         self.discretization = discr
-        self.verbose_vis = verbose_vis
+        self.debug = debug
 
         self.reconstructor = reconstructor
         self.pusher = pusher
@@ -349,7 +364,7 @@ class ParticleCloud:
         # compute forces
         forces = self.pusher.forces(
                 velocities,
-                self.verbose_vis,
+                "verbose_vis" in self.debug,
                 *field_args
                 )
         forces = numpy.reshape(forces,
@@ -646,19 +661,13 @@ def guess_shape_bandwidth(cloud, exponent):
 
 
 
-def optimize_shape_bandwidth(cloud, analytic_rho, exponent, 
-        plot_l1_errors=False,
-        visualize=False):
+def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
     discr = cloud.discretization
     rec = cloud.reconstructor
 
     adv_radius = cloud.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**i 
             for i in numpy.linspace(-4, 2, 50)]
-
-    if visualize:
-        from hedge.visualization import SiloVisualizer
-        vis = SiloVisualizer(discr)
 
     def set_radius(r):
         from pyrticle._internal import ShapeFunction
@@ -668,12 +677,21 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
     tried_radii = []
     l1_errors = []
 
+    debug = "shape_bw" in cloud.debug
+    visualize = set(["shape_bw", "vis_files"]) < cloud.debug
+
+    if visualize:
+        from hedge.visualization import SiloVisualizer
+        vis = SiloVisualizer(discr)
+
     import sys
 
-    sys.stdout.write("optimizing shape bw (%d attempts): " % len(radii))
+    if debug:
+        sys.stdout.write("optimizing shape bw (%d attempts): " % len(radii))
     for step, radius in enumerate(radii):
-        sys.stdout.write("%d." % step)
-        sys.stdout.flush()
+        if debug:
+            sys.stdout.write("%d." % step)
+            sys.stdout.flush()
 
         try:
             cloud.set_ignore_core_warnings(True)
@@ -725,8 +743,9 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 
             visf.close()
 
-    sys.stdout.write("\n")
-    sys.stdout.flush()
+    if debug:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
 
     if visualize:
         vis.close()
@@ -754,18 +773,18 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 
     chosen_idx = max(local_minima)
     chosen_rad = tried_radii[chosen_idx]
-    chosen_l1_error = l1_errors[chosen_idx]
 
-    print "radius: guessed optimum=%g, found optimum=%g, chosen=%g" % (
-            adv_radius, min_rad, chosen_rad)
-
-    print "radius: optimum l1 error=%g, chosen l1 error=%g" % (
-            min_l1_error, chosen_l1_error)
+    if "shape_bw" in cloud.debug:
+        chosen_l1_error = l1_errors[chosen_idx]
+        print "radius: guessed optimum=%g, found optimum=%g, chosen=%g" % (
+                adv_radius, min_rad, chosen_rad)
+        print "radius: optimum l1 error=%g, chosen l1 error=%g" % (
+                min_l1_error, chosen_l1_error)
 
     set_radius(chosen_rad)
     cloud.derived_quantity_cache.clear()
 
-    if plot_l1_errors:
+    if set(["interactive", "shape_bw"]) < cloud.debug:
         from pylab import semilogx, show
         semilogx(tried_radii, l1_errors)
         show()
@@ -774,8 +793,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent,
 
 
 # initial condition -----------------------------------------------------------
-def compute_initial_condition(pcon, discr, cloud, max_op,
-        debug=False, force_zero=False):
+def compute_initial_condition(pcon, discr, cloud, max_op, force_zero=False):
     from hedge.pde import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
@@ -817,14 +835,14 @@ def compute_initial_condition(pcon, discr, cloud, max_op,
         phi_tilde = -parallel_cg(pcon, -poisson_op, 
                 poisson_op.prepare_rhs(
                     GivenVolumeInterpolant(discr, rho_tilde/max_op.epsilon)), 
-                debug=debug, tol=1e-10)
+                debug="poisson" in cloud.debug, tol=1e-10)
 
     from hedge.tools import ptwise_dot
     e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), poisson_op.grad(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
     h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
 
-    if debug:
+    if "ic" in cloud.debug:
         reconstructed_charge = discr.integral(rho_prime)
 
         real_charge = sum(cloud.charges)

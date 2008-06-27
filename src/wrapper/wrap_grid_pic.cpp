@@ -75,7 +75,6 @@ void expose_grid_pic()
         bounded_vector, bounded_vector, bounded_int_vector>(
           python::args("number", "start_index", "stepwidths", "origin",
             "dimensions")))
-      .add_property("number", &cl::number)
       ;
   }
 
