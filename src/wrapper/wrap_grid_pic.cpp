@@ -34,7 +34,9 @@ namespace
   python::object brick_it_iter(python::object self)
   { return self; }
 
-  bounded_int_vector brick_it_next(grid_reconstructor::rec_brick::iterator &it)
+  template <class Brick>
+  bounded_int_vector brick_it_next(
+      typename Brick::iterator &it)
   {
     if (it.at_end())
     {
@@ -53,36 +55,37 @@ namespace
 
 void expose_grid_pic()
 {
-  expose_pic_nontarget_pushers_all_dim<grid_reconstructor>();
+  expose_pic_nontarget_pushers_all_dim<grid_reconstructor<jiggly_brick> >();
 
   {
-    typedef grid_reconstructor::rec_brick::iterator cl;
-    python::class_<cl>("RecBrickIterator", 
+    typedef jiggly_brick::iterator cl;
+    python::class_<cl>("JigglyBrickIterator", 
         python::init<
-        grid_reconstructor::rec_brick const &, 
+        jiggly_brick const &, 
         bounded_int_box const &>(
           python::args("brick", "bounds"))[
         python::with_custodian_and_ward<1,2>()])
       .def("__iter__", brick_it_iter)
-      .def("next", brick_it_next)
+      .def("next", brick_it_next<jiggly_brick>)
       ;
   }
   {
-    typedef grid_reconstructor::rec_brick cl;
-    python::class_<cl, python::bases<brick> >("RecBrick", 
+    typedef jiggly_brick cl;
+    python::class_<cl, python::bases<brick> >("JigglyBrick", 
         python::init<
         brick_number, grid_node_number,
-        bounded_vector, bounded_vector, bounded_int_vector>(
+        bounded_vector, bounded_vector, bounded_int_vector, 
+        double>(
           python::args("number", "start_index", "stepwidths", "origin",
-            "dimensions")))
+            "dimensions", "jiggle_radius")
+          )
+        )
       ;
   }
-
-  expose_std_vector<grid_reconstructor::rec_brick>("RecBrick");
-  expose_std_vector<grid_reconstructor::element_on_grid>("ElementOnGrid");
+  expose_std_vector<jiggly_brick>("JigglyBrick");
 
   {
-    typedef grid_reconstructor::element_on_grid cl;
+    typedef element_on_grid cl;
     python::class_<cl>("ElementOnGrid")
       .DEF_RW_MEMBER(element_number)
       .DEF_RW_MEMBER(grid_nodes)
@@ -91,4 +94,5 @@ void expose_grid_pic()
       .DEF_BYVAL_RW_MEMBER(inverse_interpolation_matrix)
       ;
   }
+  expose_std_vector<element_on_grid>("ElementOnGrid");
 }

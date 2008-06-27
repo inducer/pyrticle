@@ -528,7 +528,7 @@ class GridVisualizer(object):
 # pure grid reconstruction ----------------------------------------------------
 class GridReconstructor(Reconstructor, GridVisualizer):
     name = "Grid"
-    iterator_type = _internal.RecBrickIterator
+    iterator_type = _internal.JigglyBrickIterator
 
     def __init__(self, brick_generator=SingleBrickGenerator(), 
             el_tolerance=0.12,
@@ -536,7 +536,8 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             enforce_continuity=False,
             method="simplex_reduce",
             filter_min_amplification=None,
-            filter_order=None):
+            filter_order=None,
+            jiggle_radius=0.1):
         Reconstructor.__init__(self)
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
@@ -546,6 +547,8 @@ class GridReconstructor(Reconstructor, GridVisualizer):
 
         self.filter_min_amplification = filter_min_amplification
         self.filter_order = filter_order
+
+        self.jiggle_radius = jiggle_radius
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
@@ -566,10 +569,11 @@ class GridReconstructor(Reconstructor, GridVisualizer):
         else:
             self.filter = None
 
-        from pyrticle._internal import RecBrick
+        from pyrticle._internal import JigglyBrick
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
-            brk = RecBrick(i, pic.grid_node_count(), stepwidths, origin, dims)
+            brk = JigglyBrick(i, pic.grid_node_count(), stepwidths, origin, dims,
+                    jiggle_radius=self.jiggle_radius)
             pic.bricks.append(brk)
 
         if self.method == "simplex_extra":
@@ -1147,7 +1151,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
         pic.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
-        from pyrticle._internal import RecBrickIterator, ElementOnGrid, BoxFloat
+        from pyrticle._internal import ElementOnGrid, BoxFloat
 
         total_points = 0
 
@@ -1196,7 +1200,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
 
                     from hedge.polynomial import generic_vandermonde
                     brk_and_el_points = [brk.point(c) 
-                            for c in RecBrickIterator(brk, idx_range)]
+                            for c in self.iterator_type(brk, idx_range)]
                     svdm = generic_vandermonde(
                             points=brk_and_el_points,
                             functions=lb)
@@ -1221,7 +1225,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
                     #raw_input()
 
                     eog.grid_nodes.extend(brk.index(c) 
-                            for c in RecBrickIterator(brk, idx_range))
+                            for c in self.iterator_type(brk, idx_range))
                     pic.elements_on_grid.append(eog)
 
         # we don't need no stinkin' extra points

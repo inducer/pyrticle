@@ -48,139 +48,141 @@
 
 namespace pyrticle
 {
-  struct grid_reconstructor : public grid_targets
+  struct jiggly_brick : public brick
   {
-    struct rec_brick : public brick
-    {
-      private:
-        static const unsigned point_origin_count = 3;
-        typedef brick super;
-        std::vector<bounded_vector> m_point_origins;
-        std::vector<bounded_vector> m_axis0_offsets;
+    private:
+      static const unsigned point_origin_count = 3;
+      typedef brick super;
+      std::vector<bounded_vector> m_point_origins;
+      std::vector<bounded_vector> m_axis0_offsets;
 
-      public:
-        rec_brick(
-            brick_number number,
-            grid_node_number start_index,
-            bounded_vector stepwidths,
-            bounded_vector origin,
-            bounded_int_vector dimensions)
-          : super(number, start_index, stepwidths, origin, dimensions)
-        { 
-          boost::variate_generator<
-            boost::mt19937, 
-            boost::uniform_real<> > offset_rng(
-                boost::mt19937(), boost::uniform_real<>(-0.1,0.1));
+    public:
+      jiggly_brick(
+          brick_number number,
+          grid_node_number start_index,
+          bounded_vector stepwidths,
+          bounded_vector origin,
+          bounded_int_vector dimensions,
+          double jiggle_radius)
+        : super(number, start_index, stepwidths, origin, dimensions)
+      { 
+        boost::variate_generator<
+          boost::mt19937, 
+          boost::uniform_real<> > offset_rng(
+              boost::mt19937(), boost::uniform_real<>(-jiggle_radius, jiggle_radius));
 
-          for (unsigned i = 0; i < point_origin_count; ++i)
-          {
-            bounded_vector offset(m_origin.size());
-            for (unsigned j = 0; j < m_origin.size(); ++j)
-              offset[j] = offset_rng() * m_stepwidths[j];
-            m_point_origins.push_back(m_origin_plus_half + offset);
-          }
-
-          for (unsigned i = 0; i < point_origin_count; ++i)
-          {
-            bounded_vector axis0_offset(m_origin.size());
-            axis0_offset = m_point_origins[
-              (i+1)%point_origin_count] - m_point_origins[i];
-            axis0_offset[0] += m_stepwidths[0];
-            m_axis0_offsets.push_back(axis0_offset);
-          }
-        }
-
-        bounded_vector point(const bounded_int_vector &idx) const
-        { 
-          return m_point_origins[origin_index(idx)]
-            + element_prod(idx, m_stepwidths); 
-        }
-
-        unsigned origin_index(const bounded_int_vector &idx) const
-        { 
-          return std::accumulate(idx.begin(), idx.end(), 0) 
-            % point_origin_count;
-        }
-
-        class iterator : public brick_iterator<rec_brick>
+        for (unsigned i = 0; i < point_origin_count; ++i)
         {
-          private:
-            typedef brick_iterator<rec_brick> super;
+          bounded_vector offset(m_origin.size());
+          for (unsigned j = 0; j < m_origin.size(); ++j)
+            offset[j] = offset_rng() * m_stepwidths[j];
+          m_point_origins.push_back(m_origin_plus_half + offset);
+        }
 
-          protected:
-            unsigned m_origin_index;
+        for (unsigned i = 0; i < point_origin_count; ++i)
+        {
+          bounded_vector axis0_offset(m_origin.size());
+          axis0_offset = m_point_origins[
+            (i+1)%point_origin_count] - m_point_origins[i];
+          axis0_offset[0] += m_stepwidths[0];
+          m_axis0_offsets.push_back(axis0_offset);
+        }
+      }
 
-          public:
-            iterator(rec_brick const &brk, 
-                const bounded_int_box &bounds)
-              : super(brk, bounds)
-            { 
+      bounded_vector point(const bounded_int_vector &idx) const
+      { 
+        return m_point_origins[origin_index(idx)]
+          + element_prod(idx, m_stepwidths); 
+      }
+
+      unsigned origin_index(const bounded_int_vector &idx) const
+      { 
+        return std::accumulate(idx.begin(), idx.end(), 0) 
+          % point_origin_count;
+      }
+
+      class iterator : public brick_iterator<jiggly_brick>
+      {
+        private:
+          typedef brick_iterator<jiggly_brick> super;
+
+        protected:
+          unsigned m_origin_index;
+
+        public:
+          iterator(jiggly_brick const &brk, 
+              const bounded_int_box &bounds)
+            : super(brk, bounds)
+          { 
+            update_origin_index();
+          }
+
+        protected:
+          void update_origin_index()
+          { m_origin_index = m_brick.origin_index(m_state); }
+
+        public:
+          iterator &operator++()
+          {
+            ++m_state[0];
+
+            if (m_state[0] < m_bounds.m_upper[0])
+            {
+              m_origin_index = (m_origin_index + 1) % point_origin_count;
+              m_point += m_brick.m_axis0_offsets[m_origin_index];
+              m_index += m_brick.strides()[0];
+            }
+            else
+            {
+              m_state[0] = m_bounds.m_lower[0];
+
+              // split off the non-default case bottom half of this routine in the
+              // hope that at least the fast default case will get inlined.
+              inc_bottom_half(0); 
               update_origin_index();
             }
+            return *this;
+          }
+      };
 
-          protected:
-            void update_origin_index()
-            { m_origin_index = m_brick.origin_index(m_state); }
+      friend class iterator;
 
-          public:
-            iterator &operator++()
-            {
-              ++m_state[0];
+      iterator get_iterator(bounded_int_box const &bounds) const
+      { return iterator(*this, bounds); }
 
-              if (m_state[0] < m_bounds.m_upper[0])
-              {
-                m_origin_index = (m_origin_index + 1) % point_origin_count;
-                m_point += m_brick.m_axis0_offsets[m_origin_index];
-                m_index += m_brick.strides()[0];
-              }
-              else
-              {
-                m_state[0] = m_bounds.m_lower[0];
-
-                // split off the non-default case bottom half of this routine in the
-                // hope that at least the fast default case will get inlined.
-                inc_bottom_half(0); 
-                update_origin_index();
-              }
-              return *this;
-            }
-        };
-
-        friend class iterator;
-
-        iterator get_iterator(bounded_int_box const &bounds) const
-        { return iterator(*this, bounds); }
-
-        iterator get_iterator(bounded_box const &bounds) const
-        { return iterator(*this, index_range(bounds)); }
-    };
+      iterator get_iterator(bounded_box const &bounds) const
+      { return iterator(*this, index_range(bounds)); }
+  };
 
 
 
 
-    struct element_on_grid
-    {
-      mesh_data::element_number m_element_number;
-      std::vector<grid_node_number> m_grid_nodes;
-      py_vector m_weight_factors;
+  struct element_on_grid
+  {
+    mesh_data::element_number m_element_number;
+    std::vector<grid_node_number> m_grid_nodes;
+    py_vector m_weight_factors;
 
-      /** The interpolant matrix maps the values (in-order) on the element
-       * to the structured grid values at indices m_grid_nodes.
-       *
-       * The general assumption is that #(element nodes) < #(grid points in element).
-       */
-      dyn_fortran_matrix m_interpolation_matrix;
-      py_fortran_matrix m_inverse_interpolation_matrix;
-    };
-
-
+    /** The interpolant matrix maps the values (in-order) on the element
+     * to the structured grid values at indices m_grid_nodes.
+     *
+     * The general assumption is that #(element nodes) < #(grid points in element).
+     */
+    dyn_fortran_matrix m_interpolation_matrix;
+    py_fortran_matrix m_inverse_interpolation_matrix;
+  };
 
 
+
+
+  template <class Brick>
+  struct grid_reconstructor : public grid_targets
+  {
     // main reconstructor type ------------------------------------------------
     template <class PICAlgorithm>
-    class type : public grid_reconstructor_base<PICAlgorithm, rec_brick> {
+    class type : public grid_reconstructor_base<PICAlgorithm, Brick> {
       private:
-        typedef grid_reconstructor_base<PICAlgorithm, rec_brick> rec_base;
+        typedef grid_reconstructor_base<PICAlgorithm, Brick> rec_base;
       public:
         // member data --------------------------------------------------------
         std::vector<element_on_grid> m_elements_on_grid;
@@ -260,7 +262,7 @@ namespace pyrticle
           std::vector<double> weights;
 
           // For each element, find all structured points inside the element.
-          BOOST_FOREACH(rec_brick const &brk, this->m_bricks)
+          BOOST_FOREACH(Brick const &brk, this->m_bricks)
           {
             const double dV = brk.cell_volume();
 
@@ -271,7 +273,7 @@ namespace pyrticle
             const bounded_int_box el_brick_index_box = 
               brk.index_range(brk_and_el);
 
-            rec_brick::iterator it(brk, el_brick_index_box);
+            typename Brick::iterator it(brk, el_brick_index_box);
 
             while (!it.at_end())
             {
@@ -317,7 +319,7 @@ namespace pyrticle
 
         template <class Target>
         bool reconstruct_particle_on_one_brick(Target tgt, 
-            const rec_brick &brk, 
+            const Brick &brk, 
             const bounded_vector &center,
             const bounded_box &particle_box,
             double charge,
@@ -335,7 +337,7 @@ namespace pyrticle
           const bounded_int_box particle_brick_index_box = 
             brk.index_range(intersect_box);
 
-          rec_brick::iterator it(brk, particle_brick_index_box);
+          typename Brick::iterator it(brk, particle_brick_index_box);
 
           while (!it.at_end())
           {

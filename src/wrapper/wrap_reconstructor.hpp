@@ -118,11 +118,11 @@ namespace pyrticle
   void set_extra_points(PIC &pic, py_vector v)
   { pic.m_extra_points = v; }
 
-  template <class Wrapper, class PIC>
-  void expose_typed_reconstructor(Wrapper &wrp, 
-      typename grid_reconstructor::type<PIC> *)
+  template <class Wrapper, class PIC, class Brick>
+  void expose_typed_reconstructor_inner(Wrapper &wrp, 
+      typename grid_reconstructor<Brick>::template type<PIC> *)
   { 
-    typedef grid_reconstructor::type<PIC> cl;
+    typedef typename grid_reconstructor<Brick>::template type<PIC> cl;
     wrp
       .DEF_RW_MEMBER(shape_function)
       .DEF_RW_MEMBER(bricks)
@@ -146,6 +146,12 @@ namespace pyrticle
       .DEF_SIMPLE_METHOD(reconstruct_grid_j)
       .DEF_SIMPLE_METHOD(reconstruct_grid_rho)
       ;
+  }
+  template <class Wrapper, class PIC>
+  void expose_typed_reconstructor(Wrapper &wrp, 
+      typename grid_reconstructor<jiggly_brick>::template type<PIC> *r)
+  { 
+    expose_typed_reconstructor_inner<Wrapper, PIC, jiggly_brick>(wrp, r);
   }
 
 
