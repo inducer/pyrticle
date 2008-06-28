@@ -31,6 +31,22 @@
 #include <pyublas/elementwise_op.hpp>
 #include <boost/foreach.hpp>
 #include <boost/numeric/ublas/matrix_sparse.hpp>
+#include <boost/python/slice.hpp>
+
+
+
+#define FOR_ALL_SLICE_INDICES(ITYPE, IVAR, SLICE, LEN) \
+  Py_ssize_t \
+    fsi__start, \
+    fsi__stop, \
+    fsi__step, \
+    fsi__length; \
+  if (PySlice_GetIndicesEx( \
+        reinterpret_cast<PySliceObject *>((SLICE).ptr()), (LEN), \
+      &fsi__start, &fsi__stop, &fsi__step, &fsi__length)) \
+    throw boost::python::error_already_set(); \
+  \
+  for (ITYPE IVAR = fsi__start; IVAR < fsi__stop; IVAR += fsi__step)
 
 
 

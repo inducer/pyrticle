@@ -32,8 +32,9 @@ import pyublas
 
 
 class Reconstructor(object):
-    def __init__(self):
+    def __init__(self, use_richardson):
         self.log_constants = {}
+        self.use_richardson = use_richardson
     
     def initialize(self, cloud):
         self.cloud = cloud
@@ -78,6 +79,8 @@ class Reconstructor(object):
         mgr.add_quantity(self.reconstruct_timer)
         mgr.add_quantity(self.reconstruct_counter)
 
+        mgr.set_constant("use_richardson", self.use_richardson)
+
     def clear_particles(self):
         pass
 
@@ -85,17 +88,46 @@ class Reconstructor(object):
         if self.shape_function is None:
             raise RuntimeError, "shape function never set"
 
+    def _reconstruct_densities(self, velocities, pslice):
+        return  self.cloud.pic_algorithm.reconstruct_densities(
+                velocities, pslice)
+    def _reconstruct_j(self, velocities, pslice):
+        return  self.cloud.pic_algorithm.reconstruct_j(
+                velocities, pslice)
+    def _reconstruct_rho(self, velocities, pslice):
+        return  self.cloud.pic_algorithm.reconstruct_rho(pslice)
+
     def reconstruct_densites(self, velocities):
         self.reconstruct_hook()
-        return self.cloud.pic_algorithm.reconstruct_densities(velocities)
+        rho, j =  self._reconstruct_densities(velocities, slice(None))
+
+        if self.use_richardson:
+            rho_half, j_half = self._reconstruct_densities(
+                    velocities, slice(0, None, 2))
+            return 2*rho-rho_half, 2*j-j_half
+        else:
+            return rho, j
 
     def reconstruct_j(self, velocities):
         self.reconstruct_hook()
-        return self.cloud.pic_algorithm.reconstruct_j(velocities)
+        j = self._reconstruct_j(velocities, slice(None))
+
+        if self.use_richardson:
+            j_half = self._reconstruct_j(velocities, slice(0, None, 2))
+            return 2*j-j_half
+        else:
+            return j
 
     def reconstruct_rho(self):
         self.reconstruct_hook()
-        return self.cloud.pic_algorithm.reconstruct_rho()
+
+        rho = self._reconstruct_rho(slice(None))
+
+        if self.use_richardson:
+            rho_half = self._reconstruct_rho(slice(0, None, 2))
+            return 2*rho-rho_half
+        else:
+            return rho
 
     def upkeep(self):
         pass
@@ -176,8 +208,9 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
     def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3, 
             filter_amp=None, filter_order=None, 
-            upwind_alpha=1):
-        Reconstructor.__init__(self)
+            upwind_alpha=1,
+            use_richardson=False):
+        Reconstructor.__init__(self, use_richardson)
         _internal.NumberShiftListener.__init__(self)
 
         from pyrticle.tools import NumberShiftMultiplexer
@@ -537,8 +570,9 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             method="simplex_reduce",
             filter_min_amplification=None,
             filter_order=None,
-            jiggle_radius=0.1):
-        Reconstructor.__init__(self)
+            jiggle_radius=0.1,
+            use_richardson=False):
+        Reconstructor.__init__(self, use_richardson)
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
@@ -597,6 +631,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
         mgr.set_constant("rec_grid_el_tolerance", self.el_tolerance)
         mgr.set_constant("rec_grid_enforce_continuity", self.enforce_continuity)
         mgr.set_constant("rec_grid_method", self.method)
+        mgr.set_constant("rec_grid_jiggle_radius", self.jiggle_radius)
 
         self.brick_generator.log_data(mgr)
 
@@ -1256,34 +1291,43 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             raise ValueError, "invalid effective shape for remap"
         return result
 
-    def reconstruct_densites(self, velocities):
+    def _reconstruct_densites(self, velocities, pslice):
         return tuple(
                 self.remap_grid_to_mesh(q_grid) 
-                for q_grid in self.reconstruct_grid_densities(velocities))
+                for q_grid in self.reconstruct_grid_densities(
+                    velocities, pslice))
 
-    def reconstruct_j(self, velocities):
-        return self.remap_grid_to_mesh(self.reconstruct_grid_j(velocities))
+    def _reconstruct_j(self, velocities, pslice):
+        return self.remap_grid_to_mesh(self.reconstruct_grid_j(
+            velocities, pslice))
 
-    def reconstruct_rho(self):
-        return self.remap_grid_to_mesh(self.reconstruct_grid_rho())
+    def _reconstruct_rho(self, pslice):
+        return self.remap_grid_to_mesh(
+                self.reconstruct_grid_rho(pslice))
 
     # reconstruction onto grid ------------------------------------------------
-    def reconstruct_grid_densities(self, velocities):
+    def reconstruct_grid_densities(self, velocities, pslice=slice(None)):
         self.reconstruct_hook()
         return self.cloud._get_derived_quantities_from_cache(
-                ["rho_grid", "j_grid"],
-                [self.reconstruct_grid_rho, self.reconstruct_grid_j],
-                lambda: self.cloud.pic_algorithm.reconstruct_grid_densities(velocities))
+                [("rho_grid", pslice.start, pslice.stop, pslice.step),
+                    ("j_grid", pslice.start, pslice.stop, pslice.step)],
+                [lambda: self.reconstruct_grid_rho(pslice), 
+                    lambda: self.reconstruct_grid_j(velocities, pslice)],
+                lambda: self.cloud.pic_algorithm.reconstruct_grid_densities(velocities, pslice))
 
-    def reconstruct_grid_j(self, velocities):
+    def reconstruct_grid_j(self, velocities, pslice=slice(None)):
         self.reconstruct_hook()
-        return self.cloud._get_derived_quantity_from_cache("j_grid", 
-                lambda: self.cloud.pic_algorithm.reconstruct_grid_j(velocities))
+        return self.cloud._get_derived_quantity_from_cache(
+                ("j_grid", pslice.start, pslice.stop, pslice.step), 
+                lambda: self.cloud.pic_algorithm.reconstruct_grid_j(
+                    velocities, pslice))
 
-    def reconstruct_grid_rho(self):
+    def reconstruct_grid_rho(self, pslice=slice(None)):
         self.reconstruct_hook()
-        return self.cloud._get_derived_quantity_from_cache("rho_grid", 
-                self.cloud.pic_algorithm.reconstruct_grid_rho)
+        return self.cloud._get_derived_quantity_from_cache(
+                ("rho_grid", pslice.start, pslice.stop, pslice.step), 
+                lambda: self.cloud.pic_algorithm.reconstruct_grid_rho(
+                    pslice))
 
     # grid debug quantities ---------------------------------------------------
     def ones_on_grid(self):
@@ -1326,8 +1370,8 @@ class GridFindReconstructor(Reconstructor, GridVisualizer):
     name = "GridFind"
     iterator_type = _internal.BrickIterator
 
-    def __init__(self, brick_generator=None):
-        Reconstructor.__init__(self)
+    def __init__(self, brick_generator=None, use_richardson=False):
+        Reconstructor.__init__(self, use_richardson)
         self.brick_generator = brick_generator
 
     def initialize(self, cloud):

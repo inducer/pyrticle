@@ -185,19 +185,20 @@ namespace pyrticle
 
 
         template<class Target>
-        void reconstruct_densities_on_target(Target &tgt)
+        void reconstruct_densities_on_target(Target &tgt,
+            boost::python::slice const &pslice)
         {
-          particle_number pn = 0;
-          BOOST_FOREACH(const advected_particle &p, m_advected_particles)
+          FOR_ALL_SLICE_INDICES(particle_number, pn, 
+              pslice, CONST_PIC_THIS->m_particle_count)
           {
             tgt.begin_particle(pn);
-            BOOST_FOREACH(const active_element &el, p.m_elements)
+            BOOST_FOREACH(const active_element &el, 
+                m_advected_particles[pn].m_elements)
               tgt.add_shape_on_element(
                   el.m_element_info->m_id,
                   el.m_element_info->m_start,
                   subrange(m_rho, el.m_start_index, el.m_start_index+m_dofs_per_element));
             tgt.end_particle(pn);
-            ++pn;
           }
         }
 

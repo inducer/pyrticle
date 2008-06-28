@@ -532,7 +532,8 @@ namespace pyrticle
 
         // gridded output -----------------------------------------------------
         boost::tuple<py_vector, py_vector> 
-          reconstruct_grid_densities(const py_vector &velocities)
+          reconstruct_grid_densities(const py_vector &velocities,
+              boost::python::slice const &pslice)
         {
           const unsigned gnc = grid_node_count();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
@@ -548,7 +549,7 @@ namespace pyrticle
           chained_target<rho_target<py_vector>, j_tgt_t>
               tgt(rho_tgt, j_tgt);
 
-          this->reconstruct_densities_on_grid_target(tgt);
+          this->reconstruct_densities_on_grid_target(tgt, pslice);
 
           return boost::make_tuple(grid_rho, grid_j);
         }
@@ -556,7 +557,8 @@ namespace pyrticle
 
 
 
-        py_vector reconstruct_grid_j(py_vector const &velocities)
+        py_vector reconstruct_grid_j(py_vector const &velocities,
+            boost::python::slice const &pslice)
         {
           const unsigned gnc = grid_node_count();
           const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
@@ -566,19 +568,20 @@ namespace pyrticle
 
           j_target<PICAlgorithm::dimensions_velocity, py_vector, py_vector> 
             j_tgt(grid_j, velocities);
-          this->reconstruct_densities_on_grid_target(j_tgt);
+          this->reconstruct_densities_on_grid_target(j_tgt, pslice);
           return grid_j;
         }
 
 
 
 
-        py_vector reconstruct_grid_rho()
+        py_vector reconstruct_grid_rho(
+            boost::python::slice const &pslice)
         {
           py_vector grid_rho(grid_node_count());
 
           rho_target<py_vector> rho_tgt(grid_rho);
-          this->reconstruct_densities_on_grid_target(rho_tgt);
+          this->reconstruct_densities_on_grid_target(rho_tgt, pslice);
           return grid_rho;
         }
 

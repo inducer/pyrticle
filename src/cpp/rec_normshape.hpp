@@ -214,7 +214,8 @@ namespace pyrticle
 
 
         template<class Target>
-        void reconstruct_densities_on_target(Target &tgt)
+        void reconstruct_densities_on_target(Target &tgt,
+          boost::python::slice const &pslice)
         {
           m_normalization_stats.reset();
           m_centroid_distance_stats.reset();
@@ -227,7 +228,8 @@ namespace pyrticle
 
           typename PICAlgorithm::element_finder el_finder(*CONST_PIC_THIS);
 
-          for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
+          FOR_ALL_SLICE_INDICES(particle_number, pn, 
+              pslice, CONST_PIC_THIS->m_particle_count)
           {
             norm_tgt.begin_particle();
             el_finder(norm_tgt, pn, m_shape_function.radius());

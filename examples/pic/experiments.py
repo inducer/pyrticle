@@ -17,6 +17,31 @@ def cn(placeholder):
     else:
         return result.lower()
 
+def cn_with_args(placeholder):
+    result = cn(placeholder)
+    if placeholder.args:
+        result += "-" + ("-".join(str(a) for a in args))
+
+    def mogrify_kwarg(k, v):
+        result = k[0]
+        
+        i = 1
+        while i < len(k):
+            if k[i] == "_":
+                result += k[i+1]
+                i += 2
+            else:
+                i += 1
+
+        return result+str(v)
+
+    if placeholder.kwargs:
+        result += "-" + ("-".join(
+            mogrify_kwarg(k, v) 
+            for k, v in placeholder.kwargs.iteritems()))
+
+    return result
+
 def multiline_to_setup(mls):
     lines = mls.split("\n")
 
@@ -96,35 +121,32 @@ def compare_methods():
 
     timestamp = get_timestamp()
 
-    for rec in [
-        O("RecGrid"),
-        O("RecGridFind"),
-        #O("RecAdv"), 
-        #O("RecNormShape"), 
-        O("RecShape"), 
-        ]:
-        for eorder in [2,3,4,]:
-            for sexp in [2,3,4,5]:
-                #if rec.classname == "RecGrid":
-                    #pushers = [O("PushMonomial")]
-                #else:
-                    #pushers = [O("PushMonomial"), O("PushAverage")]
-                pushers = [O("PushMonomial")]
-                for pusher in pushers:
-                    for finder in [
-                            O("FindFaceBased"),
-                            #O("FindHeuristic"),
-                            ]:
+    for use_richardson in [True, False]:
+        for rec in [
+            O("RecGrid", use_richardson=use_richardson, jiggle_radius=0),
+            O("RecGrid", use_richardson=use_richardson),
+            O("RecGridFind", use_richardson=use_richardson),
+            #O("RecAdv", use_richardson=use_richardson), 
+            #O("RecNormShape", use_richardson=use_richardson), 
+            O("RecShape", use_richardson=use_richardson), 
+            ]:
+            for eorder in [2,3,4,]:
+                for sexp in [2,3,4,5]:
+                    #if rec.classname == "RecGrid":
+                        #pushers = [O("PushMonomial")]
+                    #else:
+                        #pushers = [O("PushMonomial"), O("PushAverage")]
+                    pushers = [O("PushMonomial")]
+                    for pusher in pushers:
                         job = BatchJob(
-                                "compmeth-$DATE/eo%d-se%d-%s-%s-%s" % (
-                                    eorder, sexp, cn(rec), cn(pusher), cn(finder)),
+                                "compmeth-$DATE/eo%d-se%d-%s-%s" % (
+                                    eorder, sexp, cn_with_args(rec), cn(pusher)),
                                 "driver.py",
                                 timestamp=timestamp,
                                 )
                         job.write_setup([
                             "pusher = %s" % pusher,
                             "reconstructor = %s" % rec,
-                            "finder = %s" % finder,
                             "element_order = %d" % eorder,
                             "shape_exponent = %d" % sexp,
                             ]

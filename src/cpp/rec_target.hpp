@@ -190,11 +190,12 @@ namespace pyrticle
 
   // reconstructor base class -------------------------------------------------
   template <class PICAlgorithm>
-  class target_reconstructor_base : public reconstructor_base
+  class target_reconstructor_mixin
   {
     public:
       boost::tuple<py_vector, py_vector> 
-        reconstruct_densities(const py_vector &velocities)
+        reconstruct_densities(const py_vector &velocities, 
+            boost::python::slice const &pslice)
       {
         py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
         npy_intp dims[] = {
@@ -209,7 +210,7 @@ namespace pyrticle
 
         chained_reconstruction_target<rho_reconstruction_target, j_tgt_t>
             tgt(rho_tgt, j_tgt);
-        PIC_THIS->reconstruct_densities_on_target(tgt);
+        PIC_THIS->reconstruct_densities_on_target(tgt, pslice);
 
         rho = rho_tgt.result();
 
@@ -219,7 +220,8 @@ namespace pyrticle
 
 
 
-      py_vector reconstruct_j(const py_vector &velocities)
+      py_vector reconstruct_j(const py_vector &velocities,
+          boost::python::slice const &pslice)
       {
         npy_intp dims[] = {
           CONST_PIC_THIS->m_mesh_data.node_count(),
@@ -234,22 +236,31 @@ namespace pyrticle
         j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt(
             j, velocities);
 
-        PIC_THIS->reconstruct_densities_on_target(j_tgt);
+        PIC_THIS->reconstruct_densities_on_target(j_tgt, pslice);
         return j;
       }
 
 
 
 
-      py_vector reconstruct_rho()
+      py_vector reconstruct_rho(boost::python::slice const &pslice)
       {
         py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
 
         rho_reconstruction_target rho_tgt(rho);
-        PIC_THIS->reconstruct_densities_on_target(rho_tgt);
+        PIC_THIS->reconstruct_densities_on_target(rho_tgt, pslice);
         return rho;
       }
   };
+
+
+
+
+  template <class PICAlgorithm>
+  class target_reconstructor_base 
+  : public reconstructor_base,
+  public target_reconstructor_mixin<PICAlgorithm>
+  { };
 }
 
 

@@ -375,11 +375,13 @@ namespace pyrticle
 
 
         template<class Target>
-        void reconstruct_densities_on_target(Target &tgt)
+        void reconstruct_densities_on_target(Target &tgt,
+            boost::python::slice const &pslice)
         {
           typename PICAlgorithm::element_finder el_finder(*CONST_PIC_THIS);
-          
-          for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
+
+          FOR_ALL_SLICE_INDICES(particle_number, pn, 
+              pslice, CONST_PIC_THIS->m_particle_count)
           {
             element_target<Target> el_target(
                 *CONST_PIC_THIS, 
