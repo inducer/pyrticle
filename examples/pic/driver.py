@@ -78,7 +78,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "distribution": None,
 
                 "vis_interval": 100,
-                "vis_path": ".",
+                "output_path": ".",
 
                 "debug": set(["ic", "poisson", "shape_bw"]),
 
@@ -140,11 +140,13 @@ class PICRunner(object):
         units = SI()
         self.units = SI()
 
-        from pytools.log import LogManager
-        self.logmgr = LogManager("pic.dat", "w")
-
         ui = PICCPyUserInterface(units)
         setup = self.setup = ui.gather()
+
+        from pytools.log import LogManager
+        import os.path
+        self.logmgr = LogManager(os.path.join(
+            setup.output_path, "pic.dat"), "w")
 
         from hedge.parallel import guess_parallelization_context
         self.pcon = guess_parallelization_context()
@@ -158,6 +160,7 @@ class PICRunner(object):
                 self.pcon.make_discretization(mesh, 
                         order=setup.element_order,
                         debug="discretization" in setup.debug)
+        self.logmgr.set_constant("element_order", setup.element_order)
 
         # em operator ---------------------------------------------------------
         if discr.dimensions == 3:
@@ -312,7 +315,7 @@ class PICRunner(object):
                 self.vis_timer.start()
                 import os.path
                 visf = vis.make_file(os.path.join(
-                    setup.vis_path, "pic-%04d" % step))
+                    setup.output_path, "pic-%04d" % step))
 
                 self.cloud.add_to_vis(vis, visf, time=t, step=step)
                 vis.add_data(visf, setup.hook_vis_quantities(self),
