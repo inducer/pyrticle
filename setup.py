@@ -117,7 +117,6 @@ def main():
             HedgeExtension("_internal", 
                 [
                     "src/cpp/tools.cpp",
-                    "src/cpp/rec_shape.cpp",
                     "src/wrapper/wrap_tools.cpp",
                     "src/wrapper/wrap_grid.cpp",
                     "src/wrapper/wrap_meshdata.cpp",
