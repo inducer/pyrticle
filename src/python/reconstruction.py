@@ -32,9 +32,8 @@ import pyublas
 
 
 class Reconstructor(object):
-    def __init__(self, use_richardson):
+    def __init__(self):
         self.log_constants = {}
-        self.use_richardson = use_richardson
     
     def initialize(self, cloud):
         self.cloud = cloud
@@ -79,8 +78,6 @@ class Reconstructor(object):
         mgr.add_quantity(self.reconstruct_timer)
         mgr.add_quantity(self.reconstruct_counter)
 
-        mgr.set_constant("use_richardson", self.use_richardson)
-
     def clear_particles(self):
         pass
 
@@ -101,35 +98,20 @@ class Reconstructor(object):
         self.reconstruct_hook()
         rho, j =  self._reconstruct_densities(velocities, slice(None))
 
-        if self.use_richardson:
-            rho_half, j_half = self._reconstruct_densities(
-                    velocities, slice(0, None, 2))
-            rho_half *= 2
-            j_half *= 2
-            return 2*rho-rho_half, 2*j-j_half
-        else:
-            return rho, j
+        return rho, j
 
     def reconstruct_j(self, velocities):
         self.reconstruct_hook()
         j = self._reconstruct_j(velocities, slice(None))
 
-        if self.use_richardson:
-            j_half = 2*self._reconstruct_j(velocities, slice(0, None, 2))
-            return 2*j-j_half
-        else:
-            return j
+        return j
 
     def reconstruct_rho(self):
         self.reconstruct_hook()
 
         rho = self._reconstruct_rho(slice(None))
 
-        if self.use_richardson:
-            rho_half = 2*self._reconstruct_rho(slice(0, None, 2))
-            return 2*rho-rho_half
-        else:
-            return rho
+        return rho
 
     def upkeep(self):
         pass
@@ -211,8 +193,8 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
     def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3, 
             filter_amp=None, filter_order=None, 
             upwind_alpha=1,
-            use_richardson=False):
-        Reconstructor.__init__(self, use_richardson)
+            ):
+        Reconstructor.__init__(self)
         _internal.NumberShiftListener.__init__(self)
 
         from pyrticle.tools import NumberShiftMultiplexer
@@ -573,8 +555,8 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             filter_min_amplification=None,
             filter_order=None,
             jiggle_radius=0.1,
-            use_richardson=False):
-        Reconstructor.__init__(self, use_richardson)
+            ):
+        Reconstructor.__init__(self)
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
@@ -1372,8 +1354,8 @@ class GridFindReconstructor(Reconstructor, GridVisualizer):
     name = "GridFind"
     iterator_type = _internal.BrickIterator
 
-    def __init__(self, brick_generator=None, use_richardson=False):
-        Reconstructor.__init__(self, use_richardson)
+    def __init__(self, brick_generator=None):
+        Reconstructor.__init__(self)
         self.brick_generator = brick_generator
 
     def initialize(self, cloud):
