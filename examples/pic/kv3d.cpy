@@ -1,12 +1,19 @@
 import random as _random
 _random.seed(0)
 
+debug.add("interactive")
+debug.add("reconstructor")
+
 pusher = PushMonomial()
-reconstructor = RecShape()
+#reconstructor = RecShape()
 #reconstructor = RecGrid(
         #FineCoreBrickGenerator(core_axis=2),
         #el_tolerance=0.1,
         #method="simplex_reduce")
+reconstructor = RecGridFind(
+        FineCoreBrickGenerator(core_axis=2, 
+            overresolve=0.2, mesh_margin=1e-4),
+        )
 
 dimensions_pos = 3
 dimensions_velocity = 3

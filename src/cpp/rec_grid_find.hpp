@@ -34,7 +34,8 @@ namespace pyrticle
   struct grid_find_reconstructor : public grid_targets
   {
     template <class PICAlgorithm>
-    class type : public grid_reconstructor_base<PICAlgorithm, brick>
+    class type : public grid_reconstructor_base<PICAlgorithm, brick>,
+      public target_reconstructor_mixin<PICAlgorithm>
     {
       public:
         typedef std::vector<unsigned> node_number_list_starts_t;
@@ -93,7 +94,8 @@ namespace pyrticle
 
         // reconstruction entry points ----------------------------------------
         boost::tuple<py_vector, py_vector> 
-          reconstruct_densities(const py_vector &velocities)
+        reconstruct_densities(const py_vector &velocities,
+            boost::python::slice const &pslice)
         {
           py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
           npy_intp dims[] = {
@@ -109,7 +111,7 @@ namespace pyrticle
           chained_target<rho_target<py_vector>, j_tgt_t>
               tgt(rho_tgt, j_tgt);
 
-          this->reconstruct_densities_on_grid_target(tgt);
+          this->reconstruct_densities_on_grid_target(tgt, pslice);
 
           return boost::make_tuple(rho, j);
         }
@@ -117,7 +119,8 @@ namespace pyrticle
 
 
 
-        py_vector reconstruct_j(py_vector const &velocities)
+        py_vector reconstruct_j(py_vector const &velocities,
+            boost::python::slice const &pslice)
         {
           npy_intp dims[] = {
             CONST_PIC_THIS->m_mesh_data.node_count(),
@@ -127,19 +130,19 @@ namespace pyrticle
 
           j_target<PICAlgorithm::dimensions_velocity, py_vector, py_vector> 
             j_tgt(j, velocities);
-          this->reconstruct_densities_on_grid_target(j_tgt);
+          this->reconstruct_densities_on_grid_target(j_tgt, pslice);
           return j;
         }
 
 
 
 
-        py_vector reconstruct_rho()
+        py_vector reconstruct_rho(boost::python::slice const &pslice)
         {
           py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
 
           rho_target<py_vector> rho_tgt(rho);
-          this->reconstruct_densities_on_grid_target(rho_tgt);
+          this->reconstruct_densities_on_grid_target(rho_tgt, pslice);
           return rho;
         }
 

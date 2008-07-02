@@ -79,7 +79,8 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
                 "vis_interval": 100,
                 "vis_path": ".",
-                "vis_verbose": False,
+
+                "debug": set(["ic", "poisson", "shape_bw"]),
 
                 "watch_vars": ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"],
 
@@ -154,7 +155,9 @@ class PICRunner(object):
             mesh = self.pcon.receive_mesh()
 
         self.discr = discr = \
-                self.pcon.make_discretization(mesh, order=setup.element_order)
+                self.pcon.make_discretization(mesh, 
+                        order=setup.element_order,
+                        debug="discretization" in setup.debug)
 
         # em operator ---------------------------------------------------------
         if discr.dimensions == 3:
@@ -202,21 +205,18 @@ class PICRunner(object):
                 setup.reconstructor, setup.pusher, setup.finder,
                 dimensions_pos=setup.dimensions_pos, 
                 dimensions_velocity=setup.dimensions_velocity, 
-                verbose_vis=setup.vis_verbose)
+                debug=setup.debug)
 
         cloud.add_particles(setup.nparticles, 
                 setup.distribution.generate_particles())
 
         self.total_charge = setup.nparticles*setup.distribution.mean()[2][0]
         if isinstance(setup.shape_bandwidth, str):
-            if setup.shape_bandwidth.startswith("optimize"):
+            if setup.shape_bandwidth == "optimize":
                 optimize_shape_bandwidth(cloud, 
                         setup.distribution.get_rho_interpolant(
                             discr, self.total_charge),
-                        setup.shape_exponent, 
-                        plot_l1_errors="plot" in setup.shape_bandwidth,
-                        visualize="visualize" in setup.shape_bandwidth,
-                        )
+                        setup.shape_exponent)
             elif setup.shape_bandwidth == "guess":
                 guess_shape_bandwidth(cloud, setup.shape_exponent)
             else:
@@ -234,7 +234,7 @@ class PICRunner(object):
         # initial condition ---------------------------------------------------
         from pyrticle.cloud import compute_initial_condition
         self.fields = compute_initial_condition(self.pcon, discr, cloud, 
-                max_op=self.max_op, debug=True, force_zero=False)
+                max_op=self.max_op, force_zero=False)
 
         # instrumentation setup -----------------------------------------------
         self.add_instrumentation(self.logmgr)

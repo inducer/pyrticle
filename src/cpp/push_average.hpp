@@ -415,7 +415,8 @@ namespace pyrticle
               CONST_PIC_THIS->m_charges, mag_force);
 
           chained_reconstruction_target<el_tgt_t, mag_tgt_t> force_tgt(el_tgt, mag_tgt);
-          CONST_PIC_THIS->reconstruct_densities_on_target(force_tgt);
+          CONST_PIC_THIS->reconstruct_densities_on_target(force_tgt,
+              boost::python::slice());
 
           if (verbose_vis)
           {

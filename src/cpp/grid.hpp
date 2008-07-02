@@ -357,8 +357,14 @@ namespace pyrticle
 
       bounded_int_vector which_cell(const bounded_vector &pt) const
       {
-        return pyublas::unary_op<int_floor>::apply(
+        bounded_int_vector result = pyublas::unary_op<int_floor>::apply(
               element_div(pt-m_origin, m_stepwidths));
+        
+        for (unsigned i = 0; i < result.size(); ++i)
+          if (result[i] < 0 || result[i] >= m_dimensions[i])
+            throw std::invalid_argument("point is out of this brick's bounds");
+
+        return result;
       }
 
       bounded_box bounding_box() const
@@ -576,7 +582,8 @@ namespace pyrticle
 
 
       template <class Target>
-      void reconstruct_densities_on_grid_target(Target tgt)
+      void reconstruct_densities_on_grid_target(Target tgt,
+            boost::python::slice const &pslice)
       {
         const unsigned dim_x = CONST_PIC_THIS->get_dimensions_pos();
         const unsigned dim_m = CONST_PIC_THIS->m_mesh_data.m_dimensions;
@@ -585,7 +592,8 @@ namespace pyrticle
         const scalar_vector<double> shape_extent(
             dim_m, m_shape_function.radius());
 
-        for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; ++pn)
+        FOR_ALL_SLICE_INDICES(particle_number, pn, 
+            pslice, CONST_PIC_THIS->m_particle_count)
         {
           tgt.begin_particle(pn);
           const bounded_vector center = subrange(

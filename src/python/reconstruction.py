@@ -32,8 +32,9 @@ import pyublas
 
 
 class Reconstructor(object):
-    def __init__(self):
+    def __init__(self, use_richardson):
         self.log_constants = {}
+        self.use_richardson = use_richardson
     
     def initialize(self, cloud):
         self.cloud = cloud
@@ -78,6 +79,8 @@ class Reconstructor(object):
         mgr.add_quantity(self.reconstruct_timer)
         mgr.add_quantity(self.reconstruct_counter)
 
+        mgr.set_constant("use_richardson", self.use_richardson)
+
     def clear_particles(self):
         pass
 
@@ -85,17 +88,46 @@ class Reconstructor(object):
         if self.shape_function is None:
             raise RuntimeError, "shape function never set"
 
+    def _reconstruct_densities(self, velocities, pslice):
+        return  self.cloud.pic_algorithm.reconstruct_densities(
+                velocities, pslice)
+    def _reconstruct_j(self, velocities, pslice):
+        return  self.cloud.pic_algorithm.reconstruct_j(
+                velocities, pslice)
+    def _reconstruct_rho(self, velocities, pslice):
+        return  self.cloud.pic_algorithm.reconstruct_rho(pslice)
+
     def reconstruct_densites(self, velocities):
         self.reconstruct_hook()
-        return self.cloud.pic_algorithm.reconstruct_densities(velocities)
+        rho, j =  self._reconstruct_densities(velocities, slice(None))
+
+        if self.use_richardson:
+            rho_half, j_half = self._reconstruct_densities(
+                    velocities, slice(0, None, 2))
+            return 2*rho-rho_half, 2*j-j_half
+        else:
+            return rho, j
 
     def reconstruct_j(self, velocities):
         self.reconstruct_hook()
-        return self.cloud.pic_algorithm.reconstruct_j(velocities)
+        j = self._reconstruct_j(velocities, slice(None))
+
+        if self.use_richardson:
+            j_half = self._reconstruct_j(velocities, slice(0, None, 2))
+            return 2*j-j_half
+        else:
+            return j
 
     def reconstruct_rho(self):
         self.reconstruct_hook()
-        return self.cloud.pic_algorithm.reconstruct_rho()
+
+        rho = self._reconstruct_rho(slice(None))
+
+        if self.use_richardson:
+            rho_half = self._reconstruct_rho(slice(0, None, 2))
+            return 2*rho-rho_half
+        else:
+            return rho
 
     def upkeep(self):
         pass
@@ -176,8 +208,9 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
     def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3, 
             filter_amp=None, filter_order=None, 
-            upwind_alpha=1):
-        Reconstructor.__init__(self)
+            upwind_alpha=1,
+            use_richardson=False):
+        Reconstructor.__init__(self, use_richardson)
         _internal.NumberShiftListener.__init__(self)
 
         from pyrticle.tools import NumberShiftMultiplexer
@@ -344,6 +377,7 @@ class SingleBrickGenerator(object):
 
 
 
+
 class FineCoreBrickGenerator(object):
     def __init__(self, overresolve=1.5, mesh_margin=0, 
             core_axis=None, core_fraction=0.1, core_factor=2):
@@ -432,20 +466,102 @@ class FineCoreBrickGenerator(object):
             x_offset_2 = x_vec*core_margin_dims[x]*stepwidths[x]
             yield stepwidths, bbox_min+x_offset_2, dims2
             yield -stepwidths, bbox_max-x_offset_2, dims2
-
-            from pytools import product
-            print "surround pts: %d, core pts: %d" % (
-                    product(dims2)*2+product(dims1)*2,
-                    product(core_dims))
         else:
             raise ValueError, "invalid dimensionality"
 
 
 
 
+# grid visualization ----------------------------------------------------------
+class GridVisualizer(object):
+    def visualize_grid_quantities(self, silo, names_and_quantities):
+        dims = self.cloud.dimensions_mesh
+        pic = self.cloud.pic_algorithm
+
+        try:
+            extra_points = pic.extra_points
+        except AttributeError:
+            extra_points = []
+
+        if len(extra_points):
+            extra_points = numpy.reshape(extra_points,
+                    (len(extra_points)//dims,dims))
+
+            silo.put_pointmesh("rec_grid_extra", 
+                    numpy.asarray(extra_points.T, order="C"))
+
+        try:
+            grid_nodes_t = self.grid_nodes_t
+        except AttributeError:
+            grid_nodes = []
+            from pyrticle._internal import BoxInt
+            for brk in pic.bricks:
+                grid_nodes.extend(brk.point(c) 
+                        for c in self.iterator_type(brk, 
+                            BoxInt(0*brk.dimensions, brk.dimensions)))
+            grid_nodes_t = self.grid_nodes_t = \
+                    numpy.asarray(numpy.array(grid_nodes).T, order="C")
+
+        silo.put_pointmesh("rec_grid_nodes", grid_nodes_t)
+
+        from pylo import DB_ZONECENT, DB_QUAD_RECT, DBObjectType
+
+        if len(pic.bricks) > 1:
+            def name_mesh(brick): return "_rec_grid_b%d" % brick
+            def name_var(name, brick): return "_%s_b%d" % (name, brick)
+        else:
+            def name_mesh(brick): return "rec_grid"
+            def name_var(name, brick): return name
+
+        for brk in pic.bricks:
+            coords = [
+                numpy.arange(
+                    brk.origin[axis], 
+                    brk.origin[axis] 
+                    + brk.dimensions[axis] * brk.stepwidths[axis] 
+                    + brk.stepwidths[axis]/2, 
+                    brk.stepwidths[axis])
+                for axis in xrange(dims)]
+            for axis in xrange(dims):
+                assert len(coords[axis]) == brk.dimensions[axis]+1
+
+            mname = name_mesh(brk.number)
+            silo.put_quadmesh(mname, coords)
+
+            brk_start = brk.start_index
+            brk_stop = brk.start_index + len(brk)
+
+            for name, quant in names_and_quantities:
+                eff_shape = quant.shape[1:]
+                vname = name_var(name, brk.number)
+                if len(eff_shape) == 0:
+                    silo.put_quadvar1(vname, mname, 
+                            quant[brk_start:brk_stop], brk.dimensions, DB_ZONECENT)
+                elif len(eff_shape) == 1:
+                    d = eff_shape[0]
+                    silo.put_quadvar(vname, mname, 
+                            ["%s_c%d" % (vname, axis) for axis in range(d)],
+                            numpy.asarray(quant[brk_start:brk_stop].T, order="C"),
+                            brk.dimensions, DB_ZONECENT)
+                else:
+                    raise ValueError, "invalid effective shape for vis"
+
+        if len(pic.bricks) > 1:
+            silo.put_multimesh("rec_grid", 
+                    [(name_mesh(brk.number), DB_QUAD_RECT) for brk in pic.bricks])
+
+            for name, quant in names_and_quantities:
+                silo.put_multivar(name, 
+                        [(name_var(name, brk.number), DBObjectType.DB_QUADVAR) 
+                            for brk in pic.bricks])
+
+
+
+
 # pure grid reconstruction ----------------------------------------------------
-class GridReconstructor(Reconstructor):
+class GridReconstructor(Reconstructor, GridVisualizer):
     name = "Grid"
+    iterator_type = _internal.JigglyBrickIterator
 
     def __init__(self, brick_generator=SingleBrickGenerator(), 
             el_tolerance=0.12,
@@ -453,8 +569,10 @@ class GridReconstructor(Reconstructor):
             enforce_continuity=False,
             method="simplex_reduce",
             filter_min_amplification=None,
-            filter_order=None):
-        Reconstructor.__init__(self)
+            filter_order=None,
+            jiggle_radius=0.1,
+            use_richardson=False):
+        Reconstructor.__init__(self, use_richardson)
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
@@ -463,6 +581,8 @@ class GridReconstructor(Reconstructor):
 
         self.filter_min_amplification = filter_min_amplification
         self.filter_order = filter_order
+
+        self.jiggle_radius = jiggle_radius
 
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
@@ -483,18 +603,12 @@ class GridReconstructor(Reconstructor):
         else:
             self.filter = None
 
-        grid_nodes = []
-        from pyrticle._internal import RecBrick, RecBrickIterator, BoxInt
+        from pyrticle._internal import JigglyBrick
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
-            brk = RecBrick(i, pic.grid_node_count(), stepwidths, origin, dims)
+            brk = JigglyBrick(i, pic.grid_node_count(), stepwidths, origin, dims,
+                    jiggle_radius=self.jiggle_radius)
             pic.bricks.append(brk)
-
-            grid_nodes.extend(brk.point(c) 
-                    for c in RecBrickIterator(brk, 
-                        BoxInt(numpy.zeros((len(dims),), dtype=numpy.int32),
-                            brk.dimensions)))
-        self.grid_nodes = numpy.array(grid_nodes)
 
         if self.method == "simplex_extra":
             self.prepare_with_pointwise_projection_and_extra_points()
@@ -517,6 +631,7 @@ class GridReconstructor(Reconstructor):
         mgr.set_constant("rec_grid_el_tolerance", self.el_tolerance)
         mgr.set_constant("rec_grid_enforce_continuity", self.enforce_continuity)
         mgr.set_constant("rec_grid_method", self.method)
+        mgr.set_constant("rec_grid_jiggle_radius", self.jiggle_radius)
 
         self.brick_generator.log_data(mgr)
 
@@ -1071,7 +1186,7 @@ class GridReconstructor(Reconstructor):
         pic.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
-        from pyrticle._internal import RecBrickIterator, ElementOnGrid, BoxFloat
+        from pyrticle._internal import ElementOnGrid, BoxFloat
 
         total_points = 0
 
@@ -1120,7 +1235,7 @@ class GridReconstructor(Reconstructor):
 
                     from hedge.polynomial import generic_vandermonde
                     brk_and_el_points = [brk.point(c) 
-                            for c in RecBrickIterator(brk, idx_range)]
+                            for c in self.iterator_type(brk, idx_range)]
                     svdm = generic_vandermonde(
                             points=brk_and_el_points,
                             functions=lb)
@@ -1145,7 +1260,7 @@ class GridReconstructor(Reconstructor):
                     #raw_input()
 
                     eog.grid_nodes.extend(brk.index(c) 
-                            for c in RecBrickIterator(brk, idx_range))
+                            for c in self.iterator_type(brk, idx_range))
                     pic.elements_on_grid.append(eog)
 
         # we don't need no stinkin' extra points
@@ -1176,34 +1291,43 @@ class GridReconstructor(Reconstructor):
             raise ValueError, "invalid effective shape for remap"
         return result
 
-    def reconstruct_densites(self, velocities):
+    def _reconstruct_densites(self, velocities, pslice):
         return tuple(
                 self.remap_grid_to_mesh(q_grid) 
-                for q_grid in self.reconstruct_grid_densities(velocities))
+                for q_grid in self.reconstruct_grid_densities(
+                    velocities, pslice))
 
-    def reconstruct_j(self, velocities):
-        return self.remap_grid_to_mesh(self.reconstruct_grid_j(velocities))
+    def _reconstruct_j(self, velocities, pslice):
+        return self.remap_grid_to_mesh(self.reconstruct_grid_j(
+            velocities, pslice))
 
-    def reconstruct_rho(self):
-        return self.remap_grid_to_mesh(self.reconstruct_grid_rho())
+    def _reconstruct_rho(self, pslice):
+        return self.remap_grid_to_mesh(
+                self.reconstruct_grid_rho(pslice))
 
     # reconstruction onto grid ------------------------------------------------
-    def reconstruct_grid_densities(self, velocities):
+    def reconstruct_grid_densities(self, velocities, pslice=slice(None)):
         self.reconstruct_hook()
         return self.cloud._get_derived_quantities_from_cache(
-                ["rho_grid", "j_grid"],
-                [self.reconstruct_grid_rho, self.reconstruct_grid_j],
-                lambda: self.cloud.pic_algorithm.reconstruct_grid_densities(velocities))
+                [("rho_grid", pslice.start, pslice.stop, pslice.step),
+                    ("j_grid", pslice.start, pslice.stop, pslice.step)],
+                [lambda: self.reconstruct_grid_rho(pslice), 
+                    lambda: self.reconstruct_grid_j(velocities, pslice)],
+                lambda: self.cloud.pic_algorithm.reconstruct_grid_densities(velocities, pslice))
 
-    def reconstruct_grid_j(self, velocities):
+    def reconstruct_grid_j(self, velocities, pslice=slice(None)):
         self.reconstruct_hook()
-        return self.cloud._get_derived_quantity_from_cache("j_grid", 
-                lambda: self.cloud.pic_algorithm.reconstruct_grid_j(velocities))
+        return self.cloud._get_derived_quantity_from_cache(
+                ("j_grid", pslice.start, pslice.stop, pslice.step), 
+                lambda: self.cloud.pic_algorithm.reconstruct_grid_j(
+                    velocities, pslice))
 
-    def reconstruct_grid_rho(self):
+    def reconstruct_grid_rho(self, pslice=slice(None)):
         self.reconstruct_hook()
-        return self.cloud._get_derived_quantity_from_cache("rho_grid", 
-                self.cloud.pic_algorithm.reconstruct_grid_rho)
+        return self.cloud._get_derived_quantity_from_cache(
+                ("rho_grid", pslice.start, pslice.stop, pslice.step), 
+                lambda: self.cloud.pic_algorithm.reconstruct_grid_rho(
+                    pslice))
 
     # grid debug quantities ---------------------------------------------------
     def ones_on_grid(self):
@@ -1240,83 +1364,14 @@ class GridReconstructor(Reconstructor):
 
 
 
-    # grid visualization ------------------------------------------------------
-    def visualize_grid_quantities(self, silo, names_and_quantities):
-        dims = self.cloud.dimensions_mesh
-        vdims = self.cloud.dimensions_velocity
-        pic = self.cloud.pic_algorithm
-
-        extra_points = pic.extra_points
-        if len(extra_points):
-            extra_points = numpy.reshape(extra_points,
-                    (len(extra_points)//dims,dims))
-
-            silo.put_pointmesh("rec_grid_extra", 
-                    numpy.asarray(extra_points.T, order="C"))
-
-        silo.put_pointmesh("rec_grid_nodes", 
-                numpy.asarray(self.grid_nodes.T, order="C"))
-
-        from pylo import DB_ZONECENT, DB_QUAD_RECT, DBObjectType
-
-        if len(pic.bricks) > 1:
-            def name_mesh(brick): return "_rec_grid_b%d" % brick
-            def name_var(name, brick): return "_%s_b%d" % (name, brick)
-        else:
-            def name_mesh(brick): return "rec_grid"
-            def name_var(name, brick): return name
-
-        for brk in pic.bricks:
-            coords = [
-                numpy.arange(
-                    brk.origin[axis], 
-                    brk.origin[axis] 
-                    + brk.dimensions[axis] * brk.stepwidths[axis] 
-                    + brk.stepwidths[axis]/2, 
-                    brk.stepwidths[axis])
-                for axis in xrange(dims)]
-            for axis in xrange(dims):
-                assert len(coords[axis]) == brk.dimensions[axis]+1
-
-            mname = name_mesh(brk.number)
-            silo.put_quadmesh(mname, coords)
-
-            brk_start = brk.start_index
-            brk_stop = brk.start_index + len(brk)
-
-            for name, quant in names_and_quantities:
-                eff_shape = quant.shape[1:]
-                vname = name_var(name, brk.number)
-                if len(eff_shape) == 0:
-                    silo.put_quadvar1(vname, mname, 
-                            quant[brk_start:brk_stop], brk.dimensions, DB_ZONECENT)
-                elif len(eff_shape) == 1:
-                    d = eff_shape[0]
-                    silo.put_quadvar(vname, mname, 
-                            ["%s_c%d" % (vname, axis) for axis in range(d)],
-                            numpy.asarray(quant[brk_start:brk_stop].T, order="C"),
-                            brk.dimensions, DB_ZONECENT)
-                else:
-                    raise ValueError, "invalid effective shape for vis"
-
-        if len(pic.bricks) > 1:
-            silo.put_multimesh("rec_grid", 
-                    [(name_mesh(brk.number), DB_QUAD_RECT) for brk in pic.bricks])
-
-            for name, quant in names_and_quantities:
-                silo.put_multivar(name, 
-                        [(name_var(name, brk.number), DBObjectType.DB_QUADVAR) 
-                            for brk in pic.bricks])
-
-
-
 
 # grid find reconstruction ----------------------------------------------------
-class GridFindReconstructor(Reconstructor):
+class GridFindReconstructor(Reconstructor, GridVisualizer):
     name = "GridFind"
+    iterator_type = _internal.BrickIterator
 
-    def __init__(self, brick_generator=SingleBrickGenerator()):
-        Reconstructor.__init__(self)
+    def __init__(self, brick_generator=None, use_richardson=False):
+        Reconstructor.__init__(self, use_richardson)
         self.brick_generator = brick_generator
 
     def initialize(self, cloud):
@@ -1326,6 +1381,13 @@ class GridFindReconstructor(Reconstructor):
         pic = self.cloud.pic_algorithm
 
         grid_node_num_to_nodes = {}
+
+        if self.brick_generator is None:
+            bbox_min, bbox_max = discr.mesh.bounding_box()
+            max_bbox_size = max(bbox_max-bbox_min)
+            self.brick_generator = SingleBrickGenerator(
+                    mesh_margin=1e-3*max_bbox_size,
+                    overresolve=0.2)
 
         from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
@@ -1346,16 +1408,47 @@ class GridFindReconstructor(Reconstructor):
                         continue
 
                     for node_num in range(el_slice.start, el_slice.stop):
-                        grid_node_num_to_nodes.setdefault(
-                                brk.index(brk.which_cell(
-                                    discr.nodes[node_num])),
-                                []).append(node_num)
+                        try:
+                            cell_number = brk.which_cell(
+                                        discr.nodes[node_num])
+                        except ValueError:
+                            pass
+                        else:
+                            grid_node_num_to_nodes.setdefault(
+                                    brk.index(cell_number), []).append(node_num)
                         
-        for gnn in range(pic.grid_node_count()):
+        from pytools import flatten
+        unassigned_nodes = (set(xrange(len(discr))) 
+                - set(flatten(grid_node_num_to_nodes.itervalues())))
+
+        if unassigned_nodes:
+            raise RuntimeError("rec_grid_find: unassigned mesh nodes found. "
+                    "you should specify a mesh_margin when generating "
+                    "bricks")
+
+        usecounts = numpy.zeros(
+                (pic.grid_node_count(),))
+        for gnn in xrange(pic.grid_node_count()):
+            grid_nodes = grid_node_num_to_nodes.get(gnn, [])
+            usecounts[gnn] = len(grid_nodes)
             pic.node_number_list_starts.append(len(pic.node_number_lists))
-            pic.node_number_lists.extend(
-                    grid_node_num_to_nodes.get(gnn, []))
+            pic.node_number_lists.extend(grid_nodes)
         pic.node_number_list_starts.append(len(pic.node_number_lists))
+
+        if "reconstructor" in cloud.debug:
+            from hedge.visualization import SiloVisualizer
+            vis = SiloVisualizer(discr)
+            visf = vis.make_file("grid-find-debug")
+            vis.add_data(visf, [])
+            self.visualize_grid_quantities(visf, [
+                    ("usecounts", usecounts)
+                    ])
+            visf.close()
+
+            if "interactive" in cloud.debug:
+                from matplotlib.pylab import hist, show
+                hist(usecounts, bins=20)
+                show()
 
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
