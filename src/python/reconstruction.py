@@ -94,7 +94,7 @@ class Reconstructor(object):
     def _reconstruct_j(self, velocities, pslice):
         return  self.cloud.pic_algorithm.reconstruct_j(
                 velocities, pslice)
-    def _reconstruct_rho(self, velocities, pslice):
+    def _reconstruct_rho(self, pslice):
         return  self.cloud.pic_algorithm.reconstruct_rho(pslice)
 
     def reconstruct_densites(self, velocities):
@@ -104,6 +104,8 @@ class Reconstructor(object):
         if self.use_richardson:
             rho_half, j_half = self._reconstruct_densities(
                     velocities, slice(0, None, 2))
+            rho_half *= 2
+            j_half *= 2
             return 2*rho-rho_half, 2*j-j_half
         else:
             return rho, j
@@ -113,7 +115,7 @@ class Reconstructor(object):
         j = self._reconstruct_j(velocities, slice(None))
 
         if self.use_richardson:
-            j_half = self._reconstruct_j(velocities, slice(0, None, 2))
+            j_half = 2*self._reconstruct_j(velocities, slice(0, None, 2))
             return 2*j-j_half
         else:
             return j
@@ -124,7 +126,7 @@ class Reconstructor(object):
         rho = self._reconstruct_rho(slice(None))
 
         if self.use_richardson:
-            rho_half = self._reconstruct_rho(slice(0, None, 2))
+            rho_half = 2*self._reconstruct_rho(slice(0, None, 2))
             return 2*rho-rho_half
         else:
             return rho
