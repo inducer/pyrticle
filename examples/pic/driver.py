@@ -78,6 +78,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "distribution": None,
 
                 "vis_interval": 100,
+                "vis_pattern": "pic-%04d",
                 "output_path": ".",
 
                 "debug": set(["ic", "poisson", "shape_bw"]),
@@ -315,7 +316,7 @@ class PICRunner(object):
                 self.vis_timer.start()
                 import os.path
                 visf = vis.make_file(os.path.join(
-                    setup.output_path, "pic-%04d" % step))
+                    setup.output_path, setup.vis_pattern % step))
 
                 self.cloud.add_to_vis(vis, visf, time=t, step=step)
                 vis.add_data(visf, setup.hook_vis_quantities(self),

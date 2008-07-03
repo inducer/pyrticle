@@ -9,8 +9,6 @@ pusher = PushMonomial()
 reconstructor = RecShape()
 #reconstructor = RecGridFind()
 
-output_path = 'shape'
-
 dimensions_pos = 2
 dimensions_velocity = 2
 
