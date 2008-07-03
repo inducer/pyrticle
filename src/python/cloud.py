@@ -874,25 +874,26 @@ def compute_initial_condition(pcon, discr, cloud, max_op, force_zero=False):
         print "l2 div D_prime error ldg with phi 3: %g" % \
                 rel_l2_error(divD_prime_ldg3, rho_prime)
 
-        from hedge.visualization import SiloVisualizer
-        vis = SiloVisualizer(discr)
-        visf = vis.make_file("ic")
-        vis.add_data(visf, [ 
-            #("phi_tilde", phi_tilde),
-            #("rho_tilde", rho_tilde), 
-            #("e_tilde", e_tilde), 
+        if "vis_files" in cloud.debug:
+            from hedge.visualization import SiloVisualizer
+            vis = SiloVisualizer(discr)
+            visf = vis.make_file("ic")
+            vis.add_data(visf, [ 
+                #("phi_tilde", phi_tilde),
+                #("rho_tilde", rho_tilde), 
+                #("e_tilde", e_tilde), 
 
-            ("rho_prime", rho_prime), 
-            ("divD_prime_ldg", divD_prime_ldg),
-            ("divD_prime_ldg2", divD_prime_ldg2),
-            ("divD_prime_ldg3", divD_prime_ldg3),
-            ("divD_prime_central", divD_prime_central),
-            ("e_prime", e_prime), 
-            ("h_prime", h_prime), 
-            ],
-            )
-        cloud.add_to_vis(vis, visf)
-        visf.close()
+                ("rho_prime", rho_prime), 
+                ("divD_prime_ldg", divD_prime_ldg),
+                ("divD_prime_ldg2", divD_prime_ldg2),
+                ("divD_prime_ldg3", divD_prime_ldg3),
+                ("divD_prime_central", divD_prime_central),
+                ("e_prime", e_prime), 
+                ("h_prime", h_prime), 
+                ],
+                )
+            cloud.add_to_vis(vis, visf)
+            visf.close()
 
     return FieldsAndCloud(max_op, e_prime, h_prime, cloud)
 

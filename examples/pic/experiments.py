@@ -121,38 +121,37 @@ def compare_methods():
 
     timestamp = get_timestamp()
 
-    for use_richardson in [True, False]:
-        for rec in [
-            O("RecGrid", use_richardson=use_richardson, jiggle_radius=0),
-            O("RecGrid", use_richardson=use_richardson),
-            O("RecGridFind", use_richardson=use_richardson),
-            #O("RecAdv", use_richardson=use_richardson), 
-            #O("RecNormShape", use_richardson=use_richardson), 
-            O("RecShape", use_richardson=use_richardson), 
-            ]:
-            for eorder in [2,3,4,]:
-                for sexp in [2,3,4,5]:
-                    #if rec.classname == "RecGrid":
-                        #pushers = [O("PushMonomial")]
-                    #else:
-                        #pushers = [O("PushMonomial"), O("PushAverage")]
-                    pushers = [O("PushMonomial")]
-                    for pusher in pushers:
-                        job = BatchJob(
-                                "compmeth-$DATE/eo%d-se%d-%s-%s" % (
-                                    eorder, sexp, cn_with_args(rec), cn(pusher)),
-                                "driver.py",
-                                timestamp=timestamp,
-                                )
-                        job.write_setup([
-                            "pusher = %s" % pusher,
-                            "reconstructor = %s" % rec,
-                            "element_order = %d" % eorder,
-                            "shape_exponent = %d" % sexp,
-                            ]
-                            +basic_2d_gauss_setup()
+    for rec in [
+        O("RecGrid", jiggle_radius=0),
+        O("RecGrid"),
+        O("RecGridFind"),
+        #O("RecAdv"), 
+        #O("RecNormShape"), 
+        O("RecShape"), 
+        ]:
+        for eorder in [2,3,4,]:
+            for sexp in [2,3,4,5]:
+                #if rec.classname == "RecGrid":
+                    #pushers = [O("PushMonomial")]
+                #else:
+                    #pushers = [O("PushMonomial"), O("PushAverage")]
+                pushers = [O("PushMonomial")]
+                for pusher in pushers:
+                    job = BatchJob(
+                            "compmeth-$DATE/eo%d-se%d-%s-%s" % (
+                                eorder, sexp, cn_with_args(rec), cn(pusher)),
+                            "driver.py",
+                            timestamp=timestamp,
                             )
-                        job.submit()
+                    job.write_setup([
+                        "pusher = %s" % pusher,
+                        "reconstructor = %s" % rec,
+                        "element_order = %d" % eorder,
+                        "shape_exponent = %d" % sexp,
+                        ]
+                        +basic_2d_gauss_setup()
+                        )
+                    job.submit()
 
 def study_rec_grid(output_path=None):
     """Submit jobs to study the behavior of grid reconstruction."""

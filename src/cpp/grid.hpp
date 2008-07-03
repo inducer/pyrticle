@@ -376,7 +376,7 @@ namespace pyrticle
       }
 
     private:
-      struct int_round
+      struct int_ceil
       {
         typedef double value_type;
         typedef const double &argument_type;
@@ -384,7 +384,7 @@ namespace pyrticle
 
         static result_type apply(argument_type x)
         {
-          return int(round(x));
+          return int(ceil(x));
         }
       };
 
@@ -404,9 +404,9 @@ namespace pyrticle
       bounded_int_box index_range(const bounded_box &bbox) const
       {
         return bounded_int_box(
-            pyublas::unary_op<int_round>::apply(
+            pyublas::unary_op<int_floor>::apply(
               element_div(bbox.m_lower-m_origin, m_stepwidths)),
-            pyublas::unary_op<int_round>::apply(
+            pyublas::unary_op<int_ceil>::apply(
               element_div(bbox.m_upper-m_origin, m_stepwidths))
             );
       }

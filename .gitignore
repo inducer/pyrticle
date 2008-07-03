@@ -37,3 +37,5 @@ temp-*.cpy
 .nfs*
 out
 *.egg-info
+*.visit
+visitlog.py
