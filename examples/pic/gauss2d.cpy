@@ -2,12 +2,15 @@ import random as _random
 _random.seed(0)
 
 pusher = PushMonomial()
-#reconstructor = RecGrid(
-        #el_tolerance=0.1,
-        #method="simplex_reduce")
+reconstructor = RecGrid(
+        el_tolerance=0.1,
+        method="simplex_reduce",
+        jiggle_radius=0.0)
 #reconstructor = RecAdv()
-reconstructor = RecShape()
+#reconstructor = RecShape()
 #reconstructor = RecGridFind()
+
+debug.add("shape_bw")
 
 dimensions_pos = 2
 dimensions_velocity = 2
@@ -16,10 +19,10 @@ beam_axis = 0
 beam_diag_axis = 1
 tube_length = 2
 
-shape_bandwidth = 0.2
+shape_bandwidth = "optimize"
 
 _cloud_charge = -10e-9 * units.C
-nparticles = 1
+nparticles = 100000
 element_order = 3
 final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
@@ -53,3 +56,14 @@ distribution = pyrticle.distribution.JointParticleDistribution([
     ])
 
 vis_interval = 10
+
+if isinstance(reconstructor, RecGrid):
+    def hook_visualize(runner, vis, visf):
+        rec = runner.cloud.reconstructor
+        rec.visualize_grid_quantities(visf, [
+                ("rho_grid", rec.reconstruct_grid_rho()),
+                ("j_grid", rec.reconstruct_grid_j(runner.cloud.velocities())),
+                ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
+                ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
+                ("usecount", rec.grid_usecount()),
+                ])

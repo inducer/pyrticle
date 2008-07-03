@@ -56,6 +56,7 @@ namespace
 void expose_grid_pic()
 {
   expose_pic_nontarget_pushers_all_dim<grid_reconstructor<jiggly_brick> >();
+  expose_pic_nontarget_pushers_all_dim<grid_reconstructor<brick> >();
 
   {
     typedef jiggly_brick::iterator cl;
