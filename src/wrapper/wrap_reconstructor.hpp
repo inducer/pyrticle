@@ -153,6 +153,12 @@ namespace pyrticle
   { 
     expose_typed_reconstructor_inner<Wrapper, PIC, jiggly_brick>(wrp, r);
   }
+  template <class Wrapper, class PIC>
+  void expose_typed_reconstructor(Wrapper &wrp, 
+      typename grid_reconstructor<brick>::template type<PIC> *r)
+  { 
+    expose_typed_reconstructor_inner<Wrapper, PIC, brick>(wrp, r);
+  }
 
 
 

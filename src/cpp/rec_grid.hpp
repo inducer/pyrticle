@@ -589,8 +589,15 @@ namespace pyrticle
 
 
         // public interface -----------------------------------------------------
+      private:
+        static const std::string get_name(brick *)
+        { return "GridRegular"; }
+        static const std::string get_name(jiggly_brick *)
+        { return "GridJiggly"; }
+
+      public:
         static const std::string get_name()
-        { return "Grid"; }
+        { return get_name(reinterpret_cast<Brick *>(0)); }
     };
   };
 }

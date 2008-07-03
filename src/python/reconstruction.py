@@ -544,8 +544,6 @@ class GridVisualizer(object):
 
 # pure grid reconstruction ----------------------------------------------------
 class GridReconstructor(Reconstructor, GridVisualizer):
-    name = "Grid"
-    iterator_type = _internal.JigglyBrickIterator
 
     def __init__(self, brick_generator=SingleBrickGenerator(), 
             el_tolerance=0.12,
@@ -568,6 +566,20 @@ class GridReconstructor(Reconstructor, GridVisualizer):
 
         self.jiggle_radius = jiggle_radius
 
+    @property
+    def name(self):
+        if self.jiggle_radius:
+            return "GridJiggly"
+        else:
+            return "GridRegular"
+
+    @property
+    def iterator_type(self):
+        if self.jiggle_radius:
+            return _internal.JigglyBrickIterator
+        else:
+            return _internal.BrickIterator
+
     def initialize(self, cloud):
         Reconstructor.initialize(self, cloud)
 
@@ -587,11 +599,15 @@ class GridReconstructor(Reconstructor, GridVisualizer):
         else:
             self.filter = None
 
-        from pyrticle._internal import JigglyBrick
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
-            brk = JigglyBrick(i, pic.grid_node_count(), stepwidths, origin, dims,
-                    jiggle_radius=self.jiggle_radius)
+            if self.jiggle_radius:
+                brk = _internal.JigglyBrick(i, pic.grid_node_count(), 
+                        stepwidths, origin, dims,
+                        jiggle_radius=self.jiggle_radius)
+            else:
+                brk = _internal.Brick(i, pic.grid_node_count(), 
+                        stepwidths, origin, dims)
             pic.bricks.append(brk)
 
         if self.method == "simplex_extra":
