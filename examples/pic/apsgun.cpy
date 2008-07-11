@@ -62,9 +62,12 @@ def _make_mesh():
             max_point_dist=0.3)
     from rzmesh import make_mesh_info_with_inner_tube
     mesh_info = make_mesh_info_with_inner_tube(rz, 
-            tube_r=0.1, radial_subdiv=16)
+            tube_r=0.1, radial_subdiv=10,
+            max_inner_volume=4e-4
+            )
     from meshpy.tet import build
     generated_mesh = build(mesh_info, verbose=True, volume_constraints=True)
+    print len(generated_mesh.elements)
 
     # generated_mesh is in cm, we use m
     points = numpy.array(generated_mesh.points)*1e-2

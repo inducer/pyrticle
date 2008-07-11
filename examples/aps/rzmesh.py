@@ -62,7 +62,8 @@ def make_inverse_mesh_info(rz, radial_subdiv):
 
 
 
-def make_mesh_info_with_inner_tube(rz, tube_r, radial_subdiv):
+def make_mesh_info_with_inner_tube(rz, tube_r, radial_subdiv,
+        max_inner_volume=1e-4):
     # chop off points with zero radius
     while rz[0][0] == 0:
         rz.pop(0)
@@ -111,6 +112,7 @@ def make_mesh_info_with_inner_tube(rz, tube_r, radial_subdiv):
 
     # set regional max. volume
     mesh_info.regions.resize(1)
-    mesh_info.regions[0] = [0, 0,(first_z+last_z)/2, 0, 1e-4]
+    mesh_info.regions[0] = [0, 0,(first_z+last_z)/2, 0, 
+            max_inner_volume]
 
     return mesh_info
