@@ -122,20 +122,22 @@ def compare_methods():
     timestamp = get_timestamp()
 
     for rec in [
-        O("RecGrid", jiggle_radius=0),
-        O("RecGrid"),
-        O("RecGridFind"),
-        #O("RecAdv"), 
+        #O("RecGrid", jiggle_radius=0),
+        #O("RecGrid"),
+        #O("RecGridFind"),
+        O("RecAdv"), 
         #O("RecNormShape"), 
-        O("RecShape"), 
+        #O("RecShape"), 
         ]:
-        for eorder in [2,3,4,]:
-            for sexp in [2,3,4,5]:
-                #if rec.classname == "RecGrid":
-                    #pushers = [O("PushMonomial")]
-                #else:
-                    #pushers = [O("PushMonomial"), O("PushAverage")]
-                pushers = [O("PushMonomial")]
+        for eorder in [3]:
+            for sexp in [3]:
+                if "Grid" in rec.classname:
+                    pushers = [O("PushMonomial")]
+                else:
+                    pushers = [
+                            O("PushMonomial"), 
+                            #O("PushAverage")
+                            ]
                 for pusher in pushers:
                     job = BatchJob(
                             "compmeth-$DATE/eo%d-se%d-%s-%s" % (
@@ -253,26 +255,27 @@ def study_cleaning():
     for rec in [
       #O("RecAdv"), 
       #O("RecNormShape"), 
-      O("RecShape")
+      O("RecShape"),
+      O("RecGrid", jiggle_radius=0),
       ]:
-        for chi in [None, 1, 2, 5]:
+        for chi in [None, 5]:
             if chi is None:
                 filters = [None]
             else:
                 filters = [
                   None,
-                  (0.6,6),
-                  (0.8,6),
-                  (0.95,6),
-                  (0.6,3),
-                  (0.8,3),
-                  (0.95,3),
+                  #(0.6,6),
+                  #(0.8,6),
+                  #(0.95,6),
+                  #(0.6,3),
+                  #(0.8,3),
+                  #(0.95,3),
                   ]
             for filter in filters:
-                for pusher in [O("PushAverage")]:
+                for pusher in [O("PushMonomial")]:
                         job = BatchJob(
                                 "cleanstudy-$DATE/%s-chi%s-filt%s" % (cn(rec), chi, filt_desc(filter)),
-                                "with-charge.py",
+                                "driver.py",
                                 timestamp=timestamp,
                                 )
                         job.write_setup([
@@ -281,7 +284,7 @@ def study_cleaning():
                             "chi = %s" % chi,
                             "phi_filter = %s" % str(filter),
                             "element_order = 4",
-                            ])
+                            ]+basic_2d_gauss_setup())
                         job.submit()
 
 def study_advec_filter():

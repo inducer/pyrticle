@@ -552,7 +552,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             method="simplex_reduce",
             filter_min_amplification=None,
             filter_order=None,
-            jiggle_radius=0.1,
+            jiggle_radius=0.0,
             ):
         Reconstructor.__init__(self)
         self.brick_generator = brick_generator

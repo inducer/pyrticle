@@ -3,7 +3,7 @@ _random.seed(0)
 
 pusher = PushMonomial()
 reconstructor = RecGrid(
-        el_tolerance=0.1,
+        #el_tolerance=0.1,
         method="simplex_reduce",
         jiggle_radius=0.0)
 #reconstructor = RecAdv()
@@ -19,10 +19,11 @@ beam_axis = 0
 beam_diag_axis = 1
 tube_length = 2
 
-shape_bandwidth = "optimize"
+#shape_bandwidth = "optimize"
+shape_bandwidth = 0.3
 
-_cloud_charge = -10e-9 * units.C
-nparticles = 100000
+_cloud_charge = 10e-9 * units.C
+nparticles = 1
 element_order = 3
 final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
@@ -47,9 +48,11 @@ _pmass = _electrons_per_particle*units.EL_MASS
 _mean_p = _gamma*_pmass*_mean_v
 
 distribution = pyrticle.distribution.JointParticleDistribution([
-    pyrticle.distribution.GaussianPos([0,0], [0.1, 0.1]),
+    pyrticle.distribution.GaussianPos([0.0,0.0], [0.01, 0.01]),
     pyrticle.distribution.GaussianMomentum(
-        _mean_p, _sigma_v*_gamma*_pmass, units,
+        #_mean_p, _sigma_v*_gamma*_pmass, 
+        0*_mean_p, 1e-10*_sigma_v*_gamma*_pmass, 
+        units,
         pyrticle.distribution.DeltaChargeMass(
             _cloud_charge/nparticles,
             _pmass))

@@ -1,19 +1,20 @@
 import random as _random
 _random.seed(0)
 
-debug.add("interactive")
+#debug.add("interactive")
 debug.add("reconstructor")
+debug.add("vis_files")
 
 pusher = PushMonomial()
 #reconstructor = RecShape()
-#reconstructor = RecGrid(
-        #FineCoreBrickGenerator(core_axis=2),
+reconstructor = RecGrid(
+        FineCoreBrickGenerator(core_axis=2),
         #el_tolerance=0.1,
-        #method="simplex_reduce")
-reconstructor = RecGridFind(
-        FineCoreBrickGenerator(core_axis=2, 
-            overresolve=0.2, mesh_margin=1e-4),
-        )
+        method="simplex_reduce")
+#reconstructor = RecGridFind(
+        #FineCoreBrickGenerator(core_axis=2, 
+            #overresolve=0.2, mesh_margin=1e-4),
+        #)
 
 dimensions_pos = 3
 dimensions_velocity = 3
@@ -52,7 +53,7 @@ mesh = pyrticle.geometry.make_cylinder_with_fine_core(
         min_z=0, max_z=tube_length,
         max_volume_inner=10*units.MM**3,
         max_volume_outer=100*units.MM**3,
-        radial_subdiv=4)
+        radial_subdiv=8)
 
 distribution = pyrticle.distribution.KVZIntervalBeam(
         units, total_charge=_cloud_charge, 
