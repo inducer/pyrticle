@@ -457,10 +457,17 @@ namespace pyrticle
 
 
 
-  class shape_function
+#define WARN(MESSAGE) \
+  warning_listener::warn(MESSAGE, __FILE__, __LINE__);
+
+
+
+
+  // shape functions ----------------------------------------------------------
+  class polynomial_shape_function
   {
     public:
-      shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
+      polynomial_shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
 
       template <class VecType>
       const double operator()(const VecType &r) const
@@ -487,8 +494,26 @@ namespace pyrticle
 
 
 
-#define WARN(MESSAGE) \
-  warning_listener::warn(MESSAGE, __FILE__, __LINE__);
+  class c_infinity_shape_function
+  {
+    public:
+      c_infinity_shape_function(double radius, double integral_for_rad1);
+
+      const double operator()(const VecType &r) const
+      {
+        const double r_squared = pyublas::square_sum(r);
+        if (r_squared > m_l_squared)
+          return 0;
+        else
+          return m_normalizer * pow(m_l-r_squared/m_l, m_alpha);
+      }
+
+  };
+
+
+
+
+
 }
 
 
