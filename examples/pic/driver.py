@@ -51,6 +51,8 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "FindFaceBased": FaceBasedElementFinder,
                 }
 
+        import hedge.data
+
         variables = {
                 "pusher": None,
                 "reconstructor": None,
@@ -71,6 +73,8 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "chi": None,
                 "phi_decay": 0,
                 "phi_filter": None,
+
+                "potential_bc": hedge.data.ConstantGivenFunction(),
 
                 "final_time": None,
 
@@ -238,7 +242,9 @@ class PICRunner(object):
         # initial condition ---------------------------------------------------
         from pyrticle.cloud import compute_initial_condition
         self.fields = compute_initial_condition(self.pcon, discr, cloud, 
-                max_op=self.max_op, force_zero=False)
+                max_op=self.max_op, 
+                potential_bc=setup.potential_bc, 
+                force_zero=False)
 
         # instrumentation setup -----------------------------------------------
         self.add_instrumentation(self.logmgr)

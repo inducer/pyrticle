@@ -793,7 +793,9 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
 
 
 # initial condition -----------------------------------------------------------
-def compute_initial_condition(pcon, discr, cloud, max_op, force_zero=False):
+def compute_initial_condition(pcon, discr, cloud, 
+        max_op, potential_bc,
+        force_zero=False):
     from hedge.pde import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
@@ -823,6 +825,7 @@ def compute_initial_condition(pcon, discr, cloud, max_op, force_zero=False):
                 make_scaling_matrix(1/gamma**2, 1)),
             dirichlet_tag=TAG_ALL,
             neumann_tag=TAG_NONE,
+            dirichlet_bc=potential_bc,
             )
 
     rho_prime = cloud.reconstruct_rho() 
