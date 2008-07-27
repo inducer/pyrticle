@@ -178,8 +178,17 @@ void expose_tools()
   }
 
   {
-    typedef std::vector<unsigned> cl;
+    typedef std::vector<unsigned int> cl;
     python::class_<cl>("UnsignedVector")
+      .def(python::vector_indexing_suite<cl>())
+      .DEF_SIMPLE_METHOD(clear)
+      .DEF_SIMPLE_METHOD(reserve)
+      ;
+  }
+  
+  {
+    typedef std::vector<unsigned long> cl;
+    python::class_<cl>("Unsigned32Vector")
       .def(python::vector_indexing_suite<cl>())
       .DEF_SIMPLE_METHOD(clear)
       .DEF_SIMPLE_METHOD(reserve)

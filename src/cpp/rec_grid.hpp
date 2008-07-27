@@ -205,7 +205,7 @@ namespace pyrticle
          */
         grid_node_number m_first_extra_point;
         dyn_vector m_extra_points;
-        std::vector<unsigned> m_extra_point_brick_starts;
+        std::vector<npy_uint32> m_extra_point_brick_starts;
 
         /** Average groups for continuity enforcement. 
          *
@@ -216,7 +216,7 @@ namespace pyrticle
          * It is implied that the first average group starts at 0.
          */
         std::vector<mesh_data::node_number> m_average_groups;
-        std::vector<unsigned> m_average_group_starts;
+        std::vector<npy_uint32> m_average_group_starts;
 
 
 
@@ -419,12 +419,12 @@ namespace pyrticle
           // cross-element continuity enforcement
           const py_vector::iterator to_it = to.begin();
 
-          std::vector<unsigned>::const_iterator 
+          std::vector<npy_uint32>::const_iterator 
             ag_starts_first = m_average_group_starts.begin(),
             ag_starts_last = m_average_group_starts.end();
 
-          unsigned ag_start = 0;
-          unsigned ag_end = *ag_starts_first++;
+          npy_uint32 ag_start = 0;
+          npy_uint32 ag_end = *ag_starts_first++;
 
           while (true)
           {

@@ -72,7 +72,7 @@ namespace pyrticle
           boost::numeric::ublas::column_major> dyn_fortran_matrix;
   static const unsigned bounded_max_dims = 3;
   typedef boost::numeric::ublas::bounded_vector<double, bounded_max_dims> bounded_vector;
-  typedef boost::numeric::ublas::bounded_vector<int, bounded_max_dims> bounded_int_vector;
+  typedef boost::numeric::ublas::bounded_vector<npy_int32, bounded_max_dims> bounded_int_vector;
 
   typedef boost::numeric::ublas::compressed_matrix<
     double, boost::numeric::ublas::column_major, 0, 
@@ -464,10 +464,10 @@ namespace pyrticle
 
 
   // shape functions ----------------------------------------------------------
-  class polynomial_shape_function
+  class shape_function
   {
     public:
-      polynomial_shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
+      shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
 
       template <class VecType>
       const double operator()(const VecType &r) const
@@ -499,13 +499,17 @@ namespace pyrticle
     public:
       c_infinity_shape_function(double radius, double integral_for_rad1);
 
+      template <class VecType>
       const double operator()(const VecType &r) const
       {
+        /*
         const double r_squared = pyublas::square_sum(r);
         if (r_squared > m_l_squared)
           return 0;
         else
           return m_normalizer * pow(m_l-r_squared/m_l, m_alpha);
+          */
+        return 0;
       }
 
   };

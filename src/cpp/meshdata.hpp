@@ -61,7 +61,7 @@ namespace pyrticle
       typedef hedge::vtx_id_vector vtx_id_vector;
       typedef hedge::el_face_t el_face;
 
-      typedef unsigned axis_number;
+      typedef npy_uint32 axis_number;
 
       static const element_number INVALID_ELEMENT = hedge::INVALID_ELEMENT;
       static const vertex_number INVALID_VERTEX = hedge::INVALID_VERTEX;
@@ -117,7 +117,7 @@ namespace pyrticle
     public:
       /** The following three encode the vertex-adjacent elements in a sort
        * of Compressed-Row-Storage format. */
-      std::vector<unsigned> m_vertex_adj_element_starts;
+      std::vector<npy_uint32> m_vertex_adj_element_starts;
       el_id_vector m_vertex_adj_elements;
       std::vector<axis_number> m_vertex_adj_periodicity_axes;
 

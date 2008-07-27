@@ -33,9 +33,9 @@
 
 namespace pyrticle
 {
-  typedef unsigned grid_node_number;
-  typedef unsigned brick_number;
-  typedef unsigned brick_node_number;
+  typedef npy_uint grid_node_number;
+  typedef npy_uint16 brick_number;
+  typedef npy_uint brick_node_number;
 
 
 
