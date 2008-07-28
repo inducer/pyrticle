@@ -62,6 +62,7 @@ namespace pyrticle
         mutable event_counter             m_find_global;
 
         boost::shared_ptr<number_shift_listener> m_particle_number_shift_listener;
+        boost::shared_ptr<boundary_hit_listener> m_boundary_hit_listener;
 
       public:
         // administrative stuff -----------------------------------------------
@@ -307,7 +308,10 @@ namespace pyrticle
             }
           }
 
-          kill_particle(pn);
+          if (m_boundary_hit_listener.get())
+            m_boundary_hit_listener->note_boundary_hit(pn);
+          else
+            throw std::runtime_error("no boundary hit handler installed");
         }
 
 
@@ -315,10 +319,15 @@ namespace pyrticle
 
         void kill_particle(particle_number pn)
         {
-          std::cout << "KILL " << pn << std::endl;
-
           --m_particle_count;
-          move_particle(m_particle_count, pn);
+          if (m_particle_count)
+          {
+            // Observe that m_particle_count was decremented
+            // above, so this does indeed move the last valid
+            // particle, if it exists.
+            move_particle(m_particle_count, pn);
+          }
+
           note_change_particle_count(m_particle_count);
         }
 

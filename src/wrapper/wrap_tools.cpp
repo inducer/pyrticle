@@ -93,6 +93,19 @@ namespace
 
 
 
+  struct boundary_hit_listener_wrap : 
+    boundary_hit_listener,
+    python::wrapper<boundary_hit_listener>
+  {
+      void note_boundary_hit(particle_number pn) const 
+      {
+        this->get_override("note_boundary_hit")(pn);
+      }
+  };
+
+
+
+
   struct warning_listener_wrap : 
     warning_listener,
     python::wrapper<warning_listener>
@@ -219,6 +232,15 @@ void expose_tools()
       ;
   }
 
+  {
+    typedef boundary_hit_listener cl;
+    python::class_<boundary_hit_listener_wrap, 
+      boost::shared_ptr<boundary_hit_listener_wrap>,
+      boost::noncopyable>
+      ("BoundaryHitListener")
+      .DEF_PURE_VIRTUAL_METHOD(note_boundary_hit)
+      ;
+  }
   {
     typedef warning_listener cl;
     python::class_<warning_listener_wrap, 

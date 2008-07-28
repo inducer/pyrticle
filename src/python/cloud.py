@@ -63,7 +63,7 @@ class HeuristicElementFinder(ElementFinder):
 
 
 
-class ParticleCloud:
+class ParticleCloud(_internal.BoundaryHitListener):
     """State container for a cloud of particles. Supports particle
     problems of any dimension, examples below are given for three
     dimensions for simplicity.
@@ -87,6 +87,8 @@ class ParticleCloud:
             reconstructor, pusher, finder,
             dimensions_pos, dimensions_velocity,
             debug=set()):
+
+        _internal.BoundaryHitListener.__init__(self)
 
         self.units = units
         self.discretization = discr
@@ -131,6 +133,7 @@ class ParticleCloud:
         from pyrticle.tools import NumberShiftMultiplexer
         self.particle_number_shift_signaller = NumberShiftMultiplexer()
         pic.particle_number_shift_listener = self.particle_number_shift_signaller
+        pic.boundary_hit_listener = self
 
         # visualization
         self.vis_listener = pic.vis_listener = \
@@ -426,6 +429,13 @@ class ParticleCloud:
                 self.pic_algorithm.find_global)
 
         return self
+
+
+
+
+    # bounary treatment -------------------------------------------------------
+    def note_boundary_hit(self, pn):
+        self.pic_algorithm.kill_particle(pn)
 
 
 

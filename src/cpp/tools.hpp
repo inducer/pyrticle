@@ -417,6 +417,19 @@ namespace pyrticle
 
 
 
+  class boundary_hit_listener
+  {
+    public:
+      virtual ~boundary_hit_listener()
+      { }
+
+      virtual void note_boundary_hit(particle_number pn) const 
+      { }
+  };
+
+
+
+
   class warning_listener
   {
     private:

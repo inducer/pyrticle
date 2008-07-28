@@ -96,6 +96,7 @@ namespace
       .DEF_RO_MEMBER(find_global)
 
       .DEF_RW_MEMBER(particle_number_shift_listener)
+      .DEF_RW_MEMBER(boundary_hit_listener)
 
       .DEF_SIMPLE_METHOD(velocities)
 
