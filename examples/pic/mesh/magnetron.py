@@ -21,13 +21,13 @@ def generate_arc_points(radius, start_angle, end_angle,
 def make_magnetron_outline(
         cavity_count,
         cavity_angle,
-        radius_anode,
         radius_cathode,
+        radius_anode,
         radius_outer,
-        anode_marker,
         cathode_marker,
+        anode_marker,
         subdiv_degrees,
-        cathode_cavities={},
+        anode_cavities={},
         ):
 
     from math import sin, cos
@@ -37,44 +37,44 @@ def make_magnetron_outline(
             yield i, i+1
         yield end, start
 
-    cathode_points = []
     anode_points = []
-    cathode_facet_markers = []
+    cathode_points = []
+    anode_facet_markers = []
 
     angle_step = 360/cavity_count
 
     for cav_idx in range(cavity_count):
         start_angle = angle_step * cav_idx
-        if cav_idx in cathode_cavities:
-            cathode_cavities[cav_idx](
+        if cav_idx in anode_cavities:
+            anode_cavities[cav_idx](
                     start_angle,
                     angle_step,
-                    cathode_points,
-                    cathode_facet_markers)
+                    anode_points,
+                    anode_facet_markers)
         else:
-            cathode_point_count_before = len(cathode_points)
-            cathode_points.extend(generate_arc_points(
+            anode_point_count_before = len(anode_points)
+            anode_points.extend(generate_arc_points(
                 radius_outer, start_angle, start_angle+cavity_angle,
                 subdiv_degrees))
-            cathode_points.extend(generate_arc_points(
-                radius_cathode, 
+            anode_points.extend(generate_arc_points(
+                radius_anode, 
                 start_angle+cavity_angle, 
                 start_angle+angle_step,
                 subdiv_degrees))
-            cathode_facet_markers.extend([cathode_marker] * 
-                    (len(cathode_points) - cathode_point_count_before))
+            anode_facet_markers.extend([anode_marker] * 
+                    (len(anode_points) - anode_point_count_before))
 
 
-    anode_points = list(
-            generate_arc_points(radius_anode, 0, 360, subdiv_degrees,
+    cathode_points = list(
+            generate_arc_points(radius_cathode, 0, 360, subdiv_degrees,
                 include_final=False))
 
-    return (anode_points+cathode_points, 
-            list(round_trip_connect(0, len(anode_points)-1))
+    return (cathode_points+anode_points, 
+            list(round_trip_connect(0, len(cathode_points)-1))
             + list(round_trip_connect(
-                len(anode_points), 
-                len(anode_points)+len(cathode_points)-1)),
-            len(anode_points)*[anode_marker] + cathode_facet_markers)
+                len(cathode_points), 
+                len(cathode_points)+len(anode_points)-1)),
+            len(cathode_points)*[cathode_marker] + anode_facet_markers)
 
 
 
@@ -95,12 +95,12 @@ def make_poly_mesh(points, facets, facet_markers, refinement_func=None):
 
 class A6Triangulator:
     cavity_angle = 20
-    radius_anode = 0.0158
-    radius_cathode = 0.0211
+    radius_cathode = 0.0158
+    radius_anode = 0.0211
     radius_outer = 0.0411
 
-    anode_marker = 1
-    cathode_marker = 2
+    cathode_marker = 1
+    anode_marker = 2
     open_marker = 3
 
     horn_radius = 0.07
@@ -109,34 +109,34 @@ class A6Triangulator:
 
     def make_outline(self):
         def make_horn(start_angle, angle_step,
-                cathode_points, cathode_facet_markers):
+                anode_points, anode_facet_markers):
             from math import sin, pi
-            cathode_points.extend([
+            anode_points.extend([
                 (self.horn_radius,0),
                 (self.horn_radius,sin(pi/180*self.cavity_angle)
                     *self.horn_radius),
                 ])
-            cathode_facet_markers.extend([
+            anode_facet_markers.extend([
                 self.open_marker, 
-                self.cathode_marker])
-            cathode_point_count_before = len(cathode_points)
-            cathode_points.extend(generate_arc_points(
-                self.radius_cathode, 
+                self.anode_marker])
+            anode_point_count_before = len(anode_points)
+            anode_points.extend(generate_arc_points(
+                self.radius_anode, 
                 start_angle+self.cavity_angle, 
                 start_angle+angle_step,
                 self.subdiv_degrees))
-            cathode_facet_markers.extend([self.cathode_marker] * 
-                    (len(cathode_points) - cathode_point_count_before))
+            anode_facet_markers.extend([self.anode_marker] * 
+                    (len(anode_points) - anode_point_count_before))
 
         return make_magnetron_outline(
             cavity_count=6,
             cavity_angle=self.cavity_angle,
-            radius_anode=self.radius_anode,
             radius_cathode=self.radius_cathode,
+            radius_anode=self.radius_anode,
             radius_outer=self.radius_outer,
-            cathode_marker=self.cathode_marker,
             anode_marker=self.anode_marker,
-            cathode_cavities={0:make_horn},
+            cathode_marker=self.cathode_marker,
+            anode_cavities={0:make_horn},
             subdiv_degrees=self.subdiv_degrees,
             )
 
@@ -163,8 +163,8 @@ def main():
     triangle.write_gnuplot_mesh("magnetron.dat", mesh)
     mesh.write_neu(open("magnetron.neu", "w"),
             bc={
-                a6.anode_marker:("anode", a6.anode_marker), 
-                a6.cathode_marker:("cathode", a6.cathode_marker),
+                a6.cathode_marker:("cathode", a6.cathode_marker), 
+                a6.anode_marker:("anode", a6.anode_marker),
                 a6.open_marker:("open", a6.open_marker)})
 
 

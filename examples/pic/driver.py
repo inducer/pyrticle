@@ -215,8 +215,14 @@ class PICRunner(object):
                 dimensions_velocity=setup.dimensions_velocity, 
                 debug=setup.debug)
 
-        cloud.add_particles(setup.nparticles, 
-                setup.distribution.generate_particles())
+        def gen_particle_wrapper():
+            # adapt distribution output to what add_particles() expects
+            for pos, vel, charge, mass in setup.distribution.generate_particles():
+                yield pos, vel, charge[0], mass[0]
+
+        cloud.add_particles( 
+                gen_particle_wrapper(),
+                setup.nparticles)
 
         self.total_charge = setup.nparticles*setup.distribution.mean()[2][0]
         if isinstance(setup.shape_bandwidth, str):

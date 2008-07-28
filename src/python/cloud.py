@@ -217,45 +217,61 @@ class ParticleCloud:
         else:
             return numpy.zeros((self.dimensions_velocity,))
 
-    def add_particles(self, count, iterable):
-        """Add the C{count} particles from C{iterable} to the cloud.
+    def resize_particle_fields(self, newsize):
+        pic = self.pic_algorithm
+
+        pic.containing_elements = numpy.resize(
+                pic.containing_elements, (newsize,))
+        pic.positions = numpy.resize(
+                pic.positions, (newsize, self.dimensions_pos))
+        pic.momenta = numpy.resize(
+                pic.momenta, (newsize, self.dimensions_velocity))
+        pic.charges = numpy.resize(pic.charges, (newsize,))
+        pic.masses = numpy.resize(pic.masses, (newsize,))
+
+    def add_particles(self, iterable, maxcount=None):
+        """Add the  particles from C{iterable} to the cloud.
         
         C{iterable} is expected to yield tuples 
-        C{(position, velocity, charge, mass)}."""
+        C{(position, velocity, charge, mass)}.
+        
+        If C{maxcount} is specified, maximally C{maxcount}
+        particles are obtained from the iterable.
+        """
 
         pic = self.pic_algorithm
 
-        new_pc = count + pic.particle_count
-        pic.containing_elements = numpy.resize(
-                pic.containing_elements, (new_pc,))
-        pic.positions = numpy.resize(
-                pic.positions, (new_pc, self.dimensions_pos))
-        pic.momenta = numpy.resize(
-                pic.momenta, (new_pc, self.dimensions_velocity))
-        pic.charges = numpy.resize(pic.charges, (new_pc,))
-        pic.masses = numpy.resize(pic.masses, (new_pc,))
+        if maxcount is not None:
+            if pic.particle_count+maxcount >= len(pic.containing_elements):
+                self.resize_particle_fields(pic.particle_count+maxcount)
 
         for pos, vel, charge, mass in iterable:
-            if count == 0:
-                break
-            count -= 1
+            if maxcount is not None:
+                if maxcount == 0:
+                    break
+                maxcount -= 1
 
             assert len(pos) == self.dimensions_pos
             assert len(vel) == self.dimensions_velocity
 
             pos = numpy.asarray(pos)
             vel = numpy.asarray(vel)
-            mom = mass[0]*self.units.gamma_from_v(vel)*vel 
+            mom = mass*self.units.gamma_from_v(vel)*vel 
 
             cont_el = pic.mesh_data.find_containing_element(pos) 
             if cont_el == MeshData.INVALID_ELEMENT:
+                print "not in valid element"
+
                 continue
+
+            if pic.particle_count >= len(pic.containing_elements):
+                self.resize_particle_fields(128+2*pic.particle_count)
 
             pic.containing_elements[pic.particle_count] = cont_el
             pic.positions[pic.particle_count] = pos
             pic.momenta[pic.particle_count] = mom
-            pic.charges[pic.particle_count] = charge[0]
-            pic.masses[pic.particle_count] = mass[0]
+            pic.charges[pic.particle_count] = charge
+            pic.masses[pic.particle_count] = mass
 
             pic.particle_count += 1
 
@@ -832,7 +848,6 @@ def compute_initial_condition(pcon, discr, cloud,
 
     rho_prime = cloud.reconstruct_rho() 
     rho_tilde = rho_prime/gamma
-    print "GAGA", gamma, la.norm(rho_tilde)
 
     if force_zero:
         phi_tilde = discr.volume_zeros()

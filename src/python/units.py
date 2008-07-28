@@ -39,6 +39,7 @@ class SI:
     J = N*M
     V = J/C
     F = C/V
+    T = V*S/M**2
 
     MM = 1e-3 * M
     MRAD = 1e-3 * RAD

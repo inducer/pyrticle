@@ -102,6 +102,17 @@ distribution = pyrticle.distribution.JointParticleDistribution([
 vis_interval = 10
 
 def hook_startup(runner):
+    # setup forcing b field
+    b = 0.72 * units.T
+    h = b/runner.max_op.mu
+
+    def h_func(x, el):
+        return h
+    runner.fields.em_fields = runner.max_op.assemble_fields(
+            e=runner.fields.e,
+            h=runner.discr.interpolate_volume_function(h_func))
+
+def _disabled_hook_startup(runner):
     # write out e and b field for Martin
     def pad_with_zeros(l, desired_length=6):
         while len(l) < desired_length:
@@ -131,3 +142,31 @@ if isinstance(reconstructor, RecGrid):
                 ("usecount", rec.grid_usecount()),
                 ])
 
+def hook_before_step(runner):
+    # space-charge limited emission at cathode
+
+    bdry = runner.discr.get_boundary("cathode")
+
+    cathode_normals = runner.discr.boundary_normals("cathode")
+    cathode_e = runner.discr.boundarize_volume_field(
+            runner.fields.e, "cathode")
+
+    macro_particle_factor = 1e8
+
+    def generate_particles():
+        for e, pt, normal in zip(cathode_e.T, bdry.nodes, cathode_normals.T):
+            if numpy.dot(e, normal) < -1e3:
+
+                yield (
+                        pt - (
+                            normal*0.04
+                            + numpy.random.uniform(-0.03, 0.03, 
+                                runner.cloud.dimensions_pos))
+                            *(_a6.radius_anode-_a6.radius_cathode)
+                        ,
+                        runner.max_op.c*0.02*-normal,
+                        macro_particle_factor*units.EL_CHARGE,
+                        macro_particle_factor*units.EL_MASS,
+                        )
+
+    runner.cloud.add_particles(generate_particles())
