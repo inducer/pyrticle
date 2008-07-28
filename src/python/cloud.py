@@ -211,8 +211,11 @@ class ParticleCloud:
             return result
 
     def mean_beta(self):
-        return numpy.average(self.velocities(), axis=0) \
-                / self.units.VACUUM_LIGHT_SPEED
+        if self.pic_algorithm.particle_count:
+            return numpy.average(self.velocities(), axis=0) \
+                    / self.units.VACUUM_LIGHT_SPEED
+        else:
+            return numpy.zeros((self.dimensions_velocity,))
 
     def add_particles(self, count, iterable):
         """Add the C{count} particles from C{iterable} to the cloud.
@@ -801,11 +804,10 @@ def compute_initial_condition(pcon, discr, cloud,
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
 
     def rel_l2_error(field, true):
-        err = discr.norm(field-true)
-        if err == 0:
-            return 0
-        else:
-            return err/discr.norm(true)
+        from hedge.tools import relative_error
+        return relative_error(
+                discr.norm(field-true),
+                discr.norm(true))
 
     mean_beta = cloud.mean_beta()
     gamma = cloud.units.gamma_from_beta(mean_beta)
@@ -830,6 +832,7 @@ def compute_initial_condition(pcon, discr, cloud,
 
     rho_prime = cloud.reconstruct_rho() 
     rho_tilde = rho_prime/gamma
+    print "GAGA", gamma, la.norm(rho_tilde)
 
     if force_zero:
         phi_tilde = discr.volume_zeros()
@@ -841,7 +844,9 @@ def compute_initial_condition(pcon, discr, cloud,
                 debug="poisson" in cloud.debug, tol=1e-10)
 
     from hedge.tools import ptwise_dot
-    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), poisson_op.grad(phi_tilde))
+    from hedge.pde import GradientOperator
+    #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), poisson_op.grad(phi_tilde))
+    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), GradientOperator(discr)(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
     h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
 
@@ -882,17 +887,17 @@ def compute_initial_condition(pcon, discr, cloud,
             vis = SiloVisualizer(discr)
             visf = vis.make_file("ic")
             vis.add_data(visf, [ 
-                #("phi_tilde", phi_tilde),
-                #("rho_tilde", rho_tilde), 
-                #("e_tilde", e_tilde), 
+                ("phi_moving", phi_tilde),
+                ("rho_moving", rho_tilde), 
+                ("e_moving", e_tilde), 
 
-                ("rho_prime", rho_prime), 
-                ("divD_prime_ldg", divD_prime_ldg),
-                ("divD_prime_ldg2", divD_prime_ldg2),
-                ("divD_prime_ldg3", divD_prime_ldg3),
-                ("divD_prime_central", divD_prime_central),
-                ("e_prime", e_prime), 
-                ("h_prime", h_prime), 
+                ("rho_lab", rho_prime), 
+                ("divD_lab_ldg", divD_prime_ldg),
+                ("divD_lab_ldg2", divD_prime_ldg2),
+                ("divD_lab_ldg3", divD_prime_ldg3),
+                ("divD_lab_central", divD_prime_central),
+                ("e_lab", e_prime), 
+                ("h_lab", h_prime), 
                 ],
                 )
             cloud.add_to_vis(vis, visf)

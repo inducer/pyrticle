@@ -1126,8 +1126,9 @@ class GridReconstructor(Reconstructor, GridVisualizer):
                                 "basis reduction has killed almost the entire basis on element %d"
                                 % el.id)
 
-                print "element %d: #nodes=%d, leftover modes=%d" % (
-                        el.id, ldis.node_count(), len(basis),)
+                if ldis.node_count() > len(basis):
+                    print "element %d: #nodes=%d, leftover modes=%d" % (
+                            el.id, ldis.node_count(), len(basis),)
 
                 basis_len_vec[discr.find_el_range(el.id)] = len(basis)
                 el_condition_vec[discr.find_el_range(el.id)] = s[0]/s[-1]
@@ -1144,15 +1145,16 @@ class GridReconstructor(Reconstructor, GridVisualizer):
 
 
         # visualize basis length for each element
-        from hedge.visualization import SiloVisualizer
-        vis = SiloVisualizer(discr)
-        visf = vis.make_file("rec-debug")
-        vis.add_data(visf, [
-            ("basis_len", basis_len_vec),
-            ("el_condition", el_condition_vec),
-            ("point_count", point_count_vec),
-            ])
-        visf.close()
+        if set(["reconstructor", "vis_files"]) < self.cloud.debug:
+            from hedge.visualization import SiloVisualizer
+            vis = SiloVisualizer(discr)
+            visf = vis.make_file("rec-debug")
+            vis.add_data(visf, [
+                ("basis_len", basis_len_vec),
+                ("el_condition", el_condition_vec),
+                ("point_count", point_count_vec),
+                ])
+            visf.close()
 
         # we don't need no stinkin' extra points
         pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
