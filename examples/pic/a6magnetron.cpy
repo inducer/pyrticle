@@ -2,13 +2,13 @@ import random as _random
 _random.seed(0)
 
 pusher = PushMonomial()
-reconstructor = RecGrid(
+#reconstructor = RecGrid(
         #el_tolerance=0.1,
-        method="simplex_reduce",
-        jiggle_radius=0.0)
+        #method="simplex_reduce",
+        #jiggle_radius=0.0)
 #reconstructor = RecAdv()
 #reconstructor = RecShape()
-#reconstructor = RecGridFind()
+reconstructor = RecGridFind()
 
 debug.remove("shape_bw")
 debug.add("vis_files")
@@ -151,7 +151,7 @@ def hook_before_step(runner):
     cathode_e = runner.discr.boundarize_volume_field(
             runner.fields.e, "cathode")
 
-    macro_particle_factor = 1e8
+    macro_particle_factor = 1e10
 
     def generate_particles():
         for e, pt, normal in zip(cathode_e.T, bdry.nodes, cathode_normals.T):
