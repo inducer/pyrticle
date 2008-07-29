@@ -53,7 +53,7 @@ mesh = pyrticle.geometry.make_cylinder_with_fine_core(
         min_z=0, max_z=tube_length,
         max_volume_inner=10*units.MM**3,
         max_volume_outer=100*units.MM**3,
-        radial_subdiv=8)
+        radial_subdiv=10)
 
 distribution = pyrticle.distribution.KVZIntervalBeam(
         units, total_charge=_cloud_charge, 
