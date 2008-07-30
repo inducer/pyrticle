@@ -73,7 +73,7 @@ def _make_potential():
         if la.norm(x) > (_a6.radius_cathode+_a6.radius_anode)/2:
             return 0
         else:
-            return -500e3*units.V
+            return 500e3*units.V
 
     from hedge.data import GivenFunction
     return GivenFunction(pot)
@@ -131,6 +131,8 @@ def _disabled_hook_startup(runner):
                 runner.fields.e, numpy.array(pt)/100)
         outf.write(" ".join(repr(ei)
             for ei in pad_with_zeros(list(pt_values))))
+        #outf.write(" ".join(repr(ei)
+            #for ei in list(pt)+list(pt_values)))
         outf.write("\n")
 
 if isinstance(reconstructor, RecGrid):
@@ -157,7 +159,7 @@ def hook_before_step(runner):
 
     def generate_particles():
         for e, pt, normal in zip(cathode_e.T, bdry.nodes, cathode_normals.T):
-            if numpy.dot(e, normal) < -1e3:
+            if numpy.dot(e, normal) > 1e3:
 
                 tangent = numpy.array([normal[1], -normal[0]])
 
@@ -167,7 +169,7 @@ def hook_before_step(runner):
 
                 yield (part_pt,
                         runner.max_op.c*0.02*-normal,
-                        macro_particle_factor*units.EL_CHARGE,
+                        -macro_particle_factor*units.EL_CHARGE,
                         macro_particle_factor*units.EL_MASS,
                         )
 
