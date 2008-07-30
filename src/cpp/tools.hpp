@@ -477,7 +477,7 @@ namespace pyrticle
 
 
   // shape functions ----------------------------------------------------------
-  class shape_function
+  class polynomial_shape_function
   {
     public:
       shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
@@ -486,22 +486,27 @@ namespace pyrticle
       const double operator()(const VecType &r) const
       {
         const double r_squared = pyublas::square_sum(r);
-        if (r_squared > m_l_squared)
+        if (r_squared > m_radius_squared)
           return 0;
         else
-          return m_normalizer * pow(m_l-r_squared/m_l, m_alpha);
+          return m_normalizer * pow(m_radius-r_squared/m_radius, m_alpha);
       }
 
       const double radius() const
-      { return m_l; }
+      { return m_radius; }
 
       const double exponent() const
       { return m_alpha; }
 
+      static const std::string name()
+      {
+        return "polynomial";
+      }
+
     private:
       double m_normalizer;
       double m_alpha;
-      double m_l, m_l_squared;
+      double m_radius, m_radius_squared;
   };
 
 
@@ -510,27 +515,39 @@ namespace pyrticle
   class c_infinity_shape_function
   {
     public:
-      c_infinity_shape_function(double radius, double integral_for_rad1);
+      c_infinity_shape_function(double radius, unsigned dimensions, 
+          double integral_for_rad1);
 
       template <class VecType>
       const double operator()(const VecType &r) const
       {
-        /*
         const double r_squared = pyublas::square_sum(r);
-        if (r_squared > m_l_squared)
+        if (r_squared > m_radius_squared)
           return 0;
         else
-          return m_normalizer * pow(m_l-r_squared/m_l, m_alpha);
-          */
-        return 0;
+        {
+          double r_squared_m_1 = r_squared-1;
+          return m_normalizer*exp(-1/(r_squared*r_squared));
+        }
       }
 
+      const double radius() const
+      { return m_radius; }
+
+      static const std::string name()
+      {
+        return "c_infinity";
+      }
+
+    private:
+      double m_normalizer;
+      double m_radius, m_radius_squared;
   };
 
 
 
 
-
+  typedef c_infinity_shape_function shape_function;
 }
 
 

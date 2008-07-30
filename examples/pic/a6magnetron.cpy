@@ -129,6 +129,8 @@ def _disabled_hook_startup(runner):
                 runner.fields.e, numpy.array(pt)/100)
         outf.write(" ".join(repr(ei)
             for ei in pad_with_zeros(list(pt_values))))
+        #outf.write(" ".join(repr(ei)
+            #for ei in list(pt)+list(pt_values)))
         outf.write("\n")
 
 if isinstance(reconstructor, RecGrid):

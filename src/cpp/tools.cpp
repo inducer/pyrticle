@@ -34,17 +34,33 @@ pyrticle::warning_listener *pyrticle::warning_listener::m_singleton = 0;
 
 pyrticle::shape_function::shape_function( 
     double radius, unsigned dimensions, double alpha)
-: m_alpha(alpha), m_l(radius), 
-  m_l_squared(square(radius))
+: m_alpha(alpha), m_radius(radius), 
+  m_radius_squared(square(radius))
 {
   using boost::math::tgamma;
   using boost::math::beta;
 
-  double n = dimensions;
+  const double n = dimensions;
 
   // see doc/notes.tm
   double sphere_area = 2*pow(M_PI, n/2) / tgamma(n/2);
   m_normalizer = 2 / (sphere_area *
-    pow(m_l, n+alpha)*beta(n/2, alpha+1)
+    pow(m_radius, n+alpha)*beta(n/2, alpha+1)
     );
+}
+
+
+
+
+pyrticle::c_infinity_shape_function::c_infinity_shape_function( 
+    double radius, unsigned dimensions, double integral_for_rad1)
+: m_radius(radius), m_radius_squared(square(radius))
+{
+  using boost::math::tgamma;
+
+  const double n = dimensions;
+
+  double sphere_area = 2*pow(M_PI, n/2) / tgamma(n/2);
+
+  m_normalizer = 1/sphere_area*pow(radius, n)*integral_for_rad1;
 }

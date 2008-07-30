@@ -270,8 +270,8 @@ void expose_tools()
   python::def("lu", lu_wrapper);
 
   {
-    typedef shape_function cl;
-    python::class_<cl>("ShapeFunction", 
+    typedef polynomial_shape_function cl;
+    python::class_<cl>("PolynomialShapeFunction", 
         python::init<double, unsigned, python::optional<double> >(
           (python::args("radius", "dimensions", "alpha"))))
       .add_property("radius", &cl::radius)
@@ -279,8 +279,24 @@ void expose_tools()
       .def("__call__", 
           (const double (cl::*)(const py_vector &) const)
           &cl::operator())
+      .DEF_SIMPLE_METHOD(name)
       ;
   }
+
+  {
+    typedef c_infinity_shape_function cl;
+    python::class_<cl>("CInfinityShapeFunction", 
+        python::init<double, unsigned, double>(
+          (python::args("radius", "dimensions", "integral_for_rad1"))))
+      .add_property("radius", &cl::radius)
+      .def("__call__", 
+          (const double (cl::*)(const py_vector &) const)
+          &cl::operator())
+      .DEF_SIMPLE_METHOD(name)
+      ;
+  }
+
+  def("get_shape_function_name", &shape_function::name);
 
   python::register_tuple<boost::tuple<py_vector, py_vector> >();
 }
