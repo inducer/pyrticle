@@ -29,6 +29,8 @@
 #include <boost/foreach.hpp> 
 #include <boost/shared_ptr.hpp> 
 #include <boost/numeric/ublas/vector_proxy.hpp>
+#include <boost/numeric/ublas/io.hpp>
+#include <boost/format.hpp>
 #include "meshdata.hpp"
 #include "rec_target.hpp"
 
@@ -167,7 +169,19 @@ namespace pyrticle
               }
 
               if (closest_normal_idx == -1)
-                throw std::runtime_error("no best normal found--weird");
+              {
+                bounded_vector mom = subrange(m_momenta, x_pstart, x_pend);
+                std::cerr << "face normals:" << std::endl;
+                BOOST_FOREACH(const mesh_data::face_info &f, prev_el.m_faces)
+                {
+                  std::cerr 
+                    << f.m_normal 
+                    << ", ip with momentum:" << inner_prod(f.m_normal, mom)
+                    << std::endl;
+                }
+                throw std::runtime_error(
+                    str(boost::format("no best normal found--weird (momentum=%1%)") % mom));
+              }
 
               mesh_data::element_number possible_idx =
                 prev_el.m_faces[closest_normal_idx].m_neighbor;
