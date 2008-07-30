@@ -71,7 +71,7 @@ def _make_potential():
         if la.norm(x) > (_a6.radius_cathode+_a6.radius_anode)/2:
             return 0
         else:
-            return -500e3*units.V
+            return 500e3*units.V
 
     from hedge.data import GivenFunction
     return GivenFunction(pot)
@@ -155,7 +155,7 @@ def hook_before_step(runner):
 
     def generate_particles():
         for e, pt, normal in zip(cathode_e.T, bdry.nodes, cathode_normals.T):
-            if numpy.dot(e, normal) < -1e3:
+            if numpy.dot(e, normal) > 1e3:
 
                 yield (
                         pt - (
@@ -165,7 +165,7 @@ def hook_before_step(runner):
                             *(_a6.radius_anode-_a6.radius_cathode)
                         ,
                         runner.max_op.c*0.02*-normal,
-                        macro_particle_factor*units.EL_CHARGE,
+                        -macro_particle_factor*units.EL_CHARGE,
                         macro_particle_factor*units.EL_MASS,
                         )
 
