@@ -24,7 +24,7 @@ shape_bandwidth = "guess"
 
 _cloud_charge = 10e-9 * units.C
 nparticles = 0
-element_order = 3
+element_order = 4
 final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
 if nparticles:
     _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
@@ -41,7 +41,7 @@ def _make_a6():
 _a6 = _make_a6()
 
 def _make_mesh():
-    tri_out = _a6.make_triangulation(5e-6)
+    tri_out = _a6.make_triangulation(2e-6)
 
     from hedge.mesh import MeshPyFaceMarkerLookup
     fmlookup = MeshPyFaceMarkerLookup(tri_out)
@@ -157,13 +157,13 @@ def hook_before_step(runner):
         for e, pt, normal in zip(cathode_e.T, bdry.nodes, cathode_normals.T):
             if numpy.dot(e, normal) < -1e3:
 
-                yield (
-                        pt - (
-                            normal*0.04
-                            + numpy.random.uniform(-0.03, 0.03, 
-                                runner.cloud.dimensions_pos))
-                            *(_a6.radius_anode-_a6.radius_cathode)
-                        ,
+                tangent = numpy.array([normal[1], -normal[0]])
+
+                part_pt = (pt + (normal*-1e-5
+                            + tangent*numpy.random.uniform(-0.03, 0.03))
+                            *(_a6.radius_anode-_a6.radius_cathode))
+
+                yield (part_pt,
                         runner.max_op.c*0.02*-normal,
                         macro_particle_factor*units.EL_CHARGE,
                         macro_particle_factor*units.EL_MASS,
