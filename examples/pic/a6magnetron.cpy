@@ -1,5 +1,7 @@
 import random as _random
 _random.seed(0)
+import numpy.random as _numpyrandom
+_numpyrandom.seed(1)
 
 pusher = PushMonomial()
 #reconstructor = RecGrid(
@@ -24,7 +26,7 @@ shape_bandwidth = "guess"
 
 _cloud_charge = 10e-9 * units.C
 nparticles = 0
-element_order = 4
+element_order = 3
 final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
 if nparticles:
     _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
@@ -41,7 +43,7 @@ def _make_a6():
 _a6 = _make_a6()
 
 def _make_mesh():
-    tri_out = _a6.make_triangulation(2e-6)
+    tri_out = _a6.make_triangulation(5e-6)
 
     from hedge.mesh import MeshPyFaceMarkerLookup
     fmlookup = MeshPyFaceMarkerLookup(tri_out)

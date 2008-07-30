@@ -170,8 +170,8 @@ namespace pyrticle
 
               if (closest_normal_idx == -1)
               {
-                bounded_vector mom = subrange(m_momenta, x_pstart, x_pend);
                 std::cerr << "face normals:" << std::endl;
+                bounded_vector mom = subrange(m_momenta, x_pstart, x_pend);
                 BOOST_FOREACH(const mesh_data::face_info &f, prev_el.m_faces)
                 {
                   std::cerr 
@@ -260,18 +260,26 @@ namespace pyrticle
 
         void update_containing_elements()
         {
-          for (particle_number i = 0; i < m_particle_count; i++)
+          for (particle_number pn = 0; pn < m_particle_count;)
           {
-            mesh_data::element_number prev = m_containing_elements[i];
+            mesh_data::element_number prev = m_containing_elements[pn];
 
             mesh_data::element_number new_el = 
-              find_new_containing_element(i, prev);
+              find_new_containing_element(pn, prev);
 
             // no element found? must be boundary
             if (new_el == mesh_data::INVALID_ELEMENT)
-              boundary_hit(i);
+            {
+              /* INVARIANT: boundary_hit_listener *must* leave particles
+               * with particle number less than pn unchanged.
+               */
+              boundary_hit(pn);
+            }
             else
-              m_containing_elements[i] = new_el;
+            {
+              m_containing_elements[pn] = new_el;
+              ++pn;
+            }
           }
         }
 
@@ -323,7 +331,12 @@ namespace pyrticle
           }
 
           if (m_boundary_hit_listener.get())
+          {
+            /* INVARIANT: boundary_hit_listener *must* leave particles
+             * with particle number less than pn unchanged.
+             */
             m_boundary_hit_listener->note_boundary_hit(pn);
+          }
           else
             throw std::runtime_error("no boundary hit handler installed");
         }
