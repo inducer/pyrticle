@@ -221,3 +221,33 @@ class ODEDefinedFunction:
 
     def rhs(self, t, y):
         raise NotImplementedError
+
+
+
+
+
+# shape function --------------------------------------------------------------
+PolynomialShapeFunction = _internal.PolynomialShapeFunction
+
+
+
+
+class CInfinityShapeFunction(_internal.CInfinityShapeFunction):
+    def __init__(self, radius, dimensions):
+        from hedge.quadrature import \
+                LegendreGaussQuadrature, \
+                TransformedQuadrature
+        from math import exp
+
+        lgq = TransformedQuadrature(
+                LegendreGaussQuadrature(50),
+                0, 1)
+        def f(r):
+            return r**(dimensions-1)*exp(-1/(1-r**2)**2)
+
+        _internal.CInfinityShapeFunction.__init__(self, 
+                radius, dimensions, lgq(f))
+
+
+
+

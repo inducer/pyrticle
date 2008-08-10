@@ -165,6 +165,21 @@ class ParticleCloud(_internal.BoundaryHitListener):
                 "n_find_global",
                 "#Particles found by global search")
 
+    def get_shape_function_class(self):
+        from pyrticle.tools import \
+                PolynomialShapeFunction, \
+                CInfinityShapeFunction
+
+        from pyrticle._internal import get_shape_function_name
+        name = get_shape_function_name()
+
+        if name == "c_infinity":
+            return CInfinityShapeFunction
+        elif name == "polynomial":
+            return PolynomialShapeFunction
+        else:
+            raise ValueError, "unknown shape function class"
+
     def set_ignore_core_warnings(self, ignore):
         from pyrticle.tools import WarningForwarder, WarningIgnorer
         import pyrticle.tools
@@ -679,9 +694,8 @@ class FieldsAndCloud:
 
 # shape bandwidth -------------------------------------------------------------
 def guess_shape_bandwidth(cloud, exponent):
-    from pyrticle._internal import ShapeFunction
     cloud.reconstructor.set_shape_function(
-            ShapeFunction(
+            cloud.get_shape_function_class()(
                 cloud.mesh_data.advisable_particle_radius(),
                 cloud.mesh_data.dimensions,
                 exponent,
@@ -699,9 +713,9 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
             for i in numpy.linspace(-4, 2, 50)]
 
     def set_radius(r):
-        from pyrticle._internal import ShapeFunction
         cloud.reconstructor.set_shape_function(
-                ShapeFunction(r, cloud.mesh_data.dimensions, exponent,))
+                cloud.get_shape_function_class()
+                (r, cloud.mesh_data.dimensions, exponent,))
 
     tried_radii = []
     l1_errors = []

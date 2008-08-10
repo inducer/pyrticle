@@ -32,7 +32,7 @@ pyrticle::warning_listener *pyrticle::warning_listener::m_singleton = 0;
 
 
 
-pyrticle::shape_function::shape_function( 
+pyrticle::polynomial_shape_function::polynomial_shape_function( 
     double radius, unsigned dimensions, double alpha)
 : m_alpha(alpha), m_radius(radius), 
   m_radius_squared(square(radius))

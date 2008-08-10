@@ -480,7 +480,7 @@ namespace pyrticle
   class polynomial_shape_function
   {
     public:
-      shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
+      polynomial_shape_function(double radius=1, unsigned dimensions=1, double alpha=2);
 
       template <class VecType>
       const double operator()(const VecType &r) const
@@ -515,6 +515,9 @@ namespace pyrticle
   class c_infinity_shape_function
   {
     public:
+      c_infinity_shape_function()
+      { }
+
       c_infinity_shape_function(double radius, unsigned dimensions, 
           double integral_for_rad1);
 
@@ -527,7 +530,7 @@ namespace pyrticle
         else
         {
           double r_squared_m_1 = r_squared-1;
-          return m_normalizer*exp(-1/(r_squared*r_squared));
+          return m_normalizer*exp(-1/(r_squared_m_1*r_squared_m_1));
         }
       }
 
@@ -547,7 +550,8 @@ namespace pyrticle
 
 
 
-  typedef c_infinity_shape_function shape_function;
+  typedef polynomial_shape_function shape_function;
+  // typedef c_infinity_shape_function shape_function;
 }
 
 
