@@ -296,7 +296,7 @@ void expose_tools()
       ;
   }
 
-  def("get_shape_function_name", &shape_function::name);
+  python::def("get_shape_function_name", &shape_function::name);
 
   python::register_tuple<boost::tuple<py_vector, py_vector> >();
 }
