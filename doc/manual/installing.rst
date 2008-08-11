@@ -3,15 +3,19 @@
 Installing Pyrticle
 ===================
 
-This tutorial will walk you through the process of building
-:mod:`pyrticle`. To follow, you really only need a few basic things:
+This tutorial will walk you through the process of installing
+:mod:`pyrticle`. To follow, you need a few basic standard software 
+packages:
 
 * A UNIX-like machine with web access.
 * A C++ compiler, preferably a Version 4.x gcc.
 * A working `Python <http://www.python.org>`_ installation, 
-  Version 2.4 or newer.
+  Version 2.4 or newer. If you are using Python 2.4, 
+  you should also install `PySqlite <http://pysqlite.org>`_.
+  (Sqlite is included in Python 2.5 and up.)
 * The `Basic Linear Algebra Subroutines (BLAS) <http://netlib.org/blas>`_
-  or a tuned implementation thereof.
+  or a tuned implementation thereof, and
+* `LAPACK <http://netlib.org/lapack>`_.
 
 :mod:`pyrticle` has a number of prerequisites that need to be
 installed for it to be usable. Once these prerequisites are installed,
@@ -48,7 +52,41 @@ interface to the standard Silo data access library.
 To install Pylo, please navigate to its `installation tutorial
 <http://documen.tician.de/pylo/installing.html>`_.
 
-Step 3: Obtain and Unpack :mod:`pyrticle`
+Step 3: Install Boost.Unordered
+-------------------------------
+
+Download this `snapshot <http://tiker.net/tmp/boost-unordered.tar.gz>`_ of the
+Boost Unordered Container Library, and unpack it::
+
+    $ tar xfz boost-unordered.tar.gz
+
+Then add the :file:`boost-unordered` directory that was unpacked as the root of
+the archive's contents to the `BOOST_INC_DIR` variable in your
+:file:`.aksetup-defaults.py` file, located in your home directory. That is, if
+this variable used to read::
+
+    BOOST_INC_DIR = ['/home/andreas/pool/include/boost-1_35']
+
+change it to read::
+
+    BOOST_INC_DIR = [
+      '/home/andreas/pool/include/boost-1_35',
+      '/home/andreas/boost-unordered',
+      ]
+
+Step 4: Tell :mod:`pyrticle` about LAPACK
+-----------------------------------------
+
+Add the following lines to the file :file:`.aksetup-defaults.py` in your home
+directory::
+
+    HAVE_LAPACK = True
+    LAPACK_LIB_DIR = ['/where/your/lapack/is/installed']
+    LAPACK_LIBNAME = ['your_lapack_libname'] # without leading lib and trailing .a/.so
+
+You will need to customize these lines for your LAPACK install locations.
+
+Step 5: Obtain and Unpack :mod:`pyrticle`
 -----------------------------------------
 
 We will assume here that you have obtained a source code snapshot of 
@@ -74,7 +112,7 @@ is install globally.)
     uncompressed tar format. One of the above commands will work, but
     which depends how you downloaded the archive.
 
-Step 4: Build and Install :mod:`pyrticle`
+Step 6: Build and Install :mod:`pyrticle`
 -----------------------------------------
 
 Actually compiling and installing :mod:`pyrticle` should now be fairly
@@ -83,18 +121,15 @@ simple::
     $ cd pyrticle.git 
     $ sudo python setup.py install
 
-Get some coffee while :mod:`pyrticle` is installed. If you get no errors,
-congratulations! You have successfully built :mod:`pyrticle`.
+Get some coffee while :mod:`pyrticle` is installed. Note that depending on the
+software versions you have installed, this may print some (actually quite a
+bunch of) warnings. Most of these are fixed in newer versions of Python and
+Boost. This is no cause for concern--the resulting software will work just
+fine.  If you get no errors, congratulations! You have successfully built
+:mod:`pyrticle`.
 
 Success! So what now?
 ---------------------
 
-One of the first things you might want to try is running
-:mod:`pyrticle`'s unit tests. Follow me::
-
-    $ cd pyrticle.git/test
-    $ python test.py
-
-This will take a little while. If it says "OK" at the end, you're all set.
 Next, we suggest that you continue on to the next section and try your hand at
 running some simple simulations.
