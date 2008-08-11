@@ -749,14 +749,16 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
             cloud.set_ignore_core_warnings(False)
 
         cloud.derived_quantity_cache.clear()
+
         try:
-            cloud.set_ignore_core_warnings(True)
-            rec_rho = cloud.reconstruct_rho()
-        except RuntimeError, re:
-            if "particle mass is zero" in str(re):
-                continue
-            else:
-                raise
+            try:
+                cloud.set_ignore_core_warnings(True)
+                rec_rho = cloud.reconstruct_rho()
+            except RuntimeError, re:
+                if "particle mass is zero" in str(re):
+                    continue
+                else:
+                    raise
         finally:
             cloud.set_ignore_core_warnings(False)
 
