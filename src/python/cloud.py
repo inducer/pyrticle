@@ -737,13 +737,14 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
             sys.stdout.flush()
 
         try:
-            cloud.set_ignore_core_warnings(True)
-            set_radius(radius)
-        except RuntimeError, re:
-            if "particle mass is zero" in str(re):
-                continue
-            else:
-                raise
+            try:
+                cloud.set_ignore_core_warnings(True)
+                set_radius(radius)
+            except RuntimeError, re:
+                if "particle mass is zero" in str(re):
+                    continue
+                else:
+                    raise
         finally:
             cloud.set_ignore_core_warnings(False)
 
