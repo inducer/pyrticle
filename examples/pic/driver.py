@@ -165,6 +165,9 @@ class PICRunner(object):
                 self.pcon.make_discretization(mesh, 
                         order=setup.element_order,
                         debug="discretization" in setup.debug)
+
+        self.logmgr.set_constant("elements_total", len(setup.mesh.elements))
+        self.logmgr.set_constant("elements_local", len(mesh.elements))
         self.logmgr.set_constant("element_order", setup.element_order)
 
         # em operator ---------------------------------------------------------
@@ -215,13 +218,8 @@ class PICRunner(object):
                 dimensions_velocity=setup.dimensions_velocity, 
                 debug=setup.debug)
 
-        def gen_particle_wrapper():
-            # adapt distribution output to what add_particles() expects
-            for pos, vel, charge, mass in setup.distribution.generate_particles():
-                yield pos, vel, charge[0], mass[0]
-
         cloud.add_particles( 
-                gen_particle_wrapper(),
+                setup.distribution.generate_particles(),
                 setup.nparticles)
 
         self.total_charge = setup.nparticles*setup.distribution.mean()[2][0]

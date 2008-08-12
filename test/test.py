@@ -249,8 +249,12 @@ class TestPyrticle(unittest.TestCase):
 
         from pyrticle.cloud import compute_initial_condition
         from hedge.parallel import SerialParallelizationContext
-        fields = compute_initial_condition(SerialParallelizationContext(), 
-                discr, cloud, max_op=max_op)
+
+        from hedge.data import ConstantGivenFunction
+        fields = compute_initial_condition(
+                SerialParallelizationContext(), 
+                discr, cloud, max_op=max_op,
+                potential_bc=ConstantGivenFunction())
 
         # check against theory ----------------------------------------------------
         q_per_unit_z = cloud_charge/beam.z_length

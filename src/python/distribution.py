@@ -69,7 +69,8 @@ class ParticleDistribution(object):
 
     def generate_particles(self):
         while True:
-            yield self.make_particle()
+            pos, vel, charge, mass = self.make_particle()
+            yield pos, vel, charge[0], mass[0]
 
 
 
