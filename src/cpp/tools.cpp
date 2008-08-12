@@ -32,6 +32,14 @@ pyrticle::warning_listener *pyrticle::warning_listener::m_singleton = 0;
 
 
 
+static inline double sphere_area(double dims)
+{
+  return 2*pow(M_PI, dims/2) / tgamma(dims/2);
+}
+
+
+
+
 pyrticle::polynomial_shape_function::polynomial_shape_function( 
     double radius, unsigned dimensions, double alpha)
 : m_alpha(alpha), m_radius(radius), 
@@ -43,8 +51,7 @@ pyrticle::polynomial_shape_function::polynomial_shape_function(
   const double n = dimensions;
 
   // see doc/notes.tm
-  double sphere_area = 2*pow(M_PI, n/2) / tgamma(n/2);
-  m_normalizer = 2 / (sphere_area *
+  m_normalizer = 2 / (sphere_area(n) *
     pow(m_radius, n+alpha)*beta(n/2, alpha+1)
     );
 }
@@ -60,7 +67,5 @@ pyrticle::c_infinity_shape_function::c_infinity_shape_function(
 
   const double n = dimensions;
 
-  double sphere_area = 2*pow(M_PI, n/2) / tgamma(n/2);
-
-  m_normalizer = 1/sphere_area*pow(radius, n)*integral_for_rad1;
+  m_normalizer = 1/(sphere_area(n)*pow(radius, n)*integral_for_rad1);
 }

@@ -357,6 +357,38 @@ class TestPyrticle(unittest.TestCase):
             for case in ["screw", "epb"]:
                 casename = "%s-%s" % (case, pusher.name.lower())
                 run_setup(units, casename, get_setup(case), discr, pusher)
+    # -------------------------------------------------------------------------
+    def test_shape_functions(self):
+        from pyrticle.tools import \
+                CInfinityShapeFunction, \
+                PolynomialShapeFunction
+
+        from hedge.mesh import \
+                make_uniform_1d_mesh, \
+                make_rect_mesh, make_box_mesh
+        for r in [0.1, 10]:
+            for mesh in [
+                    make_uniform_1d_mesh(-r, r, 10),
+                    make_rect_mesh(
+                        (-r,-r), (r,r),
+                        max_area=(r/10)**2),
+                    make_box_mesh(
+                        (-r,-r,-r), (r,r,r),
+                        max_volume=(r/10)**3),
+                    ]:
+                from hedge.discr_precompiled import Discretization
+                discr = Discretization(mesh, order=3)
+                for sfunc in [
+                        PolynomialShapeFunction(r, discr.dimensions, 2),
+                        PolynomialShapeFunction(r, discr.dimensions, 4),
+                        CInfinityShapeFunction(r, discr.dimensions),
+                        ]:
+                    num_sfunc = discr.interpolate_volume_function(
+                            lambda x, el: sfunc(x))
+                    int_sfunc = discr.integral(num_sfunc)
+                    self.assert_(abs(int_sfunc-1) < 4e-5)
+                
+
 
 
 

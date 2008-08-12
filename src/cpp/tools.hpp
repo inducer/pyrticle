@@ -529,8 +529,8 @@ namespace pyrticle
           return 0;
         else
         {
-          double r_squared_m_1 = r_squared-1;
-          return m_normalizer*exp(-1/(r_squared_m_1*r_squared_m_1));
+          double sr_squared_m_1 = r_squared/m_radius_squared-1;
+          return m_normalizer*exp(-1/(sr_squared_m_1*sr_squared_m_1));
         }
       }
 
