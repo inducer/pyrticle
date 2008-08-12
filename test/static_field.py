@@ -276,7 +276,7 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
             ShapeFunctionReconstructor(),
             pusher(),
             FaceBasedElementFinder(),
-            3, 3, verbose_vis=True)
+            3, 3, debug=set(["verbose_vis"]))
 
     e, h = setup.fields(discr)
     b = units.MU0 * h
@@ -285,11 +285,12 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     init_velocities = setup.velocities(0)
 
     nparticles = len(init_positions)
-    cloud.add_particles(nparticles, 
+    cloud.add_particles( 
             zip(init_positions, init_velocities, 
-                nparticles * [[setup.charge]],
-                nparticles  * [[units.EL_MASS]],
-                ))
+                nparticles * [setup.charge],
+                nparticles  * [units.EL_MASS],
+                ),
+            nparticles)
 
     final_time = setup.final_time()
     nsteps = setup.nsteps()

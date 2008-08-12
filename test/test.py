@@ -103,7 +103,7 @@ class TestPyrticle(unittest.TestCase):
                 ShapeFunctionReconstructor(),
                 MonomialParticlePusher(),
                 FaceBasedElementFinder(),
-                3, 3, verbose_vis=False)
+                3, 3)
 
         nparticles = 10000
         cloud_charge = 1e-9 * units.C
@@ -124,7 +124,7 @@ class TestPyrticle(unittest.TestCase):
                 z_pos=10*units.MM,
                 beta=beta)
         
-        cloud.add_particles(nparticles, beam.generate_particles())
+        cloud.add_particles(beam.generate_particles(), nparticles)
 
         # diagnostics setup -------------------------------------------------------
         from pytools.log import LogManager
@@ -222,7 +222,7 @@ class TestPyrticle(unittest.TestCase):
                 ShapeFunctionReconstructor(),
                 MonomialParticlePusher(),
                 FaceBasedElementFinder(),
-                3, 3, verbose_vis=False)
+                3, 3)
 
         cloud_charge = -1e-9 * units.C
         electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
@@ -241,7 +241,7 @@ class TestPyrticle(unittest.TestCase):
                 z_length=tube_length,
                 z_pos=tube_length/2,
                 beta=beta)
-        cloud.add_particles(nparticles, beam.generate_particles())
+        cloud.add_particles(beam.generate_particles(), nparticles)
 
         # intial condition --------------------------------------------------------
         from pyrticle.cloud import guess_shape_bandwidth
@@ -254,7 +254,7 @@ class TestPyrticle(unittest.TestCase):
 
         # check against theory ----------------------------------------------------
         q_per_unit_z = cloud_charge/beam.z_length
-        class TheoreticalEField():
+        class TheoreticalEField:
             shape = (3,)
 
             def __call__(self, x, el):
