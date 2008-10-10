@@ -169,10 +169,13 @@ namespace pyrticle
         : m_brick(brk), m_bounds(bounds), m_state(bounds.m_lower), 
         m_point(brk.point(m_state)),
         m_index(brk.index(m_state))
-    { 
-      if (m_bounds.is_empty())
-        m_state = m_bounds.m_upper;
-    }
+      { 
+        if (m_bounds.is_empty())
+          m_state = m_bounds.m_upper;
+      }
+
+      virtual ~brick_iterator()
+      { }
 
       const bounded_int_vector &operator*() const
       { return m_state; }
@@ -314,6 +317,9 @@ namespace pyrticle
           ++i;
         }
       }
+
+      virtual ~brick() 
+      { }
 
       brick_number number() const
       { return m_number; }

@@ -492,6 +492,9 @@ namespace pyrticle
           return m_normalizer * pow(m_radius-r_squared/m_radius, m_alpha);
       }
 
+      const double normalizer() const
+      { return m_normalizer; }
+
       const double radius() const
       { return m_radius; }
 

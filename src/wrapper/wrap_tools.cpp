@@ -274,6 +274,7 @@ void expose_tools()
     python::class_<cl>("PolynomialShapeFunction", 
         python::init<double, unsigned, python::optional<double> >(
           (python::args("radius", "dimensions", "alpha"))))
+      .add_property("normalizer", &cl::normalizer)
       .add_property("radius", &cl::radius)
       .add_property("exponent", &cl::exponent)
       .def("__call__", 

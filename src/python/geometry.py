@@ -255,6 +255,7 @@ def make_extrusion_with_fine_core(rz, inner_r,
                     + [inner_point_indices[radial_subdiv:]]
                     )
 
+
     mesh_info = MeshInfo()
     mesh_info.set_points(inner_points + outer_points)
     mesh_info.set_facets_ex(
