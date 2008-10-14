@@ -67,6 +67,9 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "tube_length": None,
 
                 "element_order": None,
+                "maxwell_flux_type": "lf",
+                "maxwell_bdry_flux_type": 1,
+
                 "shape_exponent": 2,
                 "shape_bandwidth": "optimize",
 
@@ -83,9 +86,11 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
                 "vis_interval": 100,
                 "vis_pattern": "pic-%04d",
+                "vis_order": None,
                 "output_path": ".",
 
                 "debug": set(["ic", "poisson", "shape_bw"]),
+                "dg_debug": set(),
 
                 "watch_vars": ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"],
 
@@ -164,25 +169,26 @@ class PICRunner(object):
         self.discr = discr = \
                 self.pcon.make_discretization(mesh, 
                         order=setup.element_order,
-                        debug="discretization" in setup.debug)
+                        debug=setup.dg_debug)
 
         self.logmgr.set_constant("elements_total", len(setup.mesh.elements))
         self.logmgr.set_constant("elements_local", len(mesh.elements))
         self.logmgr.set_constant("element_order", setup.element_order)
 
         # em operator ---------------------------------------------------------
+        maxwell_kwargs = {
+                "epsilon": units.EPSILON0, 
+                "mu": units.MU0, 
+                "flux_type": setup.maxwell_flux_type,
+                "bdry_flux_type": setup.maxwell_bdry_flux_type
+                }
+
         if discr.dimensions == 3:
             from hedge.pde import MaxwellOperator
-            self.max_op = MaxwellOperator(discr, 
-                    epsilon=units.EPSILON0, 
-                    mu=units.MU0, 
-                    upwind_alpha=1)
+            self.max_op = MaxwellOperator(**maxwell_kwargs)
         elif discr.dimensions == 2:
             from hedge.pde import TEMaxwellOperator
-            self.max_op = TEMaxwellOperator(discr, 
-                    epsilon=units.EPSILON0, 
-                    mu=units.MU0, 
-                    upwind_alpha=1)
+            self.max_op = TEMaxwellOperator(**maxwell_kwargs)
         else:
             raise ValueError, "invalid mesh dimension"
 
@@ -235,20 +241,25 @@ class PICRunner(object):
                 raise ValueError, "invalid shape bandwidth setting '%s'" % (
                         setup.shape_bandwidth)
         else:
-            from pyrticle._internal import ShapeFunction
+            from pyrticle._internal import PolynomialShapeFunction
             cloud.reconstructor.set_shape_function(
-                    ShapeFunction(
+                    PolynomialShapeFunction(
                         float(setup.shape_bandwidth),
                         cloud.mesh_data.dimensions,
                         setup.shape_exponent,
                         ))
 
         # initial condition ---------------------------------------------------
-        from pyrticle.cloud import compute_initial_condition
-        self.fields = compute_initial_condition(self.pcon, discr, cloud, 
-                max_op=self.max_op, 
-                potential_bc=setup.potential_bc, 
-                force_zero=False)
+        if "no_ic" in setup.debug:
+            from pyrticle.cloud import FieldsAndCloud
+            e, h = self.max_op.split_eh(self.max_op.assemble_fields(discr=discr))
+            self.fields = FieldsAndCloud(self.max_op, e, h, cloud)
+        else:
+            from pyrticle.cloud import compute_initial_condition
+            self.fields = compute_initial_condition(self.pcon, discr, cloud, 
+                    max_op=self.max_op, 
+                    potential_bc=setup.potential_bc, 
+                    force_zero=False)
 
         # instrumentation setup -----------------------------------------------
         self.add_instrumentation(self.logmgr)
@@ -308,11 +319,26 @@ class PICRunner(object):
         t = 0
         
         setup = self.setup
+        setup.hook_startup(self)
+
+        vis_order = setup.vis_order
+        if vis_order is None:
+            vis_order = setup.element_order
+
+        if vis_order != setup.element_order:
+            vis_discr = self.pcon.make_discretization(self.discr.mesh, 
+                            order=vis_order, debug=setup.dg_debug)
+
+            from hedge.discretization import Projector
+            vis_proj = Projector(self.discr, vis_discr)
+        else:
+            vis_discr = self.discr
+
+            def vis_proj(f):
+                return f
 
         from hedge.visualization import SiloVisualizer
-        vis = SiloVisualizer(self.discr)
-
-        setup.hook_startup(self)
+        vis = SiloVisualizer(vis_discr)
 
         for step in xrange(self.nsteps):
             self.logmgr.tick()
@@ -329,8 +355,10 @@ class PICRunner(object):
                     setup.output_path, setup.vis_pattern % step))
 
                 self.cloud.add_to_vis(vis, visf, time=t, step=step)
-                vis.add_data(visf, setup.hook_vis_quantities(self),
-                    time=t, step=step)
+                vis.add_data(visf, 
+                        [(name, vis_proj(fld))
+                            for name, fld in setup.hook_vis_quantities(self)],
+                        time=t, step=step)
                 setup.hook_visualize(self, vis, visf)
 
                 visf.close()

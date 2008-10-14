@@ -75,6 +75,7 @@ class ParticleCloud(_internal.BoundaryHitListener):
       - verbose_vis: Generate E and B fields and force 
         visualizations at particle locations.
       - ic: Check the initial condition when it's generated.
+      - no_ic: Start with zero fields.
       - discretization: (See driver.py.) Turn on debug mode for the
         discretization.
       - shape_bw: Debug the finding of the optimal shape bandwidth.
@@ -590,6 +591,7 @@ class FieldsAndCloud:
         self.maxwell_op = maxwell_op
         self.em_fields = maxwell_op.assemble_fields(e=e, h=h)
         self.cloud = cloud
+        self.bound_maxwell_op = maxwell_op.bind(self.discr)
 
         self.em_filters = []
 
@@ -601,6 +603,10 @@ class FieldsAndCloud:
     def add_em_filter(self, filt):
         self.em_filters.append(filt)
 
+    @property
+    def discr(self):
+        return self.cloud.discretization
+    
     @property
     def e(self):
         e, h = self.maxwell_op.split_eh(self.em_fields)
@@ -624,7 +630,7 @@ class FieldsAndCloud:
         mgr.add_quantity(self.field_solve_timer)
 
         self.cloud.add_instrumentation(mgr)
-        self.maxwell_op.discr.add_instrumentation(mgr)
+        self.discr.add_instrumentation(mgr)
 
     def __add__(self, other):
         d_em_fields, d_cloud = other
@@ -665,10 +671,10 @@ class FieldsAndCloud:
         self.field_solve_timer.start()
         from pyrticle.hyperbolic import CleaningMaxwellOperator
         if isinstance(self.maxwell_op, CleaningMaxwellOperator):
-            rhs_em = self.maxwell_op.rhs(t, self.em_fields, 
+            rhs_em = self.bound_maxwell_op(t, self.em_fields, 
                     self.cloud.reconstruct_rho())
         else:
-            rhs_em = self.maxwell_op.rhs(t, self.em_fields)
+            rhs_em = self.bound_maxwell_op(t, self.em_fields)
 
         self.field_solve_timer.stop()
 
@@ -721,7 +727,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
     l1_errors = []
 
     debug = "shape_bw" in cloud.debug
-    visualize = set(["shape_bw", "vis_files"]) < cloud.debug
+    visualize = set(["shape_bw", "vis_files"]) <= cloud.debug
 
     if visualize:
         from hedge.visualization import SiloVisualizer
@@ -865,30 +871,33 @@ def compute_initial_condition(pcon, discr, cloud,
             return (other_scale*numpy.identity(discr.dimensions) 
                     + (beta_scale-other_scale)*numpy.outer(beta_unit, beta_unit))
 
-    poisson_op = WeakPoissonOperator(discr, 
+    poisson_op = WeakPoissonOperator(
+            discr.dimensions,
             diffusion_tensor=ConstantGivenFunction(
                 make_scaling_matrix(1/gamma**2, 1)),
             dirichlet_tag=TAG_ALL,
             neumann_tag=TAG_NONE,
-            dirichlet_bc=potential_bc,
-            )
+            dirichlet_bc=potential_bc)
 
     rho_prime = cloud.reconstruct_rho() 
     rho_tilde = rho_prime/gamma
 
+    bound_poisson = poisson_op.bind(discr)
     if force_zero:
         phi_tilde = discr.volume_zeros()
     else:
         from hedge.tools import parallel_cg
-        phi_tilde = -parallel_cg(pcon, -poisson_op, 
-                poisson_op.prepare_rhs(
+        phi_tilde = -parallel_cg(pcon, -bound_poisson, 
+                bound_poisson.prepare_rhs(
                     GivenVolumeInterpolant(discr, rho_tilde/max_op.epsilon)), 
                 debug="poisson" in cloud.debug, tol=1e-10)
 
     from hedge.tools import ptwise_dot
     from hedge.pde import GradientOperator
-    #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), poisson_op.grad(phi_tilde))
-    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), GradientOperator(discr)(phi_tilde))
+    #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), bound_poisson.grad(phi_tilde))
+
+    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
+            GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
     h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
 
@@ -904,16 +913,17 @@ def compute_initial_condition(pcon, discr, cloud,
 
         from hedge.pde import DivergenceOperator
 
-        div_op = DivergenceOperator(discr)
+        bound_div_op = DivergenceOperator(discr.dimensions).bind(discr)
 
         d_tilde = max_op.epsilon*e_tilde
         d_prime = max_op.epsilon*e_prime
 
-        divD_prime_ldg = poisson_op.div(d_prime)
-        divD_prime_ldg2 = poisson_op.div(d_prime, max_op.epsilon*gamma*phi_tilde)
+        from hedge.optemplate import InverseMassOperator
+        divD_prime_ldg = bound_poisson.div(d_prime)
+        divD_prime_ldg2 = bound_poisson.div(d_prime, max_op.epsilon*gamma*phi_tilde)
         divD_prime_ldg3 = max_op.epsilon*\
-                (discr.inverse_mass_operator.apply(poisson_op.op(gamma*phi_tilde)))
-        divD_prime_central = div_op(d_prime)
+                (InverseMassOperator().apply(discr, bound_poisson.op(gamma*phi_tilde)))
+        divD_prime_central = bound_div_op(d_prime)
 
         print "l2 div D_prime error central: %g" % \
                 rel_l2_error(divD_prime_central, rho_prime)

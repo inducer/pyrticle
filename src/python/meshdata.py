@@ -31,7 +31,6 @@ MeshData = _internal.MeshData
 
 
 
-
 class MeshData(_internal.MeshData):
     __metaclass__ = monkeypatch_class
 
@@ -69,7 +68,7 @@ class MeshData(_internal.MeshData):
             ei.id = i
             ei.inverse_map = el.inverse_map
             ei.norm_forward_map = la.norm(el.map.matrix, 2)
-            ei.jacobian = abs(el.map.jacobian)
+            ei.jacobian = abs(el.map.jacobian())
             el_range = discr.find_el_range(el.id)
             ei.start, ei.end = el_range.start, el_range.stop
 

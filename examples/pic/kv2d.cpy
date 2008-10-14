@@ -8,22 +8,25 @@ beam_axis = 0
 beam_diag_axis = 1
 tube_length = 40*units.MM
 
-chi = 5
+chi = None
 
 #shape_bandwidth = "optimize,visualize,plot"
 shape_bandwidth = "optimize"
 
 pusher = PushMonomial()
-reconstructor = RecGrid(
-        #FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
-        el_tolerance=0.1,
-        method="simplex_reduce",
-        #filter_min_amplification=0.1,
-        #filter_order=6,
-        )
+if False:
+    reconstructor = RecGrid(
+            #FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
+            el_tolerance=0.1,
+            method="simplex_reduce",
+            #filter_min_amplification=0.1,
+            #filter_order=6,
+            )
+else:
+    reconstructor = RecShape()
 
 _cloud_charge = -10e-9 * units.C
-nparticles = 20000
+nparticles = 1
 element_order = 3
 final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
@@ -54,7 +57,6 @@ distribution = pyrticle.distribution.KVZIntervalBeam(
         beta=_mean_beta,
         axis_first=True)
 
-vis_verbose = True
 vis_interval = 10
 
 def hook_vis_quantities(runner):
@@ -65,12 +67,13 @@ def hook_vis_quantities(runner):
             ("rho", runner.cloud.reconstruct_rho()), 
             ]
 
-def hook_visualize(runner, vis, visf):
-    rec = runner.cloud.reconstructor
-    rec.visualize_grid_quantities(visf, [
-            ("rho_grid", rec.reconstruct_grid_rho()),
-            ("j_grid", rec.reconstruct_grid_j(runner.cloud.velocities())),
-            ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
-            ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
-            ("usecount", rec.grid_usecount()),
-            ])
+if isinstance(reconstructor, RecGrid):
+    def hook_visualize(runner, vis, visf):
+        rec = runner.cloud.reconstructor
+        rec.visualize_grid_quantities(visf, [
+                ("rho_grid", rec.reconstruct_grid_rho()),
+                ("j_grid", rec.reconstruct_grid_j(runner.cloud.velocities())),
+                ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
+                ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
+                ("usecount", rec.grid_usecount()),
+                ])

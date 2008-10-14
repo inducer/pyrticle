@@ -2,15 +2,16 @@ import random as _random
 _random.seed(0)
 
 pusher = PushMonomial()
-reconstructor = RecGrid(
-        #el_tolerance=0.1,
-        method="simplex_reduce",
-        jiggle_radius=0.0)
+#reconstructor = RecGrid(
+        ##el_tolerance=0.1,
+        #method="simplex_reduce",
+        #jiggle_radius=0.0)
 #reconstructor = RecAdv()
-#reconstructor = RecShape()
+reconstructor = RecShape()
 #reconstructor = RecGridFind()
 
 debug.add("shape_bw")
+#debug.add("no_ic")
 
 dimensions_pos = 2
 dimensions_velocity = 2
@@ -19,14 +20,16 @@ beam_axis = 0
 beam_diag_axis = 1
 tube_length = 2
 
-#shape_bandwidth = "optimize"
-shape_bandwidth = 0.3
+shape_bandwidth = "optimize"
+shape_bandwidth = 0.1
 
 _cloud_charge = 10e-9 * units.C
 nparticles = 1
-element_order = 3
+element_order = 7
 final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
+
+shape_exponent = 2
 
 _tube_width = 1
 import hedge.mesh as _mesh
@@ -51,7 +54,7 @@ distribution = pyrticle.distribution.JointParticleDistribution([
     pyrticle.distribution.GaussianPos([0.0,0.0], [0.01, 0.01]),
     pyrticle.distribution.GaussianMomentum(
         #_mean_p, _sigma_v*_gamma*_pmass, 
-        0*_mean_p, 1e-10*_sigma_v*_gamma*_pmass, 
+        _mean_p, 1e-10*_sigma_v*_gamma*_pmass, 
         units,
         pyrticle.distribution.DeltaChargeMass(
             _cloud_charge/nparticles,
@@ -59,6 +62,7 @@ distribution = pyrticle.distribution.JointParticleDistribution([
     ])
 
 vis_interval = 10
+vis_order = element_order + 2
 
 if isinstance(reconstructor, RecGrid):
     def hook_visualize(runner, vis, visf):

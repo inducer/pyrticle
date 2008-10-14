@@ -136,16 +136,16 @@ class DivergenceEQuantities(MultiLogQuantity):
                 descriptions=["Central divergence of D", "L1 Divergence Error"])
 
         self.f_and_c = f_and_c
-        self.discr = self.f_and_c.maxwell_op.discr
+        self.discr = self.f_and_c.discr
         from hedge.pde import DivergenceOperator
-        self.div_op = DivergenceOperator(self.discr,
-                f_and_c.maxwell_op.get_eh_subset()[:3])
+        self.bound_div_op = DivergenceOperator(self.discr.dimensions,
+                f_and_c.maxwell_op.get_eh_subset()[:3]).bind(self.discr)
 
     def __call__(self):
         rho = self.f_and_c.cloud.reconstruct_rho()
         max_op = self.f_and_c.maxwell_op
         d = max_op.epsilon * self.f_and_c.e
-        div_d = self.div_op(d)
+        div_d = self.bound_div_op(d)
         
         return [
                 self.discr.integral(div_d),
@@ -161,7 +161,7 @@ class ReconstructedCharge(LogQuantity):
         self.f_and_c = f_and_c
 
     def __call__(self):
-        return self.f_and_c.maxwell_op.discr.integral(
+        return self.f_and_c.discr.integral(
                 self.f_and_c.cloud.reconstruct_rho())
 
 
@@ -176,7 +176,7 @@ class FieldCurrent(LogQuantity):
         self.tube_length = tube_length
 
     def __call__(self):
-        return self.f_and_c.maxwell_op.discr.integral(
+        return self.f_and_c.discr.integral(
                 numpy.dot(self.direction,
                     self.f_and_c.cloud.reconstruct_j()))/self.tube_length
 
