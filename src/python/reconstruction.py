@@ -206,6 +206,8 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
         self.shape_function = None
 
+        resize_state(m_dofs_per_element * 1024);
+
         self.filter_amp = filter_amp
         self.filter_order = filter_order
 

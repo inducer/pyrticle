@@ -50,6 +50,7 @@
   def(#NAME, boost::python::pure_virtual(&cl::NAME))
 #define DEF_SIMPLE_FUNCTION(NAME) \
   def(#NAME, &NAME)
+
 #define DEF_RO_MEMBER(NAME) \
   def_readonly(#NAME, &cl::m_##NAME)
 #define DEF_RW_MEMBER(NAME) \
@@ -59,6 +60,15 @@
 #define DEF_BYVAL_RW_MEMBER(NAME) \
   def(pyublas::by_value_rw_member(#NAME, &cl::m_##NAME))
 
+// "S" for "struct"
+#define SDEF_RO_MEMBER(NAME) \
+  def_readonly(#NAME, &cl::NAME)
+#define SDEF_RW_MEMBER(NAME) \
+  def_readwrite(#NAME, &cl::NAME)
+#define SDEF_BYVAL_RO_MEMBER(NAME) \
+  def(pyublas::by_value_ro_member(#NAME, &cl::NAME))
+#define SDEF_BYVAL_RW_MEMBER(NAME) \
+  def(pyublas::by_value_rw_member(#NAME, &cl::NAME))
 
 
 

@@ -25,8 +25,6 @@
 #include <boost/lexical_cast.hpp>
 #include "pic_algorithm.hpp"
 #include "diagnostics.hpp"
-#include "wrap_reconstructor.hpp"
-#include "wrap_pusher.hpp"
 #include "wrap_helpers.hpp"
 
 
@@ -40,6 +38,19 @@ using namespace pyrticle;
 
 namespace
 {
+  template <class ParticleState>
+  std::string get_state_class_suffix()
+  {
+    std::string result;
+    result += boost::lexical_cast<std::string>(ParticleState::xdim());
+    result += boost::lexical_cast<std::string>(ParticleState::vdim());
+    return result;
+  }
+
+  
+
+
+#if 0
   template <class PICAlgorithm>
   void expose_diagnostics()
   {
@@ -222,6 +233,14 @@ namespace
   {
     expose_pic_all_dim<Reconstructor, monomial_particle_pusher>();
   }
+#endif
+
+
+
+
+#define EXPOSE_FOR_ALL_STATE_TYPES(NAME, ARGLIST) \
+  NAME<particle_base_state<2, 2> >ARGLIST; \
+  NAME<particle_base_state<3, 3> >ARGLIST;
 }
 
 

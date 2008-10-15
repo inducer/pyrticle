@@ -401,6 +401,35 @@ namespace pyrticle
 
 
 
+  class number_shift_listener
+  {
+    public:
+      virtual ~number_shift_listener()
+      { }
+
+      virtual void note_change_size(unsigned new_size) const 
+      { }
+      virtual void note_move(unsigned orig, unsigned dest, unsigned size) const 
+      { }
+      virtual void note_reset(unsigned start, unsigned size) const 
+      { }
+  };
+
+
+
+  class boundary_hit_listener
+  {
+    public:
+      virtual ~boundary_hit_listener()
+      { }
+
+      virtual void note_boundary_hit(particle_number pn) const 
+      { }
+  };
+
+
+
+
   class warning_listener
   {
     private:

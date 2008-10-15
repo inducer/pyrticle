@@ -75,36 +75,58 @@ namespace pyrticle
 
 
 
-  template <class Wrapper, class PIC>
-  void expose_typed_reconstructor(Wrapper &wrp, 
-      typename advective_reconstructor::type<PIC> *)
+
+  template <class ParticleState>
+  void expose_advective_reconstructor()
   { 
-    using boost::python::arg;
+    using namespace boost::python;
 
-    typedef typename advective_reconstructor::template type<PIC> cl;
-    wrp
-      .DEF_SIMPLE_METHOD(setup_advective_reconstructor)
-      .DEF_RW_MEMBER(rho_dof_shift_listener)
+    typedef advective_reconstructor<ParticleState> rec;
 
-      .DEF_RO_MEMBER(active_elements)
+    class_<rec> rec_wrap(("AdvectiveReconstructor"
+          +get_state_class_suffix<ParticleState>()).c_str(),
+          init<unsigned, unsigned, 
+          const py_matrix &, 
+          const py_matrix &, 
+          const py_matrix &, 
+          const py_matrix &, 
+          boost::shared_ptr<hedge::face_group>,
+          boost::shared_ptr<hedge::face_group>,
+          double, double, double>());
 
-      .DEF_RO_MEMBER(element_activation_counter)
-      .DEF_RO_MEMBER(element_kill_counter)
+    {
+      typedef rec cl;
+      rec_wrap
+        .DEF_RW_MEMBER(rho_dof_shift_listener)
 
-      .DEF_SIMPLE_METHOD(add_local_diff_matrix)
-      .DEF_SIMPLE_METHOD(count_advective_particles)
-      .DEF_SIMPLE_METHOD(add_advective_particle)
-      .DEF_SIMPLE_METHOD(clear_advective_particles)
-      .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
-      .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
-      .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)
+        .DEF_RO_MEMBER(active_elements)
 
-      .DEF_SIMPLE_METHOD(reconstruct_densities)
-      .DEF_SIMPLE_METHOD(reconstruct_rho)
-      .DEF_SIMPLE_METHOD(reconstruct_j)
+        .DEF_RO_MEMBER(element_activation_counter)
+        .DEF_RO_MEMBER(element_kill_counter)
 
-      .DEF_SIMPLE_METHOD(perform_reconstructor_upkeep)
-      ;
+        .DEF_SIMPLE_METHOD(add_local_diff_matrix)
+        .DEF_SIMPLE_METHOD(count_advective_particles)
+        .DEF_SIMPLE_METHOD(add_advective_particle)
+        .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
+        .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
+        .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)
+
+        .DEF_SIMPLE_METHOD(reconstruct_densities)
+        .DEF_SIMPLE_METHOD(reconstruct_rho)
+        .DEF_SIMPLE_METHOD(reconstruct_j)
+
+        .DEF_SIMPLE_METHOD(perform_reconstructor_upkeep)
+        ;
+    }
+
+    {
+      scope rec_scope = rec_wrap;
+
+      typedef typename rec::advective_state cl;
+      class_<cl>("State")
+        .DEF_SIMPLE_METHOD(clear)
+        ;
+    }
   }
 
 

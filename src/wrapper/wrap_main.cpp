@@ -27,6 +27,7 @@ void expose_tools();
 void expose_grid();
 void expose_meshdata();
 void expose_pusher();
+void expose_pic();
 void expose_shape_pic();
 void expose_normshape_pic();
 void expose_advective_pic();
@@ -42,6 +43,7 @@ BOOST_PYTHON_MODULE(_internal)
   expose_grid();
   expose_meshdata();
   expose_pusher();
+  expose_pic();
   expose_shape_pic();
   expose_normshape_pic();
   expose_advective_pic();

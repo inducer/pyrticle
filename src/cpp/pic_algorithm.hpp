@@ -83,35 +83,6 @@ namespace pyrticle
 
 
 
-  class number_shift_listener
-  {
-    public:
-      virtual ~number_shift_listener()
-      { }
-
-      virtual void note_change_size(unsigned new_size) const 
-      { }
-      virtual void note_move(unsigned orig, unsigned dest, unsigned size) const 
-      { }
-      virtual void note_reset(unsigned start, unsigned size) const 
-      { }
-  };
-
-
-
-  class boundary_hit_listener
-  {
-    public:
-      virtual ~boundary_hit_listener()
-      { }
-
-      virtual void note_boundary_hit(particle_number pn) const 
-      { }
-  };
-
-
-
-
   struct find_event_counters
   {
     event_counter             find_same;
@@ -164,7 +135,7 @@ namespace pyrticle
 
     if (prev != mesh_data::INVALID_ELEMENT)
     {
-      const mesh_data::element_info &prev_el = mesh.element_info[prev];
+      const mesh_data::element_info &prev_el = mesh.m_element_info[prev];
 
       // check if we're still in the same element -------------------------
       if (is_in_unit_simplex(prev_el.m_inverse_map(pt)))
@@ -285,8 +256,10 @@ namespace pyrticle
 
   template <class ParticleState>
   void update_containing_elements(
+      const mesh_data &mesh,
       ParticleState &ps,
-      const boundary_hit_listener &bhit_listener
+      const boundary_hit_listener &bhit_listener,
+      find_event_counters &counters
       )
   {
     for (particle_number pn = 0; pn < ps.particle_count;)
@@ -294,7 +267,7 @@ namespace pyrticle
       mesh_data::element_number prev = ps.containing_elements[pn];
 
       mesh_data::element_number new_el = 
-        find_new_containing_element(ps, pn, prev);
+        find_new_containing_element(mesh, ps, pn, prev, counters);
 
       // no element found? must be boundary
       if (new_el == mesh_data::INVALID_ELEMENT)
@@ -302,7 +275,7 @@ namespace pyrticle
         /* INVARIANT: boundary_hit_listener *must* leave particles
          * with particle number less than pn unchanged.
          */
-        boundary_hit(ps, pn, bhit_listener);
+        boundary_hit(mesh, ps, pn, bhit_listener, counters);
       }
       else
       {
@@ -321,7 +294,9 @@ namespace pyrticle
       const mesh_data &mesh,
       ParticleState &ps, 
       particle_number pn,
-      const boundary_hit_listener &bhit_listener)
+      const boundary_hit_listener &bhit_listener,
+      find_event_counters &counters
+      )
   {
     unsigned x_pstart = pn*ps.xdim();
     unsigned x_pend = (pn+1)*ps.xdim();
@@ -356,7 +331,9 @@ namespace pyrticle
     {
       subrange(ps.positions, x_pstart, x_pend) = pt;
       mesh_data::element_number ce = 
-        find_new_containing_element(pn, ps.containing_elements[pn]);
+        find_new_containing_element(
+            mesh, ps, pn, ps.containing_elements[pn],
+            counters);
       if (ce != mesh_data::INVALID_ELEMENT)
       {
         ps.containing_elements[pn] = ce;
@@ -367,7 +344,7 @@ namespace pyrticle
     /* INVARIANT: boundary_hit_listener *must* leave particles
      * with particle number less than pn unchanged.
      */
-    bhit_listener.note_boundary_hit(ps, pn);
+    bhit_listener.note_boundary_hit(pn);
   }
 
 
