@@ -98,6 +98,9 @@ class NumberShiftableVector(_internal.NumberShiftListener):
         else:
             return instance
 
+    def __len__(self):
+        return len(self.vector)
+
     # arithmetic --------------------------------------------------------------
     def __add__(self, other):
         if len(self.vector) != len(self.unwrap(other)):
@@ -105,6 +108,7 @@ class NumberShiftableVector(_internal.NumberShiftListener):
             print self.signaller, other.signaller
             print other in other.signaller.subscribers
             print "---------------------------------------------"
+        
         return NumberShiftableVector(
                 self.vector + self.unwrap(other),
                 self.signaller)

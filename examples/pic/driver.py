@@ -124,10 +124,10 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "hook_before_step": lambda runner : None,
                 "hook_after_step": lambda runner : None,
                 "hook_when_done": lambda runner : None,
-                "hook_vis_quantities": lambda runner: [
-                    ("e", runner.fields.e), 
-                    ("h", runner.fields.h), 
-                    ("j", runner.cloud.reconstruct_j()), 
+                "hook_vis_quantities": lambda observer: [
+                    ("e", observer.e), 
+                    ("h", observer.h), 
+                    ("j", observer.method.reconstruct_j(observer.state)), 
                     ],
                 "hook_visualize": lambda runner, vis, visf: None,
                 }
@@ -381,42 +381,58 @@ class PICRunner(object):
 
         fields = self.fields
         state = self.state
+        self.observer.set_fields_and_state(fields, state)
 
         from hedge.tools import make_obj_array
-        y = make_obj_array([fields, state])
+        from pyrticle.cloud import TimesteppablePicState
+
+        y = make_obj_array([
+            fields, 
+            TimesteppablePicState(self.method, state)
+            ])
+
+        from pytools import typedump
 
         def rhs(t, fields_and_state):
-            fields, state = fields_and_state
+            fields, ts_state = fields_and_state
+            state = ts_state.state
 
             fields_rhs = self.field_rhs_calculator(t, fields, state)
             state_rhs = self.particle_rhs_calculator(t, fields, state)
-            
+
             return make_obj_array([fields_rhs, state_rhs])
 
+        def visualize(observer):
+            self.vis_timer.start()
+            import os.path
+            visf = vis.make_file(os.path.join(
+                setup.output_path, setup.vis_pattern % step))
+
+            self.method.add_to_vis(vis, visf, state, time=t, step=step)
+            vis.add_data(visf, 
+                    [(name, vis_proj(fld))
+                        for name, fld in setup.hook_vis_quantities(observer)],
+                    time=t, step=step)
+            setup.hook_visualize(self, vis, visf)
+
+            visf.close()
+            self.vis_timer.stop()
+
+
         for step in xrange(self.nsteps):
-            self.observer.set_fields_and_state(fields, state)
             self.logmgr.tick()
 
             self.method.upkeep(state)
             setup.hook_before_step(self)
+
             y = self.stepper(y, t, self.dt, rhs)
             setup.hook_after_step(self)
 
+            fields, ts_state = y
+            self.observer.set_fields_and_state(fields, ts_state.state)
+
             if step % setup.vis_interval == 0:
-                self.vis_timer.start()
-                import os.path
-                visf = vis.make_file(os.path.join(
-                    setup.output_path, setup.vis_pattern % step))
-
-                self.method.add_to_vis(vis, visf, time=t, step=step)
-                vis.add_data(visf, 
-                        [(name, vis_proj(fld))
-                            for name, fld in setup.hook_vis_quantities(self)],
-                        time=t, step=step)
-                setup.hook_visualize(self, vis, visf)
-
-                visf.close()
-                self.vis_timer.stop()
+                visualize(self.observer)
 
             t += self.dt
 

@@ -42,25 +42,47 @@ class HeuristicElementFinder(ElementFinder):
 
 
 class PicState(object):
-    def __init__(self, method):
+    def __init__(self, method,
+            particle_count=None,
+            containing_elements=None,
+            positions=None,
+            momenta=None,
+            charges=None,
+            masses=None,
+            reconstructor_state=None,
+            pnss=None):
         state_class = getattr(_internal, "ParticleState%s" % 
             method.get_dimensionality_suffix())
 
         pstate = self.particle_state = state_class()
-        self.reconstructor_state = method.reconstructor.make_state()
+        if reconstructor_state is None:
+            self.reconstructor_state = method.reconstructor.make_state(self)
+        else:
+            self.reconstructor_state = reconstructor_state
 
-        pstate.particle_count = 0
-        pstate.containing_elements = numpy.zeros((0,), dtype=numpy.uint32)
-        pstate.positions = numpy.zeros((0, pstate.xdim), dtype=float)
-        pstate.momenta = numpy.zeros((0, pstate.vdim), dtype=float)
-        pstate.charges = numpy.zeros((0,), dtype=float)
-        pstate.masses = numpy.zeros((0,), dtype=float)
+        if particle_count is None:
+            pstate.particle_count = 0
+            pstate.containing_elements = numpy.zeros((0,), dtype=numpy.uint32)
+            pstate.positions = numpy.zeros((0, pstate.xdim), dtype=float)
+            pstate.momenta = numpy.zeros((0, pstate.vdim), dtype=float)
+            pstate.charges = numpy.zeros((0,), dtype=float)
+            pstate.masses = numpy.zeros((0,), dtype=float)
+        else:
+            pstate.particle_count = particle_count
+            pstate.containing_elements = containing_elements
+            pstate.positions = positions
+            pstate.momenta = momenta
+            pstate.charges = charges
+            pstate.masses = masses
 
         self.derived_quantity_cache = {}
 
-        # size change messaging
-        from pyrticle.tools import NumberShiftMultiplexer
-        self.particle_number_shift_signaller = NumberShiftMultiplexer()
+        if pnss is None:
+            # size change messaging
+            from pyrticle.tools import NumberShiftMultiplexer
+            self.particle_number_shift_signaller = NumberShiftMultiplexer()
+        else:
+            self.particle_number_shift_signaller = pnss
 
     def __len__(self):
         return self.particle_state.particle_count
@@ -125,6 +147,22 @@ class PicState(object):
 
 
 
+
+class TimesteppablePicState(object):
+    def __init__(self, method, state):
+        self.method = method
+        self.state = state
+
+    def __add__(self, update):
+        from pyrticle.tools import NumberShiftableVector
+
+        dx, dp, drecon = update
+        dx = NumberShiftableVector.unwrap(dx)
+        dp = NumberShiftableVector.unwrap(dp)
+
+        new_state = self.method.advance_state(self.state, dx, dp, drecon)
+
+        return TimesteppablePicState(self.method, new_state)
 
 
 
@@ -459,65 +497,66 @@ class PicMethod(object):
 
 
 
-    # rhs treatment -----------------------------------------------------------
-    def rhs(self, t, e, b):
-        """Return an ArithmeticList of velocities and forces on the particles.
-
-        @arg e: triple of M{E_x}, M{E_y}, M{E_z}, each of which may be either 
-          a Pylinear vector or a L{ZeroVector}.
-        @arg b: triple of M{B_x}, M{B_y}, M{B_z}, each of which may be either 
-          a Pylinear vector or a L{ZeroVector}. Caution: The hedge Maxwell operator
-          deals with M{H}, not M{B}.
-        """
-
-
-    def __add__(self, rhs):
-        self.derived_quantity_cache.clear()
-
-        from pyrticle.tools import NumberShiftableVector
-
-        dx, dp, drecon = rhs
-        dx = NumberShiftableVector.unwrap(dx)
-        dp = NumberShiftableVector.unwrap(dp)
-        assert dx.shape == (len(self), self.dimensions_pos)
-        assert dp.shape == (len(self), self.dimensions_velocity)
-        self.pic_algorithm.add_rhs(dx, dp)
-        self.reconstructor.add_rhs(drecon)
-
-        self.find_el_timer.start()
-        self.pic_algorithm.update_containing_elements()
-        self.find_el_timer.stop()
-        self.find_same_counter.transfer(
-                self.pic_algorithm.find_same)
-        self.find_by_neighbor_counter.transfer(
-                self.pic_algorithm.find_by_neighbor)
-        self.find_by_vertex_counter.transfer(
-                self.pic_algorithm.find_by_vertex)
-        self.find_global_counter.transfer(
-                self.pic_algorithm.find_global)
-
-        return self
-
-
-
-
     # bounary treatment -------------------------------------------------------
-    def note_boundary_hit(self, pn):
+    def note_boundary_hit(self, state, pn):
         self.pic_algorithm.kill_particle(pn)
 
 
 
 
+    # time advance ------------------------------------------------------------
+    def advance_state(self, state, dx, dp, drecon):
+        pstate = state.particle_state
+
+        cnt = pstate.particle_count
+        new_state = PicState(
+                self,
+                particle_count=cnt,
+                containing_elements=pstate.containing_elements,
+                positions=pstate.positions[:cnt] + dx,
+                momenta=pstate.momenta[:cnt] + dp,
+                charges=pstate.charges,
+                masses=pstate.masses,
+                reconstructor_state=self.reconstructor.advance_state(
+                    state.reconstructor_state, drecon),
+                pnss=state.particle_number_shift_signaller)
+
+        from pyrticle._internal import FindEventCounters
+        find_counters = FindEventCounters()
+
+        class BHitListener(_internal.BoundaryHitListener):
+            def note_boundary_hit(subself, pn):
+                self.note_boundary_hit(self, new_state, pn)
+
+        from pyrticle._internal import update_containing_elements
+        self.find_el_timer.start()
+        update_containing_elements(
+                self.mesh_data, new_state.particle_state, 
+                BHitListener(), find_counters)
+        self.find_el_timer.stop()
+
+        self.find_same_counter.transfer(
+                find_counters.find_same)
+        self.find_by_neighbor_counter.transfer(
+                find_counters.find_by_neighbor)
+        self.find_by_vertex_counter.transfer(
+                find_counters.find_by_vertex)
+        self.find_global_counter.transfer(
+                find_counters.find_global)
+
+        return new_state
+
     # visualization -----------------------------------------------------------
     def get_mesh_vis_vars(self):
         return self.vis_listener.mesh_vis_map.items()
 
-    def add_to_vis(self, visualizer, vis_file, time=None, step=None, beamaxis=None):
+    def add_to_vis(self, visualizer, state, vis_file, time=None, step=None, beamaxis=None,
+            vis_listener=None):
         from hedge.visualization import VtkVisualizer, SiloVisualizer
         if isinstance(visualizer, VtkVisualizer):
-            return self._add_to_vtk(visualizer, vis_file, time, step)
+            return self._add_to_vtk(visualizer, vis_file, state, time, step)
         elif isinstance(visualizer, SiloVisualizer):
-            return self._add_to_silo(visualizer, vis_file, time, step, beamaxis)
+            return self._add_to_silo(visualizer, vis_file, state, time, step, beamaxis, vis_listener)
         else:
             raise ValueError, "unknown visualizer type `%s'" % type(visualizer)
 
@@ -576,7 +615,7 @@ class PicMethod(object):
 
         visualizer.register_pathname(time, pathname)
 
-    def _add_to_silo(self, visualizer, db, time, step, beamaxis):
+    def _add_to_silo(self, visualizer, state, db, time, step, beamaxis, vis_listener=None):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
         from warnings import warn
 
@@ -586,30 +625,31 @@ class PicMethod(object):
         if step is not None:
             optlist[DBOPT_CYCLE] = step
 
-        pcount = len(self)
+        pcount = len(state)
 
         if pcount:
             # real-space ------------------------------------------------------
             db.put_pointmesh("particles", 
-                    numpy.asarray(self.positions.T, order="C"), optlist)
-            db.put_pointvar1("charge", "particles", self.charges)
-            db.put_pointvar1("mass", "particles", self.masses)
+                    numpy.asarray(state.positions.T, order="C"), optlist)
+            db.put_pointvar1("charge", "particles", state.charges)
+            db.put_pointvar1("mass", "particles", state.masses)
             db.put_pointvar("momentum", "particles", 
-                    numpy.asarray(self.momenta.T, order="C"))
+                    numpy.asarray(state.momenta.T, order="C"))
             db.put_pointvar("velocity", "particles", 
-                    numpy.asarray(self.velocities().T, order="C"))
+                    numpy.asarray(self.velocities(state).T, order="C"))
 
-            for name, value in self.vis_listener.particle_vis_map.iteritems():
-                from pyrticle.tools import NumberShiftableVector
-                value = NumberShiftableVector.unwrap(value)
-                dim, remainder = divmod(len(value), pcount)
-                assert remainder == 0, (
-                        "particle vis value '%s' had invalid number of entries: "
-                        "%d (#particles=%d)" % (name, len(value), pcount))
-                if dim == 1:
-                    db.put_pointvar1(name, "particles", value)
-                else:
-                    db.put_pointvar(name, "particles", [value[i::dim] for i in range(dim)])
+            if vis_listener is not None:
+                for name, value in self.vis_listener.particle_vis_map.iteritems():
+                    from pyrticle.tools import NumberShiftableVector
+                    value = NumberShiftableVector.unwrap(value)
+                    dim, remainder = divmod(len(value), pcount)
+                    assert remainder == 0, (
+                            "particle vis value '%s' had invalid number of entries: "
+                            "%d (#particles=%d)" % (name, len(value), pcount))
+                    if dim == 1:
+                        db.put_pointvar1(name, "particles", value)
+                    else:
+                        db.put_pointvar(name, "particles", [value[i::dim] for i in range(dim)])
             
             # phase-space -----------------------------------------------------
             axes_names = ["x", "y", "z"]

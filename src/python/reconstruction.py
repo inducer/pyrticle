@@ -138,7 +138,7 @@ class Reconstructor(object):
     def rhs(self):
         return 0
 
-    def add_rhs(self, rhs):
+    def advance_state(self, state, rhs):
         return 0
 
 
@@ -158,7 +158,7 @@ class ShapeFunctionReconstructor(Reconstructor):
         Reconstructor.set_shape_function(self, sf)
         self.backend.shape_function = sf
 
-    def make_state(self):
+    def make_state(self, state):
         return DummyReconstructorState()
 
     def note_change_size(self, state, count):
@@ -357,7 +357,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
         return result
 
-    def add_rhs(self, rhs):
+    def advance_state(self, rhs):
         from pyrticle.tools import NumberShiftableVector
         self.cloud.pic_algorithm.apply_advective_particle_rhs(
                 NumberShiftableVector.unwrap(rhs))

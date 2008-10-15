@@ -82,4 +82,14 @@ void expose_pic()
 {
   EXPOSE_FOR_ALL_STATE_TYPES(expose_pic_basics, ());
   EXPOSE_FOR_ALL_STATE_TYPES(expose_diagnostics, ());
+
+  {
+    typedef find_event_counters cl;
+    class_<find_event_counters>("FindEventCounters")
+      .SDEF_RW_MEMBER(find_same)
+      .SDEF_RW_MEMBER(find_by_neighbor)
+      .SDEF_RW_MEMBER(find_by_vertex)
+      .SDEF_RW_MEMBER(find_global)
+      ;
+  }
 }
