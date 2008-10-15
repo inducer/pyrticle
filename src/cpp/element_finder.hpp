@@ -37,6 +37,7 @@
 
 
 
+
 namespace pyrticle
 {
   class heuristic_element_finder
@@ -280,11 +281,10 @@ namespace pyrticle
       {
         const unsigned dim = ps.xdim();
         const bounded_vector pos = subrange(
-            ps.m_positions, pn*dim, (pn+1)*dim);
+            ps.positions, pn*dim, (pn+1)*dim);
 
         el_set_t el_set;
-        recurse(target, pos, radius, el_set, 
-            ps.m_containing_elements[pn]);
+        recurse(target, pos, radius, el_set, ps.containing_elements[pn]);
       }
   };
 

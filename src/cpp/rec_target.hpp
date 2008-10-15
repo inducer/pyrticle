@@ -188,79 +188,74 @@ namespace pyrticle
 
 
 
-  // reconstructor base class -------------------------------------------------
-  template <class PICAlgorithm>
-  class target_reconstructor_mixin
+  // reconstructor drivers ----------------------------------------------------
+  template <class Reconstructor>
+  boost::tuple<py_vector, py_vector> 
+    reconstruct_densities(
+        typename Reconstructor::particle_state const &ps,
+        Reconstructor &rec,
+        unsigned node_count, 
+        const py_vector &velocities, 
+        boost::python::slice const &pslice)
   {
-    public:
-      boost::tuple<py_vector, py_vector> 
-        reconstruct_densities(const py_vector &velocities, 
-            boost::python::slice const &pslice)
-      {
-        py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
-        npy_intp dims[] = {
-          CONST_PIC_THIS->m_mesh_data.node_count(),
-          CONST_PIC_THIS->get_dimensions_velocity()
-        };
-        py_vector j(2, dims);
+    py_vector rho(node_count);
+    npy_intp dims[] = { node_count, ps.vdim() };
+    py_vector j(2, dims);
 
-        rho_reconstruction_target rho_tgt(rho);
-        typedef j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt_t;
-        j_tgt_t j_tgt(j, velocities);
+    rho_reconstruction_target rho_tgt(rho);
+    typedef j_reconstruction_target<
+      Reconstructor::particle_state::m_vdim> j_tgt_t;
+    j_tgt_t j_tgt(j, velocities);
 
-        chained_reconstruction_target<rho_reconstruction_target, j_tgt_t>
-            tgt(rho_tgt, j_tgt);
-        PIC_THIS->reconstruct_densities_on_target(tgt, pslice);
+    chained_reconstruction_target<rho_reconstruction_target, j_tgt_t>
+        tgt(rho_tgt, j_tgt);
+    rec.reconstruct_densities_on_target(ps, tgt, pslice);
 
-        rho = rho_tgt.result();
+    rho = rho_tgt.result();
 
-        return boost::make_tuple(rho, j);
-      }
+    return boost::make_tuple(rho, j);
+  }
 
 
 
 
-      py_vector reconstruct_j(const py_vector &velocities,
-          boost::python::slice const &pslice)
-      {
-        npy_intp dims[] = {
-          CONST_PIC_THIS->m_mesh_data.node_count(),
-          CONST_PIC_THIS->get_dimensions_velocity()
-        };
+  template <class Reconstructor>
+  py_vector reconstruct_j(
+      typename Reconstructor::particle_state const &ps,
+      Reconstructor &rec,
+      unsigned node_count,
+      const py_vector &velocities,
+      boost::python::slice const &pslice)
+  {
+    npy_intp dims[] = { node_count, ps.vdim() };
 
-        py_vector j(2, dims);
-        if (j.size() != PIC_THIS->m_mesh_data.node_count() *
-            PIC_THIS->get_dimensions_velocity())
-          throw std::runtime_error("j field does not have the correct size");
+    py_vector j(2, dims);
+    if (j.size() != node_count * ps.vdim())
+      throw std::runtime_error("j field does not have the correct size");
 
-        j_reconstruction_target<PICAlgorithm::dimensions_velocity> j_tgt(
-            j, velocities);
+    j_reconstruction_target<
+      Reconstructor::particle_state::m_vdim> j_tgt(j, velocities);
 
-        PIC_THIS->reconstruct_densities_on_target(j_tgt, pslice);
-        return j;
-      }
-
-
-
-
-      py_vector reconstruct_rho(boost::python::slice const &pslice)
-      {
-        py_vector rho(CONST_PIC_THIS->m_mesh_data.node_count());
-
-        rho_reconstruction_target rho_tgt(rho);
-        PIC_THIS->reconstruct_densities_on_target(rho_tgt, pslice);
-        return rho;
-      }
-  };
+    rec.reconstruct_densities_on_target(ps, j_tgt, pslice);
+    return j;
+  }
 
 
 
 
-  template <class PICAlgorithm>
-  class target_reconstructor_base 
-  : public reconstructor_base,
-  public target_reconstructor_mixin<PICAlgorithm>
-  { };
+  template <class Reconstructor>
+  py_vector reconstruct_rho(
+      typename Reconstructor::particle_state const &ps,
+      Reconstructor &rec,
+      unsigned node_count,
+      boost::python::slice const &pslice)
+  {
+    py_vector rho(node_count);
+
+    rho_reconstruction_target rho_tgt(rho);
+    rec.reconstruct_densities_on_target(ps, rho_tgt, pslice);
+    return rho;
+  }
 }
 
 

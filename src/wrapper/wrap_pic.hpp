@@ -241,6 +241,9 @@ namespace
 #define EXPOSE_FOR_ALL_STATE_TYPES(NAME, ARGLIST) \
   NAME<particle_base_state<2, 2> >ARGLIST; \
   NAME<particle_base_state<3, 3> >ARGLIST;
+
+#define EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(NAME, ARGLIST) \
+  NAME<shape_function_reconstructor<ParticleState, polynomial_shape_function > > ARGLIST;
 }
 
 

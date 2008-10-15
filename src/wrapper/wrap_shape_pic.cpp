@@ -22,7 +22,13 @@
 
 
 
+namespace
+{
+}
+
+
+
+
 void expose_shape_pic()
 {
-  expose_pic_all_pushers_all_dim<shape_function_reconstructor>();
 }

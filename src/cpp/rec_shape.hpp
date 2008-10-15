@@ -34,6 +34,7 @@
 #include "bases.hpp"
 #include "meshdata.hpp"
 #include "pic_algorithm.hpp"
+#include "element_finder.hpp"
 
 
 
@@ -63,76 +64,77 @@ namespace pyrticle
 
 
 
+  template <class ParticleState, class ShapeFunction>
   struct shape_function_reconstructor
   {
-    template <class PICAlgorithm>
-    class type : public target_reconstructor_base<PICAlgorithm>
-    {
-      private:
-        template <class Target>
-        class element_target
-        {
-          private:
-            const PICAlgorithm &m_pic_algorithm;
-            const double      m_charge;
-            Target            &m_target;
-            
-          public:
-            element_target(PICAlgorithm &pic_algorithm, double charge, Target &tgt)
-              : m_pic_algorithm(pic_algorithm), m_charge(charge), m_target(tgt)
-            { }
+    private:
+      template <class Target>
+      class element_target
+      {
+        private:
+          const mesh_data   &m_mesh_data;
+          ShapeFunction     m_shape_function;
+          const double      m_charge;
+          Target            &m_target;
+          
+        public:
+          element_target(
+              const mesh_data &md, 
+              const ShapeFunction &sf,
+              double charge, Target &tgt)
+            : m_mesh_data(md), m_shape_function(sf), m_charge(charge), m_target(tgt)
+          { }
 
-            void add_shape_on_element(
-                const bounded_vector &center,
-                const mesh_data::element_number en
-                ) const
-            {
-              const mesh_data::element_info &einfo(
-                  m_pic_algorithm.m_mesh_data.m_element_info[en]);
-
-              const unsigned el_length = einfo.m_end-einfo.m_start;
-              dyn_vector el_rho(el_length);
-
-              for (unsigned i = 0; i < el_length; i++)
-                el_rho[i] = 
-                  m_charge * m_pic_algorithm.m_shape_function(
-                      m_pic_algorithm.m_mesh_data.mesh_node(einfo.m_start+i) 
-                      - center);
-
-              m_target.add_shape_on_element(en, einfo.m_start, el_rho);
-            }
-        };
-
-      public:
-        // member data --------------------------------------------------------
-        shape_function   m_shape_function;
-
-        // public interface ---------------------------------------------------
-        static const std::string get_name()
-        { return "Shape"; }
-
-
-
-
-        template<class Target>
-        void reconstruct_densities_on_target(Target &tgt,
-            boost::python::slice const &pslice)
-        {
-          typename PICAlgorithm::element_finder el_finder(*CONST_PIC_THIS);
-
-          FOR_ALL_SLICE_INDICES(particle_number, pn, 
-              pslice, CONST_PIC_THIS->m_particle_count)
+          void add_shape_on_element(
+              const bounded_vector &center,
+              const mesh_data::element_number en
+              ) const
           {
-            element_target<Target> el_target(
-                *CONST_PIC_THIS, 
-                CONST_PIC_THIS->m_charges[pn], tgt);
+            const mesh_data::element_info &einfo(
+                m_mesh_data.m_element_info[en]);
 
-            tgt.begin_particle(pn);
-            el_finder(el_target, pn, m_shape_function.radius());
-            tgt.end_particle(pn);
+            const unsigned el_length = einfo.m_end-einfo.m_start;
+            dyn_vector el_rho(el_length);
+
+            for (unsigned i = 0; i < el_length; i++)
+              el_rho[i] = 
+                m_charge * m_shape_function(
+                    m_mesh_data.mesh_node(einfo.m_start+i) 
+                    - center);
+
+            m_target.add_shape_on_element(en, einfo.m_start, el_rho);
           }
+      };
+
+    public:
+      typedef ParticleState particle_state;
+
+      // member data --------------------------------------------------------
+      ShapeFunction m_shape_function;
+      const mesh_data &m_mesh_data;
+
+      shape_function_reconstructor(const mesh_data &md)
+        : m_mesh_data(md)
+      { }
+    
+
+      template<class Target>
+      void reconstruct_densities_on_target(
+          const ParticleState &ps,
+          Target &tgt,
+          boost::python::slice const &pslice)
+      {
+        element_finder el_finder(m_mesh_data);
+
+        FOR_ALL_SLICE_INDICES(particle_number, pn, pslice, ps.particle_count)
+        {
+          element_target<Target> el_target(m_mesh_data, m_shape_function, ps.charges[pn], tgt);
+
+          tgt.begin_particle(pn);
+          el_finder(ps, el_target, pn, m_shape_function.radius());
+          tgt.end_particle(pn);
         }
-    };
+      }
   };
 }
 
