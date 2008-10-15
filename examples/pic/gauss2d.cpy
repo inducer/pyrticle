@@ -25,7 +25,7 @@ shape_bandwidth = 0.1
 
 _cloud_charge = 10e-9 * units.C
 nparticles = 1
-element_order = 7
+element_order = 4
 final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
@@ -62,7 +62,7 @@ distribution = pyrticle.distribution.JointParticleDistribution([
     ])
 
 vis_interval = 10
-vis_order = element_order + 2
+vis_order = 8
 
 if isinstance(reconstructor, RecGrid):
     def hook_visualize(runner, vis, visf):

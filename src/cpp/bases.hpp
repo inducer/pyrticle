@@ -32,11 +32,11 @@
 
 namespace pyrticle
 {
-  class pusher_base : public number_shift_listener
+  class pusher_base 
   {
   };
 
-  class reconstructor_base : public number_shift_listener
+  class reconstructor_base 
   {
   };
 }

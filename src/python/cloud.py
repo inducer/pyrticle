@@ -63,11 +63,129 @@ class HeuristicElementFinder(ElementFinder):
 
 
 
-class ParticleCloud(_internal.BoundaryHitListener):
-    """State container for a cloud of particles. Supports particle
-    problems of any dimension, examples below are given for three
-    dimensions for simplicity.
+class PicStateContainer(object):
+    def __init__(self, maxwell_op, e, h, cloud):
+        from pytools.arithmetic_container import join_fields
+        self.maxwell_op = maxwell_op
+        self.em_fields = maxwell_op.assemble_fields(e=e, h=h)
+        self.cloud = cloud
 
+        self.particle_count = 0
+        self.containing_elements = numpy.zeros((0,self.dimensions_pos), 
+                dtype=numpy.uint32)
+        self.positions = numpy.zeros((0,self.dimensions_pos), dtype=float)
+        self.momenta = numpy.zeros((0,self.dimensions_velocity), dtype=float)
+        self.charges = numpy.zeros((0,), dtype=float)
+        self.masses = numpy.zeros((0,), dtype=float)
+
+        self.bound_maxwell_op = maxwell_op.bind(self.discr)
+        self.em_filters = []
+
+        from pytools.log import IntervalTimer
+        self.field_solve_timer = IntervalTimer(
+                "t_field",
+                "Time spent in field solver")
+
+    def add_em_filter(self, filt):
+        self.em_filters.append(filt)
+
+    @property
+    def discr(self):
+        return self.cloud.discretization
+    
+    @property
+    def e(self):
+        e, h = self.maxwell_op.split_eh(self.em_fields)
+        return e
+
+    @property
+    def h(self):
+        e, h = self.maxwell_op.split_eh(self.em_fields)
+        return h
+
+    @property
+    def phi(self):
+        from pyrticle.hyperbolic import CleaningMaxwellOperator
+        if isinstance(self.maxwell_op, CleaningMaxwellOperator):
+            e, h, phi = self.maxwell_op.split_ehphi(self.em_fields)
+            return phi
+        else:
+            return self.maxwell_op.discr.volume_zeros()
+
+    def add_instrumentation(self, mgr):
+        mgr.add_quantity(self.field_solve_timer)
+
+        self.cloud.add_instrumentation(mgr)
+        self.discr.add_instrumentation(mgr)
+
+    def disabled__add__(self, other):
+        d_em_fields, d_cloud = other
+
+        self.em_fields += d_em_fields
+        self.cloud += d_cloud
+
+        return self
+
+    def rhs(self, t, y):
+        assert y is self
+
+        from hedge.tools import ZeroVector
+
+        # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
+        # inserting ZeroVectors where necessary.
+        idx = 0
+        e_arg = []
+        for use_component in self.maxwell_op.get_eh_subset()[0:3]:
+            if use_component:
+                e_arg.append(self.e[idx])
+                idx += 1
+            else:
+                e_arg.append(ZeroVector())
+
+        idx = 0
+        b_arg = []
+        for use_component in self.maxwell_op.get_eh_subset()[3:6]:
+            if use_component:
+                b_arg.append(self.maxwell_op.mu * self.h[idx])
+                idx += 1
+            else:
+                b_arg.append(ZeroVector())
+
+        rhs_cloud = self.cloud.rhs(t, e_arg, b_arg)
+
+        # calculate EM right-hand side 
+        self.field_solve_timer.start()
+        from pyrticle.hyperbolic import CleaningMaxwellOperator
+        if isinstance(self.maxwell_op, CleaningMaxwellOperator):
+            rhs_em = self.bound_maxwell_op(t, self.em_fields, 
+                    self.cloud.reconstruct_rho())
+        else:
+            rhs_em = self.bound_maxwell_op(t, self.em_fields)
+
+        self.field_solve_timer.stop()
+
+        # add current
+        e_components = self.maxwell_op.count_subset(
+                self.maxwell_op.get_eh_subset()[0:3])
+
+        from hedge.tools import to_obj_array
+        j = to_obj_array(self.cloud.reconstruct_j())
+        rhs_em[:e_components] -= 1/self.maxwell_op.epsilon*j
+
+        from hedge.tools import make_obj_array
+        return make_obj_array([rhs_em, rhs_cloud])
+
+    def upkeep(self):
+        for f in self.em_filters:
+            self.em_fields = f(self.em_fields)
+
+        self.cloud.upkeep()
+
+
+
+
+class PicAlgorithm(_internal.BoundaryHitListener):
+    """
     @arg debug: A set of strings telling what to debug. So far, the
       following debug flags are in use:
     
@@ -84,6 +202,7 @@ class ParticleCloud(_internal.BoundaryHitListener):
       - vis_files: Allow debug measures that write extra visualization
         files.
     """
+
     def __init__(self, discr, units, 
             reconstructor, pusher, finder,
             dimensions_pos, dimensions_velocity,
@@ -105,41 +224,17 @@ class ParticleCloud(_internal.BoundaryHitListener):
 
         dims = (dimensions_pos, dimensions_velocity)
 
-        pic = self.pic_algorithm = getattr(_internal, 
-                "PIC%s%s%s%d%d" % (
-                    self.reconstructor.name,
-                    self.pusher.name,
-                    self.finder.name,
-                    self.dimensions_pos,
-                    self.dimensions_velocity
-                    ),
-                )(discr.dimensions, units.VACUUM_LIGHT_SPEED)
-
-        pic.containing_elements = numpy.zeros((0,self.dimensions_pos), 
-                dtype=numpy.uint32)
-        pic.positions = numpy.zeros((0,self.dimensions_pos), dtype=float)
-        pic.momenta = numpy.zeros((0,self.dimensions_velocity), dtype=float)
-        pic.charges = numpy.zeros((0,), dtype=float)
-        pic.masses = numpy.zeros((0,), dtype=float)
-
-        # We need to retain this particular Python wrapper
-        # of our mesh_data object because we write new stuff
-        # to its __dict__. (And every time we access it via
-        # pic_algorithm, a new wrapper--with a fresh __dict__--gets
-        # created, which is not what we want.)
-        self.mesh_data = pic.mesh_data
+        self.mesh_data = _internal.MeshData(discr.dimensions)
         self.mesh_data.fill_from_hedge(discr)
 
         # size change messaging
         from pyrticle.tools import NumberShiftMultiplexer
         self.particle_number_shift_signaller = NumberShiftMultiplexer()
-        pic.particle_number_shift_listener = self.particle_number_shift_signaller
         pic.boundary_hit_listener = self
 
         # visualization
-        self.vis_listener = pic.vis_listener = \
-                MapStorageVisualizationListener(
-                        self.particle_number_shift_signaller)
+        self.vis_listener = MapStorageVisualizationListener(
+                self.particle_number_shift_signaller)
 
         # subsystem init
         self.reconstructor.initialize(self)
@@ -581,119 +676,6 @@ class ParticleCloud(_internal.BoundaryHitListener):
 
 
 
-
-
-
-
-class FieldsAndCloud:
-    def __init__(self, maxwell_op, e, h, cloud):
-        from pytools.arithmetic_container import join_fields
-        self.maxwell_op = maxwell_op
-        self.em_fields = maxwell_op.assemble_fields(e=e, h=h)
-        self.cloud = cloud
-        self.bound_maxwell_op = maxwell_op.bind(self.discr)
-
-        self.em_filters = []
-
-        from pytools.log import IntervalTimer
-        self.field_solve_timer = IntervalTimer(
-                "t_field",
-                "Time spent in field solver")
-
-    def add_em_filter(self, filt):
-        self.em_filters.append(filt)
-
-    @property
-    def discr(self):
-        return self.cloud.discretization
-    
-    @property
-    def e(self):
-        e, h = self.maxwell_op.split_eh(self.em_fields)
-        return e
-
-    @property
-    def h(self):
-        e, h = self.maxwell_op.split_eh(self.em_fields)
-        return h
-
-    @property
-    def phi(self):
-        from pyrticle.hyperbolic import CleaningMaxwellOperator
-        if isinstance(self.maxwell_op, CleaningMaxwellOperator):
-            e, h, phi = self.maxwell_op.split_ehphi(self.em_fields)
-            return phi
-        else:
-            return self.maxwell_op.discr.volume_zeros()
-
-    def add_instrumentation(self, mgr):
-        mgr.add_quantity(self.field_solve_timer)
-
-        self.cloud.add_instrumentation(mgr)
-        self.discr.add_instrumentation(mgr)
-
-    def __add__(self, other):
-        d_em_fields, d_cloud = other
-
-        self.em_fields += d_em_fields
-        self.cloud += d_cloud
-
-        return self
-
-    def rhs(self, t, y):
-        assert y is self
-
-        from hedge.tools import ZeroVector
-
-        # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
-        # inserting ZeroVectors where necessary.
-        idx = 0
-        e_arg = []
-        for use_component in self.maxwell_op.get_eh_subset()[0:3]:
-            if use_component:
-                e_arg.append(self.e[idx])
-                idx += 1
-            else:
-                e_arg.append(ZeroVector())
-
-        idx = 0
-        b_arg = []
-        for use_component in self.maxwell_op.get_eh_subset()[3:6]:
-            if use_component:
-                b_arg.append(self.maxwell_op.mu * self.h[idx])
-                idx += 1
-            else:
-                b_arg.append(ZeroVector())
-
-        rhs_cloud = self.cloud.rhs(t, e_arg, b_arg)
-
-        # calculate EM right-hand side 
-        self.field_solve_timer.start()
-        from pyrticle.hyperbolic import CleaningMaxwellOperator
-        if isinstance(self.maxwell_op, CleaningMaxwellOperator):
-            rhs_em = self.bound_maxwell_op(t, self.em_fields, 
-                    self.cloud.reconstruct_rho())
-        else:
-            rhs_em = self.bound_maxwell_op(t, self.em_fields)
-
-        self.field_solve_timer.stop()
-
-        # add current
-        e_components = self.maxwell_op.count_subset(
-                self.maxwell_op.get_eh_subset()[0:3])
-
-        from hedge.tools import to_obj_array
-        j = to_obj_array(self.cloud.reconstruct_j())
-        rhs_em[:e_components] -= 1/self.maxwell_op.epsilon*j
-
-        from hedge.tools import make_obj_array
-        return make_obj_array([rhs_em, rhs_cloud])
-
-    def upkeep(self):
-        for f in self.em_filters:
-            self.em_fields = f(self.em_fields)
-
-        self.cloud.upkeep()
 
 
 

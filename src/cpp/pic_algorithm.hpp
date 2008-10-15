@@ -39,427 +39,405 @@
 
 namespace pyrticle 
 {
-  template<unsigned DimensionsPos, unsigned DimensionsVelocity>
-  struct pic_data
+  template <unsigned DimensionsPos, unsigned DimensionsVelocity>
+  struct particle_base_state 
   {
-    template <class PICAlgorithm>
-    class type : boost::noncopyable
+    static const unsigned m_xdim = DimensionsPos;
+    static const unsigned m_vdim = DimensionsVelocity;
+
+    static unsigned xdim()
+    { return DimensionsPos; }
+
+    static unsigned vdim()
+    { return DimensionsVelocity; }
+
+    unsigned                          particle_count;
+
+    pyublas::numpy_vector<mesh_data::element_number> containing_elements;
+    py_vector                         positions;
+    py_vector                         momenta;
+    py_vector                         charges;
+    py_vector                         masses;
+
+    particle_base_state()
+    : particle_count(0)
+    { }
+
+    particle_base_state(particle_base_state const &src)
+    { assign(src); }
+
+    particle_base_state &operator=(particle_base_state &src)
+    { assign(src); }
+    
+    void assign(particle_base_state const &src)
     {
-      public:
-        mesh_data                         m_mesh_data;
-
-        unsigned                          m_particle_count;
-
-        pyublas::numpy_vector<mesh_data::element_number> m_containing_elements;
-        py_vector                         m_positions;
-        py_vector                         m_momenta;
-        py_vector                         m_charges;
-        py_vector                         m_masses;
-
-        const double                      m_vacuum_c;
-
-        mutable event_counter             m_find_same;
-        mutable event_counter             m_find_by_neighbor;
-        mutable event_counter             m_find_by_vertex;
-        mutable event_counter             m_find_global;
-
-        boost::shared_ptr<number_shift_listener> m_particle_number_shift_listener;
-        boost::shared_ptr<boundary_hit_listener> m_boundary_hit_listener;
-
-      public:
-        // administrative stuff -----------------------------------------------
-        type(unsigned mesh_dimensions, double vacuum_c)
-          : m_mesh_data(mesh_dimensions), 
-          m_particle_count(0),
-          m_vacuum_c(vacuum_c)
-        { }
-
-        // dimensions ---------------------------------------------------------
-        /* CAVEAT: Use the get_dimensions_XXX functions whenever possible.
-         * Otherwise, you will get spurious linker errors about undefined
-         * references to these constants.
-         *
-         * In particular, these expressions should only be used where they're
-         * evaluated at compile time.
-         */
-        static const unsigned dimensions_pos = DimensionsPos;
-        static const unsigned dimensions_velocity = DimensionsVelocity;
-
-        static unsigned get_dimensions_pos()
-        { return DimensionsPos; }
-
-        static unsigned get_dimensions_velocity()
-        { return DimensionsVelocity; }
-
-        // heavy-lifting routines ---------------------------------------------
-        const py_vector velocities() const
-        {
-          const unsigned vdim = DimensionsVelocity;
-
-          py_vector result(m_particle_count * DimensionsVelocity);
-
-          for (particle_number pn = 0; pn < m_particle_count; pn++)
-          {
-            unsigned vpstart = vdim*pn;
-            unsigned vpend = vdim*(pn+1);
-
-            const double m = m_masses[pn];
-            double p = norm_2(subrange(m_momenta, vpstart, vpend));
-            double v = m_vacuum_c*p/sqrt(m*m*m_vacuum_c*m_vacuum_c + p*p);
-            subrange(result, vpstart, vpend) = v/p*subrange(m_momenta, vpstart, vpend);
-          }
-          return result;
-        }
-
-
-
-
-        void add_rhs(
-            py_vector const &dx, 
-            py_vector const &dp)
-        {
-          noalias(subrange(m_positions, 0, DimensionsPos*m_particle_count))
-            += dx;
-          noalias(subrange(m_momenta, 0, DimensionsVelocity*m_particle_count))
-            += dp;
-        }
-
-
-
-
-        mesh_data::element_number find_new_containing_element(particle_number i,
-            mesh_data::element_number prev) const
-        {
-          const unsigned xdim = DimensionsPos;
-
-          const unsigned x_pstart = i*xdim;
-          const unsigned x_pend = (i+1)*xdim;
-          
-          const bounded_vector pt = subrange(m_positions, x_pstart, x_pend);
-
-          if (prev != mesh_data::INVALID_ELEMENT)
-          {
-            const mesh_data::element_info &prev_el = m_mesh_data.m_element_info[prev];
-
-            // check if we're still in the same element -------------------------
-            if (is_in_unit_simplex(prev_el.m_inverse_map(pt)))
-            {
-              m_find_same.tick();
-              return prev;
-            }
-
-            // we're not: lookup via normal -------------------------------------
-            {
-              int closest_normal_idx = -1;
-              double max_ip = 0;
-              unsigned normal_idx = 0;
-
-              BOOST_FOREACH(const mesh_data::face_info &f, prev_el.m_faces)
-              {
-                double ip = inner_prod(
-                    f.m_normal, 
-                    subrange(m_momenta, x_pstart, x_pend));
-
-                if (ip > max_ip)
-                {
-                  closest_normal_idx = normal_idx;
-                  max_ip = ip;
-                }
-                ++normal_idx;
-              }
-
-              if (closest_normal_idx == -1)
-              {
-                std::cerr << "face normals:" << std::endl;
-                bounded_vector mom = subrange(m_momenta, x_pstart, x_pend);
-                BOOST_FOREACH(const mesh_data::face_info &f, prev_el.m_faces)
-                {
-                  std::cerr 
-                    << f.m_normal 
-                    << ", ip with momentum:" << inner_prod(f.m_normal, mom)
-                    << std::endl;
-                }
-                throw std::runtime_error(
-                    str(boost::format("no best normal found--weird (momentum=%1%)") % mom));
-              }
-
-              mesh_data::element_number possible_idx =
-                prev_el.m_faces[closest_normal_idx].m_neighbor;
-
-              if (possible_idx != mesh_data::INVALID_ELEMENT)
-              {
-                const mesh_data::element_info &possible = 
-                  m_mesh_data.m_element_info[possible_idx];
-
-                if (is_in_unit_simplex(possible.m_inverse_map(pt)))
-                {
-                  m_find_by_neighbor.tick();
-                  return possible.m_id;
-                }
-              }
-            }
-
-            // look up via closest vertex ---------------------------------------
-            {
-              mesh_data::vertex_number closest_vertex = 
-                mesh_data::INVALID_VERTEX;
-
-              {
-                double min_dist = std::numeric_limits<double>::infinity();
-
-                BOOST_FOREACH(mesh_data::vertex_number vi, prev_el.m_vertices)
-                {
-                  double dist = norm_2(m_mesh_data.mesh_vertex(vi) - pt);
-                  if (dist < min_dist)
-                  {
-                    closest_vertex = vi;
-                    min_dist = dist;
-                  }
-                }
-              }
-
-              // found closest vertex, go through adjacent elements
-              BOOST_FOREACH(mesh_data::element_number possible_idx, 
-                  std::make_pair(
-                    m_mesh_data.m_vertex_adj_elements.begin()
-                    + m_mesh_data.m_vertex_adj_element_starts[closest_vertex],
-                    m_mesh_data.m_vertex_adj_elements.begin()
-                    + m_mesh_data.m_vertex_adj_element_starts[closest_vertex+1]
-                    )
-                  )
-              {
-                const mesh_data::element_info &possible = 
-                  m_mesh_data.m_element_info[possible_idx];
-
-                if (is_in_unit_simplex(possible.m_inverse_map(pt)))
-                {
-                  m_find_by_vertex.tick();
-                  return possible.m_id;
-                }
-              }
-
-            }
-
-          }
-
-          // last resort: global search ---------------------------------------
-          {
-            m_find_global.tick();
-
-            mesh_data::element_number new_el = 
-              m_mesh_data.find_containing_element(pt);
-            if (new_el != mesh_data::INVALID_ELEMENT)
-              return new_el;
-          }
-
-          return mesh_data::INVALID_ELEMENT;
-        }
-
-
-
-
-        void update_containing_elements()
-        {
-          for (particle_number pn = 0; pn < m_particle_count;)
-          {
-            mesh_data::element_number prev = m_containing_elements[pn];
-
-            mesh_data::element_number new_el = 
-              find_new_containing_element(pn, prev);
-
-            // no element found? must be boundary
-            if (new_el == mesh_data::INVALID_ELEMENT)
-            {
-              /* INVARIANT: boundary_hit_listener *must* leave particles
-               * with particle number less than pn unchanged.
-               */
-              boundary_hit(pn);
-            }
-            else
-            {
-              m_containing_elements[pn] = new_el;
-              ++pn;
-            }
-          }
-        }
-
-
-
-
-
-        void boundary_hit(particle_number pn)
-        {
-          unsigned x_pstart = pn*DimensionsPos;
-          unsigned x_pend = (pn+1)*DimensionsPos;
-
-          bool periodicity_trip = false;
-
-          bounded_vector pt = subrange(m_positions, x_pstart, x_pend);
-
-          mesh_data::axis_number per_axis = 0;
-          BOOST_FOREACH(const mesh_data::periodicity_axis &pa, 
-              m_mesh_data.m_periodicities)
-          {
-            if (pa.m_min != pa.m_max)
-            {
-              const double xi = pt[per_axis];
-              if (xi < pa.m_min)
-              {
-                pt[per_axis] += (pa.m_max-pa.m_min);
-                periodicity_trip = true;
-              }
-              else if (xi > pa.m_max)
-              {
-                pt[per_axis] -= (pa.m_max-pa.m_min);
-                periodicity_trip = true;
-              }
-            }
-
-            ++per_axis;
-          }
-
-          if (periodicity_trip)
-          {
-            subrange(m_positions, x_pstart, x_pend) = pt;
-            mesh_data::element_number ce = 
-              find_new_containing_element(pn, m_containing_elements[pn]);
-            if (ce != mesh_data::INVALID_ELEMENT)
-            {
-              m_containing_elements[pn] = ce;
-              return;
-            }
-          }
-
-          if (m_boundary_hit_listener.get())
-          {
-            /* INVARIANT: boundary_hit_listener *must* leave particles
-             * with particle number less than pn unchanged.
-             */
-            m_boundary_hit_listener->note_boundary_hit(pn);
-          }
-          else
-            throw std::runtime_error("no boundary hit handler installed");
-        }
-
-
-
-
-        void kill_particle(particle_number pn)
-        {
-          --m_particle_count;
-          if (m_particle_count)
-          {
-            // Observe that m_particle_count was decremented
-            // above, so this does indeed move the last valid
-            // particle, if it exists.
-            move_particle(m_particle_count, pn);
-          }
-
-          note_change_particle_count(m_particle_count);
-        }
-
-
-
-
-        void note_change_particle_count(unsigned particle_count)
-        {
-          if (m_particle_number_shift_listener.get())
-            m_particle_number_shift_listener->note_change_size(m_particle_count);
-          PIC_THIS->PICAlgorithm::reconstructor::note_change_size(m_particle_count);
-          PIC_THIS->PICAlgorithm::particle_pusher::note_change_size(m_particle_count);
-        }
-
-
-
-
-        /** Move a particle to a different number.
-         *
-         * (this has nothing to do with actual particle motion.)
-         */
-        void move_particle(particle_number from, particle_number to)
-        {
-          const unsigned xdim = DimensionsPos;
-          const unsigned vdim = DimensionsVelocity;
-
-          m_containing_elements[to] = m_containing_elements[from];
-
-          if (m_particle_number_shift_listener.get())
-            m_particle_number_shift_listener->note_move(from, to, 1);
-          PIC_THIS->PICAlgorithm::reconstructor::note_move(from, to, 1);
-          PIC_THIS->PICAlgorithm::particle_pusher::note_move(from, to, 1);
-
-          for (unsigned i = 0; i < xdim; i++)
-            m_positions[to*xdim+i] = m_positions[from*xdim+i];
-
-          for (unsigned i = 0; i < vdim; i++)
-            m_momenta[to*vdim+i] = m_momenta[from*vdim+i];
-
-          m_charges[to] = m_charges[from];
-          m_masses[to] = m_masses[from];
-        }
-
-
-
-
-    };
-
+      particle_count = src.particle_count;
+      containing_elements = src.containing_elements.copy();
+      positions = src.positions.copy();
+      momenta = src.momenta.copy();
+      charges = src.charges.copy();
+      masses = src.masses.copy();
+    }
   };
-  
 
 
 
 
-  template <class PICData, 
-           class Reconstructor, 
-           class ParticlePusher,
-           class ElementFinder>
-  class pic : 
-    public PICData::template type<pic<PICData, Reconstructor, ParticlePusher, ElementFinder> >,
-    public Reconstructor::template type<pic<PICData, Reconstructor, ParticlePusher, ElementFinder> >,
-    public ParticlePusher::template type<pic<PICData, Reconstructor, ParticlePusher, ElementFinder> >
+  class number_shift_listener
   {
     public:
-      typedef typename PICData::template type<pic> pic_data;
-      typedef typename Reconstructor::template type<pic> reconstructor;
-      typedef typename ParticlePusher::template type<pic> particle_pusher;
-      typedef typename ElementFinder::template type<pic> element_finder;
-
-      pic(unsigned mesh_dimensions, double vacuum_c)
-        : pic_data(mesh_dimensions, vacuum_c)
+      virtual ~number_shift_listener()
       { }
 
-      virtual ~pic() { } // placate old versions of gcc
+      virtual void note_change_size(unsigned new_size) const 
+      { }
+      virtual void note_move(unsigned orig, unsigned dest, unsigned size) const 
+      { }
+      virtual void note_reset(unsigned start, unsigned size) const 
+      { }
+  };
 
-      // pic_data vector member accessors -------------------------------------
-      // (BPL workaround)
-      pyublas::numpy_vector<mesh_data::element_number> 
-        containing_elements() const { return this->m_containing_elements; }
-      py_vector positions() const { return this->m_positions; }
-      py_vector momenta() const { return this->m_momenta; }
-      py_vector charges() const { return this->m_charges; }
-      py_vector masses() const { return this->m_masses; }
 
-      void set_containing_elements(pyublas::numpy_vector<mesh_data::element_number> v) 
-      { this->m_containing_elements = v; }
-      void set_positions(py_vector v) { this->m_positions = v; }
-      void set_momenta(py_vector v) { this->m_momenta = v; }
-      void set_charges(py_vector v) { this->m_charges = v; }
-      void set_masses(py_vector v) { this->m_masses = v; }
 
-      // visualization-related ------------------------------------------------
-      boost::shared_ptr<visualization_listener> m_vis_listener;
+  class boundary_hit_listener
+  {
+    public:
+      virtual ~boundary_hit_listener()
+      { }
 
-      void store_mesh_vis_vector(const char *name, const py_vector &vec)
+      virtual void note_boundary_hit(particle_number pn) const 
+      { }
+  };
+
+
+
+
+  struct find_event_counters
+  {
+    event_counter             find_same;
+    event_counter             find_by_neighbor;
+    event_counter             find_by_vertex;
+    event_counter             find_global;
+  };
+
+
+
+
+  // actual functionality -----------------------------------------------------
+  template <class ParticleState>
+  const py_vector get_velocities(const ParticleState &ps, const double vacuum_c)
+  {
+    const unsigned vdim = ps.vdim();
+
+    py_vector result(ps.particle_count * vdim);
+
+    for (particle_number pn = 0; pn < ps.particle_count; pn++)
+    {
+      unsigned vpstart = vdim*pn;
+      unsigned vpend = vdim*(pn+1);
+
+      const double m = ps.masses[pn];
+      double p = norm_2(subrange(ps.momenta, vpstart, vpend));
+      double v = vacuum_c*p/sqrt(m*m*vacuum_c*vacuum_c + p*p);
+      subrange(result, vpstart, vpend) = v/p*subrange(ps.momenta, vpstart, vpend);
+    }
+    return result;
+  }
+
+
+
+
+  template <class ParticleState>
+  mesh_data::element_number find_new_containing_element(
+      const mesh_data &mesh,
+      const ParticleState &ps,
+      particle_number i,
+      mesh_data::element_number prev,
+      find_event_counters &counters)
+  {
+    const unsigned xdim = ps.xdim();
+
+    const unsigned x_pstart = i*xdim;
+    const unsigned x_pend = (i+1)*xdim;
+    
+    const bounded_vector pt = subrange(ps.positions, x_pstart, x_pend);
+
+    if (prev != mesh_data::INVALID_ELEMENT)
+    {
+      const mesh_data::element_info &prev_el = mesh.element_info[prev];
+
+      // check if we're still in the same element -------------------------
+      if (is_in_unit_simplex(prev_el.m_inverse_map(pt)))
       {
-        if (m_vis_listener.get())
-          m_vis_listener->store_mesh_vis_vector(name, vec);
+        counters.find_same.tick();
+        return prev;
       }
-      void store_particle_vis_vector(const char *name, const py_vector &vec)
+
+      // we're not: lookup via normal -------------------------------------
       {
-        if (m_vis_listener.get())
-          m_vis_listener->store_particle_vis_vector(name, vec);
+        int closest_normal_idx = -1;
+        double max_ip = 0;
+        unsigned normal_idx = 0;
+
+        BOOST_FOREACH(const mesh_data::face_info &f, prev_el.m_faces)
+        {
+          double ip = inner_prod(
+              f.m_normal, 
+              subrange(ps.momenta, x_pstart, x_pend));
+
+          if (ip > max_ip)
+          {
+            closest_normal_idx = normal_idx;
+            max_ip = ip;
+          }
+          ++normal_idx;
+        }
+
+        if (closest_normal_idx == -1)
+        {
+          std::cerr << "face normals:" << std::endl;
+          bounded_vector mom = subrange(ps.momenta, x_pstart, x_pend);
+          BOOST_FOREACH(const mesh_data::face_info &f, prev_el.m_faces)
+          {
+            std::cerr 
+              << f.m_normal 
+              << ", ip with momentum:" << inner_prod(f.m_normal, mom)
+              << std::endl;
+          }
+          throw std::runtime_error(
+              str(boost::format("no best normal found--weird (momentum=%1%)") % mom));
+        }
+
+        mesh_data::element_number possible_idx =
+          prev_el.m_faces[closest_normal_idx].m_neighbor;
+
+        if (possible_idx != mesh_data::INVALID_ELEMENT)
+        {
+          const mesh_data::element_info &possible = 
+            mesh.m_element_info[possible_idx];
+
+          if (is_in_unit_simplex(possible.m_inverse_map(pt)))
+          {
+            counters.find_by_neighbor.tick();
+            return possible.m_id;
+          }
+        }
+      }
+
+      // look up via closest vertex ---------------------------------------
+      {
+        mesh_data::vertex_number closest_vertex = 
+          mesh_data::INVALID_VERTEX;
+
+        {
+          double min_dist = std::numeric_limits<double>::infinity();
+
+          BOOST_FOREACH(mesh_data::vertex_number vi, prev_el.m_vertices)
+          {
+            double dist = norm_2(mesh.mesh_vertex(vi) - pt);
+            if (dist < min_dist)
+            {
+              closest_vertex = vi;
+              min_dist = dist;
+            }
+          }
+        }
+
+        // found closest vertex, go through adjacent elements
+        BOOST_FOREACH(mesh_data::element_number possible_idx, 
+            std::make_pair(
+              mesh.m_vertex_adj_elements.begin()
+              + mesh.m_vertex_adj_element_starts[closest_vertex],
+              mesh.m_vertex_adj_elements.begin()
+              + mesh.m_vertex_adj_element_starts[closest_vertex+1]
+              )
+            )
+        {
+          const mesh_data::element_info &possible = 
+            mesh.m_element_info[possible_idx];
+
+          if (is_in_unit_simplex(possible.m_inverse_map(pt)))
+          {
+            counters.find_by_vertex.tick();
+            return possible.m_id;
+          }
+        }
+
+      }
+
+    }
+
+    // last resort: global search ---------------------------------------
+    {
+      counters.find_global.tick();
+
+      mesh_data::element_number new_el = 
+        mesh.find_containing_element(pt);
+      if (new_el != mesh_data::INVALID_ELEMENT)
+        return new_el;
+    }
+
+    return mesh_data::INVALID_ELEMENT;
+  }
+
+
+
+
+  template <class ParticleState>
+  void update_containing_elements(
+      ParticleState &ps,
+      const boundary_hit_listener &bhit_listener
+      )
+  {
+    for (particle_number pn = 0; pn < ps.particle_count;)
+    {
+      mesh_data::element_number prev = ps.containing_elements[pn];
+
+      mesh_data::element_number new_el = 
+        find_new_containing_element(ps, pn, prev);
+
+      // no element found? must be boundary
+      if (new_el == mesh_data::INVALID_ELEMENT)
+      {
+        /* INVARIANT: boundary_hit_listener *must* leave particles
+         * with particle number less than pn unchanged.
+         */
+        boundary_hit(ps, pn, bhit_listener);
+      }
+      else
+      {
+        ps.containing_elements[pn] = new_el;
+        ++pn;
+      }
+    }
+  }
+
+
+
+
+
+  template <class ParticleState>
+  void boundary_hit(
+      const mesh_data &mesh,
+      ParticleState &ps, 
+      particle_number pn,
+      const boundary_hit_listener &bhit_listener)
+  {
+    unsigned x_pstart = pn*ps.xdim();
+    unsigned x_pend = (pn+1)*ps.xdim();
+
+    bool periodicity_trip = false;
+
+    bounded_vector pt = subrange(ps.positions, x_pstart, x_pend);
+
+    mesh_data::axis_number per_axis = 0;
+    BOOST_FOREACH(const mesh_data::periodicity_axis &pa, 
+        mesh.m_periodicities)
+    {
+      if (pa.m_min != pa.m_max)
+      {
+        const double xi = pt[per_axis];
+        if (xi < pa.m_min)
+        {
+          pt[per_axis] += (pa.m_max-pa.m_min);
+          periodicity_trip = true;
+        }
+        else if (xi > pa.m_max)
+        {
+          pt[per_axis] -= (pa.m_max-pa.m_min);
+          periodicity_trip = true;
+        }
+      }
+
+      ++per_axis;
+    }
+
+    if (periodicity_trip)
+    {
+      subrange(ps.positions, x_pstart, x_pend) = pt;
+      mesh_data::element_number ce = 
+        find_new_containing_element(pn, ps.containing_elements[pn]);
+      if (ce != mesh_data::INVALID_ELEMENT)
+      {
+        ps.containing_elements[pn] = ce;
+        return;
+      }
+    }
+
+    /* INVARIANT: boundary_hit_listener *must* leave particles
+     * with particle number less than pn unchanged.
+     */
+    bhit_listener.note_boundary_hit(ps, pn);
+  }
+
+
+
+#if 0
+  void kill_particle(
+      const particle_dimensionality &pd,
+      const particle_state &ps, 
+      particle_number pn,
+      const number_shift_listener &nshift_listener
+      )
+  {
+    --ps.particle_count;
+    if (ps.particle_count)
+    {
+      // Observe that ps.particle_count was decremented
+      // above, so this does indeed move the last valid
+      // particle, if it exists.
+      move_particle(ps, ps.particle_count, pn, nshift_listener);
+    }
+
+    note_change_particle_count(ps.particle_count);
+  }
+
+
+
+
+      void note_change_particle_count(particle_state &ps, unsigned particle_count) const
+      {
+        if (ps.particle_number_shift_listener.get())
+          ps.particle_number_shift_listener->note_change_size(ps, ps.particle_count);
+        reconstructor::note_change_size(ps, ps.particle_count);
+        particle_pusher::note_change_size(ps, ps.particle_count);
+      }
+
+
+
+
+      /** Move a particle to a different number.
+       *
+       * (this has nothing to do with actual particle motion.)
+       */
+      void move_particle(
+          const particle_dimensionality &pd,
+          particle_state &ps, 
+          particle_number from, particle_number to,
+          const number_shift_listener &nshift_listener
+          )
+      {
+        const unsigned xdim = pd.xdim();
+        const unsigned vdim = pd.vdim();
+
+        ps.containing_elements[to] = ps.containing_elements[from];
+
+        if (ps.particle_number_shift_listener.get())
+          ps.particle_number_shift_listener->note_move(from, to, 1);
+        reconstructor::note_move(ps, from, to, 1);
+        particle_pusher::note_move(ps, from, to, 1);
+
+        for (unsigned i = 0; i < xdim; i++)
+          ps.positions[to*xdim+i] = ps.positions[from*xdim+i];
+
+        for (unsigned i = 0; i < vdim; i++)
+          ps.momenta[to*vdim+i] = ps.momenta[from*vdim+i];
+
+        ps.charges[to] = ps.charges[from];
+        ps.masses[to] = ps.masses[from];
       }
   };
+#endif
 }
 
 
