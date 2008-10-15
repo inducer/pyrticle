@@ -32,36 +32,37 @@ using namespace boost::python;
 
 namespace
 {
-  template <class Reconstructor>
-  void expose_reconstruction_functions()
+  template <class Depositor>
+  void expose_deposition_functions()
   {
-    def("reconstruct_densities", reconstruct_densities<Reconstructor>);
-    def("reconstruct_j", reconstruct_j<Reconstructor>);
-    def("reconstruct_rho", reconstruct_rho<Reconstructor>);
+    def("deposit_densities", reconstruct_densities<Depositor>);
+    def("deposit_j", reconstruct_j<Depositor>);
+    def("deposit_rho", reconstruct_rho<Depositor>);
   }
 
 
 
 
   template <class ParticleState>
-  void expose_reconstructors_for_pstate()
+  void expose_depositors_for_pstate()
   {
     {
       typedef shape_function_reconstructor<ParticleState, polynomial_shape_function> cl;
-      class_<cl>("InterpolatingDepositor", init<const mesh_data &>())
+      class_<cl>(
+        ("InterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
+        init<const mesh_data &>())
         .DEF_RW_MEMBER(shape_function)
         ;
     }
     
-    EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(expose_reconstruction_functions, ());
+    EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(expose_deposition_functions, ());
   }
 }
 
 
 
 
-void expose_reconstruction()
+void expose_deposition()
 {
-  EXPOSE_FOR_ALL_STATE_TYPES(expose_reconstructors_for_pstate, ());
+  EXPOSE_FOR_ALL_STATE_TYPES(expose_depositors_for_pstate, ());
 }
-

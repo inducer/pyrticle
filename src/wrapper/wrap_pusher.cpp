@@ -44,9 +44,7 @@ namespace
         .def("forces", &cl::template forces< // full-field case
             py_vector, py_vector, py_vector,
             py_vector, py_vector, py_vector>,
-            (arg("ex"), arg("ey"), arg("ez"), 
-             arg("bx"), arg("by"), arg("bz"),
-             arg("velocities"), arg("verbose_vis")))
+            args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
         ;
     }
     else if (Pusher::particle_state::vdim() == 2)
@@ -56,16 +54,12 @@ namespace
         .def("forces", &cl::template forces< // TM case
             zero_vector, zero_vector, py_vector,
             py_vector, py_vector, zero_vector>,
-            (arg("ex"), arg("ey"), arg("ez"), 
-             arg("bx"), arg("by"), arg("bz"),
-             arg("velocities"), arg("verbose_vis")))
+            args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
              */
         .def("forces", &cl::template forces< // TE case
             py_vector, py_vector, zero_vector,
             zero_vector, zero_vector, py_vector>,
-            (arg("ex"), arg("ey"), arg("ez"), 
-             arg("bx"), arg("by"), arg("bz"),
-             arg("velocities"), arg("verbose_vis")))
+            args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
         ;
     }
   }
@@ -75,7 +69,13 @@ namespace
   {
     {
       typedef monomial_particle_pusher<ParticleState> cl;
-      class_<cl> wrp("MonomialPusher", init<const mesh_data &>())
+      class_<cl> wrp(
+          ("MonomialPusher"+get_state_class_suffix<ParticleState>()).c_str(), 
+          init<const mesh_data &>());
+
+      wrp
+        .DEF_RW_MEMBER(local_discretizations)
+        .DEF_RW_MEMBER(ldis_indices)
         ;
       expose_force_calculator<cl>(wrp);
     }

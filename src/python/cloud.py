@@ -31,28 +31,6 @@ from pyrticle.meshdata import MeshData
 
 
 
-class MapStorageVisualizationListener(_internal.VisualizationListener):
-    def __init__(self, particle_number_shift_signaller):
-        _internal.VisualizationListener.__init__(self)
-        self.mesh_vis_map = {}
-        self.particle_vis_map = {}
-        self.particle_number_shift_signaller = particle_number_shift_signaller
-
-    def store_mesh_vis_vector(self, name, vec):
-        self.mesh_vis_map[name] = vec
-
-    def store_particle_vis_vector(self, name, vec):
-        from pyrticle.tools import NumberShiftableVector
-        self.particle_vis_map[name] = NumberShiftableVector(vec, 
-                signaller=self.particle_number_shift_signaller)
-
-    def clear(self):
-        self.mesh_vis_map.clear()
-        self.particle_vis_map.clear()
-
-
-
-
 class ElementFinder(object):
     pass
 class FaceBasedElementFinder(ElementFinder):
@@ -63,104 +41,120 @@ class HeuristicElementFinder(ElementFinder):
 
 
 
-class PicStateContainer(object):
-    def __init__(self, maxwell_op, e, h, cloud):
-        from pytools.arithmetic_container import join_fields
-        self.maxwell_op = maxwell_op
-        self.em_fields = maxwell_op.assemble_fields(e=e, h=h)
-        self.cloud = cloud
+class PicState(object):
+    def __init__(self, method):
+        state_class = getattr(_internal, "ParticleState%s" % 
+            method.get_dimensionality_suffix())
 
-        self.particle_count = 0
-        self.containing_elements = numpy.zeros((0,self.dimensions_pos), 
-                dtype=numpy.uint32)
-        self.positions = numpy.zeros((0,self.dimensions_pos), dtype=float)
-        self.momenta = numpy.zeros((0,self.dimensions_velocity), dtype=float)
-        self.charges = numpy.zeros((0,), dtype=float)
-        self.masses = numpy.zeros((0,), dtype=float)
+        pstate = self.particle_state = state_class()
+        self.reconstructor_state = method.reconstructor.make_state()
+
+        pstate.particle_count = 0
+        pstate.containing_elements = numpy.zeros((0,), dtype=numpy.uint32)
+        pstate.positions = numpy.zeros((0, pstate.xdim), dtype=float)
+        pstate.momenta = numpy.zeros((0, pstate.vdim), dtype=float)
+        pstate.charges = numpy.zeros((0,), dtype=float)
+        pstate.masses = numpy.zeros((0,), dtype=float)
+
+        self.derived_quantity_cache = {}
+
+        # size change messaging
+        from pyrticle.tools import NumberShiftMultiplexer
+        self.particle_number_shift_signaller = NumberShiftMultiplexer()
+
+    def __len__(self):
+        return self.particle_state.particle_count
+
+    @property
+    def positions(self):
+        return self.particle_state.positions[:self.particle_state.particle_count]
+
+    @property
+    def momenta(self):
+        return self.particle_state.momenta[:self.particle_state.particle_count]
+
+    @property
+    def masses(self):
+        return self.particle_state.masses[:self.particle_state.particle_count]
+
+    @property
+    def charges(self):
+        return self.particle_state.charges[:self.particle_state.particle_count]
+
+    def resize(self, newsize):
+        pstate = self.particle_state
+
+        pstate.containing_elements = numpy.resize(
+                pstate.containing_elements, (newsize,))
+        pstate.positions = numpy.resize(
+                pstate.positions, (newsize, pstate.xdim))
+        pstate.momenta = numpy.resize(
+                pstate.momenta, (newsize, pstate.vdim))
+        pstate.charges = numpy.resize(pstate.charges, (newsize,))
+        pstate.masses = numpy.resize(pstate.masses, (newsize,))
+
+    def clear(self):
+        pstate = self.particle_state
+
+        self.pic_algorithm.particle_count = 0
+        self.reconstructor_state.clear()
+        self.derived_quantity_cache.clear()
+
+    # derived quantity cache --------------------------------------------------
+    def get_derived_quantity_from_cache(self, name, getter):
+        try:
+            return self.derived_quantity_cache[name]
+        except KeyError:
+            self.derived_quantity_cache[name] = value = getter()
+            return value
+
+    def get_derived_quantities_from_cache(self, names, getters, all_getter=None):
+        # all "getters" elements should update the cache themselves
+        cached = tuple(self.derived_quantity_cache.get(name) for name in names)
+        cached_number = sum(1 for v in cached if cached is not None)
+
+        if cached_number == len(names):
+            return cached
+        elif cached_number == 0 and all_getter:
+            all_values = all_getter()
+            for name, value in zip(names, all_values):
+                self.derived_quantity_cache[name] = value
+            return all_values
+        else:
+            return tuple(c or g() for c, g in zip(cached, getters))
+
+
+
+
+
+
+
+class FieldRhsCalculator(object):
+    def __init__(self, method, discr, maxwell_op):
+        self.method = method
+        self.discr = discr
+        self.maxwell_op = maxwell_op
 
         self.bound_maxwell_op = maxwell_op.bind(self.discr)
-        self.em_filters = []
 
         from pytools.log import IntervalTimer
         self.field_solve_timer = IntervalTimer(
                 "t_field",
                 "Time spent in field solver")
 
-    def add_em_filter(self, filt):
-        self.em_filters.append(filt)
-
-    @property
-    def discr(self):
-        return self.cloud.discretization
-    
-    @property
-    def e(self):
-        e, h = self.maxwell_op.split_eh(self.em_fields)
-        return e
-
-    @property
-    def h(self):
-        e, h = self.maxwell_op.split_eh(self.em_fields)
-        return h
-
-    @property
-    def phi(self):
-        from pyrticle.hyperbolic import CleaningMaxwellOperator
-        if isinstance(self.maxwell_op, CleaningMaxwellOperator):
-            e, h, phi = self.maxwell_op.split_ehphi(self.em_fields)
-            return phi
-        else:
-            return self.maxwell_op.discr.volume_zeros()
-
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.field_solve_timer)
 
-        self.cloud.add_instrumentation(mgr)
-        self.discr.add_instrumentation(mgr)
-
-    def disabled__add__(self, other):
-        d_em_fields, d_cloud = other
-
-        self.em_fields += d_em_fields
-        self.cloud += d_cloud
-
-        return self
-
-    def rhs(self, t, y):
-        assert y is self
-
-        from hedge.tools import ZeroVector
-
-        # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
-        # inserting ZeroVectors where necessary.
-        idx = 0
-        e_arg = []
-        for use_component in self.maxwell_op.get_eh_subset()[0:3]:
-            if use_component:
-                e_arg.append(self.e[idx])
-                idx += 1
-            else:
-                e_arg.append(ZeroVector())
-
-        idx = 0
-        b_arg = []
-        for use_component in self.maxwell_op.get_eh_subset()[3:6]:
-            if use_component:
-                b_arg.append(self.maxwell_op.mu * self.h[idx])
-                idx += 1
-            else:
-                b_arg.append(ZeroVector())
-
-        rhs_cloud = self.cloud.rhs(t, e_arg, b_arg)
-
+    def __call__(self, t, fields, state):
         # calculate EM right-hand side 
         self.field_solve_timer.start()
+
         from pyrticle.hyperbolic import CleaningMaxwellOperator
         if isinstance(self.maxwell_op, CleaningMaxwellOperator):
-            rhs_em = self.bound_maxwell_op(t, self.em_fields, 
-                    self.cloud.reconstruct_rho())
+            rhs_fields = self.bound_maxwell_op(t, fields, 
+                    self.method.reconstruct_rho(state))
         else:
-            rhs_em = self.bound_maxwell_op(t, self.em_fields)
+            rhs_fields = self.bound_maxwell_op(t, fields)
 
         self.field_solve_timer.stop()
 
@@ -169,22 +163,70 @@ class PicStateContainer(object):
                 self.maxwell_op.get_eh_subset()[0:3])
 
         from hedge.tools import to_obj_array
-        j = to_obj_array(self.cloud.reconstruct_j())
-        rhs_em[:e_components] -= 1/self.maxwell_op.epsilon*j
+        j = to_obj_array(self.method.reconstruct_j(state))
+        rhs_fields[:e_components] -= 1/self.maxwell_op.epsilon*j
 
-        from hedge.tools import make_obj_array
-        return make_obj_array([rhs_em, rhs_cloud])
-
-    def upkeep(self):
-        for f in self.em_filters:
-            self.em_fields = f(self.em_fields)
-
-        self.cloud.upkeep()
+        return rhs_fields
 
 
 
 
-class PicAlgorithm(_internal.BoundaryHitListener):
+class ParticleRhsCalculator(object):
+    def __init__(self, method, maxwell_op):
+        self.method = method
+        self.maxwell_op = maxwell_op
+
+    def __call__(self, t, fields, state, vis_listener=None):
+        from hedge.tools import ZeroVector
+
+        e, h = self.maxwell_op.split_eh(fields)
+
+        # assemble field_args of the form [ex,ey,ez] and [bx,by,bz],
+        # inserting ZeroVectors where necessary.
+        idx = 0
+        e_arg = []
+        for use_component in self.maxwell_op.get_eh_subset()[0:3]:
+            if use_component:
+                e_arg.append(e[idx])
+                idx += 1
+            else:
+                e_arg.append(ZeroVector())
+
+        idx = 0
+        b_arg = []
+        for use_component in self.maxwell_op.get_eh_subset()[3:6]:
+            if use_component:
+                b_arg.append(self.maxwell_op.mu * h[idx])
+                idx += 1
+            else:
+                b_arg.append(ZeroVector())
+
+        velocities = self.method.velocities(state)
+
+        field_args = tuple(e_arg) + tuple(b_arg)
+
+        # compute forces
+        forces = self.method.pusher.forces(
+                state,
+                velocities,
+                vis_listener,
+                *field_args)
+
+        from pyrticle.tools import NumberShiftableVector
+        from hedge.tools import join_fields
+        result = join_fields(
+            NumberShiftableVector(velocities, 
+                signaller=state.particle_number_shift_signaller),
+            NumberShiftableVector(forces, 
+                signaller=state.particle_number_shift_signaller),
+            self.method.reconstructor.rhs()
+            )
+        return result
+
+
+
+
+class PicMethod(object):
     """
     @arg debug: A set of strings telling what to debug. So far, the
       following debug flags are in use:
@@ -208,8 +250,6 @@ class PicAlgorithm(_internal.BoundaryHitListener):
             dimensions_pos, dimensions_velocity,
             debug=set()):
 
-        _internal.BoundaryHitListener.__init__(self)
-
         self.units = units
         self.discretization = discr
         self.debug = debug
@@ -227,20 +267,13 @@ class PicAlgorithm(_internal.BoundaryHitListener):
         self.mesh_data = _internal.MeshData(discr.dimensions)
         self.mesh_data.fill_from_hedge(discr)
 
-        # size change messaging
-        from pyrticle.tools import NumberShiftMultiplexer
-        self.particle_number_shift_signaller = NumberShiftMultiplexer()
-        pic.boundary_hit_listener = self
-
         # visualization
-        self.vis_listener = MapStorageVisualizationListener(
-                self.particle_number_shift_signaller)
+        #self.vis_listener = MapStorageVisualizationListener(
+                #self.particle_number_shift_signaller)
 
         # subsystem init
         self.reconstructor.initialize(self)
         self.pusher.initialize(self)
-
-        self.derived_quantity_cache = {}
 
         # instrumentation 
         from pytools.log import IntervalTimer, EventCounter
@@ -260,6 +293,9 @@ class PicAlgorithm(_internal.BoundaryHitListener):
         self.find_global_counter = EventCounter(
                 "n_find_global",
                 "#Particles found by global search")
+
+    def get_dimensionality_suffix(self):
+        return "%d%d" % (self.dimensions_pos, self.dimensions_velocity)
 
     def get_shape_function_class(self):
         from pyrticle.tools import \
@@ -285,9 +321,6 @@ class PicAlgorithm(_internal.BoundaryHitListener):
         else:
             pyrticle.tools.warning_forwarder = WarningForwarder()
 
-    def __len__(self):
-        return self.pic_algorithm.particle_count
-
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.find_el_timer)
         mgr.add_quantity(self.find_same_counter)
@@ -298,52 +331,23 @@ class PicAlgorithm(_internal.BoundaryHitListener):
         self.reconstructor.add_instrumentation(mgr)
         self.pusher.add_instrumentation(mgr)
 
-    @property
-    def positions(self):
-        return self.pic_algorithm.positions[:self.pic_algorithm.particle_count]
-
-    @property
-    def momenta(self):
-        return self.pic_algorithm.momenta[:self.pic_algorithm.particle_count]
-
-    @property
-    def masses(self):
-        return self.pic_algorithm.masses[:self.pic_algorithm.particle_count]
-
-    @property
-    def charges(self):
-        return self.pic_algorithm.charges[:self.pic_algorithm.particle_count]
-
-    def velocities(self):
-        if "velocities" in self.derived_quantity_cache:
-            return self.derived_quantity_cache["velocities"]
-        else:
-            result = numpy.reshape(
-                    self.pic_algorithm.velocities(),
-                    (self.pic_algorithm.particle_count, self.dimensions_velocity))
-            self.derived_quantity_cache["velocities"] = result
+    def velocities(self, state):
+        try:
+            return state.derived_quantity_cache["velocities"]
+        except KeyError:
+            result = _internal.get_velocities(
+                    state.particle_state, self.units.VACUUM_LIGHT_SPEED)
+            state.derived_quantity_cache["velocities"] = result
             return result
 
-    def mean_beta(self):
-        if self.pic_algorithm.particle_count:
-            return numpy.average(self.velocities(), axis=0) \
+    def mean_beta(self, state):
+        if len(state):
+            return numpy.average(self.velocities(state), axis=0) \
                     / self.units.VACUUM_LIGHT_SPEED
         else:
             return numpy.zeros((self.dimensions_velocity,))
 
-    def resize_particle_fields(self, newsize):
-        pic = self.pic_algorithm
-
-        pic.containing_elements = numpy.resize(
-                pic.containing_elements, (newsize,))
-        pic.positions = numpy.resize(
-                pic.positions, (newsize, self.dimensions_pos))
-        pic.momenta = numpy.resize(
-                pic.momenta, (newsize, self.dimensions_velocity))
-        pic.charges = numpy.resize(pic.charges, (newsize,))
-        pic.masses = numpy.resize(pic.masses, (newsize,))
-
-    def add_particles(self, iterable, maxcount=None):
+    def add_particles(self, state, iterable, maxcount=None):
         """Add the  particles from C{iterable} to the cloud.
         
         C{iterable} is expected to yield tuples 
@@ -353,11 +357,11 @@ class PicAlgorithm(_internal.BoundaryHitListener):
         particles are obtained from the iterable.
         """
 
-        pic = self.pic_algorithm
+        pstate = state.particle_state
 
         if maxcount is not None:
-            if pic.particle_count+maxcount >= len(pic.containing_elements):
-                self.resize_particle_fields(pic.particle_count+maxcount)
+            if pstate.particle_count+maxcount >= len(pstate.containing_elements):
+                state.resize(pstate.particle_count+maxcount)
 
         for pos, vel, charge, mass in iterable:
             if maxcount is not None:
@@ -372,92 +376,65 @@ class PicAlgorithm(_internal.BoundaryHitListener):
             vel = numpy.asarray(vel)
             mom = mass*self.units.gamma_from_v(vel)*vel 
 
-            cont_el = pic.mesh_data.find_containing_element(pos) 
+            cont_el = self.mesh_data.find_containing_element(pos) 
             if cont_el == MeshData.INVALID_ELEMENT:
                 print "not in valid element"
 
                 continue
 
-            if pic.particle_count >= len(pic.containing_elements):
-                self.resize_particle_fields(128+2*pic.particle_count)
+            if pstate.particle_count >= len(pstate.containing_elements):
+                self.resize_particle_fields(128+2*pstate.particle_count)
 
-            pic.containing_elements[pic.particle_count] = cont_el
-            pic.positions[pic.particle_count] = pos
-            pic.momenta[pic.particle_count] = mom
-            pic.charges[pic.particle_count] = charge
-            pic.masses[pic.particle_count] = mass
+            pstate.containing_elements[pstate.particle_count] = cont_el
+            pstate.positions[pstate.particle_count] = pos
+            pstate.momenta[pstate.particle_count] = mom
+            pstate.charges[pstate.particle_count] = charge
+            pstate.masses[pstate.particle_count] = mass
 
-            pic.particle_count += 1
+            pstate.particle_count += 1
 
-        self.check_containment()
-        pic.note_change_particle_count(pic.particle_count)
-        self.derived_quantity_cache.clear()
+        self.check_containment(state)
+        self.note_change_particle_count(state, pstate.particle_count)
+        state.derived_quantity_cache.clear()
 
-    def clear_particles(self):
-        self.pic_algorithm.particle_count = 0
-        self.reconstructor.clear_particles()
-        self.derived_quantity_cache.clear()
+    def note_change_particle_count(self, state, particle_count):
+        state.particle_number_shift_signaller.note_change_size(particle_count)
+        self.reconstructor.note_change_size(state, particle_count)
+        self.pusher.note_change_size(state, particle_count)
 
-    def check_containment(self):
+    def check_containment(self, state):
         """Check that a containing element is known for each particle.
 
-        This is a new invariant as of 1/17/08, and violations of this end
+        This is a new invariant as of 1/17/08, and violations of this end up
         segfaulting, which we should avoid.
         """
-        for ce in self.pic_algorithm.containing_elements[:len(self)]:
-            assert ce != MeshData.INVALID_ELEMENT
+        assert (state.particle_state.containing_elements[:len(state)] 
+                != MeshData.INVALID_ELEMENT).all()
                 
-    def upkeep(self):
+    def upkeep(self, state):
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
         """
-        self.vis_listener.clear()
         self.reconstructor.upkeep()
         self.pusher.upkeep()
 
-    # derived quantity cache --------------------------------------------------
-    def _get_derived_quantity_from_cache(self, name, getter):
-        try:
-            return self.derived_quantity_cache[name]
-        except KeyError:
-            self.derived_quantity_cache[name] = value = getter()
-            return value
-
-    def _get_derived_quantities_from_cache(self, names, getters, all_getter=None):
-        # all "getters" elements should update the cache themselves
-        cached = tuple(self.derived_quantity_cache.get(name) for name in names)
-        cached_number = sum(1 for v in cached if cached is not None)
-
-        if cached_number == len(names):
-            return cached
-        elif cached_number == 0 and all_getter:
-            all_values = all_getter()
-            for name, value in zip(names, all_values):
-                self.derived_quantity_cache[name] = value
-            return all_values
-        else:
-            return tuple(c or g() for c, g in zip(cached, getters))
-
-
-
-
     # reconstruction ----------------------------------------------------------
-    def reconstruct_densities(self):
+    def reconstruct_densities(self, state):
         """Return a tuple (charge_density, current_densities), where
         current_densities is an d-by-n array, where d is the number 
         of velocity dimensions, and n is the discretization nodes.
         """
         def all_getter():
-            rho, j = self.reconstructor.reconstruct_densities(self.velocities())
+            rho, j = self.reconstructor.reconstruct_densities(state, self.velocities())
             j = numpy.asarray(j.T, order="C")
             return rho, j
 
-        return self._get_derived_quantities_from_cache(
+        return state.get_derived_quantities_from_cache(
                 ["rho", "j"],
                 [self.reconstruct_rho, self.reconstruct_j],
                 all_getter)
 
-    def reconstruct_j(self):
+    def reconstruct_j(self, state):
         """Return a the current densities as an d-by-n array, where d 
         is the number of velocity dimensions, and n is the number of 
         discretization nodes.
@@ -465,16 +442,19 @@ class PicAlgorithm(_internal.BoundaryHitListener):
 
         def j_getter():
             return numpy.asarray(
-                    self.reconstructor.reconstruct_j(self.velocities())
+                    self.reconstructor.reconstruct_j(
+                        state, self.velocities(state))
                     .T, order="C")
 
-        return self._get_derived_quantity_from_cache("j", j_getter)
+        return state.get_derived_quantity_from_cache("j", j_getter)
 
-    def reconstruct_rho(self):
+    def reconstruct_rho(self, state):
         """Return a the charge_density as a volume vector."""
 
-        return self._get_derived_quantity_from_cache("rho",
-                self.reconstructor.reconstruct_rho)
+        def rho_getter():
+            return self.reconstructor.reconstruct_rho(state)
+
+        return state.get_derived_quantity_from_cache("rho", rho_getter)
 
 
 
@@ -490,29 +470,6 @@ class PicAlgorithm(_internal.BoundaryHitListener):
           deals with M{H}, not M{B}.
         """
 
-        velocities = self.velocities()
-
-        field_args = tuple(e) + tuple(b)
-
-        # compute forces
-        forces = self.pusher.forces(
-                velocities,
-                "verbose_vis" in self.debug,
-                *field_args
-                )
-        forces = numpy.reshape(forces,
-                (len(self), self.dimensions_velocity))
-
-        from pyrticle.tools import NumberShiftableVector
-        from hedge.tools import join_fields
-        result = join_fields(
-            NumberShiftableVector(velocities, 
-                signaller=self.particle_number_shift_signaller),
-            NumberShiftableVector(forces, 
-                signaller=self.particle_number_shift_signaller),
-            self.reconstructor.rhs()
-            )
-        return result
 
     def __add__(self, rhs):
         self.derived_quantity_cache.clear()
@@ -827,8 +784,8 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
 
 
 # initial condition -----------------------------------------------------------
-def compute_initial_condition(pcon, discr, cloud, 
-        max_op, potential_bc,
+def compute_initial_condition(pcon, discr, method, state,
+        maxwell_op, potential_bc,
         force_zero=False):
     from hedge.pde import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
@@ -840,8 +797,8 @@ def compute_initial_condition(pcon, discr, cloud,
                 discr.norm(field-true),
                 discr.norm(true))
 
-    mean_beta = cloud.mean_beta()
-    gamma = cloud.units.gamma_from_beta(mean_beta)
+    mean_beta = method.mean_beta(state)
+    gamma = method.units.gamma_from_beta(mean_beta)
 
     # see doc/notes.tm for derivation of IC
 
@@ -861,7 +818,7 @@ def compute_initial_condition(pcon, discr, cloud,
             neumann_tag=TAG_NONE,
             dirichlet_bc=potential_bc)
 
-    rho_prime = cloud.reconstruct_rho() 
+    rho_prime = method.reconstruct_rho(state) 
     rho_tilde = rho_prime/gamma
 
     bound_poisson = poisson_op.bind(discr)
@@ -871,8 +828,8 @@ def compute_initial_condition(pcon, discr, cloud,
         from hedge.tools import parallel_cg
         phi_tilde = -parallel_cg(pcon, -bound_poisson, 
                 bound_poisson.prepare_rhs(
-                    GivenVolumeInterpolant(discr, rho_tilde/max_op.epsilon)), 
-                debug="poisson" in cloud.debug, tol=1e-10)
+                    GivenVolumeInterpolant(discr, rho_tilde/maxwell_op.epsilon)), 
+                debug="poisson" in method.debug, tol=1e-10)
 
     from hedge.tools import ptwise_dot
     from hedge.pde import GradientOperator
@@ -881,12 +838,12 @@ def compute_initial_condition(pcon, discr, cloud,
     e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
             GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
-    h_prime = (1/max_op.mu)*gamma/max_op.c * max_op.e_cross(mean_beta, e_tilde)
+    h_prime = (1/maxwell_op.mu)*gamma/maxwell_op.c * maxwell_op.e_cross(mean_beta, e_tilde)
 
-    if "ic" in cloud.debug:
+    if "ic" in method.debug:
         reconstructed_charge = discr.integral(rho_prime)
 
-        real_charge = sum(cloud.charges)
+        real_charge = numpy.sum(state.charges)
         print "charge: supposed=%g reconstructed=%g error=%g %%" % (
                 real_charge,
                 reconstructed_charge,
@@ -897,13 +854,13 @@ def compute_initial_condition(pcon, discr, cloud,
 
         bound_div_op = DivergenceOperator(discr.dimensions).bind(discr)
 
-        d_tilde = max_op.epsilon*e_tilde
-        d_prime = max_op.epsilon*e_prime
+        d_tilde = maxwell_op.epsilon*e_tilde
+        d_prime = maxwell_op.epsilon*e_prime
 
         from hedge.optemplate import InverseMassOperator
         divD_prime_ldg = bound_poisson.div(d_prime)
-        divD_prime_ldg2 = bound_poisson.div(d_prime, max_op.epsilon*gamma*phi_tilde)
-        divD_prime_ldg3 = max_op.epsilon*\
+        divD_prime_ldg2 = bound_poisson.div(d_prime, maxwell_op.epsilon*gamma*phi_tilde)
+        divD_prime_ldg3 = maxwell_op.epsilon*\
                 (InverseMassOperator().apply(discr, bound_poisson.op(gamma*phi_tilde)))
         divD_prime_central = bound_div_op(d_prime)
 
@@ -916,7 +873,7 @@ def compute_initial_condition(pcon, discr, cloud,
         print "l2 div D_prime error ldg with phi 3: %g" % \
                 rel_l2_error(divD_prime_ldg3, rho_prime)
 
-        if "vis_files" in cloud.debug:
+        if "vis_files" in method.debug:
             from hedge.visualization import SiloVisualizer
             vis = SiloVisualizer(discr)
             visf = vis.make_file("ic")
@@ -934,8 +891,8 @@ def compute_initial_condition(pcon, discr, cloud,
                 ("h_lab", h_prime), 
                 ],
                 )
-            cloud.add_to_vis(vis, visf)
+            method.add_to_vis(vis, visf)
             visf.close()
 
-    return FieldsAndCloud(max_op, e_prime, h_prime, cloud)
+    return maxwell_op.assemble_fields(e=e_prime, h=h_prime)
 

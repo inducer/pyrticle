@@ -34,20 +34,6 @@
 
 namespace pyrticle
 {
-  template <class Wrapper, class PIC>
-  void expose_typed_pusher(
-      Wrapper &wrp, 
-      monomial_particle_pusher::type<PIC> *)
-  {
-    typedef PIC cl;
-
-    wrp
-      .DEF_RW_MEMBER(local_discretizations)
-      .DEF_RW_MEMBER(ldis_indices)
-      ;
-  }
-  
-
 
 
   template <class Wrapper, class PIC>

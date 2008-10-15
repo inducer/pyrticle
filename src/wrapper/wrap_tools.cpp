@@ -60,8 +60,6 @@ namespace
 
 
 
-  /*
-
   struct number_shift_listener_wrap : 
     number_shift_listener,
     python::wrapper<number_shift_listener>
@@ -104,7 +102,6 @@ namespace
       }
   };
 
-  */
 
 
 
@@ -221,7 +218,6 @@ void expose_tools()
       ;
   }
 
-  /*
   {
     typedef number_shift_listener cl;
     typedef number_shift_listener_wrap wrp;
@@ -244,7 +240,6 @@ void expose_tools()
       .DEF_PURE_VIRTUAL_METHOD(note_boundary_hit)
       ;
   }
-  */
 
   {
     typedef warning_listener cl;

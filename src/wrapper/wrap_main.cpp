@@ -28,7 +28,7 @@ void expose_grid();
 void expose_meshdata();
 void expose_pic();
 void expose_pusher();
-void expose_reconstructor();
+void expose_deposition();
 /*
 void expose_shape_pic();
 void expose_normshape_pic();
@@ -47,7 +47,7 @@ BOOST_PYTHON_MODULE(_internal)
   expose_meshdata();
   expose_pic();
   expose_pusher();
-  expose_reconstructor();
+  expose_deposition();
   /*
   expose_shape_pic();
   expose_normshape_pic();

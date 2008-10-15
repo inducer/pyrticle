@@ -6,6 +6,32 @@ import pytools
 
 
 
+class FieldObserver:
+    def __init__(self, method, maxwell_op):
+        self.method = method
+        self.maxwell_op = maxwell_op
+
+    def set_fields_and_state(self, fields, state):
+        self.fields = fields
+        self.state = state
+
+    @property
+    def e(self):
+        e, h = self.maxwell_op.split_eh(self.fields)
+        return e
+        
+    @property
+    def h(self):
+        e, h = self.maxwell_op.split_eh(self.fields)
+        return h
+        
+    @property
+    def discr(self):
+        return self.method.discretization
+        
+
+
+
 class PICCPyUserInterface(pytools.CPyUserInterface):
     def __init__(self, units):
         from pyrticle.reconstruction import \
@@ -185,16 +211,16 @@ class PICRunner(object):
 
         if discr.dimensions == 3:
             from hedge.pde import MaxwellOperator
-            self.max_op = MaxwellOperator(**maxwell_kwargs)
+            self.maxwell_op = MaxwellOperator(**maxwell_kwargs)
         elif discr.dimensions == 2:
             from hedge.pde import TEMaxwellOperator
-            self.max_op = TEMaxwellOperator(**maxwell_kwargs)
+            self.maxwell_op = TEMaxwellOperator(**maxwell_kwargs)
         else:
             raise ValueError, "invalid mesh dimension"
 
         if setup.chi is not None:
             from pyrticle.hyperbolic import ECleaningMaxwellOperator
-            self.max_op = ECleaningMaxwellOperator(self.max_op, 
+            self.maxwell_op = ECleaningMaxwellOperator(self.maxwell_op, 
                     chi=setup.chi, 
                     phi_decay=setup.phi_decay)
 
@@ -202,11 +228,11 @@ class PICRunner(object):
                 from pyrticle.hyperbolic import PhiFilter
                 from hedge.discretization import Filter, ExponentialFilterResponseFunction
                 em_filters.append(
-                        PhiFilter(max_op, Filter(discr,
+                        PhiFilter(maxwell_op, Filter(discr,
                             ExponentialFilterResponseFunction(*setup.phi_filter))))
 
         # timestepping setup --------------------------------------------------
-        goal_dt = discr.dt_factor(self.max_op.max_eigenvalue())
+        goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue())
         self.nsteps = int(setup.final_time/goal_dt)+1
         self.dt = setup.final_time/self.nsteps
 
@@ -214,17 +240,19 @@ class PICRunner(object):
         self.stepper = RK4TimeStepper()
 
         # particle setup ------------------------------------------------------
-        from pyrticle.cloud import ParticleCloud, \
+        from pyrticle.cloud import PicMethod, PicState, \
                 optimize_shape_bandwidth, \
                 guess_shape_bandwidth
 
-        cloud = self.cloud = ParticleCloud(discr, units, 
+        method = self.method = PicMethod(discr, units, 
                 setup.reconstructor, setup.pusher, setup.finder,
                 dimensions_pos=setup.dimensions_pos, 
                 dimensions_velocity=setup.dimensions_velocity, 
                 debug=setup.debug)
 
-        cloud.add_particles( 
+        self.state = PicState(method)
+        method.add_particles( 
+                self.state,
                 setup.distribution.generate_particles(),
                 setup.nparticles)
 
@@ -242,22 +270,23 @@ class PICRunner(object):
                         setup.shape_bandwidth)
         else:
             from pyrticle._internal import PolynomialShapeFunction
-            cloud.reconstructor.set_shape_function(
+            method.reconstructor.set_shape_function(
                     PolynomialShapeFunction(
                         float(setup.shape_bandwidth),
-                        cloud.mesh_data.dimensions,
+                        method.mesh_data.dimensions,
                         setup.shape_exponent,
                         ))
 
         # initial condition ---------------------------------------------------
         if "no_ic" in setup.debug:
+            # FIXME
             from pyrticle.cloud import FieldsAndCloud
-            e, h = self.max_op.split_eh(self.max_op.assemble_fields(discr=discr))
-            self.fields = FieldsAndCloud(self.max_op, e, h, cloud)
+            e, h = self.maxwell_op.split_eh(self.maxwell_op.assemble_fields(discr=discr))
+            self.fields = FieldsAndCloud(self.maxwell_op, e, h, cloud)
         else:
             from pyrticle.cloud import compute_initial_condition
-            self.fields = compute_initial_condition(self.pcon, discr, cloud, 
-                    max_op=self.max_op, 
+            self.fields = compute_initial_condition(self.pcon, discr, method, self.state,
+                    maxwell_op=self.maxwell_op, 
                     potential_bc=setup.potential_bc, 
                     force_zero=False)
 
@@ -274,26 +303,36 @@ class PICRunner(object):
 
         setup = self.setup
 
+        self.observer = FieldObserver(self.method, self.maxwell_op)
+        self.observer.set_fields_and_state(self.fields, self.state)
+
         add_run_info(logmgr)
         add_general_quantities(logmgr)
         add_simulation_quantities(logmgr, self.dt)
-        add_particle_quantities(logmgr, self.cloud)
-        add_field_quantities(logmgr, self.fields)
+        add_particle_quantities(logmgr, self.observer)
+        add_field_quantities(logmgr, self.observer)
+
         if setup.beam_axis is not None and setup.beam_diag_axis is not None:
-            add_beam_quantities(logmgr, self.cloud, 
+            add_beam_quantities(logmgr, self, 
                     axis=setup.beam_diag_axis, 
                     beam_axis=setup.beam_axis)
         if setup.tube_length is not None:
             from hedge.tools import unit_vector
-            add_currents(logmgr, self.fields, 
-                    unit_vector(self.cloud.dimensions_velocity, setup.beam_axis), 
+            add_currents(logmgr, self, 
+                    unit_vector(self.method.dimensions_velocity, setup.beam_axis), 
                     setup.tube_length)
 
-        self.stepper.add_instrumentation(logmgr)
-        self.fields.add_instrumentation(logmgr)
+        from pyrticle.cloud import FieldRhsCalculator, ParticleRhsCalculator
+        self.field_rhs_calculator = FieldRhsCalculator(self.method, self.discr, self.maxwell_op)
+        self.particle_rhs_calculator = ParticleRhsCalculator(self.method, self.maxwell_op)
 
-        mean_beta = self.cloud.mean_beta()
-        gamma = self.cloud.units.gamma_from_beta(mean_beta)
+        self.stepper.add_instrumentation(logmgr)
+        self.field_rhs_calculator.add_instrumentation(logmgr)
+
+        method = self.method
+
+        mean_beta = self.method.mean_beta(self.state)
+        gamma = self.method.units.gamma_from_beta(mean_beta)
 
         logmgr.set_constant("dt", self.dt)
         logmgr.set_constant("beta", mean_beta)
@@ -304,8 +343,8 @@ class PICRunner(object):
         logmgr.set_constant("pmass", setup.distribution.mean()[3][0])
         logmgr.set_constant("chi", setup.chi)
         logmgr.set_constant("shape_radius_setup", setup.shape_bandwidth)
-        logmgr.set_constant("shape_radius", self.cloud.reconstructor.shape_function.radius)
-        logmgr.set_constant("shape_exponent", self.cloud.reconstructor.shape_function.exponent)
+        logmgr.set_constant("shape_radius", self.method.reconstructor.shape_function.radius)
+        logmgr.set_constant("shape_exponent", self.method.reconstructor.shape_function.exponent)
 
         from pytools.log import IntervalTimer
         self.vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
@@ -340,12 +379,27 @@ class PICRunner(object):
         from hedge.visualization import SiloVisualizer
         vis = SiloVisualizer(vis_discr)
 
+        fields = self.fields
+        state = self.state
+
+        from hedge.tools import make_obj_array
+        y = make_obj_array([fields, state])
+
+        def rhs(t, fields_and_state):
+            fields, state = fields_and_state
+
+            fields_rhs = self.field_rhs_calculator(t, fields, state)
+            state_rhs = self.particle_rhs_calculator(t, fields, state)
+            
+            return make_obj_array([fields_rhs, state_rhs])
+
         for step in xrange(self.nsteps):
+            self.observer.set_fields_and_state(fields, state)
             self.logmgr.tick()
 
-            self.fields.upkeep()
+            self.method.upkeep(state)
             setup.hook_before_step(self)
-            self.fields = self.stepper(self.fields, t, self.dt, self.fields.rhs)
+            y = self.stepper(y, t, self.dt, rhs)
             setup.hook_after_step(self)
 
             if step % setup.vis_interval == 0:
@@ -354,7 +408,7 @@ class PICRunner(object):
                 visf = vis.make_file(os.path.join(
                     setup.output_path, setup.vis_pattern % step))
 
-                self.cloud.add_to_vis(vis, visf, time=t, step=step)
+                self.method.add_to_vis(vis, visf, time=t, step=step)
                 vis.add_data(visf, 
                         [(name, vis_proj(fld))
                             for name, fld in setup.hook_vis_quantities(self)],

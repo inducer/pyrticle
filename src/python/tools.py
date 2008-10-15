@@ -250,4 +250,27 @@ class CInfinityShapeFunction(_internal.CInfinityShapeFunction):
 
 
 
+# vis tools -------------------------------------------------------------------
+class MapStorageVisualizationListener(_internal.VisualizationListener):
+    def __init__(self, particle_number_shift_signaller):
+        _internal.VisualizationListener.__init__(self)
+        self.mesh_vis_map = {}
+        self.particle_vis_map = {}
+        self.particle_number_shift_signaller = particle_number_shift_signaller
+
+    def store_mesh_vis_vector(self, name, vec):
+        self.mesh_vis_map[name] = vec
+
+    def store_particle_vis_vector(self, name, vec):
+        from pyrticle.tools import NumberShiftableVector
+        self.particle_vis_map[name] = NumberShiftableVector(vec, 
+                signaller=self.particle_number_shift_signaller)
+
+    def clear(self):
+        self.mesh_vis_map.clear()
+        self.particle_vis_map.clear()
+
+
+
+
 

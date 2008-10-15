@@ -23,6 +23,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 import pytools.log
 import numpy
 import numpy.linalg as la
+import pyrticle._internal as _internal
 
 
 
@@ -45,11 +46,12 @@ class Pusher(object):
     def upkeep(self):
         pass
 
-    def forces(self, velocities, verbose_vis, *field_args):
+    def forces(self, state, velocities, vis_listener, *field_args):
         self.force_timer.start()
-        forces = self.cloud.pic_algorithm.forces(
+        forces = self.backend.forces(
+                ps=state.particle_state,
                 velocities=velocities,
-                verbose_vis=verbose_vis,
+                vis_listener=vis_listener,
                 *field_args
                 )
         self.force_timer.stop()
@@ -60,16 +62,18 @@ class Pusher(object):
 
 # monomial pusher -------------------------------------------------------------
 class MonomialParticlePusher(Pusher):
-    name = "Monomial"
+    def initialize(self, method):
+        Pusher.initialize(self, method)
 
-    def initialize(self, cloud):
-        Pusher.initialize(self, cloud)
+        backend_class = getattr(_internal, "MonomialPusher" 
+                + method.get_dimensionality_suffix())
+        self.backend = backend_class(method.mesh_data)
 
         # add monomial basis data ---------------------------------------------
         from hedge.polynomial import generic_vandermonde
         from pyrticle._internal import MonomialBasisFunction, lu
 
-        for i, eg in enumerate(cloud.mesh_data.discr.element_groups):
+        for i, eg in enumerate(method.mesh_data.discr.element_groups):
             ldis = eg.local_discretization
 
             from pyrticle._internal import LocalMonomialDiscretization
@@ -83,9 +87,12 @@ class MonomialParticlePusher(Pusher):
                     order="C")
 
             lmd.lu_vandermonde_t, lmd.lu_piv_vandermonde_t = lu(mon_vdm_t)
-            cloud.pic_algorithm.local_discretizations.append(lmd)
+            self.backend.local_discretizations.append(lmd)
 
-            cloud.pic_algorithm.ldis_indices.extend([i]*len(eg.members))
+            self.backend.ldis_indices.extend([i]*len(eg.members))
+
+    def note_change_size(self, state, count):
+        pass
 
 
 

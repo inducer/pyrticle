@@ -64,19 +64,19 @@ class StatsGathererLogQuantity(MultiLogQuantity):
 
 # Particle quantities ---------------------------------------------------------
 class ParticleCount(LogQuantity):
-    def __init__(self, cloud, name="n_part"):
+    def __init__(self, observer, name="n_part"):
         LogQuantity.__init__(self, name, "1", "Particle Count")
-        self.cloud = cloud
+        self.observer = observer
 
     def __call__(self):
-        return len(self.cloud)
+        return len(self.observer.state)
 
 
 
 
 class ParticleMomentum(MultiLogQuantity):
-    def __init__(self, cloud, names=None):
-        vdim = cloud.dimensions_velocity
+    def __init__(self, observer, names=None):
+        vdim = observer.method.dimensions_velocity
         if names is None:
             names = ["p%s_part" % axis_name(i) for i in range(vdim)]
 
@@ -84,67 +84,68 @@ class ParticleMomentum(MultiLogQuantity):
             units=["N*s"] * vdim, 
             descriptions=["Particle Momentum"] * vdim)
 
-        self.cloud = cloud
+        self.observer = observer
 
     def __call__(self):
         from pyrticle._internal import particle_momentum
-        return particle_momentum(self.cloud.pic_algorithm)
+        return particle_momentum(self.observer.state.particle_state)
 
 
 
 
 class KineticEnergy(LogQuantity):
-    def __init__(self, cloud, name="W_part"):
+    def __init__(self, observer, name="W_part"):
         LogQuantity.__init__(self, name, "J", "Kinetic Energy")
-        self.cloud = cloud
+        self.observer = observer
 
     def __call__(self):
         from pyrticle._internal import kinetic_energies
         total_kin_energy = numpy.sum(kinetic_energies(
-                self.cloud.pic_algorithm))
+                self.observer.state.particle_state, 
+                self.observer.method.units.VACUUM_LIGHT_SPEED))
         return total_kin_energy
 
 
 
 
 class ParticleCharge(LogQuantity):
-    def __init__(self, cloud, name="Q_part"):
+    def __init__(self, observer, name="Q_part"):
         LogQuantity.__init__(self, name, "C", "Total particle charge")
-        self.cloud = cloud
+        self.observer = observer
 
     def __call__(self):
         from pyrticle._internal import total_charge
-        return total_charge(self.cloud.pic_algorithm)
+        return total_charge(self.observer.state.particle_state)
 
 
 
 
-def add_particle_quantities(mgr, cloud):
-    mgr.add_quantity(ParticleCount(cloud))
-    mgr.add_quantity(ParticleMomentum(cloud))
-    mgr.add_quantity(KineticEnergy(cloud))
-    mgr.add_quantity(ParticleCharge(cloud))
+def add_particle_quantities(mgr, observer):
+    mgr.add_quantity(ParticleCount(observer))
+    mgr.add_quantity(ParticleMomentum(observer))
+    mgr.add_quantity(KineticEnergy(observer))
+    mgr.add_quantity(ParticleCharge(observer))
 
 
 
 
 # EM quantities ---------------------------------------------------------------
 class DivergenceEQuantities(MultiLogQuantity):
-    def __init__(self, f_and_c, names=["divD", "err_divD_l1"]):
+    def __init__(self, observer, names=["divD", "err_divD_l1"]):
         MultiLogQuantity.__init__(self, names, 
                 units=["C", "C"], 
                 descriptions=["Central divergence of D", "L1 Divergence Error"])
 
-        self.f_and_c = f_and_c
-        self.discr = self.f_and_c.discr
+        self.observer = observer
+        self.discr = self.observer.discr
         from hedge.pde import DivergenceOperator
         self.bound_div_op = DivergenceOperator(self.discr.dimensions,
-                f_and_c.maxwell_op.get_eh_subset()[:3]).bind(self.discr)
+                observer.maxwell_op.get_eh_subset()[:3]).bind(self.discr)
 
     def __call__(self):
-        rho = self.f_and_c.cloud.reconstruct_rho()
-        max_op = self.f_and_c.maxwell_op
-        d = max_op.epsilon * self.f_and_c.e
+        rho = self.observer.method.reconstruct_rho(self.observer.state)
+        max_op = self.observer.maxwell_op
+        d = max_op.epsilon * self.observer.e
         div_d = self.bound_div_op(d)
         
         return [
@@ -156,100 +157,101 @@ class DivergenceEQuantities(MultiLogQuantity):
 
 
 class ReconstructedCharge(LogQuantity):
-    def __init__(self, f_and_c, name="Q_rec"):
+    def __init__(self, observer, name="Q_rec"):
         LogQuantity.__init__(self, name, "C", "Total Charge")
-        self.f_and_c = f_and_c
+        self.observer = observer
 
     def __call__(self):
-        return self.f_and_c.discr.integral(
-                self.f_and_c.cloud.reconstruct_rho())
+        rho = self.observer.method.reconstruct_rho(self.observer.state)
+        return self.observer.discr.integral(rho)
 
 
 
 
 class FieldCurrent(LogQuantity):
-    def __init__(self, f_and_c, direction, tube_length, name="I_field"):
+    def __init__(self, observer, direction, tube_length, name="I_field"):
         LogQuantity.__init__(self, name, "A", 
                 "Integrate current density along %s" % str(list(direction)))
-        self.f_and_c = f_and_c
+        self.observer = observer
         self.direction = direction
         self.tube_length = tube_length
 
     def __call__(self):
-        return self.f_and_c.discr.integral(
+        return self.observer.discr.integral(
                 numpy.dot(self.direction,
-                    self.f_and_c.cloud.reconstruct_j()))/self.tube_length
+                    self.observer.method.reconstruct_j(self.observer.state)))/self.tube_length
 
 
 
 
-def add_field_quantities(mgr, f_and_c, reconstruct_interval=5):
+def add_field_quantities(mgr, observer, reconstruct_interval=5):
     from hedge.log import \
             EMFieldEnergy, \
             EMFieldMomentum, \
             EMFieldDivergenceB
-    mgr.add_quantity(EMFieldEnergy(f_and_c))
-    mgr.add_quantity(EMFieldMomentum(f_and_c, f_and_c.cloud.units.VACUUM_LIGHT_SPEED))
-    mgr.add_quantity(EMFieldDivergenceB(f_and_c.maxwell_op, f_and_c))
-    mgr.add_quantity(DivergenceEQuantities(f_and_c), reconstruct_interval)
-    mgr.add_quantity(ReconstructedCharge(f_and_c), reconstruct_interval)
+    mgr.add_quantity(EMFieldEnergy(observer))
+    mgr.add_quantity(EMFieldMomentum(observer, observer.method.units.VACUUM_LIGHT_SPEED))
+    mgr.add_quantity(EMFieldDivergenceB(observer.maxwell_op, observer))
+    mgr.add_quantity(DivergenceEQuantities(observer), reconstruct_interval)
+    mgr.add_quantity(ReconstructedCharge(observer), reconstruct_interval)
 
 
 
 
 # Beam quantities -------------------------------------------------------------
 class RMSBeamRadius(LogQuantity):
-    def __init__(self, cloud, axis, name=None):
+    def __init__(self, observer, axis, name=None):
         if name is None:
             name = "r%s_rms" % axis_name(axis)
 
         LogQuantity.__init__(self, name, "m", 
                 "RMS Beam Radius along %s" % axis_name(axis))
-        self.cloud = cloud
+        self.observer = observer
         self.axis = axis
 
     def __call__(self):
-        from pyrticle.beam import rms_beam_size
-        return rms_beam_size(self.cloud, self.axis)
+        from pyrticle._internal import rms_beam_size
+        return rms_beam_size(self.observer.state.particle_state, self.axis)
 
 
 
 
 class RMSBeamEmittance(LogQuantity):
-    def __init__(self, cloud, axis, beam_axis, name=None):
+    def __init__(self, observer, axis, beam_axis, name=None):
         if name is None:
             name = "eps%s_rms" % axis_name(axis)
 
         LogQuantity.__init__(self, name, "m*rad", 
                 "RMS Beam Emittance along %s" % axis_name(axis))
-        self.cloud = cloud
+        self.observer = observer
         self.axis = axis
         self.beam_axis = beam_axis
 
     def __call__(self):
-        from pyrticle.beam import rms_emittance
-        return rms_emittance(self.cloud, self.axis, self.beam_axis)
+        from pyrticle._internal import rms_beam_emittance
+        return rms_beam_emittance(self.observer.state.particle_state, self.axis, self.beam_axis)
     
 
 
 
 class RMSBeamEnergySpread(LogQuantity):
-    def __init__(self, cloud, name="Espread"):
+    def __init__(self, observer, name="Espread"):
         LogQuantity.__init__(self, name, "J", "RMS Beam Energy Spread")
-        self.cloud = cloud
+        self.observer = observer
 
     def __call__(self):
-        from pyrticle.beam import rms_energy_spread
-        return rms_energy_spread(self.cloud)
+        from pyrticle._internal import rms_energy_spread
+        return rms_energy_spread(self.observer.state.particle_state, 
+                self.observer.method.units.VACUUM_LIGHT_SPEED)
 
 
 
 
 class ParticleCurrent(LogQuantity):
-    def __init__(self, cloud, direction, tube_length, name="I_part"):
+    def __init__(self, observer, direction, tube_length, name="I_part"):
         LogQuantity.__init__(self, name, "A",
                 "Particle Current along %s" % str(list(direction)))
-        self.cloud = cloud
+        self.observer = observer
         self.direction = numpy.asarray(direction)
         self.tube_length = tube_length
 
@@ -257,8 +259,8 @@ class ParticleCurrent(LogQuantity):
         from pyrticle._internal import particle_current
         return numpy.dot(
                 particle_current(
-                    self.cloud.pic_algorithm, 
-                    self.cloud.velocities(),
+                    self.observer.state.particle_state,
+                    self.observer.method.velocities(self.observer.state),
                     self.tube_length),
                 self.direction)
 
@@ -273,9 +275,9 @@ def add_beam_quantities(mgr, cloud, axis=0, beam_axis=2):
 
 
 
-def add_currents(mgr, f_and_c, direction, tube_length):
-    mgr.add_quantity(FieldCurrent(f_and_c, direction, tube_length))
-    mgr.add_quantity(ParticleCurrent(f_and_c.cloud, direction, tube_length))
+def add_currents(mgr, observer, direction, tube_length):
+    mgr.add_quantity(FieldCurrent(observer, direction, tube_length))
+    mgr.add_quantity(ParticleCurrent(observer, direction, tube_length))
 
 
 

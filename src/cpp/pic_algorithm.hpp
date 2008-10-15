@@ -99,8 +99,9 @@ namespace pyrticle
   const py_vector get_velocities(const ParticleState &ps, const double vacuum_c)
   {
     const unsigned vdim = ps.vdim();
+    npy_intp dims[] = { ps.particle_count, vdim };
 
-    py_vector result(ps.particle_count * vdim);
+    py_vector result(2, dims);
 
     for (particle_number pn = 0; pn < ps.particle_count; pn++)
     {
@@ -368,17 +369,6 @@ namespace pyrticle
 
     note_change_particle_count(ps.particle_count);
   }
-
-
-
-
-      void note_change_particle_count(particle_state &ps, unsigned particle_count) const
-      {
-        if (ps.particle_number_shift_listener.get())
-          ps.particle_number_shift_listener->note_change_size(ps, ps.particle_count);
-        reconstructor::note_change_size(ps, ps.particle_count);
-        particle_pusher::note_change_size(ps, ps.particle_count);
-      }
 
 
 

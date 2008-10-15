@@ -31,12 +31,19 @@ import pyublas
 
 
 
+class DummyReconstructorState(object):
+    def clear(self):
+        pass
+
+
+
+
 class Reconstructor(object):
     def __init__(self):
         self.log_constants = {}
     
-    def initialize(self, cloud):
-        self.cloud = cloud
+    def initialize(self, method):
+        self.method = method
         self.shape_function = None
 
     def set_shape_function(self, sf):
@@ -62,13 +69,13 @@ class Reconstructor(object):
                 self.reconstruct_densites,
                 self.reconstruct_timer,
                 self.reconstruct_counter,
-                1+self.cloud.dimensions_velocity)
+                1+self.method.dimensions_velocity)
 
         self.reconstruct_j = time_and_count_function(
                 self.reconstruct_j,
                 self.reconstruct_timer,
                 self.reconstruct_counter,
-                self.cloud.dimensions_velocity)
+                self.method.dimensions_velocity)
 
         self.reconstruct_rho = time_and_count_function(
                 self.reconstruct_rho,
@@ -85,14 +92,26 @@ class Reconstructor(object):
         if self.shape_function is None:
             raise RuntimeError, "shape function never set"
 
-    def _reconstruct_densities(self, velocities, pslice):
-        return  self.cloud.pic_algorithm.reconstruct_densities(
+    def _reconstruct_densities(self, state, velocities, pslice):
+        return _internal.deposit_densities(
+                state.particle_state,
+                self.backend,
+                len(self.method.mesh_data.discr),
                 velocities, pslice)
-    def _reconstruct_j(self, velocities, pslice):
-        return  self.cloud.pic_algorithm.reconstruct_j(
+
+    def _reconstruct_j(self, state, velocities, pslice):
+        return _internal.deposit_j(
+                state.particle_state,
+                self.backend,
+                len(self.method.mesh_data.discr),
                 velocities, pslice)
-    def _reconstruct_rho(self, pslice):
-        return  self.cloud.pic_algorithm.reconstruct_rho(pslice)
+
+    def _reconstruct_rho(self, state, pslice):
+        return _internal.deposit_rho(
+            state.particle_state,
+            self.backend,
+            len(self.method.mesh_data.discr),
+            pslice)
 
     def reconstruct_densites(self, velocities):
         self.reconstruct_hook()
@@ -100,16 +119,16 @@ class Reconstructor(object):
 
         return rho, j
 
-    def reconstruct_j(self, velocities):
+    def reconstruct_j(self, state, velocities):
         self.reconstruct_hook()
-        j = self._reconstruct_j(velocities, slice(None))
+        j = self._reconstruct_j(state, velocities, slice(None))
 
         return j
 
-    def reconstruct_rho(self):
+    def reconstruct_rho(self, state):
         self.reconstruct_hook()
 
-        rho = self._reconstruct_rho(slice(None))
+        rho = self._reconstruct_rho(state, slice(None))
 
         return rho
 
@@ -128,9 +147,22 @@ class Reconstructor(object):
 class ShapeFunctionReconstructor(Reconstructor):
     name = "Shape"
 
+    def initialize(self, method):
+        Reconstructor.initialize(self, method)
+
+        backend_class = getattr(_internal, "InterpolatingDepositor" 
+                + method.get_dimensionality_suffix())
+        self.backend = backend_class(method.mesh_data)
+
     def set_shape_function(self, sf):
         Reconstructor.set_shape_function(self, sf)
-        self.cloud.pic_algorithm.shape_function = sf
+        self.backend.shape_function = sf
+
+    def make_state(self):
+        return DummyReconstructorState()
+
+    def note_change_size(self, state, count):
+        pass
 
 
 
