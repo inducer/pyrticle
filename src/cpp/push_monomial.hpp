@@ -120,168 +120,166 @@ namespace pyrticle
 
 
 
+  template <class ParticleState>
   struct monomial_particle_pusher
   {
-    template <class PICAlgorithm>
-    class type : public pusher_base
-    {
-      public:
-        static const char *get_name()
-        { return "Monomial"; }
+    public:
+      typedef ParticleState particle_state;
 
-        std::vector<local_monomial_discretization> 
-          m_local_discretizations;
-        std::vector<unsigned> 
-          m_ldis_indices;
+      const mesh_data &m_mesh_data;
+      std::vector<local_monomial_discretization> 
+        m_local_discretizations;
+      std::vector<unsigned> 
+        m_ldis_indices;
 
 
+      monomial_particle_pusher(const mesh_data &md)
+        : m_mesh_data(md)
+      { }
 
+      interpolator make_interpolator(const ParticleState &ps) const
+      {
+        const unsigned xdim = ps.xdim();
+        
+        interpolator result(
+            m_local_discretizations[0], ps.particle_count);
 
-        interpolator make_interpolator() const
+        for (particle_number pn = 0; pn < ps.particle_count; pn++)
         {
-          const unsigned xdim = CONST_PIC_THIS->get_dimensions_pos();
-          
-          interpolator result(
-              m_local_discretizations[0],
-              CONST_PIC_THIS->m_particle_count);
+          mesh_data::mesh_data::element_number in_el = 
+            ps.containing_elements[pn];
+          const mesh_data::element_info &el_inf = 
+            m_mesh_data.m_element_info[in_el];
+        
+          if (m_ldis_indices[in_el] != 0)
+            throw std::runtime_error("more than one "
+                "local discretization is currently not "
+                "supported");
 
-          for (particle_number pn = 0; pn < CONST_PIC_THIS->m_particle_count; pn++)
-          {
-            mesh_data::mesh_data::element_number in_el = 
-              CONST_PIC_THIS->m_containing_elements[pn];
-            const mesh_data::element_info &el_inf = 
-              CONST_PIC_THIS->m_mesh_data.m_element_info[in_el];
-          
-            if (m_ldis_indices[in_el] != 0)
-              throw std::runtime_error("more than one "
-                  "local discretization is currently not "
-                  "supported");
+          bounded_vector unit_pt = el_inf.m_inverse_map
+            .operator()<bounded_vector>(
+                subrange(ps.positions, xdim*pn, xdim*(pn+1))
+                );
+          unsigned base_idx = result.m_ldis.m_basis.size()*pn;
 
-            bounded_vector unit_pt = el_inf.m_inverse_map
-              .operator()<bounded_vector>(
-                  subrange(CONST_PIC_THIS->m_positions, xdim*pn, xdim*(pn+1))
-                  );
-            unsigned base_idx = result.m_ldis.m_basis.size()*pn;
-
-            for (unsigned i = 0; i < result.m_ldis.m_basis.size(); i++)
-              result.m_interpolation_coefficients[base_idx+i] 
-                = result.m_ldis.m_basis[i](unit_pt);
-          }
-
-          {
-            using namespace boost::numeric::bindings;
-            
-            const py_fortran_matrix &matrix = 
-              result.m_ldis.m_lu_vandermonde_t;
-
-            int info;
-            lapack::detail::getrs(
-                'N', 
-                /*n*/ matrix.size1(),
-                /*nrhs*/ CONST_PIC_THIS->m_particle_count,
-                traits::matrix_storage(matrix.as_ublas()),
-                /*lda*/ matrix.size1(),
-                traits::vector_storage(
-                  result.m_ldis.m_lu_piv_vandermonde_t),
-                traits::vector_storage(
-                  result.m_interpolation_coefficients),
-                /*ldb*/ matrix.size1(),
-                &info);
-
-            if (info < 0)
-              throw std::runtime_error("invalid argument to getrs");
-          }
-
-          return result;
+          for (unsigned i = 0; i < result.m_ldis.m_basis.size(); i++)
+            result.m_interpolation_coefficients[base_idx+i] 
+              = result.m_ldis.m_basis[i](unit_pt);
         }
 
-
-
-
-        // why all these template arguments? In 2D and 1D,
-        // instead of passing a hedge::vector, you may simply
-        // pass a zero_vector, and interpolation will know to
-        // not even compute anything, but just return zero.
-        template <class EX, class EY, class EZ, 
-                 class BX, class BY, class BZ>
-        py_vector forces(
-            const EX &ex, const EY &ey, const EZ &ez,
-            const BX &bx, const BY &by, const BZ &bz,
-            const py_vector &velocities,
-            bool verbose_vis
-            )
         {
-          const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
+          using namespace boost::numeric::bindings;
+          
+          const py_fortran_matrix &matrix = 
+            result.m_ldis.m_lu_vandermonde_t;
 
-          npy_intp res_dims[] = { PIC_THIS->m_particle_count, vdim };
-          py_vector result(2, res_dims);
+          int info;
+          lapack::detail::getrs(
+              'N', 
+              /*n*/ matrix.size1(),
+              /*nrhs*/ ps.particle_count,
+              traits::matrix_storage(matrix.as_ublas()),
+              /*lda*/ matrix.size1(),
+              traits::vector_storage(
+                result.m_ldis.m_lu_piv_vandermonde_t),
+              traits::vector_storage(
+                result.m_interpolation_coefficients),
+              /*ldb*/ matrix.size1(),
+              &info);
 
-          py_vector
-            vis_e, vis_b, vis_el_force, vis_mag_force;
-
-          if (verbose_vis)
-          {
-            npy_intp dims[] = { PIC_THIS->m_particle_count, 3 };
-            vis_e = py_vector(2, dims);
-            vis_b = py_vector(2, dims);
-            vis_el_force = py_vector(2, dims);
-            vis_mag_force = py_vector(2, dims);
-          }
-
-          interpolator interp = make_interpolator();
-
-          for (particle_number pn = 0; pn < PIC_THIS->m_particle_count; pn++)
-          {
-            const unsigned v_pstart = vdim*pn;
-            const unsigned v_pend = vdim*(pn+1);
-
-            mesh_data::mesh_data::element_number in_el = 
-              PIC_THIS->m_containing_elements[pn];
-
-            bounded_vector e(3);
-            e[0] = interp(pn, in_el, ex);
-            e[1] = interp(pn, in_el, ey);
-            e[2] = interp(pn, in_el, ez);
-
-            bounded_vector b(3);
-            b[0] = interp(pn, in_el, bx);
-            b[1] = interp(pn, in_el, by);
-            b[2] = interp(pn, in_el, bz);
-
-            const double charge = PIC_THIS->m_charges[pn];
-
-            bounded_vector el_force(3);
-            el_force[0] = charge*e[0];
-            el_force[1] = charge*e[1];
-            el_force[2] = charge*e[2];
-
-            const bounded_vector v = subrange(velocities, v_pstart, v_pend);
-            bounded_vector mag_force = cross(v, charge*b);
-
-            // truncate forces to dimensions_velocity entries
-            subrange(result, v_pstart, v_pend) = subrange(
-                el_force + mag_force, 0, PIC_THIS->get_dimensions_velocity());
-
-            if (verbose_vis)
-            {
-              subrange(vis_e, 3*pn, 3*(pn+1)) = e;
-              subrange(vis_b, 3*pn, 3*(pn+1)) = b;
-              subrange(vis_el_force, 3*pn, 3*(pn+1)) = el_force;
-              subrange(vis_mag_force, 3*pn, 3*(pn+1)) = mag_force;
-            }
-          }
-
-          if (verbose_vis)
-          {
-            PIC_THIS->store_particle_vis_vector("pt_e", vis_e);
-            PIC_THIS->store_particle_vis_vector("pt_b", vis_b);
-            PIC_THIS->store_particle_vis_vector("el_force", vis_el_force);
-            PIC_THIS->store_particle_vis_vector("mag_force", vis_mag_force);
-          }
-
-          return result;
+          if (info < 0)
+            throw std::runtime_error("invalid argument to getrs");
         }
-    };
+
+        return result;
+      }
+
+
+
+
+      // why all these template arguments? In 2D and 1D,
+      // instead of passing a hedge::vector, you may simply
+      // pass a zero_vector, and interpolation will know to
+      // not even compute anything, but just return zero.
+      template <class EX, class EY, class EZ, 
+               class BX, class BY, class BZ>
+      py_vector forces(
+          const EX &ex, const EY &ey, const EZ &ez,
+          const BX &bx, const BY &by, const BZ &bz,
+          ParticleState &ps,
+          const py_vector &velocities,
+          visualization_listener *vis_listener
+          )
+      {
+        const unsigned vdim = ps.vdim();
+
+        npy_intp res_dims[] = { ps.particle_count, vdim };
+        py_vector result(2, res_dims);
+
+        py_vector
+          vis_e, vis_b, vis_el_force, vis_mag_force;
+
+        if (vis_listener)
+        {
+          npy_intp dims[] = { ps.particle_count, 3 };
+          vis_e = py_vector(2, dims);
+          vis_b = py_vector(2, dims);
+          vis_el_force = py_vector(2, dims);
+          vis_mag_force = py_vector(2, dims);
+        }
+
+        interpolator interp = make_interpolator(ps);
+
+        for (particle_number pn = 0; pn < ps.particle_count; pn++)
+        {
+          const unsigned v_pstart = vdim*pn;
+          const unsigned v_pend = vdim*(pn+1);
+
+          mesh_data::mesh_data::element_number in_el = ps.containing_elements[pn];
+
+          bounded_vector e(3);
+          e[0] = interp(pn, in_el, ex);
+          e[1] = interp(pn, in_el, ey);
+          e[2] = interp(pn, in_el, ez);
+
+          bounded_vector b(3);
+          b[0] = interp(pn, in_el, bx);
+          b[1] = interp(pn, in_el, by);
+          b[2] = interp(pn, in_el, bz);
+
+          const double charge = ps.charges[pn];
+
+          bounded_vector el_force(3);
+          el_force[0] = charge*e[0];
+          el_force[1] = charge*e[1];
+          el_force[2] = charge*e[2];
+
+          const bounded_vector v = subrange(velocities, v_pstart, v_pend);
+          bounded_vector mag_force = cross(v, charge*b);
+
+          // truncate forces to dimensions_velocity entries
+          subrange(result, v_pstart, v_pend) = subrange(
+              el_force + mag_force, 0, ps.vdim());
+
+          if (vis_listener)
+          {
+            subrange(vis_e, 3*pn, 3*(pn+1)) = e;
+            subrange(vis_b, 3*pn, 3*(pn+1)) = b;
+            subrange(vis_el_force, 3*pn, 3*(pn+1)) = el_force;
+            subrange(vis_mag_force, 3*pn, 3*(pn+1)) = mag_force;
+          }
+        }
+
+        if (vis_listener)
+        {
+          vis_listener->store_particle_vis_vector("pt_e", vis_e);
+          vis_listener->store_particle_vis_vector("pt_b", vis_b);
+          vis_listener->store_particle_vis_vector("el_force", vis_el_force);
+          vis_listener->store_particle_vis_vector("mag_force", vis_mag_force);
+        }
+
+        return result;
+      }
   };
 }
 

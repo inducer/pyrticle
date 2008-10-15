@@ -34,23 +34,23 @@
 
 namespace pyrticle
 {
-  template <class PIC>
-  const py_vector kinetic_energies(PIC const &pic)
+  template <class ParticleState>
+  const py_vector kinetic_energies(ParticleState const &ps, double vacuum_c)
   {
-    const unsigned vdim = pic.get_dimensions_velocity();
+    const unsigned vdim = ps.vdim();
 
-    py_vector result(pic.m_particle_count);
+    py_vector result(ps.particle_count);
 
-    const double c_squared = pic.m_vacuum_c*pic.m_vacuum_c;
+    const double c_squared = vacuum_c*vacuum_c;
 
-    for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
+    for (particle_number pn = 0; pn < ps.particle_count; pn++)
     {
       const unsigned vpstart = vdim*pn;
       const unsigned vpend = vdim*(pn+1);
 
-      const double m = pic.m_masses[pn];
-      double p = norm_2(subrange(pic.m_momenta, vpstart, vpend));
-      double v = pic.m_vacuum_c*p/sqrt(m*m*c_squared + p*p);
+      const double m = ps.masses[pn];
+      double p = norm_2(subrange(ps.momenta, vpstart, vpend));
+      double v = vacuum_c*p/sqrt(m*m*c_squared + p*p);
       result[pn] = (p/v-m)*c_squared;
     }
     return result;
@@ -58,27 +58,27 @@ namespace pyrticle
 
 
 
-  template <class PIC>
-  const double total_charge(PIC const &pic)
+  template <class ParticleState>
+  const double total_charge(ParticleState const &ps)
   {
     double result = 0;
-    for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
-      result += pic.m_charges[pn];
+    for (particle_number pn = 0; pn < ps.particle_count; pn++)
+      result += ps.charges[pn];
     return result;
   }
 
 
 
 
-  template <class PIC>
-  const py_vector particle_momentum(PIC const &pic)
+  template <class ParticleState>
+  const py_vector particle_momentum(ParticleState const &ps)
   {
-    const unsigned vdim = pic.get_dimensions_velocity();
+    const unsigned vdim = ps.vdim();
     py_vector result(vdim);
     result.clear();
 
-    for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
-      result += subrange(pic.m_momenta, vdim*pn, vdim*(pn+1));
+    for (particle_number pn = 0; pn < ps.particle_count; pn++)
+      result += subrange(ps.momenta, vdim*pn, vdim*(pn+1));
 
     return result;
   }
@@ -87,26 +87,26 @@ namespace pyrticle
 
 
 
-  template <class PIC>
-  const double rms_beam_size(PIC const &pic, unsigned axis)
+  template <class ParticleState>
+  const double rms_beam_size(ParticleState const &ps, unsigned axis)
   {
-    if (pic.m_particle_count == 0)
+    if (ps.particle_count == 0)
       return 0;
 
     double result = 0;
-    for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
-      result += square(pic.m_positions[pn*pic.get_dimensions_pos() + axis]);
+    for (particle_number pn = 0; pn < ps.particle_count; pn++)
+      result += square(ps.positions[pn*ps.xdim() + axis]);
 
-    return sqrt(result/pic.m_particle_count);
+    return sqrt(result/ps.particle_count);
   }
 
 
 
 
-  template <class PIC>
-  const double rms_beam_emittance(PIC const &pic, unsigned axis, unsigned beam_axis)
+  template <class ParticleState>
+  const double rms_beam_emittance(ParticleState const &ps, unsigned axis, unsigned beam_axis)
   {
-    if (pic.m_particle_count == 0)
+    if (ps.particle_count == 0)
       return 0;
 
     double mean_x = 0;
@@ -115,16 +115,16 @@ namespace pyrticle
     double mean_xp_squared = 0;
     double mean_xxp = 0;
 
-    // see doc/notes-2.tm
-    for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
+    // see doc/notes.tm
+    for (particle_number pn = 0; pn < ps.particle_count; pn++)
     {
-      const double x = pic.m_positions[pn*pic.get_dimensions_pos() + axis];
+      const double x = ps.positions[pn*ps.xdim() + axis];
 
       mean_x += x;
       mean_x_squared += square(x);
 
-      const double px = pic.m_momenta[pn*pic.get_dimensions_velocity() + axis];
-      const double pz = pic.m_momenta[pn*pic.get_dimensions_velocity() + beam_axis];
+      const double px = ps.momenta[pn*ps.vdim() + axis];
+      const double pz = ps.momenta[pn*ps.vdim() + beam_axis];
 
       const double xprime = pz ? px/pz : 0;
 
@@ -134,13 +134,13 @@ namespace pyrticle
       mean_xxp += x*xprime;
     }
 
-    mean_x /= pic.m_particle_count;
-    mean_xp /= pic.m_particle_count;
+    mean_x /= ps.particle_count;
+    mean_xp /= ps.particle_count;
 
-    mean_x_squared /= pic.m_particle_count;
-    mean_xp_squared /= pic.m_particle_count;
+    mean_x_squared /= ps.particle_count;
+    mean_xp_squared /= ps.particle_count;
 
-    mean_xxp /= pic.m_particle_count;
+    mean_xxp /= ps.particle_count;
 
     return sqrt(
         mean_x_squared*mean_xp_squared
@@ -156,28 +156,28 @@ namespace pyrticle
 
 
 
-  template <class PIC>
-  const double rms_energy_spread(PIC const &pic)
+  template <class ParticleState>
+  const double rms_energy_spread(ParticleState const &ps, double vacuum_c)
   {
-    if (pic.m_particle_count == 0)
+    if (ps.particle_count == 0)
       return 0;
-    py_vector energies = kinetic_energies(pic);
+    py_vector energies = kinetic_energies(ps, vacuum_c);
     return std_dev(energies.begin(), energies.end());
   }
 
 
 
 
-  template <class PIC>
-  const py_vector particle_current(PIC const &pic, py_vector const &velocities,
+  template <class ParticleState>
+  const py_vector particle_current(ParticleState const &ps, py_vector const &velocities,
       double length)
   {
-    const unsigned vdim = pic.get_dimensions_velocity();
+    const unsigned vdim = ps.vdim();
     py_vector result(vdim);
     result.clear();
 
-    for (particle_number pn = 0; pn < pic.m_particle_count; pn++)
-      result += pic.m_charges[pn] * subrange(velocities, vdim*pn, vdim*(pn+1));
+    for (particle_number pn = 0; pn < ps.particle_count; pn++)
+      result += ps.charges[pn] * subrange(velocities, vdim*pn, vdim*(pn+1));
 
     return result / length;
   }

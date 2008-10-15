@@ -21,6 +21,7 @@
 #include <boost/python.hpp>
 #include "pic_algorithm.hpp"
 #include "wrap_pic.hpp"
+#include "diagnostics.hpp"
 
 
 
@@ -34,12 +35,30 @@ using namespace boost::python;
 namespace
 {
   template <class ParticleState>
+  void expose_diagnostics()
+  {
+    python::def("kinetic_energies", kinetic_energies<ParticleState>);
+    python::def("total_charge", total_charge<ParticleState>);
+    python::def("particle_momentum", particle_momentum<ParticleState>);
+    python::def("particle_current", particle_current<ParticleState>);
+    python::def("rms_beam_size", rms_beam_size<ParticleState>);
+    python::def("rms_beam_emittance", rms_beam_emittance<ParticleState>);
+    python::def("rms_energy_spread", rms_energy_spread<ParticleState>);
+  }
+
+
+
+
+  template <class ParticleState>
   void expose_pic_basics()
   {
     {
       typedef ParticleState cl;
       class_<ParticleState>(
           ("ParticleState"+get_state_class_suffix<ParticleState>()).c_str())
+        .add_static_property("xdim", &cl::xdim)
+        .add_static_property("vdim", &cl::vdim)
+
         .SDEF_RW_MEMBER(particle_count)
 
         .SDEF_BYVAL_RW_MEMBER(containing_elements)
@@ -62,4 +81,5 @@ namespace
 void expose_pic()
 {
   EXPOSE_FOR_ALL_STATE_TYPES(expose_pic_basics, ());
+  EXPOSE_FOR_ALL_STATE_TYPES(expose_diagnostics, ());
 }
