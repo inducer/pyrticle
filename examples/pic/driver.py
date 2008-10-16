@@ -79,6 +79,8 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
         import hedge.data
 
+        from hedge.timestep import RK4TimeStepper
+
         variables = {
                 "pusher": None,
                 "reconstructor": None,
@@ -130,6 +132,9 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                     ("j", observer.method.reconstruct_j(observer.state)), 
                     ],
                 "hook_visualize": lambda runner, vis, visf: None,
+
+                "timestepper_maker": lambda dt: RK4TimeStepper(),
+                "dt_scale": 1,
                 }
 
         doc = {
@@ -234,10 +239,9 @@ class PICRunner(object):
         # timestepping setup --------------------------------------------------
         goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue())
         self.nsteps = int(setup.final_time/goal_dt)+1
-        self.dt = setup.final_time/self.nsteps
+        self.dt = setup.final_time/self.nsteps * setup.dt_scale
 
-        from hedge.timestep import RK4TimeStepper
-        self.stepper = RK4TimeStepper()
+        self.stepper = setup.timestepper_maker(self.dt)
 
         # particle setup ------------------------------------------------------
         from pyrticle.cloud import PicMethod, PicState, \
@@ -326,7 +330,9 @@ class PICRunner(object):
         self.field_rhs_calculator = FieldRhsCalculator(self.method, self.discr, self.maxwell_op)
         self.particle_rhs_calculator = ParticleRhsCalculator(self.method, self.maxwell_op)
 
-        self.stepper.add_instrumentation(logmgr)
+        if hasattr(self.stepper, "add_instrumentation"):
+            self.stepper.add_instrumentation(logmgr)
+
         self.field_rhs_calculator.add_instrumentation(logmgr)
 
         method = self.method
@@ -354,7 +360,7 @@ class PICRunner(object):
 
         logmgr.add_watches(setup.watch_vars)
 
-    def run(self):
+    def run(self): 
         t = 0
         
         setup = self.setup
@@ -386,22 +392,6 @@ class PICRunner(object):
         from hedge.tools import make_obj_array
         from pyrticle.cloud import TimesteppablePicState
 
-        y = make_obj_array([
-            fields, 
-            TimesteppablePicState(self.method, state)
-            ])
-
-        from pytools import typedump
-
-        def rhs(t, fields_and_state):
-            fields, ts_state = fields_and_state
-            state = ts_state.state
-
-            fields_rhs = self.field_rhs_calculator(t, fields, state)
-            state_rhs = self.particle_rhs_calculator(t, fields, state)
-
-            return make_obj_array([fields_rhs, state_rhs])
-
         def visualize(observer):
             self.vis_timer.start()
             import os.path
@@ -418,6 +408,34 @@ class PICRunner(object):
             visf.close()
             self.vis_timer.stop()
 
+        from hedge.timestep import TwoRateAdamsBashforthTimeStepper 
+        if not isinstance(self.stepper, TwoRateAdamsBashforthTimeStepper): 
+            def rhs(t, fields_and_state):
+                fields, ts_state = fields_and_state
+                state = ts_state.state
+
+                fields_rhs = self.field_rhs_calculator(t, fields, state)
+                state_rhs = self.particle_rhs_calculator(t, fields, state)
+
+                return make_obj_array([fields_rhs, state_rhs])
+            step_args = (self.dt, rhs)
+        else:
+            def particle_rhs(t, fields, ts_state):
+                state = ts_state.state
+                return self.particle_rhs_calculator(t, fields, state)
+
+            def field_rhs(t, fields, ts_state):
+                state = ts_state.state
+                return self.field_rhs_calculator(t, fields, state)
+
+            rhs = (field_rhs, particle_rhs)
+            step_args = (rhs,)
+
+        y = make_obj_array([
+            fields, 
+            TimesteppablePicState(self.method, state)
+            ])
+
 
         for step in xrange(self.nsteps):
             self.logmgr.tick()
@@ -425,7 +443,8 @@ class PICRunner(object):
             self.method.upkeep(state)
             setup.hook_before_step(self)
 
-            y = self.stepper(y, t, self.dt, rhs)
+            y = self.stepper(y, t, *step_args)
+
             setup.hook_after_step(self)
 
             fields, ts_state = y
@@ -442,7 +461,6 @@ class PICRunner(object):
         self.logmgr.save()
 
         setup.hook_when_done(self)
-
 
 
 if __name__ == "__main__":
