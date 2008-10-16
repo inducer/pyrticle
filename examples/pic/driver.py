@@ -263,7 +263,7 @@ class PICRunner(object):
         self.total_charge = setup.nparticles*setup.distribution.mean()[2][0]
         if isinstance(setup.shape_bandwidth, str):
             if setup.shape_bandwidth == "optimize":
-                optimize_shape_bandwidth(cloud, 
+                optimize_shape_bandwidth(method, self.state,
                         setup.distribution.get_rho_interpolant(
                             discr, self.total_charge),
                         setup.shape_exponent)
@@ -294,6 +294,17 @@ class PICRunner(object):
                     potential_bc=setup.potential_bc, 
                     force_zero=False)
 
+        # rhs calculators -----------------------------------------------------
+        from pyrticle.cloud import \
+                FieldRhsCalculator, \
+                FieldToParticleRhsCalculator, \
+                ParticleRhsCalculator, \
+                ParticleToFieldRhsCalculator
+        self.f_rhs_calculator = FieldRhsCalculator(self.method, self.maxwell_op)
+        self.p_rhs_calculator = ParticleRhsCalculator(self.method, self.maxwell_op)
+        self.f2p_rhs_calculator = FieldToParticleRhsCalculator(self.method, self.maxwell_op)
+        self.p2f_rhs_calculator = ParticleToFieldRhsCalculator(self.method, self.maxwell_op)
+
         # instrumentation setup -----------------------------------------------
         self.add_instrumentation(self.logmgr)
 
@@ -320,22 +331,17 @@ class PICRunner(object):
             add_beam_quantities(logmgr, self, 
                     axis=setup.beam_diag_axis, 
                     beam_axis=setup.beam_axis)
+
         if setup.tube_length is not None:
             from hedge.tools import unit_vector
             add_currents(logmgr, self, 
                     unit_vector(self.method.dimensions_velocity, setup.beam_axis), 
                     setup.tube_length)
 
-        from pyrticle.cloud import FieldRhsCalculator, ParticleRhsCalculator
-        self.field_rhs_calculator = FieldRhsCalculator(self.method, self.discr, self.maxwell_op)
-        self.particle_rhs_calculator = ParticleRhsCalculator(self.method, self.maxwell_op)
+        self.f_rhs_calculator.add_instrumentation(logmgr)
 
         if hasattr(self.stepper, "add_instrumentation"):
             self.stepper.add_instrumentation(logmgr)
-
-        self.field_rhs_calculator.add_instrumentation(logmgr)
-
-        method = self.method
 
         mean_beta = self.method.mean_beta(self.state)
         gamma = self.method.units.gamma_from_beta(mean_beta)
@@ -414,22 +420,32 @@ class PICRunner(object):
                 fields, ts_state = fields_and_state
                 state = ts_state.state
 
-                fields_rhs = self.field_rhs_calculator(t, fields, state)
-                state_rhs = self.particle_rhs_calculator(t, fields, state)
+                fields_rhs = (
+                        self.f_rhs_calculator(t, fields, state)
+                        + self.p2f_rhs_calculator(t, fields, state))
+                state_rhs = (
+                        self.p_rhs_calculator(t, fields, state)
+                        + self.f2p_rhs_calculator(t, fields, state))
 
                 return make_obj_array([fields_rhs, state_rhs])
             step_args = (self.dt, rhs)
         else:
-            def particle_rhs(t, fields, ts_state):
-                state = ts_state.state
-                return self.particle_rhs_calculator(t, fields, state)
+            def add_unwrap(rhs):
+                def unwrapping_rhs(t, fields, ts_state):
+                    if ts_state is not None:
+                        state = ts_state.state
+                    else:
+                        state = None
 
-            def field_rhs(t, fields, ts_state):
-                state = ts_state.state
-                return self.field_rhs_calculator(t, fields, state)
+                    return rhs(t, fields, state)
+                return unwrapping_rhs
 
-            rhs = (field_rhs, particle_rhs)
-            step_args = (rhs,)
+            step_args = ((
+                    add_unwrap(self.f_rhs_calculator),
+                    add_unwrap(self.p2f_rhs_calculator),
+                    add_unwrap(self.f2p_rhs_calculator),
+                    add_unwrap(self.p_rhs_calculator),
+                    ),)
 
         y = make_obj_array([
             fields, 

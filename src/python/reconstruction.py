@@ -135,7 +135,7 @@ class Reconstructor(object):
     def upkeep(self):
         pass
 
-    def rhs(self):
+    def rhs(self, state):
         return 0
 
     def advance_state(self, state, rhs):
@@ -342,7 +342,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
     def upkeep(self):
         self.cloud.pic_algorithm.perform_reconstructor_upkeep()
 
-    def rhs(self):
+    def rhs(self, state):
         from pyrticle.tools import NumberShiftableVector
         self.advective_rhs_timer.start()
         result =  NumberShiftableVector(

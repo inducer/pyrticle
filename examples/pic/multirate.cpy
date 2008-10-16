@@ -32,9 +32,13 @@ _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 shape_exponent = 2
 
 from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
-_step_ratio = 100
-timestepper_maker = lambda dt: _TwoRateAB(dt, step_ratio=_step_ratio, order=4)
-dt_scale = 0.36/2*_step_ratio
+_enable_multirate = True
+if _enable_multirate:
+    _step_ratio = 100
+    timestepper_maker = lambda dt: _TwoRateAB(dt, step_ratio=_step_ratio, order=5)
+    _rk4_stability = 2
+    #dt_scale = 0.36/_rk4_stability*_step_ratio # ab4
+    dt_scale = 0.18/_rk4_stability*_step_ratio # ab5
 
 _tube_width = 1
 import hedge.mesh as _mesh

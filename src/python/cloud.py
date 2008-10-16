@@ -156,6 +156,7 @@ class TimesteppablePicState(object):
     def __add__(self, update):
         from pyrticle.tools import NumberShiftableVector
 
+        from pytools import typedump
         dx, dp, drecon = update
         dx = NumberShiftableVector.unwrap(dx)
         dp = NumberShiftableVector.unwrap(dp)
@@ -168,12 +169,11 @@ class TimesteppablePicState(object):
 
 
 class FieldRhsCalculator(object):
-    def __init__(self, method, discr, maxwell_op):
+    def __init__(self, method, maxwell_op):
         self.method = method
-        self.discr = discr
         self.maxwell_op = maxwell_op
 
-        self.bound_maxwell_op = maxwell_op.bind(self.discr)
+        self.bound_maxwell_op = maxwell_op.bind(self.method.discretization)
 
         from pytools.log import IntervalTimer
         self.field_solve_timer = IntervalTimer(
@@ -196,25 +196,31 @@ class FieldRhsCalculator(object):
 
         self.field_solve_timer.stop()
 
-        # add current
-        e_components = self.maxwell_op.count_subset(
-                self.maxwell_op.get_eh_subset()[0:3])
-
-        from hedge.tools import to_obj_array
-        j = to_obj_array(self.method.reconstruct_j(state))
-        rhs_fields[:e_components] -= 1/self.maxwell_op.epsilon*j
-
         return rhs_fields
 
 
 
-
-class ParticleRhsCalculator(object):
+class ParticleToFieldRhsCalculator(object):
     def __init__(self, method, maxwell_op):
         self.method = method
         self.maxwell_op = maxwell_op
 
-    def __call__(self, t, fields, state, vis_listener=None):
+    def __call__(self, t, fields, state):
+        return self.maxwell_op.assemble_fields(
+                e=-1/self.maxwell_op.epsilon
+                *self.method.reconstruct_j(state))
+
+
+
+
+class FieldToParticleRhsCalculator(object):
+    def __init__(self, method, maxwell_op, vis_listener=None):
+        self.method = method
+        self.maxwell_op = maxwell_op
+
+        self.vis_listener = vis_listener
+
+    def __call__(self, t, fields, state):
         from hedge.tools import ZeroVector
 
         e, h = self.maxwell_op.split_eh(fields)
@@ -239,26 +245,45 @@ class ParticleRhsCalculator(object):
             else:
                 b_arg.append(ZeroVector())
 
-        velocities = self.method.velocities(state)
-
         field_args = tuple(e_arg) + tuple(b_arg)
+
+        velocities = self.method.velocities(state)
 
         # compute forces
         forces = self.method.pusher.forces(
                 state,
                 velocities,
-                vis_listener,
+                self.vis_listener,
                 *field_args)
 
         from pyrticle.tools import NumberShiftableVector
-        from hedge.tools import join_fields
-        result = join_fields(
-            NumberShiftableVector(velocities, 
-                signaller=state.particle_number_shift_signaller),
+        from hedge.tools import make_obj_array
+        result = make_obj_array([
+            0,
             NumberShiftableVector(forces, 
                 signaller=state.particle_number_shift_signaller),
-            self.method.reconstructor.rhs()
-            )
+            0])
+        return result
+
+
+
+
+class ParticleRhsCalculator(object):
+    def __init__(self, method, maxwell_op):
+        self.method = method
+        self.maxwell_op = maxwell_op
+
+    def __call__(self, t, fields, state):
+        velocities = self.method.velocities(state)
+
+        from pyrticle.tools import NumberShiftableVector
+        from hedge.tools import make_obj_array
+        result = make_obj_array([
+            NumberShiftableVector(velocities, 
+                signaller=state.particle_number_shift_signaller),
+            0,
+            self.method.reconstructor.rhs(state)
+            ])
         return result
 
 
@@ -689,24 +714,24 @@ def guess_shape_bandwidth(cloud, exponent):
 
 
 
-def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
-    discr = cloud.discretization
-    rec = cloud.reconstructor
+def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
+    discr = method.discretization
+    rec = method.reconstructor
 
-    adv_radius = cloud.mesh_data.advisable_particle_radius()
+    adv_radius = method.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**i 
             for i in numpy.linspace(-4, 2, 50)]
 
     def set_radius(r):
-        cloud.reconstructor.set_shape_function(
-                cloud.get_shape_function_class()
-                (r, cloud.mesh_data.dimensions, exponent,))
+        method.reconstructor.set_shape_function(
+                method.get_shape_function_class()
+                (r, method.mesh_data.dimensions, exponent,))
 
     tried_radii = []
     l1_errors = []
 
-    debug = "shape_bw" in cloud.debug
-    visualize = set(["shape_bw", "vis_files"]) <= cloud.debug
+    debug = "shape_bw" in method.debug
+    visualize = set(["shape_bw", "vis_files"]) <= method.debug
 
     if visualize:
         from hedge.visualization import SiloVisualizer
@@ -723,7 +748,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
 
         try:
             try:
-                cloud.set_ignore_core_warnings(True)
+                method.set_ignore_core_warnings(True)
                 set_radius(radius)
             except RuntimeError, re:
                 if "particle mass is zero" in str(re):
@@ -731,31 +756,31 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
                 else:
                     raise
         finally:
-            cloud.set_ignore_core_warnings(False)
+            method.set_ignore_core_warnings(False)
 
-        cloud.derived_quantity_cache.clear()
+        state.derived_quantity_cache.clear()
 
         try:
             try:
-                cloud.set_ignore_core_warnings(True)
-                rec_rho = cloud.reconstruct_rho()
+                method.set_ignore_core_warnings(True)
+                rec_rho = method.reconstruct_rho(state)
             except RuntimeError, re:
                 if "particle mass is zero" in str(re):
                     continue
                 else:
                     raise
         finally:
-            cloud.set_ignore_core_warnings(False)
+            method.set_ignore_core_warnings(False)
 
         tried_radii.append(radius)
         l1_errors.append(discr.integral(numpy.abs(rec_rho-analytic_rho)))
 
         if visualize:
             visf = vis.make_file("bwopt-%04d" % step)
-            cloud.add_to_vis(vis, visf, time=radius, step=step)
+            method.add_to_vis(vis, visf, state, time=radius, step=step)
             vis.add_data(visf, [ 
                 ("rho", rec_rho), 
-                ("j", cloud.reconstruct_j()),
+                ("j", method.reconstruct_j(state)),
                 ("rho_analytic", analytic_rho), 
                 ],
                 expressions=[("rho_diff", "rho-rho_analytic")],
@@ -768,7 +793,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
             else:
                 rec.visualize_grid_quantities(visf, [
                         ("rho_grid", rec.reconstruct_grid_rho()),
-                        ("j_grid", rec.reconstruct_grid_j(cloud.velocities())),
+                        ("j_grid", rec.reconstruct_grid_j(method.velocities(state))),
                         ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
                         ])
 
@@ -805,7 +830,7 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
     chosen_idx = max(local_minima)
     chosen_rad = tried_radii[chosen_idx]
 
-    if "shape_bw" in cloud.debug:
+    if "shape_bw" in method.debug:
         chosen_l1_error = l1_errors[chosen_idx]
         print "radius: guessed optimum=%g, found optimum=%g, chosen=%g" % (
                 adv_radius, min_rad, chosen_rad)
@@ -813,9 +838,9 @@ def optimize_shape_bandwidth(cloud, analytic_rho, exponent):
                 min_l1_error, chosen_l1_error)
 
     set_radius(chosen_rad)
-    cloud.derived_quantity_cache.clear()
+    state.derived_quantity_cache.clear()
 
-    if set(["interactive", "shape_bw"]) < cloud.debug:
+    if set(["interactive", "shape_bw"]) < method.debug:
         from pylab import semilogx, show
         semilogx(tried_radii, l1_errors)
         show()
