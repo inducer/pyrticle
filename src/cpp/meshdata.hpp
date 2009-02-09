@@ -90,7 +90,7 @@ namespace pyrticle
       struct element_info
       {
         element_number                 m_id;
-        hedge::affine_map              m_inverse_map;
+        hedge::affine_map<double>      m_inverse_map;
         double                         m_jacobian;
 
         unsigned                       m_start, m_end;
