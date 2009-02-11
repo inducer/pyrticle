@@ -219,8 +219,8 @@ def make_extrusion_with_fine_core(rz, inner_r,
     min_z = min(rz_pt[1] for rz_pt in rz)
     max_z = max(rz_pt[1] for rz_pt in rz)
 
-    from meshpy.tet import MeshInfo, build, \
-            generate_surface_of_revolution
+    from meshpy.tet import MeshInfo, build
+    from meshpy.geometry import generate_surface_of_revolution
 
     MINUS_Z_MARKER = 1
     PLUS_Z_MARKER = 2
