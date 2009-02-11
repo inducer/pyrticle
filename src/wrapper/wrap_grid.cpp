@@ -91,9 +91,16 @@ void expose_grid()
       .def("__len__", &cl::node_count)
       .DEF_SIMPLE_METHOD(point)
       .DEF_SIMPLE_METHOD(index)
+      .DEF_SIMPLE_METHOD(split_index)
       .DEF_SIMPLE_METHOD(which_cell)
       .DEF_SIMPLE_METHOD(bounding_box)
+      .DEF_SIMPLE_METHOD(cell)
       .DEF_SIMPLE_METHOD(index_range)
+
+      .def("get_iterator",
+          (cl::iterator (cl::*)(bounded_box const &) const) &cl::get_iterator)
+      .def("get_iterator",
+          (cl::iterator (cl::*)(bounded_int_box const &) const) &cl::get_iterator)
       ;
   }
 }

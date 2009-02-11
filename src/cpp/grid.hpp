@@ -361,6 +361,21 @@ namespace pyrticle
       grid_node_number index(const bounded_int_vector &idx) const
       { return m_start_index + inner_prod(idx, m_strides); }
 
+      bounded_int_vector split_index(grid_node_number gnn) const
+      {
+        bounded_int_vector result(m_dimensions.size());
+
+        int i = m_dimensions.size();
+        while (i >= 0)
+        {
+          result[i] = gnn/m_strides[i];
+          gnn -= result[i]*m_strides[i];
+          --i;
+        }
+
+        return result;
+      }
+
       bounded_int_vector which_cell(const bounded_vector &pt) const
       {
         bounded_int_vector result = pyublas::unary_op<int_floor>::apply(
@@ -379,6 +394,13 @@ namespace pyrticle
             m_origin,
             m_origin + element_prod(m_dimensions, m_stepwidths)
             );
+      }
+
+      bounded_box cell (const bounded_int_vector &idx) const
+      {
+        return bounded_box(
+            m_origin + element_prod(idx, m_stepwidths),
+            m_origin + element_prod(idx, m_stepwidths) + m_stepwidths);
       }
 
     private:

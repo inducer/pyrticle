@@ -160,8 +160,18 @@ namespace
       .def("contains", 
           (bool (cl::*)(py_vector const &, double) const) &cl::contains,
           python::args("point", "threshold"))
+      .def("__contains__", 
+          (bool (cl::*)(py_vector const &) const) &cl::contains,
+          python::args("point"))
+
       .DEF_SIMPLE_METHOD(is_empty)
       .def("intersect", &cl::template intersect<VecT>)
+      .def("enlarged", 
+          (cl (cl::*)(py_vector const &) const)
+          &cl::enlarged)
+      .def("enlarged", 
+          (cl (cl::*)(typename VecT::value_type) const)
+          &cl::enlarged)
 
       .def(python::self == python::self)
       .def(python::self != python::self)

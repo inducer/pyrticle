@@ -118,7 +118,7 @@ namespace pyrticle
     { return contains(pt, 1e-10); }
 
     template <class VecType>
-    bool contains(VecType const &pt, double threshold) const
+    bool contains(VecType const &pt, double threshold=1e-10) const
     {
       for (unsigned i = 0; i < m_lower.size(); ++i)
         if (pt[i] < m_lower[i] - threshold 
@@ -128,7 +128,7 @@ namespace pyrticle
     }
 
     template <class VecType2>
-    box intersect(box<VecType2> const &b2)
+    box intersect(box<VecType2> const &b2) const
     {
       const unsigned dims = m_lower.size();
 
@@ -143,6 +143,17 @@ namespace pyrticle
       }
 
       return result;
+    }
+
+    template <class VecType2>
+    box enlarged(VecType2 const &vec) const
+    { return box(m_lower-vec, m_upper+vec); }
+
+    box enlarged(typename vector_type::value_type scalar) const
+    { 
+      return enlarged(
+          boost::numeric::ublas::scalar_vector<typename vector_type::value_type>(
+            m_lower.size(), scalar));
     }
   };
 
