@@ -314,6 +314,8 @@ namespace pyrticle
         {
           m_strides[i] = current_stride;
           current_stride *= m_dimensions[i];
+          if (m_dimensions[i] == 0)
+            throw std::logic_error("zero dimensions for brick not supported");
           ++i;
         }
       }
@@ -365,7 +367,7 @@ namespace pyrticle
       {
         bounded_int_vector result(m_dimensions.size());
 
-        int i = m_dimensions.size();
+        int i = m_dimensions.size()-1;
         while (i >= 0)
         {
           result[i] = gnn/m_strides[i];
