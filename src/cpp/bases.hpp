@@ -36,7 +36,7 @@ namespace pyrticle
   {
   };
 
-  class reconstructor_base 
+  class depositor_base 
   {
   };
 }

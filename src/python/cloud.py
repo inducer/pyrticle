@@ -49,16 +49,16 @@ class PicState(object):
             momenta=None,
             charges=None,
             masses=None,
-            reconstructor_state=None,
+            depositor_state=None,
             pnss=None):
         state_class = getattr(_internal, "ParticleState%s" % 
             method.get_dimensionality_suffix())
 
         pstate = self.particle_state = state_class()
-        if reconstructor_state is None:
-            self.reconstructor_state = method.reconstructor.make_state(self)
+        if depositor_state is None:
+            self.depositor_state = method.depositor.make_state(self)
         else:
-            self.reconstructor_state = reconstructor_state
+            self.depositor_state = depositor_state
 
         if particle_count is None:
             pstate.particle_count = 0
@@ -118,8 +118,8 @@ class PicState(object):
     def clear(self):
         pstate = self.particle_state
 
-        self.pic_algorithm.particle_count = 0
-        self.reconstructor_state.clear()
+        pstate.particle_count = 0
+        self.depositor_state.clear()
         self.derived_quantity_cache.clear()
 
     # derived quantity cache --------------------------------------------------
@@ -190,7 +190,7 @@ class FieldRhsCalculator(object):
         from pyrticle.hyperbolic import CleaningMaxwellOperator
         if isinstance(self.maxwell_op, CleaningMaxwellOperator):
             rhs_fields = self.bound_maxwell_op(t, fields, 
-                    self.method.reconstruct_rho(state))
+                    self.method.deposit_rho(state))
         else:
             rhs_fields = self.bound_maxwell_op(t, fields)
 
@@ -208,7 +208,7 @@ class ParticleToFieldRhsCalculator(object):
     def __call__(self, t, fields, state):
         return self.maxwell_op.assemble_fields(
                 e=-1/self.maxwell_op.epsilon
-                *self.method.reconstruct_j(state))
+                *self.method.deposit_j(state))
 
 
 
@@ -282,7 +282,7 @@ class ParticleRhsCalculator(object):
             NumberShiftableVector(velocities, 
                 signaller=state.particle_number_shift_signaller),
             0,
-            self.method.reconstructor.rhs(state)
+            self.method.depositor.rhs(state)
             ])
         return result
 
@@ -294,7 +294,7 @@ class PicMethod(object):
     @arg debug: A set of strings telling what to debug. So far, the
       following debug flags are in use:
     
-      - reconstructor: Debug the reconstructor.
+      - depositor: Debug the depositor.
       - verbose_vis: Generate E and B fields and force 
         visualizations at particle locations.
       - ic: Check the initial condition when it's generated.
@@ -309,7 +309,7 @@ class PicMethod(object):
     """
 
     def __init__(self, discr, units, 
-            reconstructor, pusher, finder,
+            depositor, pusher, finder,
             dimensions_pos, dimensions_velocity,
             debug=set()):
 
@@ -317,7 +317,7 @@ class PicMethod(object):
         self.discretization = discr
         self.debug = debug
 
-        self.reconstructor = reconstructor
+        self.depositor = depositor
         self.pusher = pusher
         self.finder = finder
 
@@ -335,7 +335,7 @@ class PicMethod(object):
                 #self.particle_number_shift_signaller)
 
         # subsystem init
-        self.reconstructor.initialize(self)
+        self.depositor.initialize(self)
         self.pusher.initialize(self)
 
         # instrumentation 
@@ -391,7 +391,7 @@ class PicMethod(object):
         mgr.add_quantity(self.find_by_vertex_counter)
         mgr.add_quantity(self.find_global_counter)
 
-        self.reconstructor.add_instrumentation(mgr)
+        self.depositor.add_instrumentation(mgr)
         self.pusher.add_instrumentation(mgr)
 
     def velocities(self, state):
@@ -462,7 +462,7 @@ class PicMethod(object):
 
     def note_change_particle_count(self, state, particle_count):
         state.particle_number_shift_signaller.note_change_size(particle_count)
-        self.reconstructor.note_change_size(state, particle_count)
+        self.depositor.note_change_size(state, particle_count)
         self.pusher.note_change_size(state, particle_count)
 
     def check_containment(self, state):
@@ -478,26 +478,26 @@ class PicMethod(object):
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
         """
-        self.reconstructor.upkeep()
+        self.depositor.upkeep()
         self.pusher.upkeep()
 
-    # reconstruction ----------------------------------------------------------
-    def reconstruct_densities(self, state):
+    # deposition ----------------------------------------------------------
+    def deposit_densities(self, state):
         """Return a tuple (charge_density, current_densities), where
         current_densities is an d-by-n array, where d is the number 
         of velocity dimensions, and n is the discretization nodes.
         """
         def all_getter():
-            rho, j = self.reconstructor.reconstruct_densities(state, self.velocities())
+            rho, j = self.depositor.deposit_densities(state, self.velocities())
             j = numpy.asarray(j.T, order="C")
             return rho, j
 
         return state.get_derived_quantities_from_cache(
                 ["rho", "j"],
-                [self.reconstruct_rho, self.reconstruct_j],
+                [self.deposit_rho, self.deposit_j],
                 all_getter)
 
-    def reconstruct_j(self, state):
+    def deposit_j(self, state):
         """Return a the current densities as an d-by-n array, where d 
         is the number of velocity dimensions, and n is the number of 
         discretization nodes.
@@ -505,17 +505,17 @@ class PicMethod(object):
 
         def j_getter():
             return numpy.asarray(
-                    self.reconstructor.reconstruct_j(
+                    self.depositor.deposit_j(
                         state, self.velocities(state))
                     .T, order="C")
 
         return state.get_derived_quantity_from_cache("j", j_getter)
 
-    def reconstruct_rho(self, state):
+    def deposit_rho(self, state):
         """Return a the charge_density as a volume vector."""
 
         def rho_getter():
-            return self.reconstructor.reconstruct_rho(state)
+            return self.depositor.deposit_rho(state)
 
         return state.get_derived_quantity_from_cache("rho", rho_getter)
 
@@ -542,8 +542,8 @@ class PicMethod(object):
                 momenta=pstate.momenta[:cnt] + dp,
                 charges=pstate.charges,
                 masses=pstate.masses,
-                reconstructor_state=self.reconstructor.advance_state(
-                    state.reconstructor_state, drecon),
+                depositor_state=self.depositor.advance_state(
+                    state.depositor_state, drecon),
                 pnss=state.particle_number_shift_signaller)
 
         from pyrticle._internal import FindEventCounters
@@ -704,7 +704,7 @@ class PicMethod(object):
 
 # shape bandwidth -------------------------------------------------------------
 def guess_shape_bandwidth(cloud, exponent):
-    cloud.reconstructor.set_shape_function(
+    cloud.depositor.set_shape_function(
             cloud.get_shape_function_class()(
                 cloud.mesh_data.advisable_particle_radius(),
                 cloud.mesh_data.dimensions,
@@ -716,14 +716,14 @@ def guess_shape_bandwidth(cloud, exponent):
 
 def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
     discr = method.discretization
-    rec = method.reconstructor
+    rec = method.depositor
 
     adv_radius = method.mesh_data.advisable_particle_radius()
     radii = [adv_radius*2**i 
             for i in numpy.linspace(-4, 2, 50)]
 
     def set_radius(r):
-        method.reconstructor.set_shape_function(
+        method.depositor.set_shape_function(
                 method.get_shape_function_class()
                 (r, method.mesh_data.dimensions, exponent,))
 
@@ -763,7 +763,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
         try:
             try:
                 method.set_ignore_core_warnings(True)
-                rec_rho = method.reconstruct_rho(state)
+                rec_rho = method.deposit_rho(state)
             except RuntimeError, re:
                 if "particle mass is zero" in str(re):
                     continue
@@ -780,7 +780,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
             method.add_to_vis(vis, visf, state, time=radius, step=step)
             vis.add_data(visf, [ 
                 ("rho", rec_rho), 
-                ("j", method.reconstruct_j(state)),
+                ("j", method.deposit_j(state)),
                 ("rho_analytic", analytic_rho), 
                 ],
                 expressions=[("rho_diff", "rho-rho_analytic")],
@@ -792,9 +792,9 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
                 pass
             else:
                 rec.visualize_grid_quantities(visf, [
-                        ("rho_grid", rec.reconstruct_grid_rho()),
-                        ("j_grid", rec.reconstruct_grid_j(method.velocities(state))),
-                        ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
+                        ("rho_grid", rec.deposit_grid_rho()),
+                        ("j_grid", rec.deposit_grid_j(method.velocities(state))),
+                        ("rho_resid", rec.remap_residual(rec.deposit_grid_rho())),
                         ])
 
             visf.close()
@@ -883,7 +883,7 @@ def compute_initial_condition(pcon, discr, method, state,
             neumann_tag=TAG_NONE,
             dirichlet_bc=potential_bc)
 
-    rho_prime = method.reconstruct_rho(state) 
+    rho_prime = method.deposit_rho(state) 
     rho_tilde = rho_prime/gamma
 
     bound_poisson = poisson_op.bind(discr)
@@ -906,13 +906,13 @@ def compute_initial_condition(pcon, discr, method, state,
     h_prime = (1/maxwell_op.mu)*gamma/maxwell_op.c * maxwell_op.e_cross(mean_beta, e_tilde)
 
     if "ic" in method.debug:
-        reconstructed_charge = discr.integral(rho_prime)
+        deposited_charge = discr.integral(rho_prime)
 
         real_charge = numpy.sum(state.charges)
-        print "charge: supposed=%g reconstructed=%g error=%g %%" % (
+        print "charge: supposed=%g deposited=%g error=%g %%" % (
                 real_charge,
-                reconstructed_charge,
-                100*abs(reconstructed_charge-real_charge)/abs(real_charge)
+                deposited_charge,
+                100*abs(deposited_charge-real_charge)/abs(real_charge)
                 )
 
         from hedge.pde import DivergenceOperator

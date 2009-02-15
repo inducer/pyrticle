@@ -1,4 +1,4 @@
-"""Python interface for reconstructors"""
+"""Python interface for depositors"""
 
 from __future__ import division
 
@@ -31,14 +31,14 @@ import pyublas
 
 
 
-class DummyReconstructorState(object):
+class DummyDepositorState(object):
     def clear(self):
         pass
 
 
 
 
-class Reconstructor(object):
+class Depositor(object):
     def __init__(self):
         self.log_constants = {}
     
@@ -50,7 +50,7 @@ class Reconstructor(object):
         self.shape_function = sf
 
     def add_instrumentation(self, mgr):
-        mgr.set_constant("reconstructor", self.name)
+        mgr.set_constant("depositor", self.name)
 
         for key, value in self.log_constants.iteritems():
             mgr.set_constant(key, value)
@@ -58,77 +58,80 @@ class Reconstructor(object):
         from pytools.log import IntervalTimer, EventCounter,\
                 time_and_count_function
 
-        self.reconstruct_timer = IntervalTimer(
-                "t_reconstruct",
-                "Time spent reconstructing")
-        self.reconstruct_counter = EventCounter(
-                "n_reconstruct",
-                "Number of reconstructions")
+        self.deposit_timer = IntervalTimer(
+                "t_deposit",
+                "Time spent depositing")
+        self.deposit_counter = EventCounter(
+                "n_deposit",
+                "Number of depositions")
 
-        self.reconstruct_densities = time_and_count_function(
-                self.reconstruct_densites,
-                self.reconstruct_timer,
-                self.reconstruct_counter,
+        self.deposit_densities = time_and_count_function(
+                self.deposit_densites,
+                self.deposit_timer,
+                self.deposit_counter,
                 1+self.method.dimensions_velocity)
 
-        self.reconstruct_j = time_and_count_function(
-                self.reconstruct_j,
-                self.reconstruct_timer,
-                self.reconstruct_counter,
+        self.deposit_j = time_and_count_function(
+                self.deposit_j,
+                self.deposit_timer,
+                self.deposit_counter,
                 self.method.dimensions_velocity)
 
-        self.reconstruct_rho = time_and_count_function(
-                self.reconstruct_rho,
-                self.reconstruct_timer,
-                self.reconstruct_counter)
+        self.deposit_rho = time_and_count_function(
+                self.deposit_rho,
+                self.deposit_timer,
+                self.deposit_counter)
 
-        mgr.add_quantity(self.reconstruct_timer)
-        mgr.add_quantity(self.reconstruct_counter)
+        mgr.add_quantity(self.deposit_timer)
+        mgr.add_quantity(self.deposit_counter)
 
     def clear_particles(self):
         pass
 
-    def reconstruct_hook(self):
+    def deposit_hook(self):
         if self.shape_function is None:
             raise RuntimeError, "shape function never set"
 
-    def _reconstruct_densities(self, state, velocities, pslice):
+    def _deposit_densities(self, state, velocities, pslice):
         return _internal.deposit_densities(
                 state.particle_state,
+                state.depositor_state,
                 self.backend,
                 len(self.method.mesh_data.discr),
                 velocities, pslice)
 
-    def _reconstruct_j(self, state, velocities, pslice):
+    def _deposit_j(self, state, velocities, pslice):
         return _internal.deposit_j(
                 state.particle_state,
+                state.depositor_state,
                 self.backend,
                 len(self.method.mesh_data.discr),
                 velocities, pslice)
 
-    def _reconstruct_rho(self, state, pslice):
+    def _deposit_rho(self, state, pslice):
         return _internal.deposit_rho(
             state.particle_state,
+            state.depositor_state,
             self.backend,
             len(self.method.mesh_data.discr),
             pslice)
 
-    def reconstruct_densites(self, velocities):
-        self.reconstruct_hook()
-        rho, j =  self._reconstruct_densities(velocities, slice(None))
+    def deposit_densites(self, state, velocities):
+        self.deposit_hook()
+        rho, j =  self._deposit_densities(state, velocities, slice(None))
 
         return rho, j
 
-    def reconstruct_j(self, state, velocities):
-        self.reconstruct_hook()
-        j = self._reconstruct_j(state, velocities, slice(None))
+    def deposit_j(self, state, velocities):
+        self.deposit_hook()
+        j = self._deposit_j(state, velocities, slice(None))
 
         return j
 
-    def reconstruct_rho(self, state):
-        self.reconstruct_hook()
+    def deposit_rho(self, state):
+        self.deposit_hook()
 
-        rho = self._reconstruct_rho(state, slice(None))
+        rho = self._deposit_rho(state, slice(None))
 
         return rho
 
@@ -144,22 +147,22 @@ class Reconstructor(object):
 
 
 
-class ShapeFunctionReconstructor(Reconstructor):
+class ShapeFunctionDepositor(Depositor):
     name = "Shape"
 
     def initialize(self, method):
-        Reconstructor.initialize(self, method)
+        Depositor.initialize(self, method)
 
         backend_class = getattr(_internal, "InterpolatingDepositor" 
                 + method.get_dimensionality_suffix())
         self.backend = backend_class(method.mesh_data)
 
     def set_shape_function(self, sf):
-        Reconstructor.set_shape_function(self, sf)
+        Depositor.set_shape_function(self, sf)
         self.backend.shape_function = sf
 
     def make_state(self, state):
-        return DummyReconstructorState()
+        return DummyDepositor()
 
     def note_change_size(self, state, count):
         pass
@@ -168,26 +171,26 @@ class ShapeFunctionReconstructor(Reconstructor):
 
 
 
-class NormalizedShapeFunctionReconstructor(Reconstructor):
+class NormalizedShapeFunctionDepositor(Depositor):
     name = "NormShape"
 
     def initialize(self, cloud):
-        Reconstructor.initialize(self, cloud)
+        Depositor.initialize(self, cloud)
 
         eg, = cloud.mesh_data.discr.element_groups
         ldis = eg.local_discretization
 
-        cloud.pic_algorithm.setup_normalized_shape_reconstructor(
+        cloud.pic_algorithm.setup_normalized_shape_depositor(
                 ldis.mass_matrix())
 
     def add_instrumentation(self, mgr):
-        Reconstructor.add_instrumentation(self, mgr)
+        Depositor.add_instrumentation(self, mgr)
 
         from pyrticle.log import StatsGathererLogQuantity
         mgr.add_quantity(StatsGathererLogQuantity(
             self.cloud.pic_algorithm.normalization_stats,
             "normshape_norm", "1", 
-            "normalization constants applied during reconstruction"))
+            "normalization constants applied during deposition"))
 
         mgr.add_quantity(StatsGathererLogQuantity(
             self.cloud.pic_algorithm.centroid_distance_stats,
@@ -200,33 +203,33 @@ class NormalizedShapeFunctionReconstructor(Reconstructor):
             "number of elements per particle"))
 
     def set_shape_function(self, sf):
-        Reconstructor.set_shape_function(self, sf)
+        Depositor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf
 
 
 
 
 
-# advective reconstruction ----------------------------------------------------
+# advective deposition ----------------------------------------------------
 class ActiveAdvectiveElements(pytools.log.LogQuantity):
-    def __init__(self, reconstructor, name="n_advec_elements"):
+    def __init__(self, depositor, name="n_advec_elements"):
         pytools.log.LogQuantity.__init__(self, name, "1", "#active advective elements")
-        self.reconstructor = reconstructor
+        self.depositor = depositor
 
     def __call__(self):
-        return self.reconstructor.cloud.pic_algorithm.active_elements
+        return self.depositor.cloud.pic_algorithm.active_elements
 
 
 
 
-class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
+class AdvectiveDepositor(Depositor, _internal.NumberShiftListener):
     name = "Advective"
 
     def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3, 
             filter_amp=None, filter_order=None, 
             upwind_alpha=1,
             ):
-        Reconstructor.__init__(self)
+        Depositor.__init__(self)
         _internal.NumberShiftListener.__init__(self)
 
         from pyrticle.tools import NumberShiftMultiplexer
@@ -265,7 +268,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
 
     def initialize(self, cloud):
-        Reconstructor.initialize(self, cloud)
+        Depositor.initialize(self, cloud)
 
         cloud.particle_number_shift_signaller.subscribe(self)
 
@@ -287,7 +290,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
         else:
             filter_mat = numpy.zeros((0,0))
 
-        cloud.pic_algorithm.setup_advective_reconstructor(
+        cloud.pic_algorithm.setup_advective_depositor(
                 len(ldis.face_indices()),
                 ldis.node_count(),
                 ldis.mass_matrix(),
@@ -306,7 +309,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
         cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
 
     def add_instrumentation(self, mgr):
-        Reconstructor.add_instrumentation(self, mgr)
+        Depositor.add_instrumentation(self, mgr)
 
         mgr.add_quantity(self.element_activation_counter)
         mgr.add_quantity(self.element_kill_counter)
@@ -321,7 +324,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
         mgr.set_constant("filter_amp", self.filter_order)
 
     def set_shape_function(self, sf):
-        Reconstructor.set_shape_function(self, sf)
+        Depositor.set_shape_function(self, sf)
 
         self.cloud.pic_algorithm.clear_advective_particles()
         for pn in xrange(len(self.cloud)):
@@ -336,11 +339,11 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
                 pic.add_advective_particle(self.shape_function, pn)
 
     def clear_particles(self):
-        Reconstructor.clear_particles(self)
+        Depositor.clear_particles(self)
         self.cloud.pic_algorithm.clear_advective_particles()
 
     def upkeep(self):
-        self.cloud.pic_algorithm.perform_reconstructor_upkeep()
+        self.cloud.pic_algorithm.perform_depositor_upkeep()
 
     def rhs(self, state):
         from pyrticle.tools import NumberShiftableVector
@@ -365,7 +368,7 @@ class AdvectiveReconstructor(Reconstructor, _internal.NumberShiftListener):
 
 
 
-# grid reconstruction : brick generation --------------------------------------
+# grid deposition : brick generation --------------------------------------
 class SingleBrickGenerator(object):
     def __init__(self, overresolve=1.5, mesh_margin=0):
         self.overresolve = overresolve
@@ -576,8 +579,8 @@ class GridVisualizer(object):
 
 
 
-# pure grid reconstruction ----------------------------------------------------
-class GridReconstructor(Reconstructor, GridVisualizer):
+# pure grid deposition ----------------------------------------------------
+class GridDepositor(Depositor, GridVisualizer):
 
     def __init__(self, brick_generator=SingleBrickGenerator(), 
             el_tolerance=0.12,
@@ -588,7 +591,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             filter_order=None,
             jiggle_radius=0.0,
             ):
-        Reconstructor.__init__(self)
+        Depositor.__init__(self)
         self.brick_generator = brick_generator
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
@@ -615,7 +618,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             return _internal.BrickIterator
 
     def initialize(self, cloud):
-        Reconstructor.initialize(self, cloud)
+        Depositor.initialize(self, cloud)
 
         discr = cloud.mesh_data.discr
 
@@ -636,11 +639,11 @@ class GridReconstructor(Reconstructor, GridVisualizer):
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
             if self.jiggle_radius:
-                brk = _internal.JigglyBrick(i, pic.grid_node_count(), 
+                brk = _internal.JigglyBrick(i, pic.grid_node_count_with_extra(), 
                         stepwidths, origin, dims,
                         jiggle_radius=self.jiggle_radius)
             else:
-                brk = _internal.Brick(i, pic.grid_node_count(), 
+                brk = _internal.Brick(i, pic.grid_node_count_with_extra(), 
                         stepwidths, origin, dims)
             pic.bricks.append(brk)
 
@@ -656,11 +659,11 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             raise RuntimeError, "invalid rec_grid submethod specified"
 
     def set_shape_function(self, sf):
-        Reconstructor.set_shape_function(self, sf)
+        Depositor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf
 
     def add_instrumentation(self, mgr):
-        Reconstructor.add_instrumentation(self, mgr)
+        Depositor.add_instrumentation(self, mgr)
 
         mgr.set_constant("rec_grid_el_tolerance", self.el_tolerance)
         mgr.set_constant("rec_grid_enforce_continuity", self.enforce_continuity)
@@ -820,7 +823,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
                 multiple_claims += 1
 
         claimed_pts = set(point_claimers.iterkeys())
-        all_pts = set(xrange(pic.grid_node_count()))
+        all_pts = set(xrange(pic.grid_node_count_with_extra()))
         unclaimed_pts = all_pts-claimed_pts
 
         print("rec_grid.%s stats: #nodes: %d, #points total: %d" 
@@ -935,17 +938,17 @@ class GridReconstructor(Reconstructor, GridVisualizer):
         ep_brick_starts = [0]
         extra_points = []
         
-        grid_node_count = pic.grid_node_count()
+        gnc = pic.grid_node_count_with_extra()
         for brk in pic.bricks:
             for pt, el_id, struc_idx in ep_brick_map.get(brk.number, []):
                 # replace zero placeholder from above
                 pic.elements_on_grid[el_id].grid_nodes[struc_idx] = \
-                        grid_node_count + len(extra_points)
+                        gnc + len(extra_points)
                 extra_points.append(pt)
 
             ep_brick_starts.append(len(extra_points))
 
-        pic.first_extra_point = grid_node_count
+        pic.first_extra_point = gnc
         pic.extra_point_brick_starts.extend(ep_brick_starts)
         pic.extra_points = numpy.array(extra_points)
 
@@ -1045,10 +1048,10 @@ class GridReconstructor(Reconstructor, GridVisualizer):
                             gn = list(eog.grid_nodes)
                             assert len(gn) == len(u[i])
 
-                            tovec = numpy.zeros((pic.grid_node_count(),), dtype=float)
+                            tovec = numpy.zeros((pic.grid_node_count_with_extra(),), dtype=float)
                             tovec[gn] = s[i]*u[i]
 
-                            usevec = numpy.zeros((pic.grid_node_count(),), dtype=float)
+                            usevec = numpy.zeros((pic.grid_node_count_with_extra(),), dtype=float)
                             usevec[gn] = 1
 
                             visf = vis.make_file("nulled-%04d%02d" % (el.id, i))
@@ -1179,7 +1182,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
 
 
         # visualize basis length for each element
-        if set(["reconstructor", "vis_files"]) < self.cloud.debug:
+        if set(["depositor", "vis_files"]) < self.cloud.debug:
             from hedge.visualization import SiloVisualizer
             vis = SiloVisualizer(discr)
             visf = vis.make_file("rec-debug")
@@ -1309,7 +1312,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
 
 
 
-    # reconstruction onto mesh ------------------------------------------------
+    # deposition onto mesh ------------------------------------------------
     def remap_grid_to_mesh(self, q_grid):
         discr = self.cloud.mesh_data.discr
 
@@ -1327,51 +1330,51 @@ class GridReconstructor(Reconstructor, GridVisualizer):
             raise ValueError, "invalid effective shape for remap"
         return result
 
-    def _reconstruct_densites(self, velocities, pslice):
+    def _deposit_densites(self, velocities, pslice):
         return tuple(
                 self.remap_grid_to_mesh(q_grid) 
-                for q_grid in self.reconstruct_grid_densities(
+                for q_grid in self.deposit_grid_densities(
                     velocities, pslice))
 
-    def _reconstruct_j(self, velocities, pslice):
-        return self.remap_grid_to_mesh(self.reconstruct_grid_j(
+    def _deposit_j(self, velocities, pslice):
+        return self.remap_grid_to_mesh(self.deposit_grid_j(
             velocities, pslice))
 
-    def _reconstruct_rho(self, pslice):
+    def _deposit_rho(self, pslice):
         return self.remap_grid_to_mesh(
-                self.reconstruct_grid_rho(pslice))
+                self.deposit_grid_rho(pslice))
 
-    # reconstruction onto grid ------------------------------------------------
-    def reconstruct_grid_densities(self, velocities, pslice=slice(None)):
-        self.reconstruct_hook()
+    # deposition onto grid ------------------------------------------------
+    def deposit_grid_densities(self, velocities, pslice=slice(None)):
+        self.deposit_hook()
         return self.cloud._get_derived_quantities_from_cache(
                 [("rho_grid", pslice.start, pslice.stop, pslice.step),
                     ("j_grid", pslice.start, pslice.stop, pslice.step)],
-                [lambda: self.reconstruct_grid_rho(pslice), 
-                    lambda: self.reconstruct_grid_j(velocities, pslice)],
-                lambda: self.cloud.pic_algorithm.reconstruct_grid_densities(velocities, pslice))
+                [lambda: self.deposit_grid_rho(pslice), 
+                    lambda: self.deposit_grid_j(velocities, pslice)],
+                lambda: self.cloud.pic_algorithm.deposit_grid_densities(velocities, pslice))
 
-    def reconstruct_grid_j(self, velocities, pslice=slice(None)):
-        self.reconstruct_hook()
+    def deposit_grid_j(self, velocities, pslice=slice(None)):
+        self.deposit_hook()
         return self.cloud._get_derived_quantity_from_cache(
                 ("j_grid", pslice.start, pslice.stop, pslice.step), 
-                lambda: self.cloud.pic_algorithm.reconstruct_grid_j(
+                lambda: self.cloud.pic_algorithm.deposit_grid_j(
                     velocities, pslice))
 
-    def reconstruct_grid_rho(self, pslice=slice(None)):
-        self.reconstruct_hook()
+    def deposit_grid_rho(self, pslice=slice(None)):
+        self.deposit_hook()
         return self.cloud._get_derived_quantity_from_cache(
                 ("rho_grid", pslice.start, pslice.stop, pslice.step), 
-                lambda: self.cloud.pic_algorithm.reconstruct_grid_rho(
+                lambda: self.cloud.pic_algorithm.deposit_grid_rho(
                     pslice))
 
     # grid debug quantities ---------------------------------------------------
     def ones_on_grid(self):
-        return numpy.ones((self.cloud.pic_algorithm.grid_node_count(),), 
+        return numpy.ones((self.cloud.pic_algorithm.grid_node_count_with_extra(),), 
                 dtype=float)
 
     def grid_usecount(self):
-        usecount = numpy.zeros((self.cloud.pic_algorithm.grid_node_count(),), 
+        usecount = numpy.zeros((self.cloud.pic_algorithm.grid_node_count_with_extra(),), 
                 dtype=float)
         for eog in self.cloud.pic_algorithm.elements_on_grid:
             for idx in eog.grid_nodes:
@@ -1381,7 +1384,7 @@ class GridReconstructor(Reconstructor, GridVisualizer):
     def remap_residual(self, q_grid):
         discr = self.cloud.mesh_data.discr
 
-        gnc = self.cloud.pic_algorithm.grid_node_count()
+        gnc = self.cloud.pic_algorithm.grid_node_count_with_extra()
 
         eff_shape = q_grid.shape[1:]
         if len(eff_shape) == 0:
@@ -1401,17 +1404,17 @@ class GridReconstructor(Reconstructor, GridVisualizer):
 
 
 
-# grid find reconstruction ----------------------------------------------------
-class GridFindReconstructor(Reconstructor, GridVisualizer):
+# grid find deposition ----------------------------------------------------
+class GridFindDepositor(Depositor, GridVisualizer):
     name = "GridFind"
     iterator_type = _internal.BrickIterator
 
     def __init__(self, brick_generator=None):
-        Reconstructor.__init__(self)
+        Depositor.__init__(self)
         self.brick_generator = brick_generator
 
     def initialize(self, cloud):
-        Reconstructor.initialize(self, cloud)
+        Depositor.initialize(self, cloud)
 
         discr = cloud.mesh_data.discr
         pic = self.cloud.pic_algorithm
@@ -1429,7 +1432,7 @@ class GridFindReconstructor(Reconstructor, GridVisualizer):
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
             pic.bricks.append(
-                    Brick(i, pic.grid_node_count(), stepwidths, origin, dims))
+                    Brick(i, pic.grid_node_count_with_extra(), stepwidths, origin, dims))
 
         from pyrticle._internal import BoxFloat
         for eg in discr.element_groups:
@@ -1463,15 +1466,15 @@ class GridFindReconstructor(Reconstructor, GridVisualizer):
                     "bricks")
 
         usecounts = numpy.zeros(
-                (pic.grid_node_count(),))
-        for gnn in xrange(pic.grid_node_count()):
+                (pic.grid_node_count_with_extra(),))
+        for gnn in xrange(pic.grid_node_count_with_extra()):
             grid_nodes = grid_node_num_to_nodes.get(gnn, [])
             usecounts[gnn] = len(grid_nodes)
             pic.node_number_list_starts.append(len(pic.node_number_lists))
             pic.node_number_lists.extend(grid_nodes)
         pic.node_number_list_starts.append(len(pic.node_number_lists))
 
-        if "reconstructor" in cloud.debug:
+        if "depositor" in cloud.debug:
             from hedge.visualization import SiloVisualizer
             vis = SiloVisualizer(discr)
             visf = vis.make_file("grid-find-debug")
@@ -1487,5 +1490,5 @@ class GridFindReconstructor(Reconstructor, GridVisualizer):
                 show()
 
     def set_shape_function(self, sf):
-        Reconstructor.set_shape_function(self, sf)
+        Depositor.set_shape_function(self, sf)
         self.cloud.pic_algorithm.shape_function = sf

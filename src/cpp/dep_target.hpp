@@ -1,5 +1,5 @@
 // Pyrticle - Particle in Cell in Python
-// Generic reconstruction target interface
+// Generic deposition target interface
 // Copyright (C) 2008 Andreas Kloeckner
 // 
 // This program is free software: you can redistribute it and/or modify
@@ -19,8 +19,8 @@
 
 
 
-#ifndef _ATHCNHF_PYRTICLE_REC_TARGET_HPP_INCLUDED
-#define _ATHCNHF_PYRTICLE_REC_TARGET_HPP_INCLUDED
+#ifndef _ATHCNHF_PYRTICLE_DEP_TARGET_HPP_INCLUDED
+#define _ATHCNHF_PYRTICLE_DEP_TARGET_HPP_INCLUDED
 
 
 
@@ -33,10 +33,10 @@
 
 namespace pyrticle 
 {
-  /** The ReconstructionTarget protocol:
+  /** The DepositionTarget protocol:
    *
    * template <class Scaler>
-   * class reconstruction_target
+   * class deposition_target
    * {
    *   void begin_particle(particle_number pn);
    *
@@ -51,13 +51,13 @@ namespace pyrticle
    * Note: this is a stateful protocol.
    */
 
-  class rho_reconstruction_target
+  class rho_deposition_target
   {
     private:
       py_vector &m_target_vector;
 
     public:
-      rho_reconstruction_target(py_vector &target_vector)
+      rho_deposition_target(py_vector &target_vector)
         : m_target_vector(target_vector)
       { 
         m_target_vector.clear();
@@ -87,10 +87,10 @@ namespace pyrticle
 
 
 
-  /** Reconstruction Target for the current density.
+  /** deposition Target for the current density.
    */
   template<unsigned DimensionsVelocity>
-  class j_reconstruction_target
+  class j_deposition_target
   {
     private:
       py_vector &m_target_vector;
@@ -98,7 +98,7 @@ namespace pyrticle
       double m_scale_factors[DimensionsVelocity];
 
     public:
-      j_reconstruction_target(
+      j_deposition_target(
           py_vector &target_vector, 
           const py_vector &velocities)
         : m_target_vector(target_vector), m_velocities(velocities)
@@ -141,14 +141,14 @@ namespace pyrticle
 
 
   template <class T1, class T2>
-  class chained_reconstruction_target
+  class chained_deposition_target
   {
     private:
       T1 m_target1;
       T2 m_target2;
 
     public:
-      chained_reconstruction_target(T1 &target1, T2 &target2)
+      chained_deposition_target(T1 &target1, T2 &target2)
         : m_target1(target1), m_target2(target2)
       { }
 
@@ -179,37 +179,38 @@ namespace pyrticle
 
   template <class T1, class T2>
   inline
-  chained_reconstruction_target<T1, T2> 
-  make_chained_reconstruction_target(T1 &target1, T2 &target2)
+  chained_deposition_target<T1, T2> 
+  make_chained_deposition_target(T1 &target1, T2 &target2)
   {
-    return chained_reconstruction_target<T1, T2>(target1, target2);
+    return chained_deposition_target<T1, T2>(target1, target2);
   }
 
 
 
 
-  // reconstructor drivers ----------------------------------------------------
-  template <class Reconstructor>
+  // depositor drivers ----------------------------------------------------
+  template <class Depositor>
   boost::tuple<py_vector, py_vector> 
-    reconstruct_densities(
-        typename Reconstructor::particle_state const &ps,
-        Reconstructor &rec,
+    deposit_densities(
+        const Depositor &dep,
+        typename Depositor::depositor_state &ds,
+        const typename Depositor::particle_state &ps,
         unsigned node_count, 
         const py_vector &velocities, 
-        boost::python::slice const &pslice)
+        const boost::python::slice &pslice)
   {
     py_vector rho(node_count);
     npy_intp dims[] = { node_count, ps.vdim() };
     py_vector j(2, dims);
 
-    rho_reconstruction_target rho_tgt(rho);
-    typedef j_reconstruction_target<
-      Reconstructor::particle_state::m_vdim> j_tgt_t;
+    rho_deposition_target rho_tgt(rho);
+    typedef j_deposition_target<
+      Depositor::particle_state::m_vdim> j_tgt_t;
     j_tgt_t j_tgt(j, velocities);
 
-    chained_reconstruction_target<rho_reconstruction_target, j_tgt_t>
+    chained_deposition_target<rho_deposition_target, j_tgt_t>
         tgt(rho_tgt, j_tgt);
-    rec.reconstruct_densities_on_target(ps, tgt, pslice);
+    dep.deposit_densities_on_target(ds, ps, tgt, pslice);
 
     rho = rho_tgt.result();
 
@@ -219,10 +220,11 @@ namespace pyrticle
 
 
 
-  template <class Reconstructor>
-  py_vector reconstruct_j(
-      typename Reconstructor::particle_state const &ps,
-      Reconstructor &rec,
+  template <class Depositor>
+  py_vector deposit_j(
+      const Depositor &dep,
+      typename Depositor::depositor_state &ds,
+      typename Depositor::particle_state const &ps,
       unsigned node_count,
       const py_vector &velocities,
       boost::python::slice const &pslice)
@@ -233,27 +235,28 @@ namespace pyrticle
     if (j.size() != node_count * ps.vdim())
       throw std::runtime_error("j field does not have the correct size");
 
-    j_reconstruction_target<
-      Reconstructor::particle_state::m_vdim> j_tgt(j, velocities);
+    j_deposition_target<
+      Depositor::particle_state::m_vdim> j_tgt(j, velocities);
 
-    rec.reconstruct_densities_on_target(ps, j_tgt, pslice);
+    dep.deposit_densities_on_target(ds, ps, j_tgt, pslice);
     return j;
   }
 
 
 
 
-  template <class Reconstructor>
-  py_vector reconstruct_rho(
-      typename Reconstructor::particle_state const &ps,
-      Reconstructor &rec,
+  template <class Depositor>
+  py_vector deposit_rho(
+      const Depositor &dep,
+      typename Depositor::depositor_state &ds,
+      typename Depositor::particle_state const &ps,
       unsigned node_count,
       boost::python::slice const &pslice)
   {
     py_vector rho(node_count);
 
-    rho_reconstruction_target rho_tgt(rho);
-    rec.reconstruct_densities_on_target(ps, rho_tgt, pslice);
+    rho_deposition_target rho_tgt(rho);
+    dep.deposit_densities_on_target(ds, ps, rho_tgt, pslice);
     return rho;
   }
 }

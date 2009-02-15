@@ -1,5 +1,5 @@
 // Pyrticle - Particle in Cell in Python
-// Reconstruction based on shape functions
+// Deposition based on shape functions
 // Copyright (C) 2007 Andreas Kloeckner
 // 
 // This program is free software: you can redistribute it and/or modify
@@ -19,8 +19,8 @@
 
 
 
-#ifndef _BADFJAH_PYRTICLE_REC_SHAPE_HPP_INCLUDED
-#define _BADFJAH_PYRTICLE_REC_SHAPE_HPP_INCLUDED
+#ifndef _BADFJAH_PYRTICLE_DEP_SHAPE_HPP_INCLUDED
+#define _BADFJAH_PYRTICLE_DEP_SHAPE_HPP_INCLUDED
 
 
 
@@ -65,7 +65,7 @@ namespace pyrticle
 
 
   template <class ParticleState, class ShapeFunction>
-  struct shape_function_reconstructor
+  struct shape_function_depositor
   {
     private:
       template <class Target>
@@ -109,20 +109,28 @@ namespace pyrticle
     public:
       typedef ParticleState particle_state;
 
-      // member data --------------------------------------------------------
+      struct depositor_state
+      { };
+
       ShapeFunction m_shape_function;
       const mesh_data &m_mesh_data;
 
-      shape_function_reconstructor(const mesh_data &md)
+
+
+
+      shape_function_depositor(const mesh_data &md)
         : m_mesh_data(md)
       { }
     
 
+
+
       template<class Target>
-      void reconstruct_densities_on_target(
-          const ParticleState &ps,
+      void deposit_densities_on_target(
+          const depositor_state &ds,
+          const particle_state &ps,
           Target &tgt,
-          boost::python::slice const &pslice)
+          boost::python::slice const &pslice) const
       {
         element_finder el_finder(m_mesh_data);
 

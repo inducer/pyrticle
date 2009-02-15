@@ -27,6 +27,7 @@
 #include "bases.hpp"
 #include "meshdata.hpp"
 #include "tools.hpp"
+#include <boost/random.hpp>
 
 
 
@@ -36,118 +37,6 @@ namespace pyrticle
   typedef npy_uint grid_node_number;
   typedef npy_uint16 brick_number;
   typedef npy_uint brick_node_number;
-
-
-
-
-  struct grid_targets
-  {
-    template <class VecType>
-    class rho_target
-    {
-      private:
-        typename VecType::iterator m_target;
-
-      public:
-        rho_target(VecType &target_vector)
-          : m_target(target_vector.begin())
-        { target_vector.clear(); }
-
-        void begin_particle(particle_number pn)
-        { }
-
-        void add_shape_value(unsigned vec_idx, double q_shapeval)
-        { m_target[vec_idx] += q_shapeval; }
-
-        void end_particle(particle_number pn)
-        { }
-    };
-
-
-
-
-    /** Reconstruction Target for the current density.
-     */
-    template<unsigned DimensionsVelocity, class JVecType, class VVecType>
-    class j_target
-    {
-      private:
-        typename JVecType::iterator m_target;
-        typename VVecType::const_iterator m_velocities;
-        double m_scale_factors[DimensionsVelocity];
-
-      public:
-        j_target(JVecType &target_vector, const VVecType &velocities)
-          : m_target(target_vector.begin()), m_velocities(velocities.begin())
-        { 
-          target_vector.clear();
-          for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-            m_scale_factors[axis] = 0;
-        }
-
-        void begin_particle(particle_number pn)
-        {
-          for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-            m_scale_factors[axis] = m_velocities[pn*DimensionsVelocity+axis];
-        }
-
-        void add_shape_value(const unsigned vec_idx, const double q_shapeval)
-        { 
-          unsigned const base = vec_idx*DimensionsVelocity;
-          for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-            m_target[base+axis] += m_scale_factors[axis]*q_shapeval;
-        }
-
-        void end_particle(particle_number pn)
-        { }
-    };
-
-
-
-
-
-    template <class T1, class T2>
-    class chained_target
-    {
-      private:
-        T1 m_target1;
-        T2 m_target2;
-
-      public:
-        chained_target(T1 &target1, T2 &target2)
-          : m_target1(target1), m_target2(target2)
-        { }
-
-        void begin_particle(const particle_number pn)
-        {
-          m_target1.begin_particle(pn);
-          m_target2.begin_particle(pn);
-        }
-
-        void add_shape_value(unsigned vec_idx, double q_shapeval)
-        { 
-          m_target1.add_shape_value(vec_idx, q_shapeval);
-          m_target2.add_shape_value(vec_idx, q_shapeval);
-        }
-
-        void end_particle(const particle_number pn)
-        {
-          m_target1.end_particle(pn);
-          m_target2.end_particle(pn);
-        }
-    };
-
-
-
-
-    template <class T1, class T2>
-    static 
-    chained_target<T1, T2> 
-    make_chained_target(T1 &target1, T2 &target2)
-    {
-      return chained_target<T1, T2>(target1, target2);
-    }
-  };
 
 
 
@@ -453,216 +342,110 @@ namespace pyrticle
 
 
 
-  template <class PICAlgorithm, class Brick>
-  class grid_reconstructor_base : public reconstructor_base
+  struct jiggly_brick : public brick
   {
+    private:
+      static const unsigned point_origin_count = 3;
+      typedef brick super;
+      std::vector<bounded_vector> m_point_origins;
+      std::vector<bounded_vector> m_axis0_offsets;
+
     public:
-      // member data --------------------------------------------------------
-      shape_function   m_shape_function;
+      jiggly_brick(
+          brick_number number,
+          grid_node_number start_index,
+          bounded_vector stepwidths,
+          bounded_vector origin,
+          bounded_int_vector dimensions,
+          double jiggle_radius)
+        : super(number, start_index, stepwidths, origin, dimensions)
+      { 
+        boost::variate_generator<
+          boost::mt19937, 
+          boost::uniform_real<> > offset_rng(
+              boost::mt19937(), boost::uniform_real<>(-jiggle_radius, jiggle_radius));
 
-      std::vector<Brick> m_bricks;
-      boost::numeric::ublas::vector<brick_number> m_particle_brick_numbers;
+        for (unsigned i = 0; i < point_origin_count; ++i)
+        {
+          bounded_vector offset(m_origin.size());
+          for (unsigned j = 0; j < m_origin.size(); ++j)
+            offset[j] = offset_rng() * m_stepwidths[j];
+          m_point_origins.push_back(m_origin_plus_half + offset);
+        }
 
-
-
-
-
-      // internals ------------------------------------------------------------
-      unsigned grid_node_count() const
-      {
-        if (m_bricks.size() == 0)
-          return 0;
-        else
-          return m_bricks.back().start_index() + m_bricks.back().node_count();
+        for (unsigned i = 0; i < point_origin_count; ++i)
+        {
+          bounded_vector axis0_offset(m_origin.size());
+          axis0_offset = m_point_origins[
+            (i+1)%point_origin_count] - m_point_origins[i];
+          axis0_offset[0] += m_stepwidths[0];
+          m_axis0_offsets.push_back(axis0_offset);
+        }
       }
 
+      bounded_vector point(const bounded_int_vector &idx) const
+      { 
+        return m_point_origins[origin_index(idx)]
+          + element_prod(idx, m_stepwidths); 
+      }
 
+      unsigned origin_index(const bounded_int_vector &idx) const
+      { 
+        return std::accumulate(idx.begin(), idx.end(), 0) 
+          % point_origin_count;
+      }
 
-
-      template <class Target>
-      void reconstruct_single_particle_with_cache(Target tgt,
-          particle_number pn,
-          bounded_vector const &center,
-          bounded_box const &particle_box)
+      class iterator : public brick_iterator<jiggly_brick>
       {
-        const double charge = CONST_PIC_THIS->m_charges[pn];
-        brick_number &bn_cache(m_particle_brick_numbers[pn]);
-        const Brick &last_brick = m_bricks[bn_cache];
+        private:
+          typedef brick_iterator<jiggly_brick> super;
 
-        bool is_complete;
-        bool does_intersect_cached = 
-          PIC_THIS->reconstruct_particle_on_one_brick(
-              tgt, last_brick, center, particle_box, charge,
-              &is_complete);
+        protected:
+          unsigned m_origin_index;
 
-        if (!is_complete)
-        {
-          BOOST_FOREACH(Brick const &brk, m_bricks)
+        public:
+          iterator(jiggly_brick const &brk, 
+              const bounded_int_box &bounds)
+            : super(brk, bounds)
+          { 
+            update_origin_index();
+          }
+
+        protected:
+          void update_origin_index()
+          { m_origin_index = m_brick.origin_index(m_state); }
+
+        public:
+          iterator &operator++()
           {
-            // don't re-target the cached brick
-            if (brk.number() == last_brick.number())
-              continue;
+            ++m_state[0];
 
-            if (PIC_THIS->reconstruct_particle_on_one_brick(
-                  tgt, brk, center, particle_box, charge)
-                && !does_intersect_cached)
+            if (m_state[0] < m_bounds.m_upper[0])
             {
-              // We did not intersect the cached brick, but we
-              // found a brick that we *did* intersect with.
-              // Update the cache.
-              bn_cache = brk.number();
+              m_origin_index = (m_origin_index + 1) % point_origin_count;
+              m_point += m_brick.m_axis0_offsets[m_origin_index];
+              m_index += m_brick.strides()[0];
             }
+            else
+            {
+              m_state[0] = m_bounds.m_lower[0];
+
+              // split off the non-default case bottom half of this routine in the
+              // hope that at least the fast default case will get inlined.
+              inc_bottom_half(0); 
+              update_origin_index();
+            }
+            return *this;
           }
-        }
-      }
+      };
 
+      friend class iterator;
 
+      iterator get_iterator(bounded_int_box const &bounds) const
+      { return iterator(*this, bounds); }
 
-
-      template <class Target>
-      void reconstruct_single_particle_without_cache(Target tgt,
-          particle_number pn,
-          bounded_vector const &center,
-          bounded_box const &particle_box)
-      {
-        BOOST_FOREACH(Brick const &brk, m_bricks)
-          PIC_THIS->reconstruct_particle_on_one_brick(
-              tgt, brk, center, particle_box, 
-              CONST_PIC_THIS->m_charges[pn]);
-      }
-
-
-
-
-
-      /** This is a set of bit fields. Each member records the fact
-       * that a particular combination of periodic transitions has
-       * been taken care of.
-       *
-       * The assumption is that a particle will only be big enough
-       * to reach across the boundary normal to each axis exactly
-       * once (regardless of whether that's the +X or -X boundary,
-       * it is assumed to only touch one of them).
-       *
-       * Therefore, a combination of periodic transitions may be 
-       * represented by a bit field where each bit corresponds to 
-       * one axis, and that is exactly what this data type is.
-       */
-      typedef unsigned axis_bitfield;
-      typedef std::vector<axis_bitfield> periodicity_set;
-
-      template <class Target>
-      void reconstruct_periodic_copies(Target tgt, 
-          particle_number pn,
-          bounded_vector const &center,
-          bounded_box const &particle_box,
-          axis_bitfield abf,
-          periodicity_set &pset)
-      {
-        using boost::numeric::ublas::zero_vector;
-
-        const unsigned dim_m = CONST_PIC_THIS->m_mesh_data.m_dimensions;
-
-        if (abf == 0)
-          reconstruct_single_particle_with_cache(
-              tgt, pn, center, particle_box);
-        else
-          reconstruct_single_particle_without_cache(
-              tgt, pn, center, particle_box);
-        pset.push_back(abf);
-
-        for (unsigned axis = 0; axis < dim_m; ++axis)
-        {
-          mesh_data::periodicity_axis &p_axis(
-             CONST_PIC_THIS->m_mesh_data.m_periodicities[axis]);
-
-          if (p_axis.m_min == p_axis.m_max)
-            continue;
-
-          const axis_bitfield abf_plus_this = abf | (1<<axis);
-          if (std::find(pset.begin(), pset.end(), abf_plus_this) != pset.end())
-            continue;
-
-          if (particle_box.m_lower[axis] < p_axis.m_min)
-          {
-            bounded_vector per_offset = zero_vector<double>(dim_m);
-            per_offset[axis] = p_axis.m_max-p_axis.m_min;
-            reconstruct_periodic_copies(tgt,
-                pn, center+per_offset,
-                bounded_box(
-                  particle_box.m_lower+per_offset,
-                  particle_box.m_upper+per_offset),
-                abf_plus_this, pset);
-          }
-          else if (particle_box.m_upper[axis] > p_axis.m_max)
-          {
-            bounded_vector per_offset = zero_vector<double>(dim_m);
-            per_offset[axis] = -(p_axis.m_max-p_axis.m_min);
-            reconstruct_periodic_copies(tgt,
-                pn, center+per_offset,
-                bounded_box(
-                  particle_box.m_lower+per_offset,
-                  particle_box.m_upper+per_offset),
-                abf_plus_this, pset);
-          }
-        }
-      }
-
-
-
-
-      template <class Target>
-      void reconstruct_densities_on_grid_target(Target tgt,
-            boost::python::slice const &pslice)
-      {
-        const unsigned dim_x = CONST_PIC_THIS->get_dimensions_pos();
-        const unsigned dim_m = CONST_PIC_THIS->m_mesh_data.m_dimensions;
-
-        using boost::numeric::ublas::scalar_vector;
-        const scalar_vector<double> shape_extent(
-            dim_m, m_shape_function.radius());
-
-        FOR_ALL_SLICE_INDICES(particle_number, pn, 
-            pslice, CONST_PIC_THIS->m_particle_count)
-        {
-          tgt.begin_particle(pn);
-          const bounded_vector center = subrange(
-              CONST_PIC_THIS->m_positions, pn*dim_x, (pn+1)*dim_x);
-
-          bounded_box particle_box(
-              center - shape_extent, 
-              center + shape_extent);
-
-          periodicity_set pset;
-          reconstruct_periodic_copies(tgt, pn, center, particle_box, 0, pset);
-          tgt.end_particle(pn);
-        }
-      }
-
-
-
-
-      // particle numbering notifications -----------------------------------
-      void note_move(particle_number from, particle_number to, unsigned size)
-      {
-        for (unsigned i = 0; i < size; ++i)
-          m_particle_brick_numbers[to+i] = m_particle_brick_numbers[from+i];
-      }
-
-
-
-
-      void note_change_size(unsigned particle_count)
-      {
-        unsigned prev_count = m_particle_brick_numbers.size();
-        m_particle_brick_numbers.resize(particle_count);
-
-        if (particle_count > prev_count)
-          std::fill(
-              m_particle_brick_numbers.begin() + prev_count,
-              m_particle_brick_numbers.end(),
-              0);
-      }
+      iterator get_iterator(bounded_box const &bounds) const
+      { return iterator(*this, index_range(bounds)); }
   };
 }
 

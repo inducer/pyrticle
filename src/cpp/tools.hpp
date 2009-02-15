@@ -564,8 +564,6 @@ namespace pyrticle
 
 
 
-  typedef polynomial_shape_function shape_function;
-  // typedef c_infinity_shape_function shape_function;
 }
 
 

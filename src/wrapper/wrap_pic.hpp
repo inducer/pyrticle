@@ -232,7 +232,8 @@ namespace
   NAME<particle_base_state<3, 3> >ARGLIST;
 
 #define EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(NAME, ARGLIST) \
-  NAME<shape_function_reconstructor<ParticleState, polynomial_shape_function > > ARGLIST;
+  NAME<shape_function_depositor<ParticleState, polynomial_shape_function > > ARGLIST; \
+  NAME<normalized_shape_function_depositor<ParticleState, polynomial_shape_function > > ARGLIST;
 }
 
 

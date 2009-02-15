@@ -35,7 +35,9 @@ namespace
   python::object brick_it_iter(python::object self)
   { return self; }
 
-  bounded_int_vector brick_it_next(brick::iterator &it)
+  template <class Brick>
+  bounded_int_vector brick_it_next(
+      typename Brick::iterator &it)
   {
     if (it.at_end())
     {
@@ -62,7 +64,7 @@ void expose_grid()
           python::args("brick", "bounds"))[
         python::with_custodian_and_ward<1,2>()])
       .def("__iter__", brick_it_iter)
-      .def("next", brick_it_next)
+      .def("next", brick_it_next<brick>)
       ;
   }
 
@@ -103,5 +105,33 @@ void expose_grid()
           (cl::iterator (cl::*)(bounded_int_box const &) const) &cl::get_iterator)
       ;
   }
+
+  {
+    typedef jiggly_brick::iterator cl;
+    python::class_<cl>("JigglyBrickIterator", 
+        python::init<
+        jiggly_brick const &, 
+        bounded_int_box const &>(
+          python::args("brick", "bounds"))[
+        python::with_custodian_and_ward<1,2>()])
+      .def("__iter__", brick_it_iter)
+      .def("next", brick_it_next<jiggly_brick>)
+      ;
+  }
+
+  {
+    typedef jiggly_brick cl;
+    python::class_<cl, python::bases<brick> >("JigglyBrick", 
+        python::init<
+        brick_number, grid_node_number,
+        bounded_vector, bounded_vector, bounded_int_vector, 
+        double>(
+          python::args("number", "start_index", "stepwidths", "origin",
+            "dimensions", "jiggle_radius")
+          )
+        )
+      ;
+  }
+  expose_std_vector<jiggly_brick>("JigglyBrick");
 }
 

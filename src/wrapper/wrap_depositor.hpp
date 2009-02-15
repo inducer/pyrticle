@@ -132,14 +132,6 @@ namespace pyrticle
 
 
 
-  template <class PIC>
-  py_vector get_extra_points(const PIC &pic)
-  { return pic.m_extra_points; }
-
-  template <class PIC>
-  void set_extra_points(PIC &pic, py_vector v)
-  { pic.m_extra_points = v; }
-
   template <class Wrapper, class PIC, class Brick>
   void expose_typed_reconstructor_inner(Wrapper &wrp, 
       typename grid_reconstructor<Brick>::template type<PIC> *)
