@@ -105,6 +105,7 @@ void expose_grid()
           (cl::iterator (cl::*)(bounded_int_box const &) const) &cl::get_iterator)
       ;
   }
+  expose_std_vector<brick>("Brick");
 
   {
     typedef jiggly_brick::iterator cl;
