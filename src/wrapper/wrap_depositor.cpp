@@ -63,13 +63,16 @@ namespace
 
 
 
-  template <class ParticleState, class Brick>
-  void expose_grid_depositor(const std::string &brick_type)
+  template <class ParticleState, class Brick, class GridDepBaseStateWrapper>
+  void expose_grid_depositor(const std::string &brick_type, 
+      GridDepBaseStateWrapper &gdbs_wrap)
   {
     typedef grid_depositor<ParticleState, used_shape_function, Brick> cl;
-    class_<cl>(
+    class_<cl> wrp(
         (brick_type+"GridDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
-        init<const mesh_data &>())
+        init<const mesh_data &>());
+
+    wrp
       .DEF_RW_MEMBER(shape_function)
 
       .DEF_RW_MEMBER(bricks)
@@ -93,47 +96,60 @@ namespace
       .DEF_SIMPLE_METHOD(deposit_grid_j)
       .DEF_SIMPLE_METHOD(deposit_grid_rho)
       ;
+
+    wrp.attr("DepositorState") = gdbs_wrap;
   }
 
 
 
 
-  template <class ParticleState>
-  void expose_depositors_for_pstate()
+  template <class ParticleState, class GridDepBaseStateWrapper>
+  void expose_depositors_for_pstate(GridDepBaseStateWrapper &gdbs_wrap)
   {
     {
       typedef shape_function_depositor<ParticleState, used_shape_function> cl;
-      class_<cl>(
+      class_<cl> wrp(
         ("InterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
-        init<const mesh_data &>())
+        init<const mesh_data &>());
+
+      wrp
         .DEF_RW_MEMBER(shape_function)
         ;
+
+      scope cls_scope = wrp;
+      {
+        typedef typename cl::depositor_state cl;
+        class_<cl> wrp("DepositorState")
+          ;
+      }
     }
 
-    typedef normalized_shape_function_depositor<
-        ParticleState, used_shape_function> norm_dep;
     {
-      typedef norm_dep cl;
-      class_<cl>(
+      typedef normalized_shape_function_depositor<
+        ParticleState, used_shape_function> cl;
+      class_<cl> wrp(
         ("NormalizingInterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
-        init<const mesh_data &, const py_matrix &>())
+        init<const mesh_data &, const py_matrix &>());
+
+      wrp
         .DEF_RW_MEMBER(shape_function)
         ;
+
+      scope cls_scope = wrp;
+      {
+        typedef typename cl::depositor_state cl;
+        class_<cl>("DepositorState")
+          .DEF_RW_MEMBER(stats)
+          ;
+      }
     }
 
-    {
-      typedef typename norm_dep::depositor_state cl;
-      class_<cl>(
-        ("NormalizingInterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str())
-        .DEF_RW_MEMBER(stats)
-        ;
-    }
 
     typedef advective_depositor<
       ParticleState, used_shape_function> adv_dep;
     {
       typedef adv_dep cl;
-      class_<cl>(
+      class_<cl> wrp(
         ("AdvectiveDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
         init<const mesh_data &, unsigned, unsigned, 
         const py_matrix &,
@@ -148,7 +164,9 @@ namespace
             "mass_matrix", "inverse_mass_matrix", "filter_matrix",
             "face_mass_matrix", "int_face_group", "bdry_face_group",
             "activation_threshold", "kill_threshold", "upwind_alpha"
-            )))
+            )));
+
+      wrp
         .DEF_SIMPLE_METHOD(add_local_diff_matrix)
         .DEF_SIMPLE_METHOD(add_advective_particle)
         .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
@@ -158,22 +176,21 @@ namespace
         
         .DEF_SIMPLE_METHOD(perform_depositor_upkeep)
         ;
-    }
 
-    {
-      typedef typename adv_dep::depositor_state cl;
-      class_<cl>(("AdvectiveDepositorState"
-          +get_state_class_suffix<ParticleState>()).c_str(), no_init)
+      scope cls_scope = wrp;
+      {
+        typedef typename cl::depositor_state cl;
+        class_<cl>("DepositorState")
+          .DEF_RW_MEMBER(rho_dof_shift_listener)
 
-        .DEF_RW_MEMBER(rho_dof_shift_listener)
+          .DEF_RO_MEMBER(active_elements)
+          .DEF_SIMPLE_METHOD(count_advective_particles)
+          .DEF_RO_MEMBER(element_activation_counter)
+          .DEF_RO_MEMBER(element_kill_counter)
 
-        .DEF_RO_MEMBER(active_elements)
-        .DEF_SIMPLE_METHOD(count_advective_particles)
-        .DEF_RO_MEMBER(element_activation_counter)
-        .DEF_RO_MEMBER(element_kill_counter)
-
-        .DEF_SIMPLE_METHOD(clear)
-        ;
+          .DEF_SIMPLE_METHOD(clear)
+          ;
+      }
     }
 
     EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(
@@ -181,15 +198,17 @@ namespace
         used_shape_function,
         ());
 
-    expose_grid_depositor<ParticleState, brick>("Regular");
-    expose_grid_depositor<ParticleState, jiggly_brick>("Jiggly");
+    expose_grid_depositor<ParticleState, brick>("Regular", gdbs_wrap);
+    expose_grid_depositor<ParticleState, jiggly_brick>("Jiggly", gdbs_wrap);
 
     {
       typedef grid_find_depositor<ParticleState, used_shape_function, brick> cl;
 
-      class_<cl>(
+      class_<cl> wrp(
         ("GridFindDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
-        init<const mesh_data &>())
+        init<const mesh_data &>());
+
+      wrp
         .DEF_RW_MEMBER(shape_function)
         .DEF_RW_MEMBER(bricks)
         .DEF_RW_MEMBER(node_number_list_starts)
@@ -201,6 +220,8 @@ namespace
         .DEF_SIMPLE_METHOD(deposit_j)
         .DEF_SIMPLE_METHOD(deposit_rho)
         ;
+
+      wrp.attr("DepositorState") = gdbs_wrap;
     }
   }
 }
@@ -210,7 +231,8 @@ namespace
 
 void expose_deposition()
 {
-  EXPOSE_FOR_ALL_STATE_TYPES(expose_depositors_for_pstate, ());
+  class_<grid_depositor_base_state> gdbs_wrap("GridDepositorBaseState");
+  EXPOSE_FOR_ALL_STATE_TYPES(expose_depositors_for_pstate, (gdbs_wrap));
 
   {
     typedef element_on_grid cl;
@@ -222,6 +244,7 @@ void expose_deposition()
       .DEF_BYVAL_RW_MEMBER(inverse_interpolation_matrix)
       ;
   }
+
   expose_std_vector<element_on_grid>("ElementOnGrid");
 
   python::def("get_shape_function_name", &used_shape_function::name);

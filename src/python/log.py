@@ -143,7 +143,7 @@ class DivergenceEQuantities(MultiLogQuantity):
                 observer.maxwell_op.get_eh_subset()[:3]).bind(self.discr)
 
     def __call__(self):
-        rho = self.observer.method.reconstruct_rho(self.observer.state)
+        rho = self.observer.method.deposit_rho(self.observer.state)
         max_op = self.observer.maxwell_op
         d = max_op.epsilon * self.observer.e
         div_d = self.bound_div_op(d)
@@ -156,13 +156,13 @@ class DivergenceEQuantities(MultiLogQuantity):
 
 
 
-class ReconstructedCharge(LogQuantity):
+class DepositedCharge(LogQuantity):
     def __init__(self, observer, name="Q_rec"):
         LogQuantity.__init__(self, name, "C", "Total Charge")
         self.observer = observer
 
     def __call__(self):
-        rho = self.observer.method.reconstruct_rho(self.observer.state)
+        rho = self.observer.method.deposit_rho(self.observer.state)
         return self.observer.discr.integral(rho)
 
 
@@ -179,12 +179,12 @@ class FieldCurrent(LogQuantity):
     def __call__(self):
         return self.observer.discr.integral(
                 numpy.dot(self.direction,
-                    self.observer.method.reconstruct_j(self.observer.state)))/self.tube_length
+                    self.observer.method.deposit_j(self.observer.state)))/self.tube_length
 
 
 
 
-def add_field_quantities(mgr, observer, reconstruct_interval=5):
+def add_field_quantities(mgr, observer, deposit_interval=5):
     from hedge.log import \
             EMFieldEnergy, \
             EMFieldMomentum, \
@@ -192,8 +192,8 @@ def add_field_quantities(mgr, observer, reconstruct_interval=5):
     mgr.add_quantity(EMFieldEnergy(observer))
     mgr.add_quantity(EMFieldMomentum(observer, observer.method.units.VACUUM_LIGHT_SPEED))
     mgr.add_quantity(EMFieldDivergenceB(observer.maxwell_op, observer))
-    mgr.add_quantity(DivergenceEQuantities(observer), reconstruct_interval)
-    mgr.add_quantity(ReconstructedCharge(observer), reconstruct_interval)
+    mgr.add_quantity(DivergenceEQuantities(observer), deposit_interval)
+    mgr.add_quantity(DepositedCharge(observer), deposit_interval)
 
 
 

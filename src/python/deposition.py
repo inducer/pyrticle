@@ -31,13 +31,6 @@ import pyublas
 
 
 
-class DummyDepositorState(object):
-    def clear(self):
-        pass
-
-
-
-
 class Depositor(object):
     def __init__(self):
         self.log_constants = {}
@@ -94,25 +87,25 @@ class Depositor(object):
 
     def _deposit_densities(self, state, velocities, pslice):
         return _internal.deposit_densities(
-                state.particle_state,
-                state.depositor_state,
                 self.backend,
+                state.depositor_state,
+                state.particle_state,
                 len(self.method.mesh_data.discr),
                 velocities, pslice)
 
     def _deposit_j(self, state, velocities, pslice):
         return _internal.deposit_j(
-                state.particle_state,
-                state.depositor_state,
                 self.backend,
+                state.depositor_state,
+                state.particle_state,
                 len(self.method.mesh_data.discr),
                 velocities, pslice)
 
     def _deposit_rho(self, state, pslice):
         return _internal.deposit_rho(
-            state.particle_state,
-            state.depositor_state,
             self.backend,
+            state.depositor_state,
+            state.particle_state,
             len(self.method.mesh_data.discr),
             pslice)
 
@@ -142,7 +135,7 @@ class Depositor(object):
         return 0
 
     def advance_state(self, state, rhs):
-        return 0
+        return state
 
 
 
@@ -157,12 +150,12 @@ class ShapeFunctionDepositor(Depositor):
                 + method.get_dimensionality_suffix())
         self.backend = backend_class(method.mesh_data)
 
+    def make_state(self, state):
+        return self.backend.DepositorState()
+
     def set_shape_function(self, sf):
         Depositor.set_shape_function(self, sf)
         self.backend.shape_function = sf
-
-    def make_state(self, state):
-        return DummyDepositor()
 
     def note_change_size(self, state, count):
         pass
