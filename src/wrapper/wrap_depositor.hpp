@@ -97,25 +97,10 @@ namespace pyrticle
     {
       typedef rec cl;
       rec_wrap
-        .DEF_RW_MEMBER(rho_dof_shift_listener)
-
-        .DEF_RO_MEMBER(active_elements)
-
-        .DEF_RO_MEMBER(element_activation_counter)
-        .DEF_RO_MEMBER(element_kill_counter)
-
-        .DEF_SIMPLE_METHOD(add_local_diff_matrix)
-        .DEF_SIMPLE_METHOD(count_advective_particles)
-        .DEF_SIMPLE_METHOD(add_advective_particle)
-        .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
-        .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
-        .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)
 
         .DEF_SIMPLE_METHOD(reconstruct_densities)
         .DEF_SIMPLE_METHOD(reconstruct_rho)
         .DEF_SIMPLE_METHOD(reconstruct_j)
-
-        .DEF_SIMPLE_METHOD(perform_reconstructor_upkeep)
         ;
     }
 

@@ -1,5 +1,5 @@
 // Pyrticle - Particle in Cell in Python
-// Reconstruction based on advected shapes
+// Deposition based on advected shapes
 // Copyright (C) 2007 Andreas Kloeckner
 // 
 // This program is free software: you can redistribute it and/or modify
@@ -41,8 +41,8 @@
 #include <hedge/face_operators.hpp>
 #include "tools.hpp"
 #include "meshdata.hpp"
-#include "rec_target.hpp"
-#include "rec_shape.hpp"
+#include "dep_target.hpp"
+#include "dep_shape.hpp"
 #include "element_finder.hpp"
 
 
@@ -50,25 +50,28 @@
 
 namespace pyrticle
 {
-  template <class ParticleState>
-  struct advective_reconstructor 
+  template <class ParticleState, class ShapeFunction>
+  struct advective_depositor
   {
     public:
+      // member types -------------------------------------------------------
+      typedef ShapeFunction shape_function;
+      typedef ParticleState particle_state;
+
       static const unsigned max_faces = 4;
 
-      // member types -------------------------------------------------------
       struct active_element
       {
         const mesh_data::element_info *m_element_info;
         boost::array<mesh_data::element_number, 
-          advective_reconstructor::max_faces> m_connections;
+          advective_depositor::max_faces> m_connections;
         unsigned m_start_index;
         unsigned m_min_life;
 
         active_element()
           : m_element_info(0)
         {
-          for (unsigned i = 0; i < advective_reconstructor::max_faces; i++)
+          for (unsigned i = 0; i < advective_depositor::max_faces; i++)
             m_connections[i] = mesh_data::INVALID_ELEMENT;
         }
       };
@@ -107,40 +110,47 @@ namespace pyrticle
 
 
 
-      // particle state for advective ---------------------------------------
-      struct advective_state
+      // particle state for advective -----------------------------------------
+      struct depositor_state
       {
-        unsigned                        active_elements;
-        std::vector<unsigned>           freelist;
+        unsigned                        m_active_elements;
+        std::vector<unsigned>           m_freelist;
 
-        std::vector<advected_particle>  advected_particles;
-        dyn_vector                      rho;
+        std::vector<advected_particle>  m_advected_particles;
+        dyn_vector                      m_rho;
 
-        boost::shared_ptr<number_shift_listener> rho_dof_shift_listener;
+        boost::shared_ptr<number_shift_listener> m_rho_dof_shift_listener;
+
+        event_counter m_element_activation_counter, m_element_kill_counter;
 
 
 
-        advective_state()
-          : active_elements(0)
+
+        depositor_state()
+          : m_active_elements(0)
         { }
 
+        unsigned count_advective_particles() const
+        {
+          return m_advected_particles.size();
+        }
 
         void resize(unsigned new_size)
         {
-          unsigned old_size = rho.size();
+          unsigned old_size = m_rho.size();
           unsigned copy_size = std::min(new_size, old_size);
 
           dyn_vector new_rho(new_size);
-          subrange(new_rho, 0, copy_size) = subrange(rho, 0, copy_size);
-          new_rho.swap(rho);
+          subrange(new_rho, 0, copy_size) = subrange(m_rho, 0, copy_size);
+          new_rho.swap(m_rho);
         }
 
 
         void clear()
         {
-          advected_particles.clear();
-          freelist.clear();
-          active_elements = 0;
+          m_advected_particles.clear();
+          m_freelist.clear();
+          m_active_elements = 0;
         }
       };
 
@@ -173,18 +183,16 @@ namespace pyrticle
         face_pair_locator()
           : m_face_group(0), m_face_pair(0)
         { }
+
         face_pair_locator(
             hedge::face_group     const &face_group,
             hedge::face_pair      const &face_pair
             )
           : m_face_group(&face_group), m_face_pair(&face_pair)
         { }
-
       };
 
       boost::unordered_map<mesh_data::el_face, face_pair_locator> m_el_face_to_face_pair_locator;
-
-      event_counter m_element_activation_counter, m_element_kill_counter;
 
       double m_activation_threshold;
       double m_kill_threshold;
@@ -194,7 +202,8 @@ namespace pyrticle
 
 
       // initialization -----------------------------------------------------
-      advective_reconstructor(
+      advective_depositor(
+          const mesh_data &md,
           unsigned faces_per_element, 
           unsigned dofs_per_element,
           const py_matrix &mass_matrix,
@@ -207,7 +216,7 @@ namespace pyrticle
           double kill_threshold,
           double upwind_alpha
           )
-        : m_faces_per_element(0), m_dofs_per_element(0), 
+        : m_mesh_data(md), m_faces_per_element(0), m_dofs_per_element(0), 
         m_activation_threshold(0), m_kill_threshold(0),
         m_upwind_alpha(1)
       {
@@ -280,21 +289,21 @@ namespace pyrticle
 
       // main driver ----------------------------------------------------------
       template<class Target>
-      void reconstruct_densities_on_target(
+      void deposit_densities_on_target(
+          const depositor_state &ds, 
           const ParticleState &ps, 
-          const advective_state &as, 
-          Target &tgt, boost::python::slice const &pslice)
+          Target &tgt, boost::python::slice const &pslice) const
       {
         FOR_ALL_SLICE_INDICES(particle_number, pn, 
             pslice, ps.particle_count)
         {
           tgt.begin_particle(pn);
           BOOST_FOREACH(const active_element &el, 
-              as.advected_particles[pn].m_elements)
+              ds.m_advected_particles[pn].m_elements)
             tgt.add_shape_on_element(
                 el.m_element_info->m_id,
                 el.m_element_info->m_start,
-                subrange(as.rho, el.m_start_index, el.m_start_index+m_dofs_per_element));
+                subrange(ds.m_rho, el.m_start_index, el.m_start_index+m_dofs_per_element));
           tgt.end_particle(pn);
         }
       }
@@ -303,25 +312,26 @@ namespace pyrticle
 
 
       py_vector get_debug_quantity_on_mesh(
-          ParticleState &ps,
+          depositor_state &ds,
+          const particle_state &ps,
           const std::string &qty, 
           py_vector const &velocities)
       {
         if (qty == "rhs")
-          return map_particle_space_to_mesh_space(
-            get_advective_particle_rhs(velocities));
+          return map_particle_space_to_mesh_space(ds, 
+            get_advective_particle_rhs(ds, ps, velocities));
         if (qty == "active_elements")
-          return get_active_elements();
+          return get_active_elements(ds, ps);
         else if (qty == "fluxes")
-          return map_particle_space_to_mesh_space(
-              calculate_fluxes(velocities));
+          return map_particle_space_to_mesh_space(ds, 
+              calculate_fluxes(ds, ps, velocities));
         else if (qty == "minv_fluxes")
-          return map_particle_space_to_mesh_space(
-              apply_elementwise_inverse_mass_matrix(
-              calculate_fluxes(velocities)));
+          return map_particle_space_to_mesh_space(ds, 
+              apply_elementwise_inverse_mass_matrix(ds, 
+              calculate_fluxes(ds, ps, velocities)));
         else if (qty == "local_div")
-          return map_particle_space_to_mesh_space(
-              calculate_local_div(velocities));
+          return map_particle_space_to_mesh_space(ds, 
+              calculate_local_div(ds, ps, velocities));
         else
           throw std::runtime_error("invalid debug quantity");
       }
@@ -329,17 +339,16 @@ namespace pyrticle
 
 
 
-      void perform_reconstructor_upkeep(
-          ParticleState &ps,
-          advective_state &as
-          )
+      void perform_depositor_upkeep(
+          depositor_state &ds,
+          ParticleState &ps)
       {
         // retire empty particle subelements 
         if (m_kill_threshold == 0)
           throw std::runtime_error("zero kill threshold");
 
         particle_number pn = 0;
-        BOOST_FOREACH(advected_particle &p, ps.advected_particles)
+        BOOST_FOREACH(advected_particle &p, ds.m_advected_particles)
         {
           double particle_charge = fabs(ps.charges[pn]);
           for (unsigned i_el = 0; i_el < p.m_elements.size(); ++i_el)
@@ -352,7 +361,7 @@ namespace pyrticle
             const double element_charge = element_l1(
                 el.m_element_info->m_jacobian,
                 subrange(
-                  as.rho,
+                  ds.m_rho,
                   el.m_start_index,
                   el.m_start_index+m_dofs_per_element));
 
@@ -377,7 +386,7 @@ namespace pyrticle
                 }
               }
 
-              deallocate_element(el.m_start_index);
+              deallocate_element(ds, el.m_start_index);
 
               // kill the element
               p.m_elements.erase(p.m_elements.begin()+i_el);
@@ -393,27 +402,25 @@ namespace pyrticle
 
 
 
-      void note_move(ParticleState &ps, advective_state &as,
+      void note_move(depositor_state &ds, ParticleState &ps,
           particle_number from, particle_number to, unsigned size)
       {
         for (unsigned i = 0; i < size; ++i)
         {
           BOOST_FOREACH(active_element &el, 
-              as.advected_particles[to+i].m_elements)
-            deallocate_element(el.m_start_index);
+              ds.m_advected_particles[to+i].m_elements)
+            deallocate_element(ds, el.m_start_index);
 
-          as.advected_particles[to+i] = as.advected_particles[from+i];
+          ds.m_advected_particles[to+i] = ds.m_advected_particles[from+i];
         }
       }
 
 
 
 
-      void note_change_size(
-          advective_state &as, 
-          unsigned particle_count)
+      void note_change_size(depositor_state &ds, unsigned particle_count)
       {
-        as.advected_particles.resize(particle_count);
+        ds.m_advected_particles.resize(particle_count);
       }
 
 
@@ -444,73 +451,73 @@ namespace pyrticle
 
       // vectors space administration ---------------------------------------
       /* Each element occupies a certain index range in the state
-       * vector rho (as well as elsewhere). These functions perform
+       * vector m_rho (as well as elsewhere). These functions perform
        * allocation and deallocation of space in these vectors.
        */
 
       /** Allocate a space for a new element in the state vector, return
        * the start index.
        */
-      unsigned allocate_element(advective_state &as)
+      unsigned allocate_element(depositor_state &ds)
       {
         if (m_dofs_per_element == 0)
-          throw std::runtime_error("tried to allocate element on uninitialized advection reconstructor");
+          throw std::runtime_error("tried to allocate element on uninitialized advection depositor");
 
-        m_element_activation_counter.tick();
+        ds.m_element_activation_counter.tick();
 
-        if (as.freelist.size())
+        if (ds.m_freelist.size())
         {
-          ++as.active_elements;
-          unsigned result = as.freelist.back();
-          as.freelist.pop_back();
+          ++ds.m_active_elements;
+          unsigned result = ds.m_freelist.back();
+          ds.m_freelist.pop_back();
           return result*m_dofs_per_element;
         }
 
         // there are no gaps available.
         // return the past-end spot in the array, reallocate if necessary.
-        unsigned avl_space = as.rho.size() / m_dofs_per_element;
+        unsigned avl_space = ds.m_rho.size() / m_dofs_per_element;
 
-        if (as.active_elements == avl_space)
+        if (ds.m_active_elements == avl_space)
         {
-          as.resize(2*as.rho.size());
-          if (as.rho_dof_shift_listener.get())
-            as.rho_dof_shift_listener->note_change_size(as.rho.size());
+          ds.resize(2*ds.m_rho.size());
+          if (ds.m_rho_dof_shift_listener.get())
+            ds.m_rho_dof_shift_listener->note_change_size(ds.m_rho.size());
         }
 
-        return (as.active_elements++)*m_dofs_per_element;
+        return (ds.m_active_elements++)*m_dofs_per_element;
       }
 
 
-      void deallocate_element(advective_state &as, unsigned start_index)
+      void deallocate_element(depositor_state &ds, unsigned start_index)
       {
         if (start_index % m_dofs_per_element != 0)
           throw std::runtime_error("invalid advective element deallocation");
 
         const unsigned el_index = start_index/m_dofs_per_element;
-        --as.active_elements;
+        --ds.m_active_elements;
 
-        m_element_kill_counter.tick();
+        ds.m_element_kill_counter.tick();
 
         // unless we're deallocating the last element, add it to the freelist.
-        if (el_index != as.active_elements+as.freelist.size())
-          as.freelist.push_back(el_index);
+        if (el_index != ds.m_active_elements+ds.m_freelist.size())
+          ds.m_freelist.push_back(el_index);
 
-        if (as.rho_dof_shift_listener.get())
-          as.rho_dof_shift_listener->note_reset(start_index, m_dofs_per_element);
+        if (ds.m_rho_dof_shift_listener.get())
+          ds.m_rho_dof_shift_listener->note_reset(start_index, m_dofs_per_element);
       }
 
 
 
       template <class VecType>
       py_vector map_particle_space_to_mesh_space(
-          const advective_state &as,
+          const depositor_state &ds,
           VecType const &pspace) const
       {
         py_vector result(
             m_dofs_per_element*m_mesh_data.m_element_info.size());
         result.clear();
 
-        BOOST_FOREACH(const advected_particle &p, as.advected_particles)
+        BOOST_FOREACH(const advected_particle &p, ds.m_advected_particles)
         {
           BOOST_FOREACH(const active_element &el, p.m_elements)
           {
@@ -527,15 +534,14 @@ namespace pyrticle
 
 
       py_vector get_active_elements(
-          ParticleState const &ps,
-          const advective_state &as
-          ) const
+          const depositor_state &ds,
+          particle_state const &ps) const
       {
         py_vector result(
             m_dofs_per_element*m_mesh_data.m_element_info.size());
         result.clear();
 
-        BOOST_FOREACH(const advected_particle &p, as.advected_particles)
+        BOOST_FOREACH(const advected_particle &p, ds.m_advected_particles)
         {
           BOOST_FOREACH(const active_element &el, p.m_elements)
           {
@@ -552,25 +558,20 @@ namespace pyrticle
 
 
       // particle construction ----------------------------------------------
-      unsigned count_advective_particles(ParticleState const &ps) const
-      {
-        return ps.advected_particles.size();
-      }
-
-
-
-
     private:
       struct advected_particle_element_target
       {
         private:
-          advective_reconstructor       &m_reconstructor;
-          advected_particle             &m_particle;
+          advective_depositor &m_depositor;
+          depositor_state &m_dep_state;
+          advected_particle &m_particle;
 
         public:
           advected_particle_element_target(
-              advective_reconstructor &rec, advected_particle &p)
-            : m_reconstructor(rec), m_particle(p)
+              advective_depositor &dep, 
+              depositor_state &ds, 
+              advected_particle &p)
+            : m_depositor(dep), m_dep_state(ds), m_particle(p)
           { }
 
           void add_shape_on_element(
@@ -579,17 +580,18 @@ namespace pyrticle
               )
           {
             const mesh_data::element_info &einfo(
-                m_reconstructor.m_mesh_data.m_element_info[en]);
+                m_depositor.m_mesh_data.m_element_info[en]);
 
             active_element new_element;
             new_element.m_element_info = &einfo;
-            unsigned start = new_element.m_start_index = m_reconstructor.allocate_element();
+            unsigned start = new_element.m_start_index = 
+              m_depositor.allocate_element(m_dep_state);
             new_element.m_min_life = 0;
 
-            for (unsigned i = 0; i < m_reconstructor.m_dofs_per_element; ++i)
-              m_reconstructor.m_rho[start+i] =
+            for (unsigned i = 0; i < m_depositor.m_dofs_per_element; ++i)
+              m_dep_state.m_rho[start+i] =
                 m_particle.m_shape_function(
-                    m_reconstructor.m_mesh_data.mesh_node(einfo.m_start+i)-center);
+                    m_depositor.m_mesh_data.mesh_node(einfo.m_start+i)-center);
 
             m_particle.m_elements.push_back(new_element);
           }
@@ -600,11 +602,11 @@ namespace pyrticle
 
     public:
       void add_advective_particle(
+          depositor_state &ds,
           const ParticleState &ps,
-          advective_state &as,
           shape_function sf, particle_number pn)
       {
-        if (pn != as.advected_particles.size())
+        if (pn != ds.m_advected_particles.size())
           throw std::runtime_error("advected particle added out of sequence");
 
         advected_particle new_particle;
@@ -612,8 +614,8 @@ namespace pyrticle
 
         element_finder el_finder(m_mesh_data);
 
-        advected_particle_element_target el_tgt(*this, new_particle);
-        el_finder(el_tgt, pn, sf.radius());
+        advected_particle_element_target el_tgt(*this, ds, new_particle);
+        el_finder(ps, el_tgt, pn, sf.radius());
 
         // make connections
         BOOST_FOREACH(active_element &el, new_particle.m_elements)
@@ -634,7 +636,7 @@ namespace pyrticle
         BOOST_FOREACH(active_element &el, new_particle.m_elements)
           unscaled_masses.push_back(element_integral(
                 el.m_element_info->m_jacobian,
-                subrange(as.rho, 
+                subrange(ds.m_rho, 
                   el.m_start_index, 
                   el.m_start_index+m_dofs_per_element)));
 
@@ -645,7 +647,7 @@ namespace pyrticle
         double scale;
         if (total_unscaled_mass == 0)
         {
-          WARN(str(boost::format("reconstructed initial particle mass is zero"
+          WARN(boost::str(boost::format("deposited initial particle mass is zero"
                   "(particle %d, #elements=%d)") % pn % new_particle.m_elements.size()));
           scale = charge;
         }
@@ -653,12 +655,12 @@ namespace pyrticle
           scale = charge / total_unscaled_mass;
 
         BOOST_FOREACH(active_element &el, new_particle.m_elements)
-          subrange(as.rho, 
+          subrange(ds.m_rho, 
               el.m_start_index, 
               el.m_start_index+m_dofs_per_element) 
           *= scale;
 
-        as.advected_particles.push_back(new_particle);
+        ds.m_advected_particles.push_back(new_particle);
       }
 
 
@@ -666,13 +668,13 @@ namespace pyrticle
 
       // rhs calculation ----------------------------------------------------
       py_vector calculate_local_div(
+          depositor_state &ds,
           const ParticleState &ps,
-          advective_state &as,
           py_vector const &velocities) const
       {
-        const unsigned dofs = as.rho.size();
+        const unsigned dofs = ds.m_rho.size();
         const unsigned active_contiguous_elements = 
-          as.active_elements + as.freelist.size();
+          ds.m_active_elements + ds.m_freelist.size();
 
         py_vector local_div(dofs);
         local_div.clear();
@@ -696,7 +698,7 @@ namespace pyrticle
               /*alpha*/ 1,
               /*a*/ traits::matrix_storage(matrix.as_ublas()), 
               /*lda*/ matrix.size2(),
-              /*b*/ traits::vector_storage(as.rho), 
+              /*b*/ traits::vector_storage(ds.m_rho), 
               /*ldb*/ m_dofs_per_element,
               /*beta*/ 1,
               /*c*/ traits::vector_storage(rst_derivs) + loc_axis*dofs, 
@@ -707,7 +709,7 @@ namespace pyrticle
         // combine them into local part of dot(v, grad rho) -----------------
         {
           particle_number pn = 0;
-          BOOST_FOREACH(const advected_particle &p, as.advected_particles)
+          BOOST_FOREACH(const advected_particle &p, ds.m_advected_particles)
           {
             bounded_vector v = subrange(velocities, 
                 ps.vdim()*pn, ps.vdim()*(pn+1));
@@ -740,18 +742,18 @@ namespace pyrticle
 
 
       py_vector calculate_fluxes(
+          depositor_state &ds,
           const ParticleState &ps,
-          advective_state &as,
           py_vector const &velocities)
       {
         if (m_activation_threshold == 0)
           throw std::runtime_error("zero activation threshold");
 
-        py_vector fluxes(as.rho.size());
+        py_vector fluxes(ds.m_rho.size());
         fluxes.clear();
 
         particle_number pn = 0;
-        BOOST_FOREACH(advected_particle &p, as.advected_particles)
+        BOOST_FOREACH(advected_particle &p, ds.m_advected_particles)
         {
           const double shape_peak = 
             p.m_shape_function(
@@ -846,7 +848,7 @@ namespace pyrticle
                 double max_density = 0;
                 for (unsigned i = 0; i < face_length; i++)
                   max_density = std::max(max_density, 
-                      fabs(as.rho[this_base_idx+idx_list[i]]));
+                      fabs(ds.m_rho[this_base_idx+idx_list[i]]));
 
                 // std::cout << max_density << ' ' << shape_peak << std::endl;
                 if (max_density > m_activation_threshold*fabs(shape_peak))
@@ -861,15 +863,15 @@ namespace pyrticle
                   active_element opp_element;
                   opp_element.m_element_info = &opp_einfo;
 
-                  unsigned start = opp_element.m_start_index = allocate_element();
-                  subrange(as.rho, start, start+m_dofs_per_element) = 
+                  unsigned start = opp_element.m_start_index = allocate_element(ds);
+                  subrange(ds.m_rho, start, start+m_dofs_per_element) = 
                     boost::numeric::ublas::zero_vector<double>(m_dofs_per_element);
 
-                  if (as.rho.size() != fluxes.size())
+                  if (ds.m_rho.size() != fluxes.size())
                   {
                     // allocate_element enlarged the size of the state vector
                     // fluxes needs to be changed as well.
-                    py_vector new_fluxes(as.rho.size());
+                    py_vector new_fluxes(ds.m_rho.size());
                     new_fluxes.clear();
                     noalias(subrange(new_fluxes, 0, fluxes.size())) = fluxes;
                     fluxes.swap(new_fluxes);
@@ -948,7 +950,7 @@ namespace pyrticle
                 {
                   dump_particle(p);
                   throw std::runtime_error(
-                      str(boost::format("opposite element %d of (el:%d,face:%d) for active connection not found")
+                      boost::str(boost::format("opposite element %d of (el:%d,face:%d) for active connection not found")
                       % el->m_connections[fn] % en % fn).c_str());
                 }
 
@@ -971,8 +973,8 @@ namespace pyrticle
                     const int oilj = opp_base_idx+*oilj_iterator++;
 
                     res_ili_addition += 
-                      as.rho[ilj]*int_coeff*fmm_entry
-                      +as.rho[oilj]*ext_coeff*fmm_entry;
+                      ds.m_rho[ilj]*int_coeff*fmm_entry
+                      +ds.m_rho[oilj]*ext_coeff*fmm_entry;
                   }
 
                   fluxes[ili] += res_ili_addition;
@@ -993,7 +995,7 @@ namespace pyrticle
                   double res_ili_addition = 0;
 
                   for (unsigned j = 0; j < face_length; j++)
-                    res_ili_addition += as.rho[this_base_idx+*ilj_iterator++]
+                    res_ili_addition += ds.m_rho[this_base_idx+*ilj_iterator++]
                       *int_coeff
                       *m_face_mass_matrix(i, j);
 
@@ -1013,14 +1015,14 @@ namespace pyrticle
 
 
       py_vector apply_elementwise_inverse_mass_matrix(
-          advective_state &as,
+          depositor_state &ds,
           py_vector const &operand) const
       {
-        py_vector result(as.rho.size());
+        py_vector result(ds.m_rho.size());
         result.clear();
 
         const unsigned active_contiguous_elements = 
-          as.active_elements + as.freelist.size();
+          ds.m_active_elements + ds.m_freelist.size();
 
         using namespace boost::numeric::bindings;
         using blas::detail::gemm;
@@ -1043,7 +1045,7 @@ namespace pyrticle
             );
 
         // perform jacobian scaling
-        BOOST_FOREACH(const advected_particle &p, as.advected_particles)
+        BOOST_FOREACH(const advected_particle &p, ds.m_advected_particles)
           BOOST_FOREACH(const active_element &el, p.m_elements)
           {
             subrange(result, 
@@ -1058,22 +1060,25 @@ namespace pyrticle
 
 
 
-      py_vector get_advective_particle_rhs(py_vector const &velocities)
+      py_vector get_advective_particle_rhs(
+          depositor_state &ds,
+          const ParticleState &ps,
+          py_vector const &velocities)
       {
         // calculate_fluxes may resize the state vector--calculate it first,
         // everything else later.
-        py_vector fluxes = calculate_fluxes(velocities);
+        py_vector fluxes = calculate_fluxes(ds, ps, velocities);
 
-        return calculate_local_div(velocities) 
-        - apply_elementwise_inverse_mass_matrix(fluxes);
+        return calculate_local_div(ds, ps, velocities) 
+        - apply_elementwise_inverse_mass_matrix(ds, fluxes);
       }
       
 
 
 
       void apply_advective_particle_rhs(
+          depositor_state &ds,
           const ParticleState &ps,
-          advective_state &as,
           py_vector const &rhs)
       {
         if (m_filter_matrix.size1() && m_filter_matrix.size2())
@@ -1082,7 +1087,7 @@ namespace pyrticle
           using blas::detail::gemm;
 
           const unsigned active_contiguous_elements = 
-            as.active_elements + as.freelist.size();
+            ds.m_active_elements + ds.m_freelist.size();
 
           const py_matrix &matrix = m_filter_matrix;
           gemm(
@@ -1097,12 +1102,12 @@ namespace pyrticle
               /*b*/ traits::vector_storage(rhs), 
               /*ldb*/ m_dofs_per_element,
               /*beta*/ 1,
-              /*c*/ traits::vector_storage(as.rho),
+              /*c*/ traits::vector_storage(ds.m_rho),
               /*ldc*/ m_dofs_per_element
               );
         }
         else
-          as.rho += rhs;
+          ds.m_rho += rhs;
       }
 
 

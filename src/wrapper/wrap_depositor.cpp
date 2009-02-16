@@ -20,7 +20,7 @@
 #include "wrap_pic.hpp"
 #include "dep_shape.hpp"
 #include "dep_normshape.hpp"
-#include "dep_target.hpp"
+#include "dep_advective.hpp"
 #include "dep_grid.hpp"
 
 
@@ -109,9 +109,10 @@ namespace
         ;
     }
 
+    typedef normalized_shape_function_depositor<
+        ParticleState, used_shape_function> norm_dep;
     {
-      typedef normalized_shape_function_depositor<
-        ParticleState, used_shape_function> cl;
+      typedef norm_dep cl;
       class_<cl>(
         ("NormalizingInterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
         init<const mesh_data &, const py_matrix &>())
@@ -119,7 +120,65 @@ namespace
         ;
     }
 
-    EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(expose_deposition_functions, ());
+    {
+      typedef typename norm_dep::depositor_state cl;
+      class_<cl>(
+        ("NormalizingInterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str())
+        .DEF_RW_MEMBER(stats)
+        ;
+    }
+
+    typedef advective_depositor<
+      ParticleState, used_shape_function> adv_dep;
+    {
+      typedef adv_dep cl;
+      class_<cl>(
+        ("AdvectiveDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
+        init<const mesh_data &, unsigned, unsigned, 
+        const py_matrix &,
+        const py_matrix &,
+        const py_matrix &,
+        const py_matrix &,
+        boost::shared_ptr<hedge::face_group>,
+        boost::shared_ptr<hedge::face_group>,
+        double, double, double
+        >(args(
+            "mesh_data", "faces_per_element", "dofs_per_element",
+            "mass_matrix", "inverse_mass_matrix", "filter_matrix",
+            "face_mass_matrix", "int_face_group", "bdry_face_group",
+            "activation_threshold", "kill_threshold", "upwind_alpha"
+            )))
+        .DEF_SIMPLE_METHOD(add_local_diff_matrix)
+        .DEF_SIMPLE_METHOD(add_advective_particle)
+        .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
+
+        .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
+        .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)
+        
+        .DEF_SIMPLE_METHOD(perform_depositor_upkeep)
+        ;
+    }
+
+    {
+      typedef typename adv_dep::depositor_state cl;
+      class_<cl>(("AdvectiveDepositorState"
+          +get_state_class_suffix<ParticleState>()).c_str(), no_init)
+
+        .DEF_RW_MEMBER(rho_dof_shift_listener)
+
+        .DEF_RO_MEMBER(active_elements)
+        .DEF_SIMPLE_METHOD(count_advective_particles)
+        .DEF_RO_MEMBER(element_activation_counter)
+        .DEF_RO_MEMBER(element_kill_counter)
+
+        .DEF_SIMPLE_METHOD(clear)
+        ;
+    }
+
+    EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(
+        expose_deposition_functions, 
+        used_shape_function,
+        ());
 
     expose_grid_depositor<ParticleState, brick>("Regular");
     expose_grid_depositor<ParticleState, jiggly_brick>("Jiggly");
@@ -146,4 +205,13 @@ void expose_deposition()
   expose_std_vector<element_on_grid>("ElementOnGrid");
 
   python::def("get_shape_function_name", &used_shape_function::name);
+
+  {
+    typedef normalized_deposition_stats cl;
+    class_<cl>("NormalizedDepositionStats")
+      .DEF_RW_MEMBER(normalization_stats)
+      .DEF_RW_MEMBER(centroid_distance_stats)
+      .DEF_RW_MEMBER(el_per_particle_stats)
+      ;
+  }
 }
