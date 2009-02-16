@@ -20,8 +20,8 @@
 
 
 
-#ifndef _BADFJAH_PYRTICLE_PIC_ALGORITHM_HPP_INCLUDED
-#define _BADFJAH_PYRTICLE_PIC_ALGORITHM_HPP_INCLUDED
+#ifndef _BADFJAH_PYRTICLE_PARTICLE_STATE_HPP_INCLUDED
+#define _BADFJAH_PYRTICLE_PARTICLE_STATE_HPP_INCLUDED
 
 
 
@@ -350,12 +350,11 @@ namespace pyrticle
 
 
 
+  template <class ParticleState>
   void kill_particle(
-      const particle_dimensionality &pd,
-      const particle_state &ps, 
+      ParticleState &ps, 
       particle_number pn,
-      const number_shift_listener &nshift_listener
-      )
+      const number_shift_listener &nshift_listener)
   {
     --ps.particle_count;
     if (ps.particle_count)
@@ -366,7 +365,7 @@ namespace pyrticle
       move_particle(ps, ps.particle_count, pn, nshift_listener);
     }
 
-    note_change_particle_count(ps.particle_count);
+    nshift_listener.note_change_size(ps.particle_count);
   }
 
 
@@ -376,22 +375,18 @@ namespace pyrticle
    *
    * (this has nothing to do with actual particle motion.)
    */
+  template <class ParticleState>
   void move_particle(
-      const particle_dimensionality &pd,
-      particle_state &ps, 
+      ParticleState &ps, 
       particle_number from, particle_number to,
-      const number_shift_listener &nshift_listener
-      )
+      const number_shift_listener &nshift_listener)
   {
-    const unsigned xdim = pd.xdim();
-    const unsigned vdim = pd.vdim();
+    const unsigned xdim = ps.xdim();
+    const unsigned vdim = ps.vdim();
 
     ps.containing_elements[to] = ps.containing_elements[from];
 
-    if (ps.particle_number_shift_listener.get())
-      ps.particle_number_shift_listener->note_move(from, to, 1);
-    reconstructor::note_move(ps, from, to, 1);
-    particle_pusher::note_move(ps, from, to, 1);
+    nshift_listener.note_move(from, to, 1);
 
     for (unsigned i = 0; i < xdim; i++)
       ps.positions[to*xdim+i] = ps.positions[from*xdim+i];

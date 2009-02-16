@@ -19,7 +19,7 @@
 
 
 #include <boost/python.hpp>
-#include "pic_algorithm.hpp"
+#include "particle_state.hpp"
 #include "wrap_pic.hpp"
 #include "diagnostics.hpp"
 
@@ -52,26 +52,28 @@ namespace
   template <class ParticleState>
   void expose_pic_basics()
   {
-    {
-      typedef ParticleState cl;
-      class_<ParticleState>(
-          ("ParticleState"+get_state_class_suffix<ParticleState>()).c_str())
-        .add_static_property("xdim", &cl::xdim)
-        .add_static_property("vdim", &cl::vdim)
+    typedef ParticleState cl;
+    class_<cl>(
+        ("ParticleState"+get_state_class_suffix<ParticleState>()).c_str())
+      .add_static_property("xdim", &cl::xdim)
+      .add_static_property("vdim", &cl::vdim)
 
-        .SDEF_RW_MEMBER(particle_count)
+      .SDEF_RW_MEMBER(particle_count)
 
-        .SDEF_BYVAL_RW_MEMBER(containing_elements)
-        .SDEF_BYVAL_RW_MEMBER(positions)
-        .SDEF_BYVAL_RW_MEMBER(momenta)
-        .SDEF_BYVAL_RW_MEMBER(charges)
-        .SDEF_BYVAL_RW_MEMBER(masses)
-        ;
-    }
+      .SDEF_BYVAL_RW_MEMBER(containing_elements)
+      .SDEF_BYVAL_RW_MEMBER(positions)
+      .SDEF_BYVAL_RW_MEMBER(momenta)
+      .SDEF_BYVAL_RW_MEMBER(charges)
+      .SDEF_BYVAL_RW_MEMBER(masses)
 
-    def("get_velocities", get_velocities<ParticleState>);
-    def("find_new_containing_element", find_new_containing_element<ParticleState>);
-    def("update_containing_elements", update_containing_elements<ParticleState>);
+      ;
+
+    def("get_velocities", get_velocities<cl>);
+    def("find_new_containing_element", find_new_containing_element<cl>);
+    def("update_containing_elements", update_containing_elements<cl>);
+
+    def("kill_particle", kill_particle<cl>);
+    def("move_particle", move_particle<cl>);
   }
 }
 

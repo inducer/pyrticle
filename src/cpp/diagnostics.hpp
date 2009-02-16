@@ -27,7 +27,7 @@
 #include <cmath>
 #include <boost/foreach.hpp>
 #include <boost/numeric/ublas/vector_proxy.hpp>
-#include "pic_algorithm.hpp"
+#include "particle_state.hpp"
 
 
 

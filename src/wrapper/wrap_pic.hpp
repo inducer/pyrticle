@@ -23,7 +23,7 @@
 
 
 #include <boost/lexical_cast.hpp>
-#include "pic_algorithm.hpp"
+#include "particle_state.hpp"
 #include "diagnostics.hpp"
 #include "wrap_helpers.hpp"
 
@@ -49,21 +49,6 @@ namespace
 
   
 
-
-#if 0
-    pic_wrap
-      .DEF_RO_MEMBER(vacuum_c)
-
-      .DEF_RW_MEMBER(particle_number_shift_listener)
-      .DEF_RW_MEMBER(boundary_hit_listener)
-
-      .DEF_SIMPLE_METHOD(move_particle)
-      .DEF_SIMPLE_METHOD(note_change_particle_count)
-      .DEF_SIMPLE_METHOD(kill_particle)
-
-      .DEF_SIMPLE_METHOD(add_rhs)
-      ;
-  #endif
 
 #define EXPOSE_FOR_ALL_STATE_TYPES(NAME, ARGLIST) \
   NAME<particle_base_state<2, 2> >ARGLIST; \
