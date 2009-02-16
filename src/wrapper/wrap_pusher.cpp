@@ -20,8 +20,12 @@
 
 
 #include "push_monomial.hpp"
+#include "push_average.hpp"
 #include "wrap_helpers.hpp"
 #include "wrap_pic.hpp"
+#include "dep_shape.hpp"
+#include "dep_normshape.hpp"
+#include "dep_advective.hpp"
 
 
 
@@ -33,36 +37,43 @@ using namespace pyrticle;
 
 namespace
 {
-  template <class Pusher, class Wrapper>
-  void expose_force_calculator(Wrapper &wrp)
+  template <class Depositor, class Wrapper>
+  void expose_averaging_force_calculator(Wrapper &wrp)
   {
-    typedef Pusher cl;
+    typedef typename Wrapper::wrapped_type cl;
+    typedef typename Depositor::particle_state particle_state;
 
-    if (Pusher::particle_state::vdim() == 3)
+    if (particle_state::m_vdim == 3)
     {
       wrp
         .def("forces", &cl::template forces< // full-field case
             py_vector, py_vector, py_vector,
-            py_vector, py_vector, py_vector>,
-            args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
+            py_vector, py_vector, py_vector, Depositor>,
+            args("ex","ey", "ez", "bx", "by", "bz", "ps", "pusher_state", 
+              "dep", "velocities", "vis_listener"))
         ;
     }
-    else if (Pusher::particle_state::vdim() == 2)
+    else if (particle_state::m_vdim == 2)
     {
       wrp
         /*
         .def("forces", &cl::template forces< // TM case
             zero_vector, zero_vector, py_vector,
-            py_vector, py_vector, zero_vector>,
-            args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
+            py_vector, py_vector, zero_vector, Depositor>,
+            args("ex","ey", "ez", "bx", "by", "bz", "ps", "pusher_state", 
+              "dep", "velocities", "vis_listener"))
              */
         .def("forces", &cl::template forces< // TE case
             py_vector, py_vector, zero_vector,
-            zero_vector, zero_vector, py_vector>,
-            args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
+            zero_vector, zero_vector, py_vector, Depositor>,
+            args("ex","ey", "ez", "bx", "by", "bz", "ps", "pusher_state", 
+              "dep", "velocities", "vis_listener"))
         ;
     }
   }
+
+
+
 
   template <class ParticleState>
   void expose_pushers_for_pstate()
@@ -77,9 +88,44 @@ namespace
         .DEF_RW_MEMBER(local_discretizations)
         .DEF_RW_MEMBER(ldis_indices)
         ;
-      expose_force_calculator<cl>(wrp);
+
+      if (ParticleState::m_vdim == 3)
+      {
+        wrp
+          .def("forces", &cl::template forces< // full-field case
+              py_vector, py_vector, py_vector,
+              py_vector, py_vector, py_vector>,
+              args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
+          ;
+      }
+      else if (ParticleState::m_vdim == 2)
+      {
+        wrp
+          /*
+          .def("forces", &cl::template forces< // TM case
+              zero_vector, zero_vector, py_vector,
+              py_vector, py_vector, zero_vector>,
+              args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
+               */
+          .def("forces", &cl::template forces< // TE case
+              py_vector, py_vector, zero_vector,
+              zero_vector, zero_vector, py_vector>,
+              args("ex","ey", "ez", "bx", "by", "bz", "ps", "velocities", "vis_listener"))
+          ;
+      }
     }
     
+    {
+      typedef averaging_particle_pusher<ParticleState> cl;
+      class_<cl> wrp(
+          ("AveragingPusher"+get_state_class_suffix<ParticleState>()).c_str(), 
+          init<const mesh_data &, const py_matrix &>());
+
+      EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(
+          expose_averaging_force_calculator,
+          polynomial_shape_function,
+          (wrp));
+    }
   }
 }
 

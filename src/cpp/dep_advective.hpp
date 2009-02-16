@@ -165,12 +165,12 @@ namespace pyrticle
 
       py_matrix                       m_mass_matrix;
       dyn_vector                      m_integral_weights;
-      py_matrix                       m_inverse_mass_matrix;
+      dyn_fortran_matrix              m_inverse_mass_matrix;
       py_matrix                       m_face_mass_matrix;
       dyn_vector                      m_face_integral_weights;
-      py_matrix                       m_filter_matrix;
+      dyn_fortran_matrix              m_filter_matrix;
 
-      std::vector<py_matrix>          m_local_diff_matrices;
+      std::vector<dyn_fortran_matrix> m_local_diff_matrices;
 
       boost::shared_ptr<hedge::face_group> m_int_face_group;
       boost::shared_ptr<hedge::face_group> m_bdry_face_group;
@@ -687,16 +687,16 @@ namespace pyrticle
 
         for (unsigned loc_axis = 0; loc_axis < get_dimensions_mesh(); ++loc_axis)
         {
-          const py_matrix &matrix = m_local_diff_matrices.at(loc_axis);
+          const dyn_fortran_matrix &matrix = m_local_diff_matrices.at(loc_axis);
 
           gemm(
-              'T', // "matrix" is row-major
+              'N', // "matrix" is row-major
               'N', // a contiguous array of vectors is column-major
               matrix.size1(),
               active_contiguous_elements,
               matrix.size2(),
               /*alpha*/ 1,
-              /*a*/ traits::matrix_storage(matrix.as_ublas()), 
+              /*a*/ traits::matrix_storage(matrix), 
               /*lda*/ matrix.size2(),
               /*b*/ traits::vector_storage(ds.m_rho), 
               /*ldb*/ m_dofs_per_element,
@@ -1027,7 +1027,7 @@ namespace pyrticle
         using namespace boost::numeric::bindings;
         using blas::detail::gemm;
 
-        const py_matrix &matrix = m_inverse_mass_matrix;
+        const dyn_fortran_matrix &matrix = m_inverse_mass_matrix;
         gemm(
             'T', // "matrix" is row-major
             'N', // a contiguous array of vectors is column-major
@@ -1035,7 +1035,7 @@ namespace pyrticle
             active_contiguous_elements,
             matrix.size2(),
             /*alpha*/ 1,
-            /*a*/ traits::matrix_storage(matrix.as_ublas()), 
+            /*a*/ traits::matrix_storage(matrix), 
             /*lda*/ matrix.size2(),
             /*b*/ traits::vector_storage(operand), 
             /*ldb*/ m_dofs_per_element,
@@ -1089,15 +1089,15 @@ namespace pyrticle
           const unsigned active_contiguous_elements = 
             ds.m_active_elements + ds.m_freelist.size();
 
-          const py_matrix &matrix = m_filter_matrix;
+          const dyn_fortran_matrix &matrix = m_filter_matrix;
           gemm(
-              'T', // "matrix" is row-major
+              'N',
               'N', // a contiguous array of vectors is column-major
               matrix.size1(),
               active_contiguous_elements,
               matrix.size2(),
               /*alpha*/ 1,
-              /*a*/ traits::matrix_storage(matrix.as_ublas()), 
+              /*a*/ traits::matrix_storage(matrix), 
               /*lda*/ matrix.size2(),
               /*b*/ traits::vector_storage(rhs), 
               /*ldb*/ m_dofs_per_element,

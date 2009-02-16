@@ -26,6 +26,7 @@
 
 #include "meshdata.hpp"
 #include "bases.hpp"
+#include "dep_target.hpp"
 #include "pic_algorithm.hpp"
 
 
@@ -333,104 +334,111 @@ namespace pyrticle
 
 
 
+  template <class ParticleState>
   struct averaging_particle_pusher
   {
-    template <class PICAlgorithm>
-    class type : public pusher_base
-    {
-      private:
-        dyn_vector   m_integral_weights;
+    private:
+      dyn_vector m_integral_weights;
+      const mesh_data &m_mesh_data;
 
-      public:
+    public:
+      typedef ParticleState particle_state;
+
+      struct pusher_state
+      {
         stats_gatherer<double> m_e_normalization_stats;
         stats_gatherer<double> m_b_normalization_stats;
+      };
 
-        static const char *get_name()
-        { return "Average"; }
+      // initialization -----------------------------------------------------
+      averaging_particle_pusher(
+          const mesh_data &md,
+          const py_matrix &mass_matrix)
+        : m_mesh_data(md)
+      {
+        m_integral_weights = prod(mass_matrix, 
+            boost::numeric::ublas::scalar_vector<double>
+            (mass_matrix.size1(), 1));
+      }
 
-        // initialization -----------------------------------------------------
-        void setup_averaging_particle_pusher(const py_matrix &mass_matrix)
+
+
+
+      // force calculation --------------------------------------------------
+      // why all these template arguments? In 2D and 1D,
+      // instead of passing a py_vector, you may simply
+      // pass a zero_vector, and the field averaging machinery
+      // will statically know to not even compute anything, 
+      // and just return zero.
+      template <class EX, class EY, class EZ, 
+               class BX, class BY, class BZ,
+               class Depositor>
+      py_vector forces(
+          const EX &ex, const EY &ey, const EZ &ez,
+          const BX &bx, const BY &by, const BZ &bz,
+          const particle_state &ps,
+          pusher_state &pu_st,
+          const Depositor &dep,
+          typename Depositor::depositor_state &ds,
+          const py_vector &velocities,
+          visualization_listener *vis_listener
+          )
+      {
+        const unsigned vdim = particle_state::vdim();
+
+        typedef el_force_averaging_target
+          <particle_state::m_vdim, EX, EY, EZ> el_tgt_t;
+        typedef mag_force_averaging_target
+          <particle_state::m_vdim, BX, BY, BZ> mag_tgt_t;
+
+        const unsigned field_components = el_tgt_t::field_components;
+        const unsigned pcount = ps.particle_count;
+
+        npy_intp res_dims[] = { ps.particle_count, vdim };
+
+        py_vector el_force(2, res_dims);
+        py_vector mag_force(2, res_dims);
+        el_force.clear();
+        mag_force.clear();
+
+        py_vector vis_e, vis_b, vis_e_stddev, vis_b_stddev;
+
+        if (vis_listener)
         {
-          m_integral_weights = prod(mass_matrix, 
-              boost::numeric::ublas::scalar_vector<double>
-              (mass_matrix.size1(), 1));
+          npy_intp dims[] = { pcount, field_components };
+          vis_e = py_vector(2, dims);
+          vis_b = py_vector(2, dims);
+          vis_e.clear();
+          vis_b.clear();
+
+          vis_e_stddev = py_vector(zero_vector(pcount));
+          vis_b_stddev = py_vector(zero_vector(pcount));
         }
 
+        el_tgt_t el_tgt(m_mesh_data, m_integral_weights,
+            ex, ey, ez, vis_e, vis_e_stddev, 
+            &pu_st.m_e_normalization_stats,
+            ps.charges, el_force);
+        mag_tgt_t mag_tgt(m_mesh_data, m_integral_weights,
+            bx, by, bz, velocities, vis_b, vis_b_stddev, 
+            &pu_st.m_b_normalization_stats,
+            ps.charges, mag_force);
 
+        chained_deposition_target<el_tgt_t, mag_tgt_t> force_tgt(el_tgt, mag_tgt);
+        dep.deposit_densities_on_target(ds, ps, force_tgt, boost::python::slice());
 
-
-        // force calculation --------------------------------------------------
-        // why all these template arguments? In 2D and 1D,
-        // instead of passing a py_vector, you may simply
-        // pass a zero_vector, and the field averaging machinery
-        // will statically know to not even compute anything, 
-        // and just return zero.
-        template <class EX, class EY, class EZ, 
-                 class BX, class BY, class BZ>
-        py_vector forces(
-            const EX &ex, const EY &ey, const EZ &ez,
-            const BX &bx, const BY &by, const BZ &bz,
-            const py_vector &velocities,
-            bool verbose_vis
-            )
+        if (vis_listener)
         {
-          const unsigned vdim = CONST_PIC_THIS->get_dimensions_velocity();
-
-          typedef el_force_averaging_target<
-            PICAlgorithm::dimensions_velocity, EX, EY, EZ> el_tgt_t;
-          typedef mag_force_averaging_target
-            <PICAlgorithm::dimensions_velocity, BX, BY, BZ> mag_tgt_t;
-
-          const unsigned field_components = el_tgt_t::field_components;
-          const unsigned pcount = PIC_THIS->m_particle_count;
-
-          npy_intp res_dims[] = { PIC_THIS->m_particle_count, vdim };
-
-          py_vector el_force(2, res_dims);
-          py_vector mag_force(2, res_dims);
-          el_force.clear();
-          mag_force.clear();
-
-          py_vector vis_e, vis_b, vis_e_stddev, vis_b_stddev;
-
-          if (verbose_vis)
-          {
-            npy_intp dims[] = { pcount, field_components };
-            vis_e = py_vector(2, dims);
-            vis_b = py_vector(2, dims);
-            vis_e.clear();
-            vis_b.clear();
-
-            vis_e_stddev = py_vector(zero_vector(pcount));
-            vis_b_stddev = py_vector(zero_vector(pcount));
-          }
-
-          el_tgt_t el_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,
-              ex, ey, ez, vis_e, vis_e_stddev, 
-              &m_e_normalization_stats,
-              CONST_PIC_THIS->m_charges, el_force);
-          mag_tgt_t mag_tgt(CONST_PIC_THIS->m_mesh_data, m_integral_weights,
-              bx, by, bz, velocities, vis_b, vis_b_stddev, 
-              &m_b_normalization_stats,
-              CONST_PIC_THIS->m_charges, mag_force);
-
-          chained_reconstruction_target<el_tgt_t, mag_tgt_t> force_tgt(el_tgt, mag_tgt);
-          CONST_PIC_THIS->reconstruct_densities_on_target(force_tgt,
-              boost::python::slice());
-
-          if (verbose_vis)
-          {
-            PIC_THIS->store_particle_vis_vector("el_force", el_force);
-            PIC_THIS->store_particle_vis_vector("mag_force", mag_force);
-            PIC_THIS->store_particle_vis_vector("pt_e", vis_e);
-            PIC_THIS->store_particle_vis_vector("pt_b", vis_b);
-            PIC_THIS->store_particle_vis_vector("pt_e_stddev", vis_e_stddev);
-            PIC_THIS->store_particle_vis_vector("pt_b_stddev", vis_b_stddev);
-          }
-
-          return el_force+mag_force;
+          vis_listener->store_particle_vis_vector("el_force", el_force);
+          vis_listener->store_particle_vis_vector("mag_force", mag_force);
+          vis_listener->store_particle_vis_vector("pt_e", vis_e);
+          vis_listener->store_particle_vis_vector("pt_b", vis_b);
+          vis_listener->store_particle_vis_vector("pt_e_stddev", vis_e_stddev);
+          vis_listener->store_particle_vis_vector("pt_b_stddev", vis_b_stddev);
         }
-    };
+
+        return el_force+mag_force;
+      }
   };
 }
 

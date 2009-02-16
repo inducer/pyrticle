@@ -350,7 +350,6 @@ namespace pyrticle
 
 
 
-#if 0
   void kill_particle(
       const particle_dimensionality &pd,
       const particle_state &ps, 
@@ -373,42 +372,36 @@ namespace pyrticle
 
 
 
-      /** Move a particle to a different number.
-       *
-       * (this has nothing to do with actual particle motion.)
-       */
-      void move_particle(
-          const particle_dimensionality &pd,
-          particle_state &ps, 
-          particle_number from, particle_number to,
-          const number_shift_listener &nshift_listener
-          )
-      {
-        const unsigned xdim = pd.xdim();
-        const unsigned vdim = pd.vdim();
+  /** Move a particle to a different number.
+   *
+   * (this has nothing to do with actual particle motion.)
+   */
+  void move_particle(
+      const particle_dimensionality &pd,
+      particle_state &ps, 
+      particle_number from, particle_number to,
+      const number_shift_listener &nshift_listener
+      )
+  {
+    const unsigned xdim = pd.xdim();
+    const unsigned vdim = pd.vdim();
 
-        ps.containing_elements[to] = ps.containing_elements[from];
+    ps.containing_elements[to] = ps.containing_elements[from];
 
-        if (ps.particle_number_shift_listener.get())
-          ps.particle_number_shift_listener->note_move(from, to, 1);
-        reconstructor::note_move(ps, from, to, 1);
-        particle_pusher::note_move(ps, from, to, 1);
+    if (ps.particle_number_shift_listener.get())
+      ps.particle_number_shift_listener->note_move(from, to, 1);
+    reconstructor::note_move(ps, from, to, 1);
+    particle_pusher::note_move(ps, from, to, 1);
 
-        for (unsigned i = 0; i < xdim; i++)
-          ps.positions[to*xdim+i] = ps.positions[from*xdim+i];
+    for (unsigned i = 0; i < xdim; i++)
+      ps.positions[to*xdim+i] = ps.positions[from*xdim+i];
 
-        for (unsigned i = 0; i < vdim; i++)
-          ps.momenta[to*vdim+i] = ps.momenta[from*vdim+i];
+    for (unsigned i = 0; i < vdim; i++)
+      ps.momenta[to*vdim+i] = ps.momenta[from*vdim+i];
 
-        ps.charges[to] = ps.charges[from];
-        ps.masses[to] = ps.masses[from];
-      }
-  };
-#endif
-
-
-
-
+    ps.charges[to] = ps.charges[from];
+    ps.masses[to] = ps.masses[from];
+  }
 }
 
 
