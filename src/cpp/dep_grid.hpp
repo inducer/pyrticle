@@ -66,45 +66,26 @@ namespace pyrticle
 
 
 
-  struct grid_depositor_state 
+  template <class ParticleState, class ShapeFunction, class Brick>
+  struct grid_depositor : 
+    public grid_targets, 
+    public grid_depositor_base<grid_depositor<ParticleState, ShapeFunction, Brick>,
+      ParticleState, ShapeFunction, Brick, grid_depositor_base_state>
   {
-    boost::numeric::ublas::vector<brick_number> m_particle_brick_numbers;
+    private:
+      typedef grid_depositor_base<
+        grid_depositor<ParticleState, ShapeFunction, Brick>, 
+        ParticleState, ShapeFunction, Brick, grid_depositor_base_state>
+          base_type;
 
-    // FIXME are these getting called?
-    void note_move(particle_number from, particle_number to, unsigned size)
-    {
-      for (unsigned i = 0; i < size; ++i)
-        m_particle_brick_numbers[to+i] = m_particle_brick_numbers[from+i];
-    }
-
-    void note_change_size(unsigned particle_count)
-    {
-      unsigned prev_count = m_particle_brick_numbers.size();
-      m_particle_brick_numbers.resize(particle_count);
-
-      if (particle_count > prev_count)
-        std::fill(
-            m_particle_brick_numbers.begin() + prev_count,
-            m_particle_brick_numbers.end(),
-            0);
-    }
-  };
-
-
-
-
-  template <class Brick, class ParticleState, class ShapeFunction>
-  struct grid_depositor : public grid_targets
-  {
     public:
-      typedef grid_depositor_state depositor_state;
-      typedef ParticleState particle_state;
+      typedef typename base_type::particle_state particle_state;
+      typedef typename base_type::brick_type brick_type;
+      typedef typename base_type::depositor_state depositor_state;
 
       // member data --------------------------------------------------------
       std::vector<element_on_grid> m_elements_on_grid;
-      const mesh_data &m_mesh_data;
       ShapeFunction m_shape_function;
-      std::vector<Brick> m_bricks;
       mutable unsigned m_max_el_grid_values;
 
       /** Each brick may have a number of "extra" points to resolve
@@ -142,29 +123,18 @@ namespace pyrticle
 
       // construction -------------------------------------------------------
       grid_depositor(const mesh_data &md)
-        : m_mesh_data(md), m_max_el_grid_values(0)
+        : base_type(md), m_max_el_grid_values(0)
       { }
 
 
 
 
       // internals ------------------------------------------------------------
-      unsigned grid_node_count() const
-      {
-        if (m_bricks.size() == 0)
-          return 0;
-        else
-          return m_bricks.back().start_index() + m_bricks.back().node_count();
-      }
-
-
-
-
       unsigned grid_node_count_with_extra() const
       {
         const unsigned extra_pts = m_extra_points.size() 
-          / m_mesh_data.m_dimensions;
-        return extra_pts + grid_node_count();
+          / this->m_mesh_data.m_dimensions;
+        return extra_pts + this->grid_node_count();
       }
 
 
@@ -172,12 +142,12 @@ namespace pyrticle
 
       py_vector find_points_in_element(element_on_grid &eog, double scaled_tolerance) const
       {
-        const unsigned mdims = m_mesh_data.m_dimensions;
+        const unsigned mdims = this->m_mesh_data.m_dimensions;
         const mesh_data::element_info &el = 
-          m_mesh_data.m_element_info[
+          this->m_mesh_data.m_element_info[
           eog.m_element_number];
 
-        bounded_box el_bbox = m_mesh_data.element_bounding_box(
+        bounded_box el_bbox = this->m_mesh_data.element_bounding_box(
             eog.m_element_number);
 
         using boost::numeric::ublas::scalar_vector;
@@ -280,7 +250,7 @@ namespace pyrticle
         const unsigned extra_stop 
           = m_extra_point_brick_starts[brk.number()+1];
         const grid_node_number fep = m_first_extra_point;
-        const unsigned mdim = m_mesh_data.m_dimensions;
+        const unsigned mdim = this->m_mesh_data.m_dimensions;
 
         for (unsigned extra_i = m_extra_point_brick_starts[brk.number()];
             extra_i < extra_stop; ++extra_i)
@@ -292,175 +262,6 @@ namespace pyrticle
                   (extra_i+1)*mdim)));
         
         return true;
-      }
-
-
-
-
-      // 1 particle + n bricks ------------------------------------------------
-      template <class Target>
-      void deposit_single_particle_with_cache(
-          depositor_state &ds,
-          const particle_state &ps,
-          Target tgt,
-          particle_number pn,
-          bounded_vector const &center,
-          bounded_box const &particle_box)
-      {
-        brick_number &bn_cache(ds.m_particle_brick_numbers[pn]);
-        const Brick &last_brick = m_bricks[bn_cache];
-
-        bool is_complete;
-        bool does_intersect_cached = 
-          deposit_particle_on_one_brick(
-              tgt, last_brick, center, particle_box, ps.charges[pn],
-              &is_complete);
-
-        if (!is_complete)
-        {
-          BOOST_FOREACH(Brick const &brk, m_bricks)
-          {
-            // don't re-target the cached brick
-            if (brk.number() == last_brick.number())
-              continue;
-
-            if (deposit_particle_on_one_brick(
-                  tgt, brk, center, particle_box, ps.charges[pn])
-                && !does_intersect_cached)
-            {
-              // We did not intersect the cached brick, but we
-              // found a brick that we *did* intersect with.
-              // Update the cache.
-              bn_cache = brk.number();
-            }
-          }
-        }
-      }
-
-
-
-
-      template <class Target>
-      void deposit_single_particle_without_cache(Target tgt,
-          bounded_vector const &center,
-          bounded_box const &particle_box,
-          const double charge)
-      {
-        BOOST_FOREACH(Brick const &brk, m_bricks)
-          deposit_particle_on_one_brick(
-              tgt, brk, center, particle_box, charge);
-      }
-
-
-
-
-
-      /** This is a set of bit fields. Each member records the fact
-       * that a particular combination of periodic transitions has
-       * been taken care of.
-       *
-       * The assumption is that a particle will only be big enough
-       * to reach across the boundary normal to each axis exactly
-       * once (regardless of whether that's the +X or -X boundary,
-       * it is assumed to only touch one of them).
-       *
-       * Therefore, a combination of periodic transitions may be 
-       * represented by a bit field where each bit corresponds to 
-       * one axis, and that is exactly what this data type is.
-       */
-      typedef unsigned axis_bitfield;
-      typedef std::vector<axis_bitfield> periodicity_set;
-
-      template <class Target>
-      void deposit_periodic_copies(
-          depositor_state &ds,
-          const particle_state &ps,
-          Target tgt, 
-          particle_number pn,
-          bounded_vector const &center,
-          bounded_box const &particle_box,
-          axis_bitfield abf,
-          periodicity_set &pset)
-      {
-        using boost::numeric::ublas::zero_vector;
-
-        const unsigned dim_m = m_mesh_data.m_dimensions;
-
-        if (abf == 0)
-          deposit_single_particle_with_cache(
-              ds, ps, tgt, pn, center, particle_box);
-        else
-          deposit_single_particle_without_cache(
-              tgt, center, particle_box, ps.charges[pn]);
-        pset.push_back(abf);
-
-        for (unsigned axis = 0; axis < dim_m; ++axis)
-        {
-          const mesh_data::periodicity_axis &p_axis(
-             m_mesh_data.m_periodicities[axis]);
-
-          if (p_axis.m_min == p_axis.m_max)
-            continue;
-
-          const axis_bitfield abf_plus_this = abf | (1<<axis);
-          if (std::find(pset.begin(), pset.end(), abf_plus_this) != pset.end())
-            continue;
-
-          if (particle_box.m_lower[axis] < p_axis.m_min)
-          {
-            bounded_vector per_offset = zero_vector<double>(dim_m);
-            per_offset[axis] = p_axis.m_max-p_axis.m_min;
-            deposit_periodic_copies(ds, ps, tgt,
-                pn, center+per_offset,
-                bounded_box(
-                  particle_box.m_lower+per_offset,
-                  particle_box.m_upper+per_offset),
-                abf_plus_this, pset);
-          }
-          else if (particle_box.m_upper[axis] > p_axis.m_max)
-          {
-            bounded_vector per_offset = zero_vector<double>(dim_m);
-            per_offset[axis] = -(p_axis.m_max-p_axis.m_min);
-            deposit_periodic_copies(ds, ps, tgt,
-                pn, center+per_offset,
-                bounded_box(
-                  particle_box.m_lower+per_offset,
-                  particle_box.m_upper+per_offset),
-                abf_plus_this, pset);
-          }
-        }
-      }
-
-
-
-
-      template <class Target>
-      void deposit_densities_on_grid_target(
-          depositor_state &ds, const particle_state &ps,
-          Target tgt, boost::python::slice const &pslice)
-      {
-        const unsigned dim_x = ps.xdim();
-        const unsigned dim_m = m_mesh_data.m_dimensions;
-
-        using boost::numeric::ublas::scalar_vector;
-        const scalar_vector<double> shape_extent(
-            dim_m, m_shape_function.radius());
-
-        FOR_ALL_SLICE_INDICES(particle_number, pn, 
-            pslice, ps.particle_count)
-        {
-          tgt.begin_particle(pn);
-          const bounded_vector center = subrange(
-              ps.positions, pn*dim_x, (pn+1)*dim_x);
-
-          bounded_box particle_box(
-              center - shape_extent, 
-              center + shape_extent);
-
-          periodicity_set pset;
-          deposit_periodic_copies(ds, ps, tgt, pn, center, particle_box, 0, pset);
-          tgt.end_particle(pn);
-        }
       }
 
 
@@ -485,7 +286,7 @@ namespace pyrticle
         BOOST_FOREACH(const element_on_grid &eog, m_elements_on_grid)
         {
           const mesh_data::element_info &el = 
-            m_mesh_data.m_element_info[eog.m_element_number];
+            this->m_mesh_data.m_element_info[eog.m_element_number];
 
           // pick values off the grid
           const py_vector::const_iterator weights = eog.m_weight_factors.begin();
@@ -557,7 +358,7 @@ namespace pyrticle
       {
         unsigned max_el_size = 0;
         BOOST_FOREACH(const mesh_data::element_info &el, 
-            m_mesh_data.m_element_info)
+            this->m_mesh_data.m_element_info)
           max_el_size = std::max(max_el_size, el.m_end-el.m_start);
         dyn_vector mesh_values(max_el_size);
 

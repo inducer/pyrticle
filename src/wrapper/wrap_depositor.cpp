@@ -22,6 +22,7 @@
 #include "dep_normshape.hpp"
 #include "dep_advective.hpp"
 #include "dep_grid.hpp"
+#include "dep_grid_find.hpp"
 
 
 
@@ -65,7 +66,7 @@ namespace
   template <class ParticleState, class Brick>
   void expose_grid_depositor(const std::string &brick_type)
   {
-    typedef grid_depositor<Brick, ParticleState, used_shape_function> cl;
+    typedef grid_depositor<ParticleState, used_shape_function, Brick> cl;
     class_<cl>(
         (brick_type+"GridDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
         init<const mesh_data &>())
@@ -182,6 +183,25 @@ namespace
 
     expose_grid_depositor<ParticleState, brick>("Regular");
     expose_grid_depositor<ParticleState, jiggly_brick>("Jiggly");
+
+    {
+      typedef grid_find_depositor<ParticleState, used_shape_function, brick> cl;
+
+      class_<cl>(
+        ("GridFindDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
+        init<const mesh_data &>())
+        .DEF_RW_MEMBER(shape_function)
+        .DEF_RW_MEMBER(bricks)
+        .DEF_RW_MEMBER(node_number_list_starts)
+        .DEF_RW_MEMBER(node_number_lists)
+
+        .DEF_SIMPLE_METHOD(grid_node_count)
+
+        .DEF_SIMPLE_METHOD(deposit_densities)
+        .DEF_SIMPLE_METHOD(deposit_j)
+        .DEF_SIMPLE_METHOD(deposit_rho)
+        ;
+    }
   }
 }
 
