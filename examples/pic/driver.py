@@ -34,12 +34,12 @@ class FieldObserver:
 
 class PICCPyUserInterface(pytools.CPyUserInterface):
     def __init__(self, units):
-        from pyrticle.reconstruction import \
-                ShapeFunctionReconstructor, \
-                NormalizedShapeFunctionReconstructor, \
-                AdvectiveReconstructor, \
-                GridReconstructor, \
-                GridFindReconstructor, \
+        from pyrticle.deposition import \
+                ShapeFunctionDepositor, \
+                NormalizedShapeFunctionDepositor, \
+                AdvectiveDepositor, \
+                GridDepositor, \
+                GridFindDepositor, \
                 SingleBrickGenerator, \
                 FineCoreBrickGenerator
 
@@ -61,11 +61,11 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "units": units,
                 "pyrticle": pyrticle,
 
-                "RecShape": ShapeFunctionReconstructor,
-                "RecNormShape": NormalizedShapeFunctionReconstructor,
-                "RecAdv": AdvectiveReconstructor,
-                "RecGrid": GridReconstructor,
-                "RecGridFind": GridFindReconstructor,
+                "DepShape": ShapeFunctionDepositor,
+                "DepNormShape": NormalizedShapeFunctionDepositor,
+                "DepAdv": AdvectiveDepositor,
+                "DepGrid": GridDepositor,
+                "DepGridFind": GridFindDepositor,
 
                 "SingleBrickGenerator": SingleBrickGenerator,
                 "FineCoreBrickGenerator": FineCoreBrickGenerator,
@@ -83,7 +83,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
         variables = {
                 "pusher": None,
-                "reconstructor": None,
+                "depositor": None,
                 "finder": FaceBasedElementFinder(),
 
                 "mesh": None,
@@ -129,7 +129,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "hook_vis_quantities": lambda observer: [
                     ("e", observer.e), 
                     ("h", observer.h), 
-                    ("j", observer.method.reconstruct_j(observer.state)), 
+                    ("j", observer.method.deposit_j(observer.state)), 
                     ],
                 "hook_visualize": lambda runner, vis, visf: None,
 
@@ -152,15 +152,15 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
     def validate(self, setup):
         pytools.CPyUserInterface.validate(self, setup)
 
-        from pyrticle.reconstruction import Reconstructor
+        from pyrticle.deposition import Depositor
         from pyrticle.pusher import Pusher
         from pyrticle.cloud import ElementFinder
         from pyrticle.distribution import ParticleDistribution
 
-        assert isinstance(setup.reconstructor, Reconstructor), \
-                "must specify valid reconstructor"
+        assert isinstance(setup.depositor, Depositor), \
+                "must specify valid depositor"
         assert isinstance(setup.pusher, Pusher), \
-                "must specify valid reconstructor"
+                "must specify valid depositor"
         assert isinstance(setup.finder, ElementFinder), \
                 "must specify valid element finder"
         assert isinstance(setup.distribution, ParticleDistribution), \
@@ -189,16 +189,16 @@ class PICRunner(object):
         self.logmgr = LogManager(os.path.join(
             setup.output_path, "pic.dat"), "w")
 
-        from hedge.parallel import guess_parallelization_context
-        self.pcon = guess_parallelization_context()
+        from hedge.backends import guess_run_context
+        self.rcon = guess_run_context()
 
-        if self.pcon.is_head_rank:
-            mesh = self.pcon.distribute_mesh(setup.mesh)
+        if self.rcon.is_head_rank:
+            mesh = self.rcon.distribute_mesh(setup.mesh)
         else:
-            mesh = self.pcon.receive_mesh()
+            mesh = self.rcon.receive_mesh()
 
         self.discr = discr = \
-                self.pcon.make_discretization(mesh, 
+                self.rcon.make_discretization(mesh, 
                         order=setup.element_order,
                         debug=setup.dg_debug)
 
@@ -249,7 +249,7 @@ class PICRunner(object):
                 guess_shape_bandwidth
 
         method = self.method = PicMethod(discr, units, 
-                setup.reconstructor, setup.pusher, setup.finder,
+                setup.depositor, setup.pusher, setup.finder,
                 dimensions_pos=setup.dimensions_pos, 
                 dimensions_velocity=setup.dimensions_velocity, 
                 debug=setup.debug)
@@ -274,7 +274,7 @@ class PICRunner(object):
                         setup.shape_bandwidth)
         else:
             from pyrticle._internal import PolynomialShapeFunction
-            method.reconstructor.set_shape_function(
+            method.depositor.set_shape_function(
                     PolynomialShapeFunction(
                         float(setup.shape_bandwidth),
                         method.mesh_data.dimensions,
@@ -289,7 +289,7 @@ class PICRunner(object):
             self.fields = FieldsAndCloud(self.maxwell_op, e, h, cloud)
         else:
             from pyrticle.cloud import compute_initial_condition
-            self.fields = compute_initial_condition(self.pcon, discr, method, self.state,
+            self.fields = compute_initial_condition(self.rcon, discr, method, self.state,
                     maxwell_op=self.maxwell_op, 
                     potential_bc=setup.potential_bc, 
                     force_zero=False)
@@ -355,8 +355,8 @@ class PICRunner(object):
         logmgr.set_constant("pmass", setup.distribution.mean()[3][0])
         logmgr.set_constant("chi", setup.chi)
         logmgr.set_constant("shape_radius_setup", setup.shape_bandwidth)
-        logmgr.set_constant("shape_radius", self.method.reconstructor.shape_function.radius)
-        logmgr.set_constant("shape_exponent", self.method.reconstructor.shape_function.exponent)
+        logmgr.set_constant("shape_radius", self.method.depositor.shape_function.radius)
+        logmgr.set_constant("shape_exponent", self.method.depositor.shape_function.exponent)
 
         from pytools.log import IntervalTimer
         self.vis_timer = IntervalTimer("t_vis", "Time spent visualizing")
@@ -377,7 +377,7 @@ class PICRunner(object):
             vis_order = setup.element_order
 
         if vis_order != setup.element_order:
-            vis_discr = self.pcon.make_discretization(self.discr.mesh, 
+            vis_discr = self.rcon.make_discretization(self.discr.mesh, 
                             order=vis_order, debug=setup.dg_debug)
 
             from hedge.discretization import Projector

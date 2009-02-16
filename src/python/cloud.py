@@ -206,7 +206,7 @@ class ParticleToFieldRhsCalculator(object):
         self.maxwell_op = maxwell_op
 
     def __call__(self, t, fields, state):
-        return self.maxwell_op.assemble_fields(
+        return self.maxwell_op.assemble_eh(
                 e=-1/self.maxwell_op.epsilon
                 *self.method.deposit_j(state))
 
@@ -959,5 +959,5 @@ def compute_initial_condition(pcon, discr, method, state,
             method.add_to_vis(vis, visf)
             visf.close()
 
-    return maxwell_op.assemble_fields(e=e_prime, h=h_prime)
+    return maxwell_op.assemble_eh(e=e_prime, h=h_prime)
 

@@ -2,13 +2,13 @@ import random as _random
 _random.seed(0)
 
 pusher = PushMonomial()
-#reconstructor = RecGrid(
+#depositor = DepGrid(
         ##el_tolerance=0.1,
         #method="simplex_reduce",
         #jiggle_radius=0.0)
-#reconstructor = RecAdv()
-reconstructor = RecShape()
-#reconstructor = RecGridFind()
+#depositor = RecAdv()
+depositor = DepShape()
+#depositor = DepGridFind()
 
 debug.add("shape_bw")
 #debug.add("no_ic")
@@ -73,13 +73,13 @@ distribution = pyrticle.distribution.JointParticleDistribution([
 vis_interval = 10
 vis_order = 8
 
-if isinstance(reconstructor, RecGrid):
+if isinstance(depositor, DepGrid):
     def hook_visualize(runner, vis, visf):
-        rec = runner.cloud.reconstructor
-        rec.visualize_grid_quantities(visf, [
-                ("rho_grid", rec.reconstruct_grid_rho()),
-                ("j_grid", rec.reconstruct_grid_j(runner.cloud.velocities())),
-                ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
-                ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
-                ("usecount", rec.grid_usecount()),
+        dep = runner.cloud.depositor
+        dep.visualize_grid_quantities(visf, [
+                ("rho_grid", dep.deposit_grid_rho()),
+                ("j_grid", dep.deposit_grid_j(runner.cloud.velocities())),
+                ("ones_resid", dep.remap_residual(dep.ones_on_grid())),
+                ("rho_resid", dep.remap_residual(dep.deposit_grid_rho())),
+                ("usecount", dep.grid_usecount()),
                 ])
