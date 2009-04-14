@@ -102,11 +102,6 @@ def main():
           license = "GPLv3",
           url="http://mathema.tician.de/software/pyrticle",
 
-          setup_requires=[
-              "hedge[silo]>=0.91",
-              "PyUblas>=0.90",
-              ],
-
           packages=["pyrticle"],
           zip_safe=False,
           package_dir={"pyrticle": "src/python"},
