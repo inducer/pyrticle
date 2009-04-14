@@ -232,6 +232,14 @@ namespace
 void expose_deposition()
 {
   class_<grid_depositor_base_state> gdbs_wrap("GridDepositorBaseState");
+  {
+    typedef grid_depositor_base_state cl;
+    gdbs_wrap
+      .DEF_SIMPLE_METHOD(note_move)
+      .DEF_SIMPLE_METHOD(note_change_size)
+      ;
+  }
+
   EXPOSE_FOR_ALL_STATE_TYPES(expose_depositors_for_pstate, (gdbs_wrap));
 
   {

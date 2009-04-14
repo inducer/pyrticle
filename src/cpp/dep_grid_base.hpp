@@ -150,7 +150,6 @@ namespace pyrticle
   {
     boost::numeric::ublas::vector<brick_number> m_particle_brick_numbers;
 
-    // FIXME are these getting called?
     void note_move(particle_number from, particle_number to, unsigned size)
     {
       for (unsigned i = 0; i < size; ++i)

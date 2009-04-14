@@ -91,6 +91,9 @@ class MonomialParticlePusher(Pusher):
 
             self.backend.ldis_indices.extend([i]*len(eg.members))
 
+    def note_move(self, state, orig, dest, size):
+        pass
+
     def note_change_size(self, state, count):
         pass
 

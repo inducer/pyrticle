@@ -1406,11 +1406,14 @@ class GridFindDepositor(Depositor, GridVisualizer):
         Depositor.__init__(self)
         self.brick_generator = brick_generator
 
-    def initialize(self, cloud):
-        Depositor.initialize(self, cloud)
+    def initialize(self, method):
+        Depositor.initialize(self, method)
 
-        discr = cloud.mesh_data.discr
-        pic = self.cloud.pic_algorithm
+        backend_class = getattr(_internal, "GridFindDepositor" 
+                + method.get_dimensionality_suffix())
+        backend = self.backend = backend_class(method.mesh_data)
+
+        discr = method.mesh_data.discr
 
         grid_node_num_to_nodes = {}
 
@@ -1424,8 +1427,8 @@ class GridFindDepositor(Depositor, GridVisualizer):
         from pyrticle._internal import Brick
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
-            pic.bricks.append(
-                    Brick(i, pic.grid_node_count_with_extra(), stepwidths, origin, dims))
+            backend.bricks.append(
+                    Brick(i, backend.grid_node_count(), stepwidths, origin, dims))
 
         from pyrticle._internal import BoxFloat
         for eg in discr.element_groups:
@@ -1435,7 +1438,7 @@ class GridFindDepositor(Depositor, GridVisualizer):
                 el_bbox = BoxFloat(*el.bounding_box(discr.mesh.points))
                 el_slice = discr.find_el_range(el.id)
 
-                for brk in pic.bricks:
+                for brk in backend.bricks:
                     if brk.bounding_box().intersect(el_bbox).is_empty():
                         continue
 
@@ -1454,20 +1457,20 @@ class GridFindDepositor(Depositor, GridVisualizer):
                 - set(flatten(grid_node_num_to_nodes.itervalues())))
 
         if unassigned_nodes:
-            raise RuntimeError("rec_grid_find: unassigned mesh nodes found. "
+            raise RuntimeError("dep_grid_find: unassigned mesh nodes found. "
                     "you should specify a mesh_margin when generating "
                     "bricks")
 
         usecounts = numpy.zeros(
-                (pic.grid_node_count_with_extra(),))
-        for gnn in xrange(pic.grid_node_count_with_extra()):
+                (backend.grid_node_count(),))
+        for gnn in xrange(backend.grid_node_count()):
             grid_nodes = grid_node_num_to_nodes.get(gnn, [])
             usecounts[gnn] = len(grid_nodes)
-            pic.node_number_list_starts.append(len(pic.node_number_lists))
-            pic.node_number_lists.extend(grid_nodes)
-        pic.node_number_list_starts.append(len(pic.node_number_lists))
+            backend.node_number_list_starts.append(len(backend.node_number_lists))
+            backend.node_number_lists.extend(grid_nodes)
+        backend.node_number_list_starts.append(len(backend.node_number_lists))
 
-        if "depositor" in cloud.debug:
+        if "depositor" in method.debug:
             from hedge.visualization import SiloVisualizer
             vis = SiloVisualizer(discr)
             visf = vis.make_file("grid-find-debug")
@@ -1484,4 +1487,32 @@ class GridFindDepositor(Depositor, GridVisualizer):
 
     def set_shape_function(self, sf):
         Depositor.set_shape_function(self, sf)
-        self.cloud.pic_algorithm.shape_function = sf
+        self.backend.shape_function = sf
+
+    def make_state(self, state):
+        return self.backend.DepositorState()
+
+    def note_move(self, state, orig, dest, size):
+        state.depositor_state.note_move(orig, dest, size)
+
+    def note_change_size(self, state, count):
+        state.depositor_state.note_change_size(count)
+
+    def _deposit_densities(self, state, velocities, pslice):
+        return self.backend.deposit_densities(
+                state.depositor_state,
+                state.particle_state,
+                velocities, pslice)
+
+    def _deposit_j(self, state, velocities, pslice):
+        return self.backend.deposit_j(
+                state.depositor_state,
+                state.particle_state,
+                velocities, pslice)
+
+    def _deposit_rho(self, state, pslice):
+        return self.backend.deposit_rho(
+            state.depositor_state,
+            state.particle_state,
+            pslice)
+

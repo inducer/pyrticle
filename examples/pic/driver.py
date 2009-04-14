@@ -190,7 +190,7 @@ class PICRunner(object):
             setup.output_path, "pic.dat"), "w")
 
         from hedge.backends import guess_run_context
-        self.rcon = guess_run_context()
+        self.rcon = guess_run_context(disable=set(["cuda"]))
 
         if self.rcon.is_head_rank:
             mesh = self.rcon.distribute_mesh(setup.mesh)
@@ -254,7 +254,7 @@ class PICRunner(object):
                 dimensions_velocity=setup.dimensions_velocity, 
                 debug=setup.debug)
 
-        self.state = PicState(method)
+        self.state = method.make_state()
         method.add_particles( 
                 self.state,
                 setup.distribution.generate_particles(),

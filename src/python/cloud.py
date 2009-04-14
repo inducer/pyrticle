@@ -50,7 +50,8 @@ class PicState(object):
             charges=None,
             masses=None,
             depositor_state=None,
-            pnss=None):
+            pnss=None,
+            ):
         state_class = getattr(_internal, "ParticleState%s" % 
             method.get_dimensionality_suffix())
 
@@ -78,9 +79,8 @@ class PicState(object):
         self.derived_quantity_cache = {}
 
         if pnss is None:
-            # size change messaging
             from pyrticle.tools import NumberShiftMultiplexer
-            self.particle_number_shift_signaller = NumberShiftMultiplexer()
+            self.particle_number_shift_signaller = NumberShiftMultiplexer(self)
         else:
             self.particle_number_shift_signaller = pnss
 
@@ -357,6 +357,14 @@ class PicMethod(object):
                 "n_find_global",
                 "#Particles found by global search")
 
+    def make_state(self):
+        state = PicState(self)
+
+        state.particle_number_shift_signaller.subscribe_with_state(self.depositor)
+        state.particle_number_shift_signaller.subscribe_with_state(self.pusher)
+
+        return state
+
     def get_dimensionality_suffix(self):
         return "%d%d" % (self.dimensions_pos, self.dimensions_velocity)
 
@@ -457,13 +465,9 @@ class PicMethod(object):
             pstate.particle_count += 1
 
         self.check_containment(state)
-        self.note_change_particle_count(state, pstate.particle_count)
+        state.particle_number_shift_signaller.note_change_size(
+                pstate.particle_count)
         state.derived_quantity_cache.clear()
-
-    def note_change_particle_count(self, state, particle_count):
-        state.particle_number_shift_signaller.note_change_size(particle_count)
-        self.depositor.note_change_size(state, particle_count)
-        self.pusher.note_change_size(state, particle_count)
 
     def check_containment(self, state):
         """Check that a containing element is known for each particle.
@@ -522,13 +526,6 @@ class PicMethod(object):
 
 
 
-    # bounary treatment -------------------------------------------------------
-    def note_boundary_hit(self, state, pn):
-        self.pic_algorithm.kill_particle(pn)
-
-
-
-
     # time advance ------------------------------------------------------------
     def advance_state(self, state, dx, dp, drecon):
         pstate = state.particle_state
@@ -544,14 +541,17 @@ class PicMethod(object):
                 masses=pstate.masses,
                 depositor_state=self.depositor.advance_state(
                     state.depositor_state, drecon),
-                pnss=state.particle_number_shift_signaller)
+                pnss=state.particle_number_shift_signaller
+                )
 
         from pyrticle._internal import FindEventCounters
         find_counters = FindEventCounters()
 
         class BHitListener(_internal.BoundaryHitListener):
             def note_boundary_hit(subself, pn):
-                self.note_boundary_hit(self, new_state, pn)
+                _internal.kill_particle(
+                        new_state.particle_state, 
+                        pn, new_state.particle_number_shift_signaller)
 
         from pyrticle._internal import update_containing_elements
         self.find_el_timer.start()

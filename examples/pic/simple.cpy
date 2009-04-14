@@ -2,7 +2,7 @@
 # pic setup
 # -----------------------------------------------------------------------------
 pusher = PushMonomial()
-reconstructor = RecShape()
+depositor = DepShape()
 
 dimensions_pos = 2
 dimensions_velocity = 2
