@@ -54,7 +54,7 @@ def main():
     from aksetup_helper import hack_distutils, get_config, setup, \
             HedgeExtension
 
-    hack_distutils(debug=True)
+    hack_distutils()
     conf = get_config(get_config_schema())
 
     LIBRARY_DIRS = conf["BOOST_LIB_DIR"]
@@ -102,7 +102,7 @@ def main():
           license = "GPLv3",
           url="http://mathema.tician.de/software/pyrticle",
 
-          packages=["pyrticle"],
+          packages=["pyrticle", "pyrticle.deposition"],
           zip_safe=False,
           package_dir={"pyrticle": "src/python"},
           ext_package="pyrticle",

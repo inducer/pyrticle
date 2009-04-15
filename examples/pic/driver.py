@@ -34,12 +34,16 @@ class FieldObserver:
 
 class PICCPyUserInterface(pytools.CPyUserInterface):
     def __init__(self, units):
-        from pyrticle.deposition import \
+        from pyrticle.deposition.shape import \
                 ShapeFunctionDepositor, \
-                NormalizedShapeFunctionDepositor, \
-                AdvectiveDepositor, \
-                GridDepositor, \
-                GridFindDepositor, \
+                NormalizedShapeFunctionDepositor
+        from pyrticle.deposition.advective import \
+                AdvectiveDepositor
+        from pyrticle.deposition.grid import \
+                GridDepositor
+        from pyrticle.deposition.grid_find import \
+                GridFindDepositor
+        from pyrticle.deposition.grid_base import \
                 SingleBrickGenerator, \
                 FineCoreBrickGenerator
 

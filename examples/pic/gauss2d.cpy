@@ -2,15 +2,16 @@ import random as _random
 _random.seed(0)
 
 pusher = PushMonomial()
-depositor = DepGrid(
-        #el_tolerance=0.1,
-        submethod="simplex_reduce",
-        #submethod="simplex_extra",
-        #submethod="simplex_enlarge",
-        #submethod="brick",
-        #jiggle_radius=0.001,
-        #enforce_continuity=True
-        )
+if True:
+    depositor = DepGrid(
+            el_tolerance=0.1,
+            submethod="simplex_reduce",
+            #submethod="simplex_extra",
+            #submethod="simplex_enlarge",
+            #submethod="brick",
+            #jiggle_radius=0.001,
+            enforce_continuity=True
+            )
 #depositor = DepAdv()
 #depositor = DepShape()
 #depositor = DepGridFind()
@@ -82,3 +83,11 @@ if isinstance(depositor, DepGrid):
                 ("rho_resid", dep.remap_residual(dep.deposit_grid_rho(state))),
                 ("usecount", dep.grid_usecount()),
                 ])
+
+def hook_vis_quantities(observer):
+    return [
+                    ("e", observer.e), 
+                    ("h", observer.h), 
+                    ("j", observer.method.deposit_j(observer.state)), 
+                    ("rho", observer.method.deposit_rho(observer.state)), 
+                    ]
