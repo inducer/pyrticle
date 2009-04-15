@@ -116,8 +116,8 @@ class GridDepositor(Depositor, GridVisualizer):
         else:
             raise RuntimeError, "invalid rec_grid submethod specified"
 
-    def set_shape_function(self, sf):
-        Depositor.set_shape_function(self, sf)
+    def set_shape_function(self, state, sf):
+        Depositor.set_shape_function(self, state, sf)
         self.backend.shape_function = sf
 
     def add_instrumentation(self, mgr):

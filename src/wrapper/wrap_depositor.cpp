@@ -189,6 +189,7 @@ namespace
           .DEF_RO_MEMBER(element_activation_counter)
           .DEF_RO_MEMBER(element_kill_counter)
 
+          .DEF_SIMPLE_METHOD(resize)
           .DEF_SIMPLE_METHOD(clear)
           ;
       }

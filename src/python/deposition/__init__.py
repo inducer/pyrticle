@@ -35,7 +35,7 @@ class Depositor(object):
         self.method = method
         self.shape_function = None
 
-    def set_shape_function(self, sf):
+    def set_shape_function(self, state, sf):
         self.shape_function = sf
 
     def add_instrumentation(self, mgr, observer):

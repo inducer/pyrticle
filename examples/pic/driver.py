@@ -279,6 +279,7 @@ class PICRunner(object):
         else:
             from pyrticle._internal import PolynomialShapeFunction
             method.depositor.set_shape_function(
+                    self.state,
                     PolynomialShapeFunction(
                         float(setup.shape_bandwidth),
                         method.mesh_data.dimensions,

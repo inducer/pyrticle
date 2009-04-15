@@ -12,9 +12,9 @@ if False:
             #jiggle_radius=0.001,
             enforce_continuity=True
             )
-#depositor = DepAdv()
+depositor = DepAdv()
 #depositor = DepShape()
-depositor = DepNormShape()
+#depositor = DepNormShape()
 #depositor = DepGridFind()
 
 debug.add("shape_bw")

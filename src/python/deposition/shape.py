@@ -41,8 +41,8 @@ class ShapeFunctionDepositor(Depositor):
     def make_state(self, state):
         return self.backend.DepositorState()
 
-    def set_shape_function(self, sf):
-        Depositor.set_shape_function(self, sf)
+    def set_shape_function(self, state, sf):
+        Depositor.set_shape_function(self, state, sf)
         self.backend.shape_function = sf
 
     def note_move(self, state, orig, dest, size):
@@ -87,8 +87,8 @@ class NormalizedShapeFunctionDepositor(Depositor):
             "normshape_el_per_particle", "1", 
             "number of elements per particle"))
 
-    def set_shape_function(self, sf):
-        Depositor.set_shape_function(self, sf)
+    def set_shape_function(self, state, sf):
+        Depositor.set_shape_function(self, state, sf)
         self.backend.shape_function = sf
 
     def note_move(self, state, orig, dest, size):

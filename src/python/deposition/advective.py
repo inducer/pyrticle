@@ -50,17 +50,11 @@ class AdvectiveDepositor(Depositor):
             ):
         Depositor.__init__(self)
 
-        from pyrticle.tools import NumberShiftMultiplexer
-        self.rho_shift_signaller = NumberShiftMultiplexer()
-
         self.activation_threshold = activation_threshold
         self.kill_threshold = kill_threshold
         self.upwind_alpha = upwind_alpha
 
         self.shape_function = None
-
-        # HUH?
-        #resize_state(m_dofs_per_element * 1024);
 
         self.filter_amp = filter_amp
         self.filter_order = filter_order
@@ -86,12 +80,10 @@ class AdvectiveDepositor(Depositor):
         self.active_elements_log = ActiveAdvectiveElements(self)
 
 
-    def initialize(self, cloud):
-        Depositor.initialize(self, cloud)
+    def initialize(self, method):
+        Depositor.initialize(self, method)
 
-        cloud.particle_number_shift_signaller.subscribe(self)
-
-        discr = cloud.discretization
+        discr = method.discretization
         
         eg, = discr.element_groups
         fg, = discr.face_groups
@@ -109,7 +101,9 @@ class AdvectiveDepositor(Depositor):
         else:
             filter_mat = numpy.zeros((0,0))
 
-        cloud.pic_algorithm.setup_advective_depositor(
+        backend_class = getattr(_internal, "AdvectiveDepositor" 
+                + method.get_dimensionality_suffix())
+        self.backend = backend_class(method.mesh_data,
                 len(ldis.face_indices()),
                 ldis.node_count(),
                 ldis.mass_matrix(),
@@ -123,14 +117,24 @@ class AdvectiveDepositor(Depositor):
                 self.upwind_alpha)
 
         for i, diffmat in enumerate(ldis.differentiation_matrices()):
-            cloud.pic_algorithm.add_local_diff_matrix(i, diffmat)
+            self.backend.add_local_diff_matrix(i, diffmat)
 
-        cloud.pic_algorithm.rho_dof_shift_listener = self.rho_shift_signaller
+    def make_state(self, state):
+        state = self.backend.DepositorState()
 
-    def add_instrumentation(self, mgr):
-        Depositor.add_instrumentation(self, mgr)
+        from pyrticle.tools import NumberShiftMultiplexer
+        state.rho_dof_shift_listener = NumberShiftMultiplexer()
 
-        mgr.add_quantity(self.element_activation_counter)
+        eg, = self.method.discretization.element_groups
+        ldis = eg.local_discretization
+        state.resize(eg.local_discretization.node_count() * 1024)
+
+        return state
+
+    def add_instrumentation(self, mgr, observer):
+        Depositor.add_instrumentation(self, mgr, observer)
+
+        mgr.add_quantity(self.element_activation_counter, observer)
         mgr.add_quantity(self.element_kill_counter)
         mgr.add_quantity(self.advective_rhs_timer)
         mgr.add_quantity(self.active_elements_log)
@@ -142,20 +146,24 @@ class AdvectiveDepositor(Depositor):
         mgr.set_constant("filter_amp", self.filter_amp)
         mgr.set_constant("filter_amp", self.filter_order)
 
-    def set_shape_function(self, sf):
-        Depositor.set_shape_function(self, sf)
+    def set_shape_function(self, state, sf):
+        Depositor.set_shape_function(self, state, sf)
 
-        self.cloud.pic_algorithm.clear_advective_particles()
-        for pn in xrange(len(self.cloud)):
-            self.cloud.pic_algorithm.add_advective_particle(sf, pn)
+        state.depositor_state.clear()
+        for pn in xrange(len(state)):
+            self.backend.add_advective_particle(
+                    state.depositor_state, 
+                    state.particle_state, 
+                    sf, pn)
 
-    def note_change_size(self, new_size):
-        pic = self.cloud.pic_algorithm
-
+    def note_change_size(self, state, new_size):
         if (self.shape_function is not None 
                 and new_size > pic.count_advective_particles()):
             for pn in range(pic.count_advective_particles(), new_size):
-                pic.add_advective_particle(self.shape_function, pn)
+                self.backend.add_advective_particle(
+                        state.depositor_state,
+                        state.particle_state,
+                        self.shape_function, pn)
 
     def clear_particles(self):
         Depositor.clear_particles(self)

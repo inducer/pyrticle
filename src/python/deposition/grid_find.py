@@ -118,8 +118,8 @@ class GridFindDepositor(Depositor, GridVisualizer):
                 hist(usecounts, bins=20)
                 show()
 
-    def set_shape_function(self, sf):
-        Depositor.set_shape_function(self, sf)
+    def set_shape_function(self, state, sf):
+        Depositor.set_shape_function(self, state, sf)
         self.backend.shape_function = sf
 
     def make_state(self, state):
