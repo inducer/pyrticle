@@ -317,7 +317,7 @@ namespace pyrticle
         }
 
         // cross-element continuity enforcement
-        const py_vector::iterator to_it = to.begin();
+        const py_vector::iterator to_it = to.begin() + offset;
 
         std::vector<npy_uint32>::const_iterator 
           ag_starts_first = m_average_group_starts.begin(),
@@ -336,11 +336,11 @@ namespace pyrticle
               m_average_groups.begin()+ag_start,
               m_average_groups.begin()+ag_end);
           BOOST_FOREACH(mesh_data::node_number nn, ag_range)
-            avg += to_it[nn];
+            avg += to_it[nn*increment];
           avg /= (ag_end-ag_start);
 
           BOOST_FOREACH(mesh_data::node_number nn, ag_range)
-            to_it[nn] = avg;
+            to_it[nn*increment] = avg;
 
           if (ag_starts_first == ag_starts_last)
             break;
