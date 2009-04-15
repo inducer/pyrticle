@@ -2,13 +2,18 @@ import random as _random
 _random.seed(0)
 
 pusher = PushMonomial()
-#depositor = DepGrid(
-        ##el_tolerance=0.1,
-        #method="simplex_reduce",
-        #jiggle_radius=0.0)
+depositor = DepGrid(
+        #el_tolerance=0.1,
+        submethod="simplex_reduce",
+        #submethod="simplex_extra",
+        #submethod="simplex_enlarge",
+        #submethod="brick",
+        #jiggle_radius=0.001,
+        #enforce_continuity=True
+        )
 #depositor = DepAdv()
 #depositor = DepShape()
-depositor = DepGridFind()
+#depositor = DepGridFind()
 
 debug.add("shape_bw")
 #debug.add("no_ic")
@@ -65,12 +70,15 @@ vis_interval = 10
 vis_order = 8
 
 if isinstance(depositor, DepGrid):
-    def hook_visualize(runner, vis, visf):
-        rec = runner.cloud.depositor
-        rec.visualize_grid_quantities(visf, [
-                ("rho_grid", rec.reconstruct_grid_rho()),
-                ("j_grid", rec.reconstruct_grid_j(runner.cloud.velocities())),
-                ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
-                ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
-                ("usecount", rec.grid_usecount()),
+    def hook_visualize(runner, vis, visf, observer):
+        meth = runner.method
+        dep = meth.depositor
+        state = observer.state
+
+        dep.visualize_grid_quantities(visf, [
+                ("rho_grid", dep.deposit_grid_rho(state)),
+                ("j_grid", dep.deposit_grid_j(state, meth.velocities(state))),
+                ("ones_resid", dep.remap_residual(dep.ones_on_grid())),
+                ("rho_resid", dep.remap_residual(dep.deposit_grid_rho(state))),
+                ("usecount", dep.grid_usecount()),
                 ])

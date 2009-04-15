@@ -267,10 +267,10 @@ class ParticleCurrent(LogQuantity):
 
 
 
-def add_beam_quantities(mgr, cloud, axis=0, beam_axis=2):
-    mgr.add_quantity(RMSBeamRadius(cloud, axis))
-    mgr.add_quantity(RMSBeamEmittance(cloud, axis, beam_axis))
-    mgr.add_quantity(RMSBeamEnergySpread(cloud))
+def add_beam_quantities(mgr, observer, axis=0, beam_axis=2):
+    mgr.add_quantity(RMSBeamRadius(observer, axis))
+    mgr.add_quantity(RMSBeamEmittance(observer, axis, beam_axis))
+    mgr.add_quantity(RMSBeamEnergySpread(observer))
 
 
 

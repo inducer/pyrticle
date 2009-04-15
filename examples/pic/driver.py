@@ -122,16 +122,16 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
                 "watch_vars": ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"],
 
-                "hook_startup": lambda runner : None,
-                "hook_before_step": lambda runner : None,
-                "hook_after_step": lambda runner : None,
-                "hook_when_done": lambda runner : None,
+                "hook_startup": lambda runner: None,
+                "hook_before_step": lambda runner: None,
+                "hook_after_step": lambda runner: None,
+                "hook_when_done": lambda runner: None,
                 "hook_vis_quantities": lambda observer: [
                     ("e", observer.e), 
                     ("h", observer.h), 
                     ("j", observer.method.deposit_j(observer.state)), 
                     ],
-                "hook_visualize": lambda runner, vis, visf: None,
+                "hook_visualize": lambda runner, vis, visf, observer: None,
 
                 "timestepper_maker": lambda dt: RK4TimeStepper(),
                 "dt_scale": 1,
@@ -328,13 +328,13 @@ class PICRunner(object):
         add_field_quantities(logmgr, self.observer)
 
         if setup.beam_axis is not None and setup.beam_diag_axis is not None:
-            add_beam_quantities(logmgr, self, 
+            add_beam_quantities(logmgr, self.observer, 
                     axis=setup.beam_diag_axis, 
                     beam_axis=setup.beam_axis)
 
         if setup.tube_length is not None:
             from hedge.tools import unit_vector
-            add_currents(logmgr, self, 
+            add_currents(logmgr, self.observer, 
                     unit_vector(self.method.dimensions_velocity, setup.beam_axis), 
                     setup.tube_length)
 
@@ -392,8 +392,7 @@ class PICRunner(object):
         vis = SiloVisualizer(vis_discr)
 
         fields = self.fields
-        state = self.state
-        self.observer.set_fields_and_state(fields, state)
+        self.observer.set_fields_and_state(fields, self.state)
 
         from hedge.tools import make_obj_array
         from pyrticle.cloud import TimesteppablePicState
@@ -404,12 +403,12 @@ class PICRunner(object):
             visf = vis.make_file(os.path.join(
                 setup.output_path, setup.vis_pattern % step))
 
-            self.method.add_to_vis(vis, visf, state, time=t, step=step)
+            self.method.add_to_vis(vis, visf, observer.state, time=t, step=step)
             vis.add_data(visf, 
                     [(name, vis_proj(fld))
                         for name, fld in setup.hook_vis_quantities(observer)],
                     time=t, step=step)
-            setup.hook_visualize(self, vis, visf)
+            setup.hook_visualize(self, vis, visf, observer)
 
             visf.close()
             self.vis_timer.stop()
@@ -449,14 +448,14 @@ class PICRunner(object):
 
         y = make_obj_array([
             fields, 
-            TimesteppablePicState(self.method, state)
+            TimesteppablePicState(self.method, self.state)
             ])
-
+        del self.state
 
         for step in xrange(self.nsteps):
             self.logmgr.tick()
 
-            self.method.upkeep(state)
+            self.method.upkeep(y[1].state)
             setup.hook_before_step(self)
 
             y = self.stepper(y, t, *step_args)
@@ -472,6 +471,7 @@ class PICRunner(object):
             t += self.dt
 
         vis.close()
+        self.discr.close()
             
         self.logmgr.tick()
         self.logmgr.save()

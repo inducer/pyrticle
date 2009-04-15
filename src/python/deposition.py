@@ -85,12 +85,21 @@ class Depositor(object):
         if self.shape_function is None:
             raise RuntimeError, "shape function never set"
 
+    def make_state(self, state):
+        return self.backend.DepositorState()
+
+    def note_move(self, state, orig, dest, size):
+        state.depositor_state.note_move(orig, dest, size)
+
+    def note_change_size(self, state, count):
+        state.depositor_state.note_change_size(count)
+
     def _deposit_densities(self, state, velocities, pslice):
         return _internal.deposit_densities(
                 self.backend,
                 state.depositor_state,
                 state.particle_state,
-                len(self.method.mesh_data.discr),
+                len(self.method.discretization),
                 velocities, pslice)
 
     def _deposit_j(self, state, velocities, pslice):
@@ -98,7 +107,7 @@ class Depositor(object):
                 self.backend,
                 state.depositor_state,
                 state.particle_state,
-                len(self.method.mesh_data.discr),
+                len(self.method.discretization),
                 velocities, pslice)
 
     def _deposit_rho(self, state, pslice):
@@ -106,7 +115,7 @@ class Depositor(object):
             self.backend,
             state.depositor_state,
             state.particle_state,
-            len(self.method.mesh_data.discr),
+            len(self.method.discretization),
             pslice)
 
     def deposit_densites(self, state, velocities):
@@ -170,7 +179,7 @@ class NormalizedShapeFunctionDepositor(Depositor):
     def initialize(self, cloud):
         Depositor.initialize(self, cloud)
 
-        eg, = cloud.mesh_data.discr.element_groups
+        eg, = cloud.discretization.element_groups
         ldis = eg.local_discretization
 
         cloud.pic_algorithm.setup_normalized_shape_depositor(
@@ -265,7 +274,7 @@ class AdvectiveDepositor(Depositor, _internal.NumberShiftListener):
 
         cloud.particle_number_shift_signaller.subscribe(self)
 
-        discr = cloud.mesh_data.discr
+        discr = cloud.discretization
         
         eg, = discr.element_groups
         fg, = discr.face_groups
@@ -489,11 +498,11 @@ class FineCoreBrickGenerator(object):
 # grid visualization ----------------------------------------------------------
 class GridVisualizer(object):
     def visualize_grid_quantities(self, silo, names_and_quantities):
-        dims = self.cloud.dimensions_mesh
-        pic = self.cloud.pic_algorithm
+        dims = self.method.dimensions_mesh
+        backend = self.backend
 
         try:
-            extra_points = pic.extra_points
+            extra_points = backend.extra_points
         except AttributeError:
             extra_points = []
 
@@ -509,7 +518,7 @@ class GridVisualizer(object):
         except AttributeError:
             grid_nodes = []
             from pyrticle._internal import BoxInt
-            for brk in pic.bricks:
+            for brk in backend.bricks:
                 grid_nodes.extend(brk.point(c) 
                         for c in self.iterator_type(brk, 
                             BoxInt(0*brk.dimensions, brk.dimensions)))
@@ -520,14 +529,14 @@ class GridVisualizer(object):
 
         from pylo import DB_ZONECENT, DB_QUAD_RECT, DBObjectType
 
-        if len(pic.bricks) > 1:
+        if len(backend.bricks) > 1:
             def name_mesh(brick): return "_rec_grid_b%d" % brick
             def name_var(name, brick): return "_%s_b%d" % (name, brick)
         else:
             def name_mesh(brick): return "rec_grid"
             def name_var(name, brick): return name
 
-        for brk in pic.bricks:
+        for brk in backend.bricks:
             coords = [
                 numpy.arange(
                     brk.origin[axis], 
@@ -560,14 +569,14 @@ class GridVisualizer(object):
                 else:
                     raise ValueError, "invalid effective shape for vis"
 
-        if len(pic.bricks) > 1:
+        if len(backend.bricks) > 1:
             silo.put_multimesh("rec_grid", 
-                    [(name_mesh(brk.number), DB_QUAD_RECT) for brk in pic.bricks])
+                    [(name_mesh(brk.number), DB_QUAD_RECT) for brk in backend.bricks])
 
             for name, quant in names_and_quantities:
                 silo.put_multivar(name, 
                         [(name_var(name, brk.number), DBObjectType.DB_QUADVAR) 
-                            for brk in pic.bricks])
+                            for brk in backend.bricks])
 
 
 
@@ -579,7 +588,7 @@ class GridDepositor(Depositor, GridVisualizer):
             el_tolerance=0.12,
             max_extra_points=20,
             enforce_continuity=False,
-            method="simplex_reduce",
+            submethod="simplex_reduce",
             filter_min_amplification=None,
             filter_order=None,
             jiggle_radius=0.0,
@@ -589,7 +598,7 @@ class GridDepositor(Depositor, GridVisualizer):
         self.el_tolerance = el_tolerance
         self.max_extra_points = max_extra_points
         self.enforce_continuity = enforce_continuity
-        self.method = method
+        self.submethod = submethod
 
         self.filter_min_amplification = filter_min_amplification
         self.filter_order = filter_order
@@ -610,17 +619,24 @@ class GridDepositor(Depositor, GridVisualizer):
         else:
             return _internal.BrickIterator
 
-    def initialize(self, cloud):
-        Depositor.initialize(self, cloud)
+    def initialize(self, method):
+        Depositor.initialize(self, method)
 
-        discr = cloud.mesh_data.discr
+        if self.jiggle_radius:
+            dep_type = "Jiggly"
+        else:
+            dep_type = "Regular"
 
-        pic = self.cloud.pic_algorithm
+        backend_class = getattr(_internal, 
+                dep_type + "GridDepositor" + method.get_dimensionality_suffix())
+        backend = self.backend = backend_class(method.mesh_data)
+
+        discr = method.discretization
 
         if self.enforce_continuity:
             self.prepare_average_groups()
         else:
-            pic.average_group_starts.append(0)
+            backend.average_group_starts.append(0)
 
         if self.filter_min_amplification is not None:
             from hedge.discretization import Filter, ExponentialFilterResponseFunction
@@ -632,28 +648,28 @@ class GridDepositor(Depositor, GridVisualizer):
         for i, (stepwidths, origin, dims) in enumerate(
                 self.brick_generator(discr)):
             if self.jiggle_radius:
-                brk = _internal.JigglyBrick(i, pic.grid_node_count_with_extra(), 
+                brk = _internal.JigglyBrick(i, backend.grid_node_count_with_extra(), 
                         stepwidths, origin, dims,
                         jiggle_radius=self.jiggle_radius)
             else:
-                brk = _internal.Brick(i, pic.grid_node_count_with_extra(), 
+                brk = _internal.Brick(i, backend.grid_node_count_with_extra(), 
                         stepwidths, origin, dims)
-            pic.bricks.append(brk)
+            backend.bricks.append(brk)
 
-        if self.method == "simplex_extra":
+        if self.submethod == "simplex_extra":
             self.prepare_with_pointwise_projection_and_extra_points()
-        elif self.method == "simplex_enlarge":
+        elif self.submethod == "simplex_enlarge":
             self.prepare_with_pointwise_projection_and_enlargement()
-        elif self.method == "simplex_reduce":
+        elif self.submethod == "simplex_reduce":
             self.prepare_with_pointwise_projection_and_basis_reduction()
-        elif self.method == "brick":
+        elif self.submethod == "brick":
             self.prepare_with_brick_interpolation()
         else:
             raise RuntimeError, "invalid rec_grid submethod specified"
 
     def set_shape_function(self, sf):
         Depositor.set_shape_function(self, sf)
-        self.cloud.pic_algorithm.shape_function = sf
+        self.backend.shape_function = sf
 
     def add_instrumentation(self, mgr):
         Depositor.add_instrumentation(self, mgr)
@@ -670,25 +686,24 @@ class GridDepositor(Depositor, GridVisualizer):
 
     # preparation helpers -----------------------------------------------------
     def find_containing_brick(self, pt):
-        for brk in self.cloud.pic_algorithm.bricks:
+        for brk in self.backend.bricks:
             if brk.bounding_box().contains(pt):
                 return brk
         raise RuntimeError, "no containing brick found for point"
 
     def prepare_average_groups(self):
-        discr = self.cloud.mesh_data.discr
-        pic = self.cloud.pic_algorithm
+        discr = self.method.discretization
 
         avg_group_finder = {}
         avg_groups = []
 
-        for fg, fmm in discr.face_groups:
+        for fg in discr.face_groups:
             for fp in fg.face_pairs:
                 for el_idx, opp_el_idx in zip(
-                        fg.index_lists[fp.face_index_list_number],
-                        fg.index_lists[fp.opp_face_index_list_number]):
-                    idx1 = fp.el_base_index + el_idx
-                    idx2 = fp.opp_el_base_index + opp_el_idx
+                        fg.index_lists[fp.loc.face_index_list_number],
+                        fg.index_lists[fp.opp.face_index_list_number]):
+                    idx1 = fp.loc.el_base_index + el_idx
+                    idx2 = fp.opp.el_base_index + opp_el_idx
 
                     ag1 = avg_group_finder.get(idx1)
                     ag2 = avg_group_finder.get(idx2)
@@ -711,19 +726,19 @@ class GridDepositor(Depositor, GridVisualizer):
                         avg_group_finder[idx] = ag
 
         for ag in avg_groups:
-            pic.average_groups.extend(ag)
-            pic.average_group_starts.append(len(pic.average_groups))
+            self.backend.average_groups.extend(ag)
+            self.backend.average_group_starts.append(
+                    len(self.backend.average_groups))
 
         print len(avg_groups), "average groups"
 
     def find_points_in_element(self, el, el_tolerance):
-        pic = self.cloud.pic_algorithm
-
         from pyrticle._internal import ElementOnGrid
         eog = ElementOnGrid()
         eog.element_number = el.id
 
-        points = pic.find_points_in_element(eog, el_tolerance * la.norm(el.map.matrix, 2))
+        points = self.backend.find_points_in_element(
+                eog, el_tolerance * la.norm(el.map.matrix, 2))
         
         return eog, list(points)
 
@@ -780,7 +795,7 @@ class GridDepositor(Depositor, GridVisualizer):
             warn("rec_grid: bad pseudoinv precision, element=%d, "
                     "#nodes=%d, #sgridpts=%d, resid=%.5g centroid=%s"
                 % (el.id, node_count, point_count, pinv_resid,
-                        el.centroid(self.cloud.mesh_data.discr.mesh.points)))
+                        el.centroid(self.method.discretization.mesh.points)))
 
         el_vdm = ldis.vandermonde()
         if basis_subset is not None:
@@ -798,12 +813,11 @@ class GridDepositor(Depositor, GridVisualizer):
                     leftsolve(el_vdm, scaled_vdm), order="F")
 
     def generate_point_statistics(self, cond_claims=0):
-        pic = self.cloud.pic_algorithm
-        discr = self.cloud.mesh_data.discr
+        discr = self.method.discretization
 
         point_claimers = {}
 
-        for eog in pic.elements_on_grid:
+        for eog in self.backend.elements_on_grid:
             for i in eog.grid_nodes:
                 point_claimers.setdefault(i, []).append(eog.element_number)
 
@@ -816,33 +830,33 @@ class GridDepositor(Depositor, GridVisualizer):
                 multiple_claims += 1
 
         claimed_pts = set(point_claimers.iterkeys())
-        all_pts = set(xrange(pic.grid_node_count_with_extra()))
+        all_pts = set(xrange(self.backend.grid_node_count_with_extra()))
         unclaimed_pts = all_pts-claimed_pts
 
         print("rec_grid.%s stats: #nodes: %d, #points total: %d" 
-                % (self.method, len(discr), len(all_pts)))
+                % (self.submethod, len(discr), len(all_pts)))
         print("  #points unclaimed: %d #points claimed: %d, "
                 "#points multiply claimed: %d, #claims: %d"
                 % (len(unclaimed_pts), len(claimed_pts), multiple_claims, claims))
         print("  #claims made for conditioning: %d, #extra points: %d"
-                % (cond_claims, len(pic.extra_points)/discr.dimensions))
+                % (cond_claims, len(self.backend.extra_points)/discr.dimensions))
 
         self.log_constants["rec_grid_points"] = len(all_pts)
         self.log_constants["rec_grid_claimed"] = len(claimed_pts)
         self.log_constants["rec_grid_claims"] = claims
         self.log_constants["rec_grid_mulclaims"] = multiple_claims
         self.log_constants["rec_grid_4cond"] = cond_claims
-        self.log_constants["rec_grid_extra"] = len(pic.extra_points)/discr.dimensions
+        self.log_constants["rec_grid_extra"] = len(self.backend.extra_points)/discr.dimensions
 
 
 
 
     # preparation methods -----------------------------------------------------
     def prepare_with_pointwise_projection_and_extra_points(self):
-        discr = self.cloud.mesh_data.discr
-        pic = self.cloud.pic_algorithm
+        discr = self.method.discretization
+        backend = self.backend
 
-        pic.elements_on_grid.reserve(
+        backend.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
         # map brick numbers to [ (point, el_id, el_structured_point_index),...]
@@ -925,25 +939,25 @@ class GridDepositor(Depositor, GridVisualizer):
 
                 self.make_pointwise_interpolation_matrix(eog, eg, el, ldis, svd, scaled_vdm)
 
-                pic.elements_on_grid.append(eog)
+                backend.elements_on_grid.append(eog)
 
         # fill in the extra points
         ep_brick_starts = [0]
         extra_points = []
         
-        gnc = pic.grid_node_count_with_extra()
-        for brk in pic.bricks:
+        gnc = backend.grid_node_count_with_extra()
+        for brk in backend.bricks:
             for pt, el_id, struc_idx in ep_brick_map.get(brk.number, []):
                 # replace zero placeholder from above
-                pic.elements_on_grid[el_id].grid_nodes[struc_idx] = \
+                backend.elements_on_grid[el_id].grid_nodes[struc_idx] = \
                         gnc + len(extra_points)
                 extra_points.append(pt)
 
             ep_brick_starts.append(len(extra_points))
 
-        pic.first_extra_point = gnc
-        pic.extra_point_brick_starts.extend(ep_brick_starts)
-        pic.extra_points = numpy.array(extra_points)
+        backend.first_extra_point = gnc
+        backend.extra_point_brick_starts.extend(ep_brick_starts)
+        backend.extra_points = numpy.array(extra_points)
 
         # print some statistics
         self.generate_point_statistics(len(extra_points))
@@ -954,10 +968,10 @@ class GridDepositor(Depositor, GridVisualizer):
     def prepare_with_pointwise_projection_and_enlargement(self):
         tolerance_bound = 1.5
 
-        discr = self.cloud.mesh_data.discr
-        pic = self.cloud.pic_algorithm
+        discr = self.method.discretization
+        backend = self.backend
 
-        pic.elements_on_grid.reserve(
+        backend.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
         cond_claims = 0
@@ -1041,10 +1055,10 @@ class GridDepositor(Depositor, GridVisualizer):
                             gn = list(eog.grid_nodes)
                             assert len(gn) == len(u[i])
 
-                            tovec = numpy.zeros((pic.grid_node_count_with_extra(),), dtype=float)
+                            tovec = numpy.zeros((backend.grid_node_count_with_extra(),), dtype=float)
                             tovec[gn] = s[i]*u[i]
 
-                            usevec = numpy.zeros((pic.grid_node_count_with_extra(),), dtype=float)
+                            usevec = numpy.zeros((backend.grid_node_count_with_extra(),), dtype=float)
                             usevec[gn] = 1
 
                             visf = vis.make_file("nulled-%04d%02d" % (el.id, i))
@@ -1064,10 +1078,10 @@ class GridDepositor(Depositor, GridVisualizer):
 
                 self.make_pointwise_interpolation_matrix(eog, eg, el, ldis, svd, scaled_vdm)
 
-                pic.elements_on_grid.append(eog)
+                backend.elements_on_grid.append(eog)
 
         # we don't need no stinkin' extra points
-        pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
+        backend.extra_point_brick_starts.extend([0]*(len(backend.bricks)+1))
 
         # print some statistics
         self.generate_point_statistics(cond_claims)
@@ -1076,10 +1090,10 @@ class GridDepositor(Depositor, GridVisualizer):
 
 
     def prepare_with_pointwise_projection_and_basis_reduction(self):
-        discr = self.cloud.mesh_data.discr
-        pic = self.cloud.pic_algorithm
+        discr = self.method.discretization
+        backend = self.backend
 
-        pic.elements_on_grid.reserve(
+        backend.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
         min_s_values = []
@@ -1171,11 +1185,10 @@ class GridDepositor(Depositor, GridVisualizer):
                 self.make_pointwise_interpolation_matrix(eog, eg, el, ldis, svd, scaled_vdm,
                         basis_subset=[mode_id_to_index[bid] for bid, bf in basis])
 
-                pic.elements_on_grid.append(eog)
-
+                backend.elements_on_grid.append(eog)
 
         # visualize basis length for each element
-        if set(["depositor", "vis_files"]) < self.cloud.debug:
+        if set(["depositor", "vis_files"]) < self.method.debug:
             from hedge.visualization import SiloVisualizer
             vis = SiloVisualizer(discr)
             visf = vis.make_file("rec-debug")
@@ -1187,7 +1200,7 @@ class GridDepositor(Depositor, GridVisualizer):
             visf.close()
 
         # we don't need no stinkin' extra points
-        pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
+        backend.extra_point_brick_starts.extend([0]*(len(backend.bricks)+1))
 
         # print some statistics
         self.generate_point_statistics()
@@ -1212,10 +1225,10 @@ class GridDepositor(Depositor, GridVisualizer):
             return [TensorProductLegendreBasisFunc(n)
                 for n in generate_nonnegative_integer_tuples_below(dimensions)]
 
-        discr = self.cloud.mesh_data.discr
-        pic = self.cloud.pic_algorithm
+        discr = self.method.discretization
+        backend = self.backend
 
-        pic.elements_on_grid.reserve(
+        backend.elements_on_grid.reserve(
                 sum(len(eg.members) for eg in discr.element_groups))
 
         from pyrticle._internal import ElementOnGrid, BoxFloat
@@ -1234,7 +1247,7 @@ class GridDepositor(Depositor, GridVisualizer):
                 el_bbox.upper += scaled_tolerance
 
                 # For each brick, find all element nodes that lie in it
-                for brk in pic.bricks:
+                for brk in backend.bricks:
                     eog = ElementOnGrid()
                     eog.element_number = el.id
 
@@ -1246,15 +1259,15 @@ class GridDepositor(Depositor, GridVisualizer):
 
                     el_nodes = []
                     el_node_indices = []
-                    el_start, el_end = discr.find_el_range(el.id)
-                    el_length = el_end-el_start
+                    el_slice = discr.find_el_range(el.id)
+                    el_length = el_slice.stop-el_slice.start
                     if brk_and_el == el_bbox:
                         # whole element in brick? fantastic.
-                        el_nodes = discr.nodes[el_start:el_end]
+                        el_nodes = discr.nodes[el_slice]
                         el_node_indices = range(el_length)
                     else:
                         # no? go through the nodes one by one.
-                        for i, node in enumerate(discr.nodes[el_start:el_end]):
+                        for i, node in enumerate(discr.nodes[el_slice]):
                             # this containment check has to be exact,
                             # we positively cannot have nodes belong to
                             # two bricks
@@ -1293,10 +1306,12 @@ class GridDepositor(Depositor, GridVisualizer):
 
                     eog.grid_nodes.extend(brk.index(c) 
                             for c in self.iterator_type(brk, idx_range))
-                    pic.elements_on_grid.append(eog)
+                    eog.weight_factors = numpy.ones(
+                            (len(eog.grid_nodes),), dtype=numpy.float64)
+                    backend.elements_on_grid.append(eog)
 
         # we don't need no stinkin' extra points
-        pic.extra_point_brick_starts.extend([0]*(len(pic.bricks)+1))
+        backend.extra_point_brick_starts.extend([0]*(len(backend.bricks)+1))
 
         # stats
         self.generate_point_statistics(0)
@@ -1307,87 +1322,91 @@ class GridDepositor(Depositor, GridVisualizer):
 
     # deposition onto mesh ------------------------------------------------
     def remap_grid_to_mesh(self, q_grid):
-        discr = self.cloud.mesh_data.discr
+        discr = self.method.discretization
 
         eff_shape = q_grid.shape[1:]
         if len(eff_shape) == 0:
             result = discr.volume_zeros()
-            self.cloud.pic_algorithm.remap_grid_to_mesh(
+            self.backend.remap_grid_to_mesh(
                     q_grid, result, 0, 1)
         elif len(eff_shape) == 1:
             result = numpy.zeros((len(discr),)+eff_shape, dtype=float)
             for i in range(eff_shape[0]):
-                self.cloud.pic_algorithm.remap_grid_to_mesh(
+                self.backend.remap_grid_to_mesh(
                         q_grid, result, i, eff_shape[0])
         else:
             raise ValueError, "invalid effective shape for remap"
         return result
 
-    def _deposit_densites(self, velocities, pslice):
+    def _deposit_densites(self, state, velocities, pslice):
         return tuple(
                 self.remap_grid_to_mesh(q_grid) 
                 for q_grid in self.deposit_grid_densities(
-                    velocities, pslice))
+                    state, velocities, pslice))
 
-    def _deposit_j(self, velocities, pslice):
+    def _deposit_j(self, state, velocities, pslice):
         return self.remap_grid_to_mesh(self.deposit_grid_j(
-            velocities, pslice))
+            state, velocities, pslice))
 
-    def _deposit_rho(self, pslice):
+    def _deposit_rho(self, state, pslice):
         return self.remap_grid_to_mesh(
-                self.deposit_grid_rho(pslice))
+                self.deposit_grid_rho(state, pslice))
 
     # deposition onto grid ------------------------------------------------
-    def deposit_grid_densities(self, velocities, pslice=slice(None)):
+    def deposit_grid_densities(self, state, velocities, pslice=slice(None)):
         self.deposit_hook()
-        return self.cloud._get_derived_quantities_from_cache(
+        return state.get_derived_quantities_from_cache(
                 [("rho_grid", pslice.start, pslice.stop, pslice.step),
                     ("j_grid", pslice.start, pslice.stop, pslice.step)],
                 [lambda: self.deposit_grid_rho(pslice), 
-                    lambda: self.deposit_grid_j(velocities, pslice)],
-                lambda: self.cloud.pic_algorithm.deposit_grid_densities(velocities, pslice))
-
-    def deposit_grid_j(self, velocities, pslice=slice(None)):
-        self.deposit_hook()
-        return self.cloud._get_derived_quantity_from_cache(
-                ("j_grid", pslice.start, pslice.stop, pslice.step), 
-                lambda: self.cloud.pic_algorithm.deposit_grid_j(
+                    lambda: self.deposit_grid_j(state.velocities, pslice)],
+                lambda: self.backend.deposit_grid_densities(
+                    state.depositor_state, state.particle_state, 
                     velocities, pslice))
 
-    def deposit_grid_rho(self, pslice=slice(None)):
+    def deposit_grid_j(self, state, velocities, pslice=slice(None)):
         self.deposit_hook()
-        return self.cloud._get_derived_quantity_from_cache(
+        return state.get_derived_quantity_from_cache(
+                ("j_grid", pslice.start, pslice.stop, pslice.step), 
+                lambda: self.backend.deposit_grid_j(
+                    state.depositor_state, state.particle_state, 
+                    velocities, pslice))
+
+    def deposit_grid_rho(self, state, pslice=slice(None)):
+        self.deposit_hook()
+        return state.get_derived_quantity_from_cache(
                 ("rho_grid", pslice.start, pslice.stop, pslice.step), 
-                lambda: self.cloud.pic_algorithm.deposit_grid_rho(
+                lambda: self.backend.deposit_grid_rho(
+                    state.depositor_state, state.particle_state, 
                     pslice))
 
     # grid debug quantities ---------------------------------------------------
     def ones_on_grid(self):
-        return numpy.ones((self.cloud.pic_algorithm.grid_node_count_with_extra(),), 
+        return numpy.ones((self.backend.grid_node_count_with_extra(),), 
                 dtype=float)
 
     def grid_usecount(self):
-        usecount = numpy.zeros((self.cloud.pic_algorithm.grid_node_count_with_extra(),), 
+        usecount = numpy.zeros((self.backend.grid_node_count_with_extra(),), 
                 dtype=float)
-        for eog in self.cloud.pic_algorithm.elements_on_grid:
+        for eog in self.backend.elements_on_grid:
             for idx in eog.grid_nodes:
                 usecount[idx] += 1
         return usecount
 
     def remap_residual(self, q_grid):
-        discr = self.cloud.mesh_data.discr
+        discr = self.method.discretization
 
-        gnc = self.cloud.pic_algorithm.grid_node_count_with_extra()
+        gnc = self.backend.grid_node_count_with_extra()
 
         eff_shape = q_grid.shape[1:]
         if len(eff_shape) == 0:
             result = numpy.zeros((gnc,), dtype=float)
-            self.cloud.pic_algorithm.remap_residual(
+            self.backend.remap_residual(
                     q_grid, result, 0, 1)
         elif len(eff_shape) == 1:
             result = numpy.zeros((gnc,)+eff_shape, dtype=float)
             for i in range(eff_shape[0]):
-                self.cloud.pic_algorithm.remap_residual(
+                self.backend.remap_residual(
                         q_grid, result, i, eff_shape[0])
         else:
             raise ValueError, "invalid effective shape for remap"
@@ -1413,7 +1432,7 @@ class GridFindDepositor(Depositor, GridVisualizer):
                 + method.get_dimensionality_suffix())
         backend = self.backend = backend_class(method.mesh_data)
 
-        discr = method.mesh_data.discr
+        discr = method.discretization
 
         grid_node_num_to_nodes = {}
 

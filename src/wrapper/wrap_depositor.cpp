@@ -86,8 +86,9 @@ namespace
       .DEF_RW_MEMBER(average_groups)
       .DEF_RW_MEMBER(average_group_starts)
 
-      .DEF_SIMPLE_METHOD(find_points_in_element)
       .DEF_SIMPLE_METHOD(grid_node_count)
+      .DEF_SIMPLE_METHOD(grid_node_count_with_extra)
+      .DEF_SIMPLE_METHOD(find_points_in_element)
 
       .DEF_SIMPLE_METHOD(remap_grid_to_mesh)
       .DEF_SIMPLE_METHOD(remap_residual)
