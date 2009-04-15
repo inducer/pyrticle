@@ -2,7 +2,7 @@ import random as _random
 _random.seed(0)
 
 pusher = PushMonomial()
-if True:
+if False:
     depositor = DepGrid(
             el_tolerance=0.1,
             submethod="simplex_reduce",
@@ -14,6 +14,7 @@ if True:
             )
 #depositor = DepAdv()
 #depositor = DepShape()
+depositor = DepNormShape()
 #depositor = DepGridFind()
 
 debug.add("shape_bw")

@@ -342,6 +342,8 @@ class PICRunner(object):
                     unit_vector(self.method.dimensions_velocity, setup.beam_axis), 
                     setup.tube_length)
 
+        self.method.add_instrumentation(logmgr, self.observer)
+
         self.f_rhs_calculator.add_instrumentation(logmgr)
 
         if hasattr(self.stepper, "add_instrumentation"):
@@ -369,6 +371,7 @@ class PICRunner(object):
         logmgr.add_quantity(ETA(self.nsteps))
 
         logmgr.add_watches(setup.watch_vars)
+
 
     def run(self): 
         t = 0

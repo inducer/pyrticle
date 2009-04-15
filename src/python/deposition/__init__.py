@@ -38,8 +38,8 @@ class Depositor(object):
     def set_shape_function(self, sf):
         self.shape_function = sf
 
-    def add_instrumentation(self, mgr):
-        mgr.set_constant("depositor", self.name)
+    def add_instrumentation(self, mgr, observer):
+        mgr.set_constant("depositor", self.__class__)
 
         for key, value in self.log_constants.iteritems():
             mgr.set_constant(key, value)

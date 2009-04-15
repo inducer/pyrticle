@@ -39,8 +39,9 @@ class Pusher(object):
     def initialize(self, cloud):
         self.cloud = cloud
 
-    def add_instrumentation(self, mgr):
-        mgr.set_constant("pusher", self.name)
+    def add_instrumentation(self, mgr, observer):
+        mgr.set_constant("pusher", self.__class__)
+
         mgr.add_quantity(self.force_timer)
 
     def upkeep(self):

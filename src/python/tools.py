@@ -50,34 +50,52 @@ warning_forwarder = WarningForwarder()
 
 # number-shifting vectors -----------------------------------------------------
 class NumberShiftMultiplexer(_internal.NumberShiftListener):
-    def __init__(self, state):
+    def __init__(self):
         _internal.NumberShiftListener.__init__(self)
         from weakref import WeakKeyDictionary
         self.subscribers = WeakKeyDictionary()
-        self.subscribers_with_state = WeakKeyDictionary()
-        self.state = state
 
     def subscribe(self, subscriber):
         self.subscribers[subscriber] = None
+
+    def note_change_size(self, new_size):
+        for subscriber in self.subscribers.iterkeys():
+            subscriber.note_change_size( new_size)
+
+    def note_move(self, orig, dest, size):
+        for subscriber in self.subscribers.iterkeys():
+            subscriber.note_move(orig, dest, size)
+
+    def note_reset(self, start, size):
+        for subscriber in self.subscribers.iterkeys():
+            subscriber.note_reset(start, size)
+
+
+
+
+
+class StatePassingNumberShiftMultiplexer(NumberShiftMultiplexer):
+    def __init__(self, state):
+        NumberShiftMultiplexer.__init__(self)
+        from weakref import WeakKeyDictionary
+        self.subscribers_with_state = WeakKeyDictionary()
+        self.state = state
 
     def subscribe_with_state(self, subscriber):
         self.subscribers_with_state[subscriber] = None
 
     def note_change_size(self, new_size):
-        for subscriber in self.subscribers.iterkeys():
-            subscriber.note_change_size( new_size)
+        NumberShiftMultiplexer.note_change_size(self, new_size)
         for subscriber in self.subscribers_with_state.iterkeys():
             subscriber.note_change_size(self.state, new_size)
 
     def note_move(self, orig, dest, size):
-        for subscriber in self.subscribers.iterkeys():
-            subscriber.note_move(orig, dest, size)
+        NumberShiftMultiplexer.note_move(self, orig, dest, size)
         for subscriber in self.subscribers_with_state.iterkeys():
             subscriber.note_move(self.state, orig, dest, size)
 
     def note_reset(self, start, size):
-        for subscriber in self.subscribers.iterkeys():
-            subscriber.note_reset(start, size)
+        NumberShiftMultiplexer.note_move(self, start, size)
         for subscriber in self.subscribers_with_state.iterkeys():
             subscriber.note_reset(self.state, start, size)
 

@@ -49,7 +49,6 @@ class AdvectiveDepositor(Depositor):
             upwind_alpha=1,
             ):
         Depositor.__init__(self)
-        _internal.NumberShiftListener.__init__(self)
 
         from pyrticle.tools import NumberShiftMultiplexer
         self.rho_shift_signaller = NumberShiftMultiplexer()
@@ -60,7 +59,8 @@ class AdvectiveDepositor(Depositor):
 
         self.shape_function = None
 
-        resize_state(m_dofs_per_element * 1024);
+        # HUH?
+        #resize_state(m_dofs_per_element * 1024);
 
         self.filter_amp = filter_amp
         self.filter_order = filter_order

@@ -50,11 +50,12 @@ class StatsGathererLogQuantity(MultiLogQuantity):
         self.gatherer = gatherer
 
     def __call__(self):
-        if self.gatherer.count():
-            return [self.gatherer.mean(), 
-                    self.gatherer.standard_deviation(),
-                    self.gatherer.minimum(),
-                    self.gatherer.maximum()
+        data = self.gatherer()
+        if data.count():
+            return [data.mean(), 
+                    data.standard_deviation(),
+                    data.minimum(),
+                    data.maximum()
                     ]
         else:
             return [None, None, None, None]

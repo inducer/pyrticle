@@ -79,8 +79,9 @@ class PicState(object):
         self.derived_quantity_cache = {}
 
         if pnss is None:
-            from pyrticle.tools import NumberShiftMultiplexer
-            self.particle_number_shift_signaller = NumberShiftMultiplexer(self)
+            from pyrticle.tools import StatePassingNumberShiftMultiplexer
+            self.particle_number_shift_signaller = \
+                    StatePassingNumberShiftMultiplexer(self)
         else:
             self.particle_number_shift_signaller = pnss
 
@@ -392,15 +393,15 @@ class PicMethod(object):
         else:
             pyrticle.tools.warning_forwarder = WarningForwarder()
 
-    def add_instrumentation(self, mgr):
+    def add_instrumentation(self, mgr, observer):
         mgr.add_quantity(self.find_el_timer)
         mgr.add_quantity(self.find_same_counter)
         mgr.add_quantity(self.find_by_neighbor_counter)
         mgr.add_quantity(self.find_by_vertex_counter)
         mgr.add_quantity(self.find_global_counter)
 
-        self.depositor.add_instrumentation(mgr)
-        self.pusher.add_instrumentation(mgr)
+        self.depositor.add_instrumentation(mgr, observer)
+        self.pusher.add_instrumentation(mgr, observer)
 
     def velocities(self, state):
         try:

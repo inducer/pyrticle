@@ -58,40 +58,41 @@ class ShapeFunctionDepositor(Depositor):
 class NormalizedShapeFunctionDepositor(Depositor):
     name = "NormShape"
 
-    def initialize(self, cloud):
-        Depositor.initialize(self, cloud)
+    def initialize(self, method):
+        Depositor.initialize(self, method)
 
-        eg, = cloud.discretization.element_groups
+        eg, = method.discretization.element_groups
         ldis = eg.local_discretization
 
-        cloud.pic_algorithm.setup_normalized_shape_depositor(
-                ldis.mass_matrix())
+        backend_class = getattr(_internal, "NormalizingInterpolatingDepositor" 
+                + method.get_dimensionality_suffix())
+        self.backend = backend_class(method.mesh_data, ldis.mass_matrix())
 
-    def add_instrumentation(self, mgr):
-        Depositor.add_instrumentation(self, mgr)
+    def add_instrumentation(self, mgr, observer):
+        Depositor.add_instrumentation(self, mgr, observer)
 
         from pyrticle.log import StatsGathererLogQuantity
         mgr.add_quantity(StatsGathererLogQuantity(
-            self.cloud.pic_algorithm.normalization_stats,
+            lambda : observer.state.depositor_state.stats.normalization_stats,
             "normshape_norm", "1", 
             "normalization constants applied during deposition"))
 
         mgr.add_quantity(StatsGathererLogQuantity(
-            self.cloud.pic_algorithm.centroid_distance_stats,
+            lambda : observer.state.depositor_state.stats.centroid_distance_stats,
             "normshape_centroid_dist", "m", 
             "distance of shape center from element centroid"))
 
         mgr.add_quantity(StatsGathererLogQuantity(
-            self.cloud.pic_algorithm.el_per_particle_stats,
+            lambda : observer.state.depositor_state.stats.el_per_particle_stats,
             "normshape_el_per_particle", "1", 
             "number of elements per particle"))
 
     def set_shape_function(self, sf):
         Depositor.set_shape_function(self, sf)
-        self.cloud.pic_algorithm.shape_function = sf
+        self.backend.shape_function = sf
 
+    def note_move(self, state, orig, dest, size):
+        pass
 
-
-
-
-
+    def note_change_size(self, state, count):
+        pass
