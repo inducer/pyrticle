@@ -44,7 +44,7 @@ class Pusher(object):
 
         mgr.add_quantity(self.force_timer)
 
-    def upkeep(self):
+    def upkeep(self, state):
         pass
 
     def forces(self, state, velocities, vis_listener, *field_args):

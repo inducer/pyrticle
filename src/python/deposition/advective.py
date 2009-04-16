@@ -31,12 +31,12 @@ import numpy
 
 
 class ActiveAdvectiveElements(LogQuantity):
-    def __init__(self, depositor, name="n_advec_elements"):
+    def __init__(self, observer, name="n_advec_elements"):
         LogQuantity.__init__(self, name, "1", "#active advective elements")
-        self.depositor = depositor
+        self.observer = observer
 
     def __call__(self):
-        return self.depositor.cloud.pic_algorithm.active_elements
+        return self.observer.state.depositor_state.active_elements
 
 
 
@@ -65,20 +65,6 @@ class AdvectiveDepositor(Depositor):
                     filter_amp, filter_order)
         else:
             self.filter_response = None
-
-        # instrumentation 
-        from pytools.log import IntervalTimer, EventCounter
-        self.element_activation_counter = EventCounter(
-                "n_el_activations",
-                "#Advective rec. elements activated this timestep")
-        self.element_kill_counter = EventCounter(
-                "n_el_kills",
-                "#Advective rec. elements retired this timestep")
-        self.advective_rhs_timer = IntervalTimer(
-                "t_advective_rhs",
-                "Time spent evaluating advective RHS")
-        self.active_elements_log = ActiveAdvectiveElements(self)
-
 
     def initialize(self, method):
         Depositor.initialize(self, method)
@@ -134,7 +120,20 @@ class AdvectiveDepositor(Depositor):
     def add_instrumentation(self, mgr, observer):
         Depositor.add_instrumentation(self, mgr, observer)
 
-        mgr.add_quantity(self.element_activation_counter, observer)
+        # instrumentation 
+        from pytools.log import IntervalTimer, EventCounter
+        self.element_activation_counter = EventCounter(
+                "n_el_activations",
+                "#Advective rec. elements activated this timestep")
+        self.element_kill_counter = EventCounter(
+                "n_el_kills",
+                "#Advective rec. elements retired this timestep")
+        self.advective_rhs_timer = IntervalTimer(
+                "t_advective_rhs",
+                "Time spent evaluating advective RHS")
+        self.active_elements_log = ActiveAdvectiveElements(observer)
+
+        mgr.add_quantity(self.element_activation_counter)
         mgr.add_quantity(self.element_kill_counter)
         mgr.add_quantity(self.advective_rhs_timer)
         mgr.add_quantity(self.active_elements_log)
@@ -169,25 +168,32 @@ class AdvectiveDepositor(Depositor):
         Depositor.clear_particles(self)
         self.cloud.pic_algorithm.clear_advective_particles()
 
-    def upkeep(self):
-        self.cloud.pic_algorithm.perform_depositor_upkeep()
+    def upkeep(self, state):
+        self.backend.perform_depositor_upkeep(
+                state.depositor_state,
+                state.particle_state)
 
     def rhs(self, state):
         from pyrticle.tools import NumberShiftableVector
         self.advective_rhs_timer.start()
         result =  NumberShiftableVector(
-                self.cloud.pic_algorithm.get_advective_particle_rhs(self.cloud.velocities()),
-                signaller=self.rho_shift_signaller
+                self.backend.get_advective_particle_rhs(
+                    state.depositor_state,
+                    state.particle_state,
+                    self.method.velocities(state)),
+                signaller=state.depositor_state.rho_dof_shift_listener
                 )
         self.advective_rhs_timer.stop()
         self.element_activation_counter.transfer(
-                self.cloud.pic_algorithm.element_activation_counter)
+                state.depositor_state.element_activation_counter)
         self.element_kill_counter.transfer(
-                self.cloud.pic_algorithm.element_kill_counter)
+                state.depositor_state.element_kill_counter)
 
         return result
 
-    def advance_state(self, rhs):
+    def advance_state(self, state, rhs):
         from pyrticle.tools import NumberShiftableVector
-        self.cloud.pic_algorithm.apply_advective_particle_rhs(
+        self.backend.apply_advective_particle_rhs(
+                state.depositor_state,
+                state.particle_state,
                 NumberShiftableVector.unwrap(rhs))

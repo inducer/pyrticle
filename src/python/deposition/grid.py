@@ -808,7 +808,7 @@ class GridDepositor(Depositor, GridVisualizer):
                 [("rho_grid", pslice.start, pslice.stop, pslice.step),
                     ("j_grid", pslice.start, pslice.stop, pslice.step)],
                 [lambda: self.deposit_grid_rho(pslice), 
-                    lambda: self.deposit_grid_j(state.velocities, pslice)],
+                    lambda: self.deposit_grid_j(state, velocities, pslice)],
                 lambda: self.backend.deposit_grid_densities(
                     state.depositor_state, state.particle_state, 
                     velocities, pslice))

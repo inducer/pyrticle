@@ -133,7 +133,7 @@ class Depositor(object):
 
         return rho
 
-    def upkeep(self):
+    def upkeep(self, state):
         pass
 
     def rhs(self, state):

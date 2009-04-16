@@ -483,8 +483,8 @@ class PicMethod(object):
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
         """
-        self.depositor.upkeep()
-        self.pusher.upkeep()
+        self.depositor.upkeep(state)
+        self.pusher.upkeep(state)
 
     # deposition ----------------------------------------------------------
     def deposit_densities(self, state):
@@ -541,7 +541,7 @@ class PicMethod(object):
                 charges=pstate.charges,
                 masses=pstate.masses,
                 depositor_state=self.depositor.advance_state(
-                    state.depositor_state, drecon),
+                    state, drecon),
                 pnss=state.particle_number_shift_signaller
                 )
 
