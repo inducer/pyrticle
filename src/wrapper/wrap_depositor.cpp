@@ -173,9 +173,14 @@ namespace
         .DEF_SIMPLE_METHOD(get_debug_quantity_on_mesh)
 
         .DEF_SIMPLE_METHOD(get_advective_particle_rhs)
-        .DEF_SIMPLE_METHOD(apply_advective_particle_rhs)
+        .def("apply_advective_particle_rhs",
+            &cl::apply_advective_particle_rhs,
+            return_value_policy<manage_new_object>())
         
         .DEF_SIMPLE_METHOD(perform_depositor_upkeep)
+        .DEF_SIMPLE_METHOD(kill_advected_particle)
+        .DEF_SIMPLE_METHOD(note_move)
+        .DEF_SIMPLE_METHOD(note_change_size)
         ;
 
       scope cls_scope = wrp;
@@ -189,7 +194,7 @@ namespace
           .DEF_RO_MEMBER(element_activation_counter)
           .DEF_RO_MEMBER(element_kill_counter)
 
-          .DEF_SIMPLE_METHOD(resize)
+          .DEF_SIMPLE_METHOD(resize_rho)
           .DEF_SIMPLE_METHOD(clear)
           ;
       }

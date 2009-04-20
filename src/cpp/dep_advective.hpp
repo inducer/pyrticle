@@ -27,6 +27,7 @@
 
 #include <vector>
 #include <numeric>
+#include <algorithm>
 #include <boost/array.hpp>
 #include <boost/format.hpp>
 #include <boost/foreach.hpp>
@@ -130,12 +131,26 @@ namespace pyrticle
           : m_active_elements(0)
         { }
 
+        template <class NewRhoExpr>
+        depositor_state(
+            const depositor_state &src, 
+            const NewRhoExpr &new_rho,
+            boost::shared_ptr<number_shift_listener> rho_dof_sl)
+          : m_active_elements(src.m_active_elements),
+          m_freelist(src.m_freelist),
+          m_advected_particles(src.m_advected_particles),
+          m_rho(new_rho),
+          m_rho_dof_shift_listener(rho_dof_sl),
+          m_element_activation_counter(src.m_element_activation_counter),
+          m_element_kill_counter(src.m_element_kill_counter)
+        { }
+
         unsigned count_advective_particles() const
         {
           return m_advected_particles.size();
         }
 
-        void resize(unsigned new_size)
+        void resize_rho(unsigned new_size)
         {
           unsigned old_size = m_rho.size();
           unsigned copy_size = std::min(new_size, old_size);
@@ -402,15 +417,22 @@ namespace pyrticle
 
 
 
-      void note_move(depositor_state &ds, ParticleState &ps,
+      void kill_advected_particle(depositor_state &ds, particle_number pn)
+      {
+        BOOST_FOREACH(active_element &el, 
+            ds.m_advected_particles[pn].m_elements)
+          deallocate_element(ds, el.m_start_index);
+      }
+
+
+
+
+      void note_move(depositor_state &ds, 
           particle_number from, particle_number to, unsigned size)
       {
         for (unsigned i = 0; i < size; ++i)
         {
-          BOOST_FOREACH(active_element &el, 
-              ds.m_advected_particles[to+i].m_elements)
-            deallocate_element(ds, el.m_start_index);
-
+          kill_advected_particle(ds, to+i);
           ds.m_advected_particles[to+i] = ds.m_advected_particles[from+i];
         }
       }
@@ -420,6 +442,11 @@ namespace pyrticle
 
       void note_change_size(depositor_state &ds, unsigned particle_count)
       {
+        for (particle_number pn = particle_count;
+            pn < ds.m_advected_particles.size();
+            ++pn)
+          kill_advected_particle(ds, pn);
+
         ds.m_advected_particles.resize(particle_count);
       }
 
@@ -479,7 +506,9 @@ namespace pyrticle
 
         if (ds.m_active_elements == avl_space)
         {
-          ds.resize(2*ds.m_rho.size());
+          ds.resize_rho(std::max(
+                dyn_vector::size_type(m_dofs_per_element*1024), 
+                2*ds.m_rho.size()));
           if (ds.m_rho_dof_shift_listener.get())
             ds.m_rho_dof_shift_listener->note_change_size(ds.m_rho.size());
         }
@@ -1076,10 +1105,11 @@ namespace pyrticle
 
 
 
-      void apply_advective_particle_rhs(
+      depositor_state *apply_advective_particle_rhs(
           depositor_state &ds,
           const ParticleState &ps,
-          py_vector const &rhs)
+          py_vector const &rhs,
+          boost::shared_ptr<number_shift_listener> rho_dof_sl)
       {
         if (m_filter_matrix.size1() && m_filter_matrix.size2())
         {
@@ -1090,6 +1120,10 @@ namespace pyrticle
             ds.m_active_elements + ds.m_freelist.size();
 
           const dyn_fortran_matrix &matrix = m_filter_matrix;
+
+          dyn_vector new_rho(ds.m_rho.size());
+          new_rho.size();
+
           gemm(
               'N',
               'N', // a contiguous array of vectors is column-major
@@ -1102,12 +1136,13 @@ namespace pyrticle
               /*b*/ traits::vector_storage(rhs), 
               /*ldb*/ m_dofs_per_element,
               /*beta*/ 1,
-              /*c*/ traits::vector_storage(ds.m_rho),
+              /*c*/ traits::vector_storage(new_rho),
               /*ldc*/ m_dofs_per_element
               );
+          return new depositor_state(ds, new_rho, rho_dof_sl);
         }
         else
-          ds.m_rho += rhs;
+          return new depositor_state(ds, ds.m_rho + rhs, rho_dof_sl);
       }
 
 

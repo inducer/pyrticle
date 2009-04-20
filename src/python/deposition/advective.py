@@ -113,7 +113,7 @@ class AdvectiveDepositor(Depositor):
 
         eg, = self.method.discretization.element_groups
         ldis = eg.local_discretization
-        state.resize(eg.local_discretization.node_count() * 1024)
+        #state.resize_rho(eg.local_discretization.node_count() * 1024)
 
         return state
 
@@ -155,10 +155,17 @@ class AdvectiveDepositor(Depositor):
                     state.particle_state, 
                     sf, pn)
 
+    def note_move(self, state, orig, dest, size):
+        self.backend.note_move(state.depositor_state, orig, dest, size)
+
     def note_change_size(self, state, new_size):
+        self.backend.note_change_size(state.depositor_state, new_size)
+
         if (self.shape_function is not None 
-                and new_size > pic.count_advective_particles()):
-            for pn in range(pic.count_advective_particles(), new_size):
+                and new_size > state.depositor_state.count_advective_particles()):
+            for pn in range(
+                    state.depositor_state.count_advective_particles(), 
+                    new_size):
                 self.backend.add_advective_particle(
                         state.depositor_state,
                         state.particle_state,
@@ -192,8 +199,9 @@ class AdvectiveDepositor(Depositor):
         return result
 
     def advance_state(self, state, rhs):
-        from pyrticle.tools import NumberShiftableVector
-        self.backend.apply_advective_particle_rhs(
+        from pyrticle.tools import NumberShiftMultiplexer, NumberShiftableVector
+        return self.backend.apply_advective_particle_rhs(
                 state.depositor_state,
                 state.particle_state,
-                NumberShiftableVector.unwrap(rhs))
+                NumberShiftableVector.unwrap(rhs),
+                NumberShiftMultiplexer())

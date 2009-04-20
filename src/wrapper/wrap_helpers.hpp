@@ -74,7 +74,7 @@
 
 namespace pyrticle {
   template <class T>
-  inline PyObject *manage_new_object(T *obj)
+  inline PyObject *new_py_object(T *obj)
   {
     typename boost::python::manage_new_object::apply<T *>::type 
       result_converter;
