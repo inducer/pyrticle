@@ -39,7 +39,7 @@ class Depositor(object):
         self.shape_function = sf
 
     def add_instrumentation(self, mgr, observer):
-        mgr.set_constant("depositor", self.__class__)
+        mgr.set_constant("depositor", self.__class__.__name__)
 
         for key, value in self.log_constants.iteritems():
             mgr.set_constant(key, value)
@@ -140,7 +140,7 @@ class Depositor(object):
         return 0
 
     def advance_state(self, state, rhs):
-        return state
+        return state.depositor_state
 
 
 

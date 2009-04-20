@@ -1,7 +1,8 @@
 import random as _random
 _random.seed(0)
 
-pusher = PushMonomial()
+#pusher = PushMonomial()
+pusher = PushAverage()
 if False:
     depositor = DepGrid(
             el_tolerance=0.1,
@@ -12,8 +13,8 @@ if False:
             #jiggle_radius=0.001,
             enforce_continuity=True
             )
-depositor = DepAdv()
-#depositor = DepShape()
+#depositor = DepAdv()
+depositor = DepShape()
 #depositor = DepNormShape()
 #depositor = DepGridFind()
 

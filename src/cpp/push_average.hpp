@@ -437,7 +437,7 @@ namespace pyrticle
           vis_listener->store_particle_vis_vector("pt_b_stddev", vis_b_stddev);
         }
 
-        return el_force+mag_force;
+        return py_vector(2, res_dims, el_force+mag_force);
       }
   };
 }

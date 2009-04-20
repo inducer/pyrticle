@@ -49,8 +49,10 @@ namespace
         .def("forces", &cl::template forces< // full-field case
             py_vector, py_vector, py_vector,
             py_vector, py_vector, py_vector, Depositor>,
-            args("ex","ey", "ez", "bx", "by", "bz", "ps", "pusher_state", 
-              "dep", "velocities", "vis_listener"))
+            args("ex","ey", "ez", "bx", "by", "bz", 
+              "particle_state", "pusher_state", 
+              "depositor", "depositor_state",
+              "velocities", "vis_listener"))
         ;
     }
     else if (particle_state::m_vdim == 2)
@@ -60,14 +62,18 @@ namespace
         .def("forces", &cl::template forces< // TM case
             zero_vector, zero_vector, py_vector,
             py_vector, py_vector, zero_vector, Depositor>,
-            args("ex","ey", "ez", "bx", "by", "bz", "ps", "pusher_state", 
-              "dep", "velocities", "vis_listener"))
+            args("ex","ey", "ez", "bx", "by", "bz",
+              "particle_state", "pusher_state", 
+              "depositor", "depositor_state",
+              "velocities", "vis_listener"))
              */
         .def("forces", &cl::template forces< // TE case
             py_vector, py_vector, zero_vector,
             zero_vector, zero_vector, py_vector, Depositor>,
-            args("ex","ey", "ez", "bx", "by", "bz", "ps", "pusher_state", 
-              "dep", "velocities", "vis_listener"))
+            args("ex","ey", "ez", "bx", "by", "bz", 
+              "particle_state", "pusher_state", 
+              "depositor", "depositor_state",
+              "velocities", "vis_listener"))
         ;
     }
   }
@@ -115,16 +121,23 @@ namespace
       }
     }
     
-    {
-      typedef averaging_particle_pusher<ParticleState> cl;
-      class_<cl> wrp(
-          ("AveragingPusher"+get_state_class_suffix<ParticleState>()).c_str(), 
-          init<const mesh_data &, const py_matrix &>());
+    typedef averaging_particle_pusher<ParticleState> cl;
+    class_<cl> wrp(
+        ("AveragingPusher"+get_state_class_suffix<ParticleState>()).c_str(), 
+        init<const mesh_data &, const py_matrix &>());
 
-      EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(
-          expose_averaging_force_calculator,
-          polynomial_shape_function,
-          (wrp));
+    EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(
+        expose_averaging_force_calculator,
+        polynomial_shape_function,
+        (wrp));
+
+    scope cls_scope = wrp;
+    {
+      typedef typename cl::pusher_state cl;
+      class_<cl>("PusherState")
+        .DEF_RW_MEMBER(e_normalization_stats)
+        .DEF_RW_MEMBER(b_normalization_stats)
+        ;
     }
   }
 }

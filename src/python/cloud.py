@@ -50,6 +50,7 @@ class PicState(object):
             charges=None,
             masses=None,
             depositor_state=None,
+            pusher_state=None,
             pnss=None,
             ):
         state_class = getattr(_internal, "ParticleState%s" % 
@@ -60,6 +61,11 @@ class PicState(object):
             self.depositor_state = method.depositor.make_state(self)
         else:
             self.depositor_state = depositor_state
+
+        if pusher_state is None:
+            self.pusher_state = method.pusher.make_state(self)
+        else:
+            self.pusher_state = pusher_state
 
         if particle_count is None:
             pstate.particle_count = 0
@@ -84,6 +90,12 @@ class PicState(object):
                     StatePassingNumberShiftMultiplexer(self)
         else:
             self.particle_number_shift_signaller = pnss
+
+        # visualization
+        from pyrticle.tools import MapStorageVisualizationListener
+        self.vis_listener = MapStorageVisualizationListener(
+                self.particle_number_shift_signaller)
+
 
     def __len__(self):
         return self.particle_state.particle_count
@@ -215,11 +227,9 @@ class ParticleToFieldRhsCalculator(object):
 
 
 class FieldToParticleRhsCalculator(object):
-    def __init__(self, method, maxwell_op, vis_listener=None):
+    def __init__(self, method, maxwell_op):
         self.method = method
         self.maxwell_op = maxwell_op
-
-        self.vis_listener = vis_listener
 
     def __call__(self, t, fields, state):
         from hedge.tools import ZeroVector
@@ -254,7 +264,6 @@ class FieldToParticleRhsCalculator(object):
         forces = self.method.pusher.forces(
                 state,
                 velocities,
-                self.vis_listener,
                 *field_args)
 
         from pyrticle.tools import NumberShiftableVector
@@ -330,10 +339,6 @@ class PicMethod(object):
 
         self.mesh_data = _internal.MeshData(discr.dimensions)
         self.mesh_data.fill_from_hedge(discr)
-
-        # visualization
-        #self.vis_listener = MapStorageVisualizationListener(
-                #self.particle_number_shift_signaller)
 
         # subsystem init
         self.depositor.initialize(self)
@@ -531,6 +536,7 @@ class PicMethod(object):
     def advance_state(self, state, dx, dp, drecon):
         pstate = state.particle_state
 
+
         cnt = pstate.particle_count
         new_state = PicState(
                 self,
@@ -542,6 +548,7 @@ class PicMethod(object):
                 masses=pstate.masses,
                 depositor_state=self.depositor.advance_state(
                     state, drecon),
+                pusher_state=self.pusher.advance_state(state),
                 pnss=state.particle_number_shift_signaller
                 )
 
@@ -625,10 +632,10 @@ class PicMethod(object):
                     )
 
         if verbose:
-            add_vis_vector("pt_e")
-            add_vis_vector("pt_b")
-            add_vis_vector("el_force")
-            add_vis_vector("mag_force")
+            add_particle_vis_vector("pt_e")
+            add_particle_vis_vector("pt_b")
+            add_particle_vis_vector("el_force")
+            add_particle_vis_vector("mag_force")
 
         from os.path import splitext
         pathname = splitext(vis_file.pathname)[0] + "-particles.vtu"

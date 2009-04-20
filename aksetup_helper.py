@@ -156,7 +156,6 @@ def hack_distutils(debug=False, fast_link=True):
                     ['-g', '-O', '-Wstrict-prototypes', '-DNDEBUG'])
             if debug:
                 cflags.append("-g")
-                cflags.append("-DNDEBUG")
             else:
                 cflags.append("-O3")
                 cflags.append("-DNDEBUG")
