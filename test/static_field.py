@@ -268,12 +268,10 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
 
     vis = SiloVisualizer(discr)
 
-    from pyrticle.cloud import ParticleCloud, FaceBasedElementFinder
-    from pyrticle.reconstruction import \
-            ShapeFunctionReconstructor, \
-            NormalizedShapeFunctionReconstructor
-    cloud = ParticleCloud(discr, units, 
-            ShapeFunctionReconstructor(),
+    from pyrticle.cloud import PicMethod, FaceBasedElementFinder
+    from pyrticle.deposition.shape import ShapeFunctionDepositor
+    method = PicMethod(discr, units, 
+            ShapeFunctionDepositor(),
             pusher(),
             FaceBasedElementFinder(),
             3, 3, debug=set(["verbose_vis"]))
@@ -285,7 +283,9 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     init_velocities = setup.velocities(0)
 
     nparticles = len(init_positions)
-    cloud.add_particles( 
+
+    state = method.make_state()
+    method.add_particles(state,
             zip(init_positions, init_velocities, 
                 nparticles * [setup.charge],
                 nparticles  * [units.EL_MASS],
@@ -297,8 +297,23 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     dt = final_time/nsteps
 
     # timestepping ------------------------------------------------------------
-    def rhs(t, y):
-        return cloud.rhs(t, e, b)
+    from hedge.pde import MaxwellOperator
+    max_op = MaxwellOperator(
+            epsilon=units.EPSILON0, 
+            mu=units.MU0, 
+            flux_type=1)
+
+    fields = max_op.assemble_eh(e, h)
+
+    from pyrticle.cloud import \
+            FieldToParticleRhsCalculator, \
+            ParticleRhsCalculator
+    p_rhs_calculator = ParticleRhsCalculator(method, max_op)
+    f2p_rhs_calculator = FieldToParticleRhsCalculator(method, max_op)
+
+    def rhs(t, ts_state):
+        return (p_rhs_calculator(t, fields, ts_state.state)
+                + f2p_rhs_calculator(t, fields, ts_state.state))
 
     stepper = RK4TimeStepper()
     from time import time
@@ -318,10 +333,12 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
         true_f = [(p2-p1)/(2*deriv_dt)
                 for p1, p2 in zip(setup.momenta(t-deriv_dt), setup.momenta(t+deriv_dt))]
 
+        state = ts_state.state
+
         from pyrticle.tools import NumberShiftableVector
-        vis_info = cloud.vis_listener.particle_vis_map
-        sim_x = cloud.positions
-        sim_v = cloud.velocities()
+        vis_info = state.vis_listener.particle_vis_map
+        sim_x = state.positions
+        sim_v = method.velocities(state)
         sim_f = NumberShiftableVector.unwrap(
                 vis_info["mag_force"] + vis_info["el_force"])
         sim_el_f = NumberShiftableVector.unwrap(vis_info["el_force"])
@@ -334,7 +351,7 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
         v_err = 0
         f_err = 0
 
-        for i in range(len(cloud)):
+        for i in range(len(state)):
             #real_f = numpy.array(cross(sim_v, setup.charge*local_b)) + setup.charge*local_e
 
             my_true_x = true_x[i]
@@ -363,7 +380,11 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
         return x_err, v_err, f_err
 
     # make sure verbose-vis fields are filled
-    rhs(t, cloud)
+    from pyrticle.cloud import TimesteppablePicState
+    ts_state = TimesteppablePicState(method, state)
+    del state
+
+    rhs(t, ts_state)
 
     errors = (0, 0, 0)
 
@@ -376,7 +397,7 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
             if visualize:
                 visf = vis.make_file("%s-%04d" % (casename, step))
 
-                cloud.add_to_vis(vis, visf, time=t, step=step)
+                method.add_to_vis(vis, visf, ts_state.state, time=t, step=step)
 
                 if True:
                     vis.add_data(visf, [ ("e", e), ("h", h), ],
@@ -385,8 +406,9 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
                     vis.add_data(visf, [], time=t, step=step)
                 visf.close()
 
-        cloud.upkeep()
-        cloud = stepper(cloud, t, dt, rhs)
+        method.upkeep(ts_state.state)
+
+        ts_state = stepper(ts_state, t, dt, rhs)
 
         t += dt
 

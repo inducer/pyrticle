@@ -8,10 +8,10 @@ beam_axis = 0
 beam_diag_axis = 1
 tube_length = 40*units.MM
 
-shape_bandwidth = "optimize,visualize,plot"
+shape_bandwidth = "optimize"
 
 pusher = PushMonomial()
-reconstructor = RecGrid(
+depositor = DepGrid(
         FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
         el_tolerance=0.2,
         #filter_min_amplification=0.01,
@@ -52,7 +52,6 @@ distribution = _dist.JointParticleDistribution([
         units, _dist.DeltaChargeMass(_cloud_charge/nparticles, _pmass))
     ])
 
-vis_verbose = True
 vis_interval = 1
 
 def hook_vis_quantities(runner):
@@ -63,13 +62,15 @@ def hook_vis_quantities(runner):
             ("rho", runner.cloud.reconstruct_rho()), 
             ]
 
-def hook_visualize(runner, vis, visf):
-    rec = runner.cloud.reconstructor
-    rec.visualize_grid_quantities(visf, [
-            ("rho_grid", rec.reconstruct_grid_rho()),
-            ("j_grid", rec.reconstruct_grid_j(runner.cloud.velocities())),
-            ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
-            ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
-            ("usecount", rec.grid_usecount()),
-            ])
+def hook_visualize(runner, vis, visf, observer):
+    meth = runner.method
+    dep = meth.depositor
+    state = observer.state
 
+    dep.visualize_grid_quantities(visf, [
+            ("rho_grid", dep.deposit_grid_rho(state)),
+            ("j_grid", dep.deposit_grid_j(state, meth.velocities(state))),
+            ("ones_resid", dep.remap_residual(dep.ones_on_grid())),
+            ("rho_resid", dep.remap_residual(dep.deposit_grid_rho(state))),
+            ("usecount", dep.grid_usecount()),
+            ])

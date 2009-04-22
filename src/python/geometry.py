@@ -29,7 +29,7 @@ import numpy.linalg as la
 
 # 2D --------------------------------------------------------------------------
 def make_glued_rect_mesh(a=(0,0), b=(1,1), max_area=None, 
-        boundary_tagger=(lambda fvi, el, fn: []),
+        boundary_tagger=(lambda fvi, el, fn, points: []),
         periodicity=None, subdivisions=None,
         refine_func=None):
     """Create two unstructured rectangular meshes, side-by-side.
@@ -101,7 +101,7 @@ def make_glued_rect_mesh(a=(0,0), b=(1,1), max_area=None,
 
 
 def make_fine_center_rect_mesh(a=(0,0), b=(1,1), 
-        boundary_tagger=(lambda fvi, el, fn: []),
+        boundary_tagger=(lambda fvi, el, fn, points: []),
         periodicity=None, 
         inner_width=0.1,
         max_area=None, inner_max_area=0.02,
@@ -286,7 +286,7 @@ def make_extrusion_with_fine_core(rz, inner_r,
 
     fvi2fm = mesh.face_vertex_indices_to_face_marker
         
-    def zper_boundary_tagger(fvi, el, fn):
+    def zper_boundary_tagger(fvi, el, fn, points):
         face_marker = fvi2fm[frozenset(fvi)]
         if face_marker == MINUS_Z_MARKER:
             return ["minus_z"]

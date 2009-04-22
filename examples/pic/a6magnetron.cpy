@@ -4,13 +4,13 @@ import numpy.random as _numpyrandom
 _numpyrandom.seed(1)
 
 pusher = PushMonomial()
-#reconstructor = RecGrid(
+#depositor = DepGrid(
         #el_tolerance=0.1,
         #method="simplex_reduce",
         #jiggle_radius=0.0)
-#reconstructor = RecAdv()
-#reconstructor = RecShape()
-reconstructor = RecGridFind()
+#depositor = DepAdv()
+#depositor = DepShape()
+depositor = DepGridFind()
 
 debug.remove("shape_bw")
 debug.add("vis_files")
@@ -54,7 +54,7 @@ def _make_mesh():
             _a6.open_marker: ["open"],
             }
 
-    def boundary_tagger(fvi, el, fn):
+    def boundary_tagger(fvi, el, fn, points):
         return marker2tags[fmlookup(fvi)]
 
     from hedge.mesh import make_conformal_mesh
@@ -106,12 +106,14 @@ vis_interval = 10
 def hook_startup(runner):
     # setup forcing b field
     b = 0.72 * units.T
-    h = b/runner.max_op.mu
+    h = b/runner.maxwell_op.mu
 
     def h_func(x, el):
         return h
-    runner.fields.em_fields = runner.max_op.assemble_fields(
-            e=runner.fields.e,
+
+    e, _ = runner.maxwell_op.split_eh(runner.fields)
+    runner.fields = runner.maxwell_op.assemble_eh(
+            e=e,
             h=runner.discr.interpolate_volume_function(h_func))
 
 def _disabled_hook_startup(runner):
@@ -135,28 +137,32 @@ def _disabled_hook_startup(runner):
             #for ei in list(pt)+list(pt_values)))
         outf.write("\n")
 
-if isinstance(reconstructor, RecGrid):
-    def hook_visualize(runner, vis, visf):
-        rec = runner.cloud.reconstructor
-        rec.visualize_grid_quantities(visf, [
-                ("rho_grid", rec.reconstruct_grid_rho()),
-                ("j_grid", rec.reconstruct_grid_j(runner.cloud.velocities())),
-                ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
-                ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
-                ("usecount", rec.grid_usecount()),
+if isinstance(depositor, DepGrid):
+    def hook_visualize(runner, vis, visf, observer):
+        meth = runner.method
+        dep = meth.depositor
+        state = observer.state
+
+        dep.visualize_grid_quantities(visf, [
+                ("rho_grid", dep.deposit_grid_rho(state)),
+                ("j_grid", dep.deposit_grid_j(state, meth.velocities(state))),
+                ("ones_resid", dep.remap_residual(dep.ones_on_grid())),
+                ("rho_resid", dep.remap_residual(dep.deposit_grid_rho(state))),
+                ("usecount", dep.grid_usecount()),
                 ])
 
-def hook_before_step(runner):
+def hook_after_step(runner, observer):
     # space-charge limited emission at cathode
 
     bdry = runner.discr.get_boundary("cathode")
 
     cathode_normals = runner.discr.boundary_normals("cathode")
-    cathode_e = runner.discr.boundarize_volume_field(
-            runner.fields.e, "cathode")
+    e_fld, _ = runner.maxwell_op.split_eh(runner.fields)
+    cathode_e = numpy.array(list(runner.discr.boundarize_volume_field(
+            e_fld, "cathode")))
 
     macro_particle_factor = 1e10
-
+    
     def generate_particles():
         for e, pt, normal in zip(cathode_e.T, bdry.nodes, cathode_normals.T):
             if numpy.dot(e, normal) > 1e3:
@@ -168,9 +174,9 @@ def hook_before_step(runner):
                             *(_a6.radius_anode-_a6.radius_cathode))
 
                 yield (part_pt,
-                        runner.max_op.c*0.02*-normal,
+                        runner.maxwell_op.c*0.02*-normal,
                         -macro_particle_factor*units.EL_CHARGE,
                         macro_particle_factor*units.EL_MASS,
                         )
 
-    runner.cloud.add_particles(generate_particles())
+    runner.method.add_particles(observer.state, generate_particles())

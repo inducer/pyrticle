@@ -80,14 +80,15 @@ class TestPyrticle(unittest.TestCase):
         units = SI()
 
         # discretization setup ----------------------------------------------------
-        from hedge.element import TetrahedralElement
         from hedge.mesh import make_cylinder_mesh
-        from hedge.discr_precompiled import Discretization
+        from hedge.backends import guess_run_context
+
+        rcon = guess_run_context(disable=set(["cuda", "mpi"]))
 
         tube_length = 100*units.MM
         mesh = make_cylinder_mesh(radius=25*units.MM, height=tube_length, periodic=True)
 
-        discr = Discretization(mesh, TetrahedralElement(3))
+        discr = rcon.make_discretization(mesh, order=3)
 
         dt = discr.dt_factor(units.VACUUM_LIGHT_SPEED) / 2
         final_time = 1*units.M/units.VACUUM_LIGHT_SPEED
@@ -95,12 +96,12 @@ class TestPyrticle(unittest.TestCase):
         dt = final_time/nsteps
 
         # particles setup ---------------------------------------------------------
-        from pyrticle.cloud import ParticleCloud, FaceBasedElementFinder
-        from pyrticle.reconstruction import ShapeFunctionReconstructor
+        from pyrticle.cloud import PicMethod, FaceBasedElementFinder
+        from pyrticle.deposition.shape import ShapeFunctionDepositor
         from pyrticle.pusher import MonomialParticlePusher
 
-        cloud = ParticleCloud(discr, units, 
-                ShapeFunctionReconstructor(),
+        method = PicMethod(discr, units, 
+                ShapeFunctionDepositor(),
                 MonomialParticlePusher(),
                 FaceBasedElementFinder(),
                 3, 3)
@@ -124,13 +125,15 @@ class TestPyrticle(unittest.TestCase):
                 z_pos=10*units.MM,
                 beta=beta)
         
-        cloud.add_particles(beam.generate_particles(), nparticles)
+        state = method.make_state()
+        method.add_particles(state, beam.generate_particles(), nparticles)
 
         # diagnostics setup -------------------------------------------------------
         from pytools.log import LogManager
-        from pyrticle.log import add_beam_quantities
+        from pyrticle.log import add_beam_quantities, StateObserver
+        observer = StateObserver(method, None)
         logmgr = LogManager()
-        add_beam_quantities(logmgr, cloud, axis=0, beam_axis=2)
+        add_beam_quantities(logmgr, observer, axis=0, beam_axis=2)
 
         from pyrticle.distribution import KVPredictedRadius
         logmgr.add_quantity(KVPredictedRadius(dt, 
@@ -143,7 +146,7 @@ class TestPyrticle(unittest.TestCase):
             suffix="x_total"))
 
         # timestep loop -----------------------------------------------------------
-        vel = cloud.velocities()
+        vel = method.velocities(state)
         from hedge.tools import join_fields
         def rhs(t, y):
             return join_fields([
@@ -156,11 +159,17 @@ class TestPyrticle(unittest.TestCase):
         stepper = RK4TimeStepper()
         t = 0
 
+        from pyrticle.cloud import TimesteppablePicState
+        ts_state = TimesteppablePicState(method, state)
+
         for step in xrange(nsteps):
+            observer.set_fields_and_state(None, ts_state.state)
+
             logmgr.tick()
 
-            cloud = stepper(cloud, t, dt, rhs)
-            cloud.upkeep()
+            ts_state = stepper(ts_state, t, dt, rhs)
+            method.upkeep(ts_state.state)
+
             t += dt
 
         logmgr.tick()
@@ -170,15 +179,12 @@ class TestPyrticle(unittest.TestCase):
         self.assert_(rel_max_rms_error < 0.01)
     # -------------------------------------------------------------------------
     def test_efield_vs_gauss_law(self):
-        from hedge.element import TetrahedralElement
         from hedge.mesh import \
                 make_box_mesh, \
                 make_cylinder_mesh
         from math import sqrt, pi
         from pytools.arithmetic_container import \
                 ArithmeticList, join_fields
-        from hedge.pde import MaxwellOperator, DivergenceOperator
-        from pyrticle.cloud import ParticleCloud
         from random import seed
         from pytools.stopwatch import Job
 
@@ -204,26 +210,29 @@ class TestPyrticle(unittest.TestCase):
                 radial_subdiv=10,
                 )
 
-        from hedge.discr_precompiled import Discretization
-        discr = Discretization(mesh, TetrahedralElement(3))
+        from hedge.backends import guess_run_context
+        rcon = guess_run_context(disable=set(["cuda", "mpi"]))
+        discr = rcon.make_discretization(mesh, order=3)
 
-        max_op = MaxwellOperator(discr, 
+        from hedge.pde import MaxwellOperator, DivergenceOperator
+        max_op = MaxwellOperator(
                 epsilon=units.EPSILON0, 
                 mu=units.MU0, 
-                upwind_alpha=1)
-        div_op = DivergenceOperator(discr)
+                flux_type=1)
+        div_op = DivergenceOperator(discr.dimensions)
 
         # particles setup ---------------------------------------------------------
-        from pyrticle.cloud import ParticleCloud, FaceBasedElementFinder
-        from pyrticle.reconstruction import ShapeFunctionReconstructor
+        from pyrticle.cloud import PicMethod, FaceBasedElementFinder
+        from pyrticle.deposition.shape import ShapeFunctionDepositor
         from pyrticle.pusher import MonomialParticlePusher
 
-        cloud = ParticleCloud(discr, units, 
-                ShapeFunctionReconstructor(),
+        method = PicMethod(discr, units, 
+                ShapeFunctionDepositor(),
                 MonomialParticlePusher(),
                 FaceBasedElementFinder(),
                 3, 3)
 
+        # particle ic ---------------------------------------------------------
         cloud_charge = -1e-9 * units.C
         electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
 
@@ -241,19 +250,21 @@ class TestPyrticle(unittest.TestCase):
                 z_length=tube_length,
                 z_pos=tube_length/2,
                 beta=beta)
-        cloud.add_particles(beam.generate_particles(), nparticles)
 
-        # intial condition --------------------------------------------------------
+        state = method.make_state()
+
+        method.add_particles(state, beam.generate_particles(), nparticles)
+
+        # field ic ----------------------------------------------------------------
         from pyrticle.cloud import guess_shape_bandwidth
-        guess_shape_bandwidth(cloud, 2)
+        guess_shape_bandwidth(method, state, 2)
 
         from pyrticle.cloud import compute_initial_condition
-        from hedge.parallel import SerialParallelizationContext
 
         from hedge.data import ConstantGivenFunction
         fields = compute_initial_condition(
-                SerialParallelizationContext(), 
-                discr, cloud, max_op=max_op,
+                rcon, 
+                discr, method, state, maxwell_op=max_op,
                 potential_bc=ConstantGivenFunction())
 
         # check against theory ----------------------------------------------------
@@ -283,7 +294,8 @@ class TestPyrticle(unittest.TestCase):
         e_theory = to_obj_array(discr.interpolate_volume_function(TheoreticalEField()))
         theory_ind = discr.interpolate_volume_function(theory_indicator)
 
-        restricted_e = join_fields(*[e_i * theory_ind for e_i in fields.e])
+        e_field, h_field = max_op.split_eh(fields)
+        restricted_e = join_fields(*[e_i * theory_ind for e_i in e_field])
 
         def l2_error(field, true):
             return discr.norm(field-true)/discr.norm(true)
@@ -294,7 +306,7 @@ class TestPyrticle(unittest.TestCase):
         if False:
             visf = vis.make_file("e_comparison")
             mesh_scalars, mesh_vectors = \
-                    cloud.add_to_vis(vis, visf)
+                    method.add_to_vis(vis, visf)
             vis.add_data(visf, [
                 ("e", restricted_e), 
                 ("e_theory", e_theory), 
@@ -320,16 +332,16 @@ class TestPyrticle(unittest.TestCase):
         full_mesh = make_cylinder_mesh(radius=radius, height=2*radius, periodic=True,
                 radial_subdivisions=30)
 
-        from hedge.parallel import guess_parallelization_context
+        from hedge.backends import guess_run_context
 
-        pcon = guess_parallelization_context()
+        pcon = guess_run_context(disable=set(["mpi", "cuda"]))
 
         if pcon.is_head_rank:
             mesh = pcon.distribute_mesh(full_mesh)
         else:
             mesh = pcon.receive_mesh()
 
-        discr = pcon.make_discretization(mesh, TetrahedralElement(1))
+        discr = pcon.make_discretization(mesh, order=1)
 
         # particles setup ---------------------------------------------------------
         def get_setup(case):
@@ -355,7 +367,7 @@ class TestPyrticle(unittest.TestCase):
 
         for pusher in [MonomialParticlePusher, AverageParticlePusher]:
             for case in ["screw", "epb"]:
-                casename = "%s-%s" % (case, pusher.name.lower())
+                casename = "%s-%s" % (case, pusher.__class__.__name__.lower())
                 run_setup(units, casename, get_setup(case), discr, pusher)
     # -------------------------------------------------------------------------
     def test_shape_functions(self):
@@ -366,6 +378,10 @@ class TestPyrticle(unittest.TestCase):
         from hedge.mesh import \
                 make_uniform_1d_mesh, \
                 make_rect_mesh, make_box_mesh
+
+        from hedge.backends import guess_run_context
+        rcon = guess_run_context(disable=set(["mpi", "cuda"]))
+
         for r in [0.1, 10]:
             for mesh in [
                     make_uniform_1d_mesh(-r, r, 10),
@@ -376,8 +392,7 @@ class TestPyrticle(unittest.TestCase):
                         (-r,-r,-r), (r,r,r),
                         max_volume=(r/10)**3),
                     ]:
-                from hedge.discr_precompiled import Discretization
-                discr = Discretization(mesh, order=3)
+                discr = rcon.make_discretization(mesh, order=3)
                 for sfunc in [
                         PolynomialShapeFunction(r, discr.dimensions, 2),
                         PolynomialShapeFunction(r, discr.dimensions, 4),
@@ -387,7 +402,6 @@ class TestPyrticle(unittest.TestCase):
                             lambda x, el: sfunc(x))
                     int_sfunc = discr.integral(num_sfunc)
                     self.assert_(abs(int_sfunc-1) < 4e-5)
-                
 
 
 

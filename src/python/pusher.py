@@ -64,7 +64,6 @@ class Pusher(object):
                 ps=state.particle_state,
                 velocities=velocities,
                 vis_listener=state.vis_listener,
-                #pusher_state=state.pusher_state,
                 *field_args
                 )
 

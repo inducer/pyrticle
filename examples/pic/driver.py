@@ -6,32 +6,6 @@ import pytools
 
 
 
-class FieldObserver:
-    def __init__(self, method, maxwell_op):
-        self.method = method
-        self.maxwell_op = maxwell_op
-
-    def set_fields_and_state(self, fields, state):
-        self.fields = fields
-        self.state = state
-
-    @property
-    def e(self):
-        e, h = self.maxwell_op.split_eh(self.fields)
-        return e
-        
-    @property
-    def h(self):
-        e, h = self.maxwell_op.split_eh(self.fields)
-        return h
-        
-    @property
-    def discr(self):
-        return self.method.discretization
-        
-
-
-
 class PICCPyUserInterface(pytools.CPyUserInterface):
     def __init__(self, units):
         from pyrticle.deposition.shape import \
@@ -127,8 +101,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "watch_vars": ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"],
 
                 "hook_startup": lambda runner: None,
-                "hook_before_step": lambda runner: None,
-                "hook_after_step": lambda runner: None,
+                "hook_after_step": lambda runner, state: None,
                 "hook_when_done": lambda runner: None,
                 "hook_vis_quantities": lambda observer: [
                     ("e", observer.e), 
@@ -272,7 +245,7 @@ class PICRunner(object):
                             discr, self.total_charge),
                         setup.shape_exponent)
             elif setup.shape_bandwidth == "guess":
-                guess_shape_bandwidth(cloud, setup.shape_exponent)
+                guess_shape_bandwidth(method, self.state, setup.shape_exponent)
             else:
                 raise ValueError, "invalid shape bandwidth setting '%s'" % (
                         setup.shape_bandwidth)
@@ -323,7 +296,8 @@ class PICRunner(object):
 
         setup = self.setup
 
-        self.observer = FieldObserver(self.method, self.maxwell_op)
+        from pyrticle.log import StateObserver
+        self.observer = StateObserver(self.method, self.maxwell_op)
         self.observer.set_fields_and_state(self.fields, self.state)
 
         add_run_info(logmgr)
@@ -464,14 +438,13 @@ class PICRunner(object):
             self.logmgr.tick()
 
             self.method.upkeep(y[1].state)
-            setup.hook_before_step(self)
 
             y = self.stepper(y, t, *step_args)
 
-            setup.hook_after_step(self)
-
             fields, ts_state = y
             self.observer.set_fields_and_state(fields, ts_state.state)
+
+            setup.hook_after_step(self, self.observer)
 
             if step % setup.vis_interval == 0:
                 visualize(self.observer)

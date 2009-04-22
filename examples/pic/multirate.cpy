@@ -6,7 +6,7 @@ pusher = PushMonomial()
         ##el_tolerance=0.1,
         #method="simplex_reduce",
         #jiggle_radius=0.0)
-#depositor = RecAdv()
+#depositor = DepAdv()
 depositor = DepShape()
 #depositor = DepGridFind()
 
@@ -34,7 +34,7 @@ shape_exponent = 2
 from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
 _enable_multirate = True
 if _enable_multirate:
-    _step_ratio = 100
+    _step_ratio = 10
     timestepper_maker = lambda dt: _TwoRateAB(dt, step_ratio=_step_ratio, order=5,
             largest_first=True)
     _rk4_stability = 2

@@ -29,6 +29,33 @@ import numpy
 
 
 
+# -----------------------------------------------------------------------------
+class StateObserver:
+    def __init__(self, method, maxwell_op):
+        self.method = method
+        self.maxwell_op = maxwell_op
+
+    def set_fields_and_state(self, fields, state):
+        self.fields = fields
+        self.state = state
+
+    @property
+    def e(self):
+        e, h = self.maxwell_op.split_eh(self.fields)
+        return e
+        
+    @property
+    def h(self):
+        e, h = self.maxwell_op.split_eh(self.fields)
+        return h
+        
+    @property
+    def discr(self):
+        return self.method.discretization
+        
+
+
+
 # generic StatsGatherer logging -----------------------------------------------
 class StatsGathererLogQuantity(MultiLogQuantity):
     def __init__(self, gatherer, basename, unit, description):

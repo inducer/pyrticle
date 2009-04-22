@@ -52,6 +52,7 @@ class PicState(object):
             depositor_state=None,
             pusher_state=None,
             pnss=None,
+            vis_listener=None,
             ):
         state_class = getattr(_internal, "ParticleState%s" % 
             method.get_dimensionality_suffix())
@@ -92,9 +93,12 @@ class PicState(object):
             self.particle_number_shift_signaller = pnss
 
         # visualization
-        from pyrticle.tools import MapStorageVisualizationListener
-        self.vis_listener = MapStorageVisualizationListener(
-                self.particle_number_shift_signaller)
+        if vis_listener is None:
+            from pyrticle.tools import MapStorageVisualizationListener
+            self.vis_listener = MapStorageVisualizationListener(
+                    self.particle_number_shift_signaller)
+        else:
+            self.vis_listener = vis_listener
 
 
     def __len__(self):
@@ -460,7 +464,7 @@ class PicMethod(object):
                 continue
 
             if pstate.particle_count >= len(pstate.containing_elements):
-                self.resize_particle_fields(128+2*pstate.particle_count)
+                state.resize(max(128, 2*pstate.particle_count))
 
             pstate.containing_elements[pstate.particle_count] = cont_el
             pstate.positions[pstate.particle_count] = pos
@@ -490,6 +494,10 @@ class PicMethod(object):
         """
         self.depositor.upkeep(state)
         self.pusher.upkeep(state)
+
+        state.vis_listener.clear()
+
+
 
     # deposition ----------------------------------------------------------
     def deposit_densities(self, state):
@@ -535,21 +543,26 @@ class PicMethod(object):
     # time advance ------------------------------------------------------------
     def advance_state(self, state, dx, dp, drecon):
         pstate = state.particle_state
-
-
         cnt = pstate.particle_count
+
+        positions = pstate.positions.copy()
+        momenta = pstate.momenta.copy()
+        positions[:cnt] += dx
+        momenta[:cnt] += dp
+
         new_state = PicState(
                 self,
                 particle_count=cnt,
                 containing_elements=pstate.containing_elements,
-                positions=pstate.positions[:cnt] + dx,
-                momenta=pstate.momenta[:cnt] + dp,
+                positions=positions,
+                momenta=momenta,
                 charges=pstate.charges,
                 masses=pstate.masses,
                 depositor_state=self.depositor.advance_state(
                     state, drecon),
                 pusher_state=self.pusher.advance_state(state),
-                pnss=state.particle_number_shift_signaller
+                pnss=state.particle_number_shift_signaller,
+                vis_listener=state.vis_listener,
                 )
 
         from pyrticle._internal import FindEventCounters
@@ -583,7 +596,7 @@ class PicMethod(object):
     def get_mesh_vis_vars(self):
         return self.vis_listener.mesh_vis_map.items()
 
-    def add_to_vis(self, visualizer, state, vis_file, time=None, step=None, beamaxis=None,
+    def add_to_vis(self, visualizer, vis_file, state, time=None, step=None, beamaxis=None,
             vis_listener=None):
         from hedge.visualization import VtkVisualizer, SiloVisualizer
         if isinstance(visualizer, VtkVisualizer):
@@ -593,62 +606,7 @@ class PicMethod(object):
         else:
             raise ValueError, "unknown visualizer type `%s'" % type(visualizer)
 
-    def _add_to_vtk(self, visualizer, vis_file, time, step):
-        from hedge.vtk import \
-                VTK_VERTEX, VF_INTERLEAVED, \
-                DataArray, \
-                UnstructuredGrid, \
-                AppendedDataXMLGenerator
-
-        dim = self.pic_algorithm.mesh_data.dimensions
-
-        points = (len(self.pic_algorithm.containing_elements),
-                DataArray("points", self.pic_algorithm.positions,
-                    vector_format=VF_INTERLEAVED,
-                    components=dim))
-        grid = UnstructuredGrid(
-                points, 
-                cells=[[i] for i in range(points[0])],
-                cell_types=[VTK_VERTEX] * points[0],
-                )
-
-        grid.add_pointdata(
-                DataArray("velocity", 
-                    self.pic_algorithm.velocities(),
-                    vector_format=VF_INTERLEAVED,
-                    components=dim)
-                )
-
-        def add_particle_vis_vector(name):
-            if name in self.vis_listener.particle_vis_map:
-                vec = self.vis_listener.particle_vis_map[name]
-            else:
-                vec = numpy.zeros((len(self.pic_algorithm.containing_elements) * dim,))
-
-            grid.add_pointdata(
-                    DataArray(name, 
-                        vec, vector_format=VF_INTERLEAVED,
-                        components=dim)
-                    )
-
-        if verbose:
-            add_particle_vis_vector("pt_e")
-            add_particle_vis_vector("pt_b")
-            add_particle_vis_vector("el_force")
-            add_particle_vis_vector("mag_force")
-
-        from os.path import splitext
-        pathname = splitext(vis_file.pathname)[0] + "-particles.vtu"
-        from pytools import assert_not_a_file
-        assert_not_a_file(pathname)
-
-        outf = open(pathname, "w")
-        AppendedDataXMLGenerator()(grid).write(outf)
-        outf.close()
-
-        visualizer.register_pathname(time, pathname)
-
-    def _add_to_silo(self, visualizer, state, db, time, step, beamaxis, vis_listener=None):
+    def _add_to_silo(self, visualizer, db, state, time, step, beamaxis, vis_listener=None):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
         from warnings import warn
 
@@ -711,11 +669,11 @@ class PicMethod(object):
 
 
 # shape bandwidth -------------------------------------------------------------
-def guess_shape_bandwidth(cloud, exponent):
-    cloud.depositor.set_shape_function(
-            cloud.get_shape_function_class()(
-                cloud.mesh_data.advisable_particle_radius(),
-                cloud.mesh_data.dimensions,
+def guess_shape_bandwidth(method, state, exponent):
+    method.depositor.set_shape_function(state,
+            method.get_shape_function_class()(
+                method.mesh_data.advisable_particle_radius(),
+                method.mesh_data.dimensions,
                 exponent,
                 ))
 
@@ -732,6 +690,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
 
     def set_radius(r):
         method.depositor.set_shape_function(
+                state,
                 method.get_shape_function_class()
                 (r, method.mesh_data.dimensions, exponent,))
 
@@ -857,7 +816,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
 
 
 # initial condition -----------------------------------------------------------
-def compute_initial_condition(pcon, discr, method, state,
+def compute_initial_condition(rcon, discr, method, state,
         maxwell_op, potential_bc,
         force_zero=False):
     from hedge.pde import WeakPoissonOperator
@@ -899,10 +858,10 @@ def compute_initial_condition(pcon, discr, method, state,
         phi_tilde = discr.volume_zeros()
     else:
         from hedge.tools import parallel_cg
-        phi_tilde = -parallel_cg(pcon, -bound_poisson, 
+        phi_tilde = -parallel_cg(rcon, -bound_poisson, 
                 bound_poisson.prepare_rhs(
                     GivenVolumeInterpolant(discr, rho_tilde/maxwell_op.epsilon)), 
-                debug="poisson" in method.debug, tol=1e-10)
+                debug=40 if "poisson" in method.debug else False, tol=1e-10)
 
     from hedge.tools import ptwise_dot
     from hedge.pde import GradientOperator
@@ -964,7 +923,7 @@ def compute_initial_condition(pcon, discr, method, state,
                 ("h_lab", h_prime), 
                 ],
                 )
-            method.add_to_vis(vis, visf)
+            method.add_to_vis(vis, visf, state)
             visf.close()
 
     return maxwell_op.assemble_eh(e=e_prime, h=h_prime)
