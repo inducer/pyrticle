@@ -25,9 +25,8 @@ tags
 *.tif
 *.pdf
 dump.py
-*-2007-*
-*-2008-*
-*-2009-*
+*-200?-*
+*-201?-*
 *.bak
 *-gdbcommands
 bin/logtool
@@ -39,3 +38,5 @@ out
 *.egg-info
 *.visit
 visitlog.py
+*.pyd
+*.so

@@ -104,7 +104,6 @@ def main():
 
           packages=["pyrticle", "pyrticle.deposition"],
           zip_safe=False,
-          package_dir={"pyrticle": "src/python"},
           ext_package="pyrticle",
           ext_modules=[
             HedgeExtension("_internal", 
