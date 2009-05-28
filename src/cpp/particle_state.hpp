@@ -110,8 +110,16 @@ namespace pyrticle
 
       const double m = ps.masses[pn];
       double p = norm_2(subrange(ps.momenta, vpstart, vpend));
-      double v = vacuum_c*p/sqrt(m*m*vacuum_c*vacuum_c + p*p);
-      subrange(result, vpstart, vpend) = v/p*subrange(ps.momenta, vpstart, vpend);
+
+      if (p == 0)
+      {
+        subrange(result, vpstart, vpend) = zero_vector(vdim);
+      }
+      else
+      {
+        double v = vacuum_c*p/sqrt(m*m*vacuum_c*vacuum_c + p*p);
+        subrange(result, vpstart, vpend) = v/p*subrange(ps.momenta, vpstart, vpend);
+      }
     }
     return result;
   }
