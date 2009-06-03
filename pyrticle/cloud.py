@@ -202,7 +202,7 @@ class FieldRhsCalculator(object):
 
     def __call__(self, t, fields, state):
         # calculate EM right-hand side 
-        self.field_solve_timer.start()
+        sub_timer = self.field_solve_timer.start_sub_timer()
 
         from pyrticle.hyperbolic import CleaningMaxwellOperator
         if isinstance(self.maxwell_op, CleaningMaxwellOperator):
@@ -211,7 +211,7 @@ class FieldRhsCalculator(object):
         else:
             rhs_fields = self.bound_maxwell_op(t, fields)
 
-        self.field_solve_timer.stop()
+        sub_timer.stop().submit()
 
         return rhs_fields
 
@@ -575,11 +575,11 @@ class PicMethod(object):
                         pn, new_state.particle_number_shift_signaller)
 
         from pyrticle._internal import update_containing_elements
-        self.find_el_timer.start()
+        sub_timer = self.find_el_timer.start_sub_timer()
         update_containing_elements(
                 self.mesh_data, new_state.particle_state, 
                 BHitListener(), find_counters)
-        self.find_el_timer.stop()
+        sub_timer.stop().submit()
 
         self.find_same_counter.transfer(
                 find_counters.find_same)

@@ -380,7 +380,7 @@ class PICRunner(object):
         from pyrticle.cloud import TimesteppablePicState
 
         def visualize(observer):
-            self.vis_timer.start()
+            sub_timer = self.vis_timer.start_sub_timer()
             import os.path
             visf = vis.make_file(os.path.join(
                 setup.output_path, setup.vis_pattern % step))
@@ -393,7 +393,7 @@ class PICRunner(object):
             setup.hook_visualize(self, vis, visf, observer)
 
             visf.close()
-            self.vis_timer.stop()
+            sub_timer.stop().submit()
 
         from hedge.timestep import TwoRateAdamsBashforthTimeStepper 
         if not isinstance(self.stepper, TwoRateAdamsBashforthTimeStepper): 

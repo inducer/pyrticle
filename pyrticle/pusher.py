@@ -68,9 +68,9 @@ class Pusher(object):
                 )
 
     def forces(self, state, velocities, *field_args):
-        self.force_timer.start()
+        sub_timer = self.force_timer.start_sub_timer()
         forces = self._forces(state, velocities, *field_args)
-        self.force_timer.stop()
+        sub_timer.stop().submit()
         return forces
 
     def note_move(self, state, orig, dest, size):
