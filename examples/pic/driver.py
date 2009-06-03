@@ -434,28 +434,27 @@ class PICRunner(object):
             ])
         del self.state
 
-        for step in xrange(self.nsteps):
-            self.logmgr.tick()
+        try:
+            for step in xrange(self.nsteps):
+                self.logmgr.tick()
 
-            self.method.upkeep(y[1].state)
+                self.method.upkeep(y[1].state)
 
-            y = self.stepper(y, t, *step_args)
+                y = self.stepper(y, t, *step_args)
 
-            fields, ts_state = y
-            self.observer.set_fields_and_state(fields, ts_state.state)
+                fields, ts_state = y
+                self.observer.set_fields_and_state(fields, ts_state.state)
 
-            setup.hook_after_step(self, self.observer)
+                setup.hook_after_step(self, self.observer)
 
-            if step % setup.vis_interval == 0:
-                visualize(self.observer)
+                if step % setup.vis_interval == 0:
+                    visualize(self.observer)
 
-            t += self.dt
-
-        vis.close()
-        self.discr.close()
-            
-        self.logmgr.tick()
-        self.logmgr.save()
+                t += self.dt
+        finally:
+            vis.close()
+            self.discr.close()
+            self.logmgr.save()
 
         setup.hook_when_done(self)
 
