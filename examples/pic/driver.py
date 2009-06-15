@@ -167,7 +167,7 @@ class PICRunner(object):
             setup.output_path, "pic.dat"), "w")
 
         from hedge.backends import guess_run_context
-        self.rcon = guess_run_context(disable=set(["cuda"]))
+        self.rcon = guess_run_context([])
 
         if self.rcon.is_head_rank:
             mesh = self.rcon.distribute_mesh(setup.mesh)

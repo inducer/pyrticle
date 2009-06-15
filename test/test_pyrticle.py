@@ -89,7 +89,7 @@ def test_kv_with_no_charge():
     from hedge.mesh import make_cylinder_mesh
     from hedge.backends import guess_run_context
 
-    rcon = guess_run_context(disable=set(["cuda", "mpi"]))
+    rcon = guess_run_context([])
 
     tube_length = 100*units.MM
     mesh = make_cylinder_mesh(radius=25*units.MM, height=tube_length, periodic=True)
@@ -221,7 +221,7 @@ def test_efield_vs_gauss_law():
             )
 
     from hedge.backends import guess_run_context
-    rcon = guess_run_context(disable=set(["cuda", "mpi"]))
+    rcon = guess_run_context([])
     discr = rcon.make_discretization(mesh, order=3)
 
     from hedge.pde import MaxwellOperator, DivergenceOperator
@@ -348,7 +348,7 @@ def test_with_static_fields():
 
     from hedge.backends import guess_run_context
 
-    pcon = guess_run_context(disable=set(["mpi", "cuda"]))
+    pcon = guess_run_context([])
 
     if pcon.is_head_rank:
         mesh = pcon.distribute_mesh(full_mesh)
@@ -397,7 +397,7 @@ def test_shape_functions():
             make_rect_mesh, make_box_mesh
 
     from hedge.backends import guess_run_context
-    rcon = guess_run_context(disable=set(["mpi", "cuda"]))
+    rcon = guess_run_context([])
 
     for r in [0.1, 10]:
         for mesh in [
