@@ -46,7 +46,7 @@ class ParticleDistribution(object):
 
     def make_particle(self):
         return ([],[],[],[])
-        
+
     def mean(self):
         return ([],[],[],[])
 
@@ -71,6 +71,39 @@ class ParticleDistribution(object):
         while True:
             pos, vel, charge, mass = self.make_particle()
             yield pos, vel, charge[0], mass[0]
+
+
+
+
+# manually distributions ------------------------------------------------------
+class ManualParticleDistribution(ParticleDistribution):
+    def __init__(self, x, v, q, m):
+        self.x = x
+        self.v = v
+        self.q = q
+        self.m = m
+
+    def make_particle(self):
+        return tuple((self.x.pop(),self.v.pop(),self.q,self.m))
+
+    def mean(self):
+        return tuple(([],[],self.q,self.m))
+
+
+
+
+# plasma wave test case distribution -----------------------------------------
+class PlasmaWaveDistribution(ParticleDistribution):
+    def __init__(self, p_state, q, m):
+        self.p_state = p_state
+        self.q = q
+        self.m = m
+
+    def make_particle(self):
+        return self.p_state.pop()
+
+    def mean(self):
+        return tuple(([],[],self.q,self.m))
 
 
 
