@@ -26,7 +26,7 @@ import hedge.mesh as _mesh
 mesh = _mesh.make_rect_mesh(
         [-1,-1],
         [1, 1],
-        periodicity=(True, False),
+        periodicity=(True, True),
         subdivisions=(10,5),
         max_area=0.02)
 
@@ -51,9 +51,9 @@ if _enable_multirate:
 nparticles = 2
 
 # Create a list of spatial coordinates:
-_x = [[0.5,0],
+_x = [[-0.5,0],
         [0.5,0.0],
-        [0.5,0.0]]
+        [0.0,0.0]]
 # Create a list of velocities:
 _v = [[0,0],
           [0,0],

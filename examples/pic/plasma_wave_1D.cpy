@@ -49,7 +49,7 @@ import hedge.mesh as _mesh
 mesh = _mesh.make_rect_mesh(
         [0,-_tube_width/2],
         [2*_pi,_tube_width/2],
-        periodicity=(True, False),
+        periodicity=(True, True),
         subdivisions=(31,3),
         max_area=0.2)
 
@@ -64,7 +64,7 @@ mesh = _mesh.make_rect_mesh(
 # timestepper setup
 # -----------------------------------------------------------------------------
 from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
-_enable_multirate = True
+_enable_multirate = False
 if _enable_multirate:
     _step_ratio = 10
     timestepper_maker = lambda dt: _TwoRateAB(dt, step_ratio=_step_ratio, order=5,
