@@ -55,10 +55,12 @@ namespace pyrticle
   {
     private:
       py_vector &m_target_vector;
+      py_vector::iterator m_target_it;
 
     public:
       rho_deposition_target(py_vector &target_vector)
-        : m_target_vector(target_vector)
+        : m_target_vector(target_vector),
+        m_target_it(target_vector.begin())
       { 
         m_target_vector.clear();
       }
@@ -71,8 +73,9 @@ namespace pyrticle
           const mesh_data::node_number start_idx, 
           VectorExpression const &rho_contrib)
       {
-        noalias(subrange(m_target_vector, start_idx, start_idx+rho_contrib.size()))
-          += rho_contrib;
+        py_vector::size_type n = rho_contrib.size();
+        for (py_vector::size_type i = 0; i<n; ++i)
+          m_target_it[i] += rho_contrib(i);
       }
 
       void end_particle(particle_number pn)
@@ -94,14 +97,19 @@ namespace pyrticle
   {
     private:
       py_vector &m_target_vector;
+      py_vector::iterator m_target_it;
+
       const py_vector &m_velocities;
+      py_vector::const_iterator m_velocities_it;
+
       double m_scale_factors[DimensionsVelocity];
 
     public:
       j_deposition_target(
           py_vector &target_vector, 
           const py_vector &velocities)
-        : m_target_vector(target_vector), m_velocities(velocities)
+        : m_target_vector(target_vector), m_target_it(target_vector.begin()),
+        m_velocities(velocities), m_velocities_it(velocities.begin())
       { 
         m_target_vector.clear();
         for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
@@ -111,7 +119,7 @@ namespace pyrticle
       void begin_particle(particle_number pn)
       {
         for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-          m_scale_factors[axis] = m_velocities[pn*DimensionsVelocity+axis];
+          m_scale_factors[axis] = m_velocities_it[pn*DimensionsVelocity+axis];
       }
 
       template <class VectorExpression>
@@ -119,12 +127,15 @@ namespace pyrticle
           const mesh_data::node_number start_idx, 
           VectorExpression const &rho_contrib)
       {
-        for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
-          noalias(subslice(m_target_vector, 
-                start_idx*DimensionsVelocity+axis, 
-                DimensionsVelocity, 
-                rho_contrib.size()))
-              += m_scale_factors[axis] * rho_contrib;
+        py_vector::size_type n = rho_contrib.size();
+
+        for (py_vector::size_type i = 0; i<n; ++i)
+        {
+          double rho = rho_contrib(i);
+          for (unsigned axis = 0; axis < DimensionsVelocity; axis++)
+            m_target_it[(start_idx+i)*DimensionsVelocity+axis]
+              += m_scale_factors[axis] * rho;
+        }
       }
 
       void end_particle(particle_number pn)
