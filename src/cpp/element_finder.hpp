@@ -1,17 +1,17 @@
 // Pyrticle - Particle in Cell in Python
 // Element finding
 // Copyright (C) 2007 Andreas Kloeckner
-// 
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-// 
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -71,7 +71,7 @@ namespace pyrticle
             else
             {
               bounded_vector pos2(pos);
-              const mesh_data::periodicity_axis &pa = 
+              const mesh_data::periodicity_axis &pa =
                 m_mesh_data.m_periodicities[per_axis];
 
               if (pos[per_axis] - radius < pa.m_min)
@@ -100,7 +100,7 @@ namespace pyrticle
           double radius)
       {
         // find closest vertex
-        mesh_data::vertex_number closest_vertex = 
+        mesh_data::vertex_number closest_vertex =
           mesh_data::INVALID_VERTEX;
         double min_dist = std::numeric_limits<double>::infinity();
 
@@ -122,9 +122,9 @@ namespace pyrticle
 
         for (unsigned i = start; i < stop; ++i)
         {
-          const mesh_data::axis_number per_axis = 
+          const mesh_data::axis_number per_axis =
             md.m_vertex_adj_periodicity_axes[i];
-          const mesh_data::element_number en = 
+          const mesh_data::element_number en =
             md.m_vertex_adj_elements[i];
 
           if (per_axis == mesh_data::INVALID_AXIS)
@@ -154,14 +154,14 @@ namespace pyrticle
     public:
       template <class ParticleState, class ElementTarget>
       void operator()(
-          const ParticleState &ps, 
-          ElementTarget &target, 
+          const ParticleState &ps,
+          ElementTarget &target,
           particle_number pn, double radius)
       {
         const unsigned dim = ps.xdim();
         const bounded_vector pos = subrange(
             ps.positions, pn*dim, (pn+1)*dim);
-        const mesh_data::element_number containing_el = 
+        const mesh_data::element_number containing_el =
           ps.containing_elements[pn];
         const mesh_data::element_info &einfo(
             m_mesh_data.m_element_info[containing_el]);
@@ -183,7 +183,7 @@ namespace pyrticle
 
         if (is_not_near_vertex(einfo.m_inverse_map(pos)))
         {
-          // RULE A: we're far enough away from vertices, 
+          // RULE A: we're far enough away from vertices,
           //m_neighbor_shape_adds.tick();
           add_shape_by_neighbors(target, pos, einfo, radius);
         }
@@ -200,7 +200,33 @@ namespace pyrticle
 
 
 
+  template <class Derived>
+  class recursing_element_finder
+  {
+    public:
+      typedef boost::unordered_set<mesh_data::element_number> el_set_t;
+
+      template <class ParticleState, class ElementTarget>
+      void operator()(
+          const ParticleState &ps,
+          ElementTarget &target,
+          particle_number pn, double radius)
+      {
+        const unsigned dim = ps.xdim();
+        const bounded_vector pos = subrange(
+            ps.positions, pn*dim, (pn+1)*dim);
+
+        el_set_t el_set;
+        static_cast<Derived *>(this)->recurse(
+            target, pos, radius, el_set, ps.containing_elements[pn]);
+      }
+  };
+
+
+
+
   class face_based_element_finder
+    : public recursing_element_finder<face_based_element_finder>
   {
     private:
       const mesh_data &m_mesh_data;
@@ -209,9 +235,6 @@ namespace pyrticle
       face_based_element_finder(const mesh_data &md)
         : m_mesh_data(md)
       { }
-
-    private:
-      typedef boost::unordered_set<mesh_data::element_number> el_set_t;
 
       template <class ElementTarget>
       void recurse(ElementTarget &target, const bounded_vector &pos, double radius,
@@ -240,7 +263,7 @@ namespace pyrticle
 
           // test 2: sufficient for exclusion
           // d(face_bound_circle, pos) < radius?
-          if (norm_2(face.m_face_centroid-pos) 
+          if (norm_2(face.m_face_centroid-pos)
               > radius+face.m_face_radius_from_centroid)
             continue;
 
@@ -252,7 +275,7 @@ namespace pyrticle
           else
           {
             bounded_vector pos2(pos);
-            const mesh_data::periodicity_axis &pa = 
+            const mesh_data::periodicity_axis &pa =
               m_mesh_data.m_periodicities[per_axis];
 
             if (pos[per_axis] - radius < pa.m_min)
@@ -268,30 +291,85 @@ namespace pyrticle
           }
         }
       }
+  };
 
 
 
+
+  class hyperplane_element_finder
+    : public recursing_element_finder<hyperplane_element_finder>
+  {
+    private:
+      const mesh_data &m_mesh_data;
 
     public:
-      template <class ParticleState, class ElementTarget>
-      void operator()(
-          const ParticleState &ps, 
-          ElementTarget &target, 
-          particle_number pn, double radius)
-      {
-        const unsigned dim = ps.xdim();
-        const bounded_vector pos = subrange(
-            ps.positions, pn*dim, (pn+1)*dim);
+      hyperplane_element_finder(const mesh_data &md)
+        : m_mesh_data(md)
+      { }
 
-        el_set_t el_set;
-        recurse(target, pos, radius, el_set, ps.containing_elements[pn]);
+      template <class ElementTarget>
+      void recurse(ElementTarget &target, const bounded_vector &pos, double radius,
+          el_set_t &el_set, mesh_data::element_number en)
+      {
+        el_set.insert(en);
+
+        bool all_inside = true;
+
+        const mesh_data::element_info &einfo(
+            m_mesh_data.m_element_info[en]);
+        BOOST_FOREACH(const mesh_data::face_info &face, einfo.m_faces)
+        {
+          double plane_dist =
+              inner_prod(pos, face.m_normal) - face.m_face_plane_eqn_rhs;
+
+          if (plane_dist >= radius)
+          {
+            all_inside = false;
+            break;
+          }
+          else
+          {
+            if (face.m_neighbor == mesh_data::INVALID_ELEMENT)
+              continue;
+            if (el_set.find(face.m_neighbor) != el_set.end())
+              continue;
+
+            // treat periodicity
+            const mesh_data::axis_number per_axis = face.m_neighbor_periodicity_axis;
+
+            if (per_axis == mesh_data::INVALID_AXIS)
+              recurse(target, pos, radius, el_set, face.m_neighbor);
+            else
+            {
+              bounded_vector pos2(pos);
+              const mesh_data::periodicity_axis &pa =
+                m_mesh_data.m_periodicities[per_axis];
+
+              if (pos[per_axis] - radius < pa.m_min)
+              {
+                pos2[per_axis] += (pa.m_max-pa.m_min);
+                recurse(target, pos2, radius, el_set, face.m_neighbor);
+              }
+              if (pos[per_axis] + radius > pa.m_max)
+              {
+                pos2[per_axis] -= (pa.m_max-pa.m_min);
+                recurse(target, pos2, radius, el_set, face.m_neighbor);
+              }
+            }
+          }
+        }
+
+        if (all_inside)
+          target.add_shape_on_element(pos, en);
       }
   };
 
 
 
 
+  // typedef heuristic_element_finder element_finder;
   typedef face_based_element_finder element_finder;
+  // typedef hyperplane_element_finder element_finder;
 }
 
 
