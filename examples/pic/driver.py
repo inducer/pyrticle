@@ -251,10 +251,7 @@ class PICRunner(object):
 
         # initial condition ---------------------------------------------------
         if "no_ic" in setup.debug:
-            # FIXME
-            from pyrticle.cloud import FieldsAndCloud
-            e, h = self.maxwell_op.split_eh(self.maxwell_op.assemble_fields(discr=discr))
-            self.fields = FieldsAndCloud(self.maxwell_op, e, h, cloud)
+            self.fields = self.maxwell_op.assemble_eh(discr=discr)
         else:
             from pyrticle.cloud import compute_initial_condition
             self.fields = compute_initial_condition(self.rcon, discr, method, self.state,
