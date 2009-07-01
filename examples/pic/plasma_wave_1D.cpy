@@ -15,6 +15,8 @@ from numpy import pi as _pi
 from numpy import sin as _sin
 import numpy as _nu
 
+profile_output_filename = "wave.log"
+
 # -----------------------------------------------------------------------------
 # pic setup
 # -----------------------------------------------------------------------------
@@ -37,7 +39,7 @@ vis_order =  None
 element_order = 5
 element_order = 4
 
-shape_exponent = 10
+shape_exponent = 2
 shape_bandwidth = 1
 
 #potential_bc = hedge.data.ConstantGivenFunction()
