@@ -112,7 +112,7 @@ namespace pyrticle
       std::vector<element_info> m_element_info;
 
     private:
-      py_vector m_mesh_vertices, m_mesh_nodes;
+      dyn_vector m_mesh_vertices, m_mesh_nodes;
 
     public:
       /** The following three encode the vertex-adjacent elements in a sort
@@ -149,10 +149,10 @@ namespace pyrticle
       unsigned vertex_count() const
       { return m_mesh_vertices.size()/m_dimensions; }
 
-      typedef boost::numeric::ublas::vector_range<const py_vector> const_mesh_node_type;
-      typedef boost::numeric::ublas::vector_range<const py_vector> const_mesh_vertex_type;
-      typedef boost::numeric::ublas::vector_range<py_vector> mesh_node_type;
-      typedef boost::numeric::ublas::vector_range<py_vector> mesh_vertex_type;
+      typedef boost::numeric::ublas::vector_range<const dyn_vector> const_mesh_node_type;
+      typedef boost::numeric::ublas::vector_range<const dyn_vector> const_mesh_vertex_type;
+      typedef boost::numeric::ublas::vector_range<dyn_vector> mesh_node_type;
+      typedef boost::numeric::ublas::vector_range<dyn_vector> mesh_vertex_type;
 
       const_mesh_vertex_type mesh_vertex(vertex_number vn) const
       { return subrange(m_mesh_vertices, vn*m_dimensions, (vn+1)*m_dimensions); }
