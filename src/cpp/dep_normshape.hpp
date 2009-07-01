@@ -235,9 +235,9 @@ namespace pyrticle
 
         element_finder el_finder(m_mesh_data);
 
-        FOR_ALL_SLICE_INDICES(particle_number, pn, 
-            pslice, ps.particle_count)
+        FOR_ALL_SLICE_INDICES(pslice, ps.particle_count)
         {
+          FOR_ALL_SLICE_INDICES_INNER(particle_number, pn);
           norm_tgt.begin_particle();
           el_finder(ps, norm_tgt, pn, m_shape_function.radius());
           norm_tgt.end_particle(pn, ps.charges[pn]);

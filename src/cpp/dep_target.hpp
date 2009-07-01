@@ -239,6 +239,7 @@ namespace pyrticle
       Depositor::particle_state::m_vdim> j_tgt(j, velocities);
 
     dep.deposit_densities_on_target(ds, ps, j_tgt, pslice);
+
     return j;
   }
 

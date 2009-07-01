@@ -358,9 +358,10 @@ namespace pyrticle
         const scalar_vector<double> shape_extent(
             dim_m, m_shape_function.radius());
 
-        FOR_ALL_SLICE_INDICES(particle_number, pn, 
-            pslice, ps.particle_count)
+        FOR_ALL_SLICE_INDICES(pslice, ps.particle_count)
         {
+          FOR_ALL_SLICE_INDICES_INNER(particle_number, pn);
+
           tgt.begin_particle(pn);
           const bounded_vector center = subrange(
               ps.positions, pn*dim_x, (pn+1)*dim_x);

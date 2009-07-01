@@ -134,8 +134,12 @@ namespace pyrticle
       {
         element_finder el_finder(m_mesh_data);
 
-        FOR_ALL_SLICE_INDICES(particle_number, pn, pslice, ps.particle_count)
+        FOR_ALL_SLICE_INDICES_PREP(pslice, ps.particle_count)
+
+        FOR_ALL_SLICE_INDICES_LOOP
         {
+          FOR_ALL_SLICE_INDICES_INNER(particle_number, pn);
+
           element_target<Target> el_target(m_mesh_data, m_shape_function, ps.charges[pn], tgt);
 
           tgt.begin_particle(pn);

@@ -309,9 +309,10 @@ namespace pyrticle
           const ParticleState &ps, 
           Target &tgt, boost::python::slice const &pslice) const
       {
-        FOR_ALL_SLICE_INDICES(particle_number, pn, 
-            pslice, ps.particle_count)
+        FOR_ALL_SLICE_INDICES(pslice, ps.particle_count)
         {
+          FOR_ALL_SLICE_INDICES_INNER(particle_number, pn);
+
           tgt.begin_particle(pn);
           BOOST_FOREACH(const active_element &el, 
               ds.m_advected_particles[pn].m_elements)

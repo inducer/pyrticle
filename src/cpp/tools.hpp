@@ -35,7 +35,7 @@
 
 
 
-#define FOR_ALL_SLICE_INDICES(ITYPE, IVAR, SLICE, LEN) \
+#define FOR_ALL_SLICE_INDICES_PREP(SLICE, LEN) \
   Py_ssize_t \
     fsi__start, \
     fsi__stop, \
@@ -45,9 +45,20 @@
         reinterpret_cast<PySliceObject *>((SLICE).ptr()), (LEN), \
       &fsi__start, &fsi__stop, &fsi__step, &fsi__length)) \
     throw boost::python::error_already_set(); \
-  \
-  for (ITYPE IVAR = fsi__start; IVAR < fsi__stop; IVAR += fsi__step)
 
+
+
+#define FOR_ALL_SLICE_INDICES_LOOP \
+  for (Py_ssize_t fsi__cnt = 0; fsi__cnt < fsi__length;  ++fsi__cnt)
+
+
+
+#define FOR_ALL_SLICE_INDICES(SLICE, LEN) \
+  FOR_ALL_SLICE_INDICES_PREP(SLICE, LEN) \
+  FOR_ALL_SLICE_INDICES_LOOP
+
+#define FOR_ALL_SLICE_INDICES_INNER(ITYPE, IVAR) \
+  ITYPE IVAR = fsi__start + fsi__cnt*fsi__step;
 
 
 
