@@ -511,7 +511,14 @@ namespace pyrticle
         if (r_squared > m_radius_squared)
           return 0;
         else
-          return m_normalizer * pow(m_radius-r_squared/m_radius, m_alpha);
+        {
+          double radius_term = m_radius-r_squared/m_radius;
+
+          if (m_alpha_is_2)
+            return m_normalizer*radius_term*radius_term;
+          else
+            return m_normalizer * pow(radius_term, m_alpha);
+        }
       }
 
       const double normalizer() const
@@ -532,6 +539,8 @@ namespace pyrticle
       double m_normalizer;
       double m_alpha;
       double m_radius, m_radius_squared;
+
+      bool m_alpha_is_2;
   };
 
 

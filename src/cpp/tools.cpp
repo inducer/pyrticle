@@ -54,6 +54,7 @@ pyrticle::polynomial_shape_function::polynomial_shape_function(
   m_normalizer = 2 / (sphere_area(n) *
     pow(m_radius, n+alpha)*beta(n/2, alpha+1)
     );
+  m_alpha_is_2 = alpha == 2;
 }
 
 
