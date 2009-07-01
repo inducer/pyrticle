@@ -5,6 +5,9 @@
 # -----------------------------------------------------------------------------
 # pic setup
 # -----------------------------------------------------------------------------
+debug = [
+        "no_ic"
+        ]
 pusher = PushMonomial()
 depositor = DepShape()
 
@@ -20,27 +23,25 @@ vis_interval = 10
 element_order = 3
 
 #shape_bandwidth = "optimize"
-shape_bandwidth = 0.1
+shape_bandwidth = 0.2
 
 import hedge.mesh as _mesh
 mesh = _mesh.make_rect_mesh(
         [-1,-1],
         [1, 1],
         periodicity=(True, True),
-        subdivisions=(10,5),
+        subdivisions=(15,15),
         max_area=0.02)
 
 # -----------------------------------------------------------------------------
 # timestepper setup
 # -----------------------------------------------------------------------------
 from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
-_enable_multirate = False
+_enable_multirate = True
 if _enable_multirate:
     _step_ratio = 10
     timestepper_maker = lambda dt: _TwoRateAB(dt, step_ratio=_step_ratio, order=5,
-            #largest_first=True)
-            fastest_first=True)
-            #slowest_first=True)
+                 fastest_first=False, slowest_first=True, substepping=False)
     _rk4_stability = 2
     #dt_scale = 0.36/_rk4_stability*_step_ratio # ab4
     dt_scale = 0.18/_rk4_stability*_step_ratio # ab5
@@ -48,16 +49,16 @@ if _enable_multirate:
 # -----------------------------------------------------------------------------
 # particle setup
 # -----------------------------------------------------------------------------
-nparticles = 2
+nparticles = 1
 
 # Create a list of spatial coordinates:
 _x = [[-0.5,0],
         [0.5,0.0],
         [0.0,0.0]]
 # Create a list of velocities:
-_v = [[0,0],
-          [0,0],
-          [0,0]]
+_v = [[-1e8,0],
+          [0,1e8],
+          [1e8,0]]
 _q = [1e-09]
 _m = [5.6856296568531526e-21]
 
