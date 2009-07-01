@@ -89,6 +89,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
                 "debug": set(["ic", "poisson", "shape_bw"]),
                 "dg_debug": set(),
+                "profile_output_filename": None,
 
                 "watch_vars": ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"],
 
@@ -336,8 +337,7 @@ class PICRunner(object):
 
         logmgr.add_watches(setup.watch_vars)
 
-
-    def run(self): 
+    def inner_run(self): 
         t = 0
         
         setup = self.setup
@@ -446,6 +446,19 @@ class PICRunner(object):
             self.logmgr.save()
 
         setup.hook_when_done(self)
+
+    def run(self):
+        if self.setup.profile_output_filename is not None:
+            from cProfile import Profile
+            prof = Profile()
+            try:
+                prof.runcall(self.inner_run)
+            finally:
+                from lsprofcalltree import KCacheGrind
+                kg = KCacheGrind(prof)
+                kg.output(open(self.setup.profile_output_filename, "w"))
+        else:
+            self.inner_run()
 
 
 if __name__ == "__main__":
