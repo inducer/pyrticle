@@ -25,10 +25,6 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 MonomialParticlePusher, \
                 AverageParticlePusher
 
-        from pyrticle.cloud import \
-                FaceBasedElementFinder, \
-                HeuristicElementFinder
-
         import pyrticle.geometry
         import pyrticle.distribution
 
@@ -50,9 +46,6 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
                 "PushMonomial": MonomialParticlePusher,
                 "PushAverage": AverageParticlePusher,
-
-                "FindHeuristic": HeuristicElementFinder,
-                "FindFaceBased": FaceBasedElementFinder,
                 }
 
         import hedge.data
@@ -62,7 +55,6 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
         variables = {
                 "pusher": None,
                 "depositor": None,
-                "finder": FaceBasedElementFinder(),
 
                 "mesh": None,
                 "dimensions_pos": None,
@@ -131,15 +123,12 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
         from pyrticle.deposition import Depositor
         from pyrticle.pusher import Pusher
-        from pyrticle.cloud import ElementFinder
         from pyrticle.distribution import ParticleDistribution
 
         assert isinstance(setup.depositor, Depositor), \
                 "must specify valid depositor"
         assert isinstance(setup.pusher, Pusher), \
                 "must specify valid depositor"
-        assert isinstance(setup.finder, ElementFinder), \
-                "must specify valid element finder"
         assert isinstance(setup.distribution, ParticleDistribution), \
                 "must specify valid particle distribution"
         assert isinstance(setup.element_order, int), \
@@ -226,7 +215,7 @@ class PICRunner(object):
                 guess_shape_bandwidth
 
         method = self.method = PicMethod(discr, units, 
-                setup.depositor, setup.pusher, setup.finder,
+                setup.depositor, setup.pusher,
                 dimensions_pos=setup.dimensions_pos, 
                 dimensions_velocity=setup.dimensions_velocity, 
                 debug=setup.debug)

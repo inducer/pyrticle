@@ -31,16 +31,6 @@ from pyrticle.meshdata import MeshData
 
 
 
-class ElementFinder(object):
-    pass
-class FaceBasedElementFinder(ElementFinder):
-    name = "FaceBasedFind"
-class HeuristicElementFinder(ElementFinder):
-    name = "HeuristicFind"
-
-
-
-
 class PicState(object):
     def __init__(self, method,
             particle_count=None,
@@ -322,8 +312,8 @@ class PicMethod(object):
         files.
     """
 
-    def __init__(self, discr, units, 
-            depositor, pusher, finder,
+    def __init__(self, discr, units,
+            depositor, pusher,
             dimensions_pos, dimensions_velocity,
             debug=set()):
 
@@ -333,7 +323,6 @@ class PicMethod(object):
 
         self.depositor = depositor
         self.pusher = pusher
-        self.finder = finder
 
         self.dimensions_mesh = discr.dimensions
         self.dimensions_pos = dimensions_pos
