@@ -166,7 +166,7 @@ class DivergenceEQuantities(MultiLogQuantity):
 
         self.observer = observer
         self.discr = self.observer.discr
-        from hedge.pde import DivergenceOperator
+        from hedge.models.nd_calculus import DivergenceOperator
         self.bound_div_op = DivergenceOperator(self.discr.dimensions,
                 observer.maxwell_op.get_eh_subset()[:3]).bind(self.discr)
 
