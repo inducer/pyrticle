@@ -102,14 +102,13 @@ def test_kv_with_no_charge():
     dt = final_time/nsteps
 
     # particles setup ---------------------------------------------------------
-    from pyrticle.cloud import PicMethod, FaceBasedElementFinder
+    from pyrticle.cloud import PicMethod
     from pyrticle.deposition.shape import ShapeFunctionDepositor
     from pyrticle.pusher import MonomialParticlePusher
 
     method = PicMethod(discr, units,
             ShapeFunctionDepositor(),
             MonomialParticlePusher(),
-            FaceBasedElementFinder(),
             3, 3)
 
     nparticles = 10000
@@ -232,14 +231,13 @@ def test_efield_vs_gauss_law():
     div_op = DivergenceOperator(discr.dimensions)
 
     # particles setup ---------------------------------------------------------
-    from pyrticle.cloud import PicMethod, FaceBasedElementFinder
+    from pyrticle.cloud import PicMethod
     from pyrticle.deposition.shape import ShapeFunctionDepositor
     from pyrticle.pusher import MonomialParticlePusher
 
     method = PicMethod(discr, units,
             ShapeFunctionDepositor(),
             MonomialParticlePusher(),
-            FaceBasedElementFinder(),
             3, 3)
 
     # particle ic ---------------------------------------------------------
