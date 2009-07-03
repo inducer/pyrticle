@@ -264,7 +264,7 @@ class EBParallel(StaticFieldSetup):
 def run_setup(units, casename, setup, discr, pusher, visualize=False):
     from hedge.timestep import RK4TimeStepper
     from hedge.visualization import SiloVisualizer
-    from hedge.pde import MaxwellOperator
+    from hedge.models.em import MaxwellOperator
 
     vis = SiloVisualizer(discr)
 
@@ -297,7 +297,7 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     dt = final_time/nsteps
 
     # timestepping ------------------------------------------------------------
-    from hedge.pde import MaxwellOperator
+    from hedge.models.em import MaxwellOperator
     max_op = MaxwellOperator(
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
