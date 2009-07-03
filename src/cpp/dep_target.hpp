@@ -75,7 +75,7 @@ namespace pyrticle
       {
         py_vector::size_type n = rho_contrib.size();
         for (py_vector::size_type i = 0; i<n; ++i)
-          m_target_it[i] += rho_contrib(i);
+          m_target_it[start_idx + i] += rho_contrib(i);
       }
 
       void end_particle(particle_number pn)
