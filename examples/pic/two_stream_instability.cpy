@@ -3,10 +3,10 @@ taken from: G.B. Jacobs, J.S. Hesthaven / JCP 214 (2006), High-order nodal
 discontious Galerkinn particle-in-cell method on unstructured grids
 
 Comments: Even thought this is a 1D test case it is performed in a full two-
-dimensional solver. This has been done in the referenced paper as well. 
+dimensional solver. This has been done in the referenced paper as well.
 Quotation: [p.111]
-"..., the computational domain has a length of 2*pi in the x-direction of the 
-plasma wave propagation. In the y-direction the grid has length 1.5 an is meshed 
+"..., the computational domain has a length of 2*pi in the x-direction of the
+plasma wave propagation. In the y-direction the grid has length 1.5 an is meshed
 with approximately two triangles so as to simulate a 1D setting, i.e., a full
 two-dimensional solver is used in this case."
 
@@ -32,7 +32,7 @@ from numpy import pi as _pi
 from numpy import sin as _sin
 import numpy as _nu
 
-profile_output_filename = "wave.log"
+#profile_output_filename = "wave.log"
 
 # -----------------------------------------------------------------------------
 # pic setup

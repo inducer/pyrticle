@@ -9,13 +9,31 @@ Quotation: [p.111]
 plasma wave propagation. In the y-direction the grid has length 1.5 an is meshed 
 with approximately two triangles so as to simulate a 1D setting, i.e., a full
 two-dimensional solver is used in this case."
+
+Decription of the test case:
+320 particles are equidistantly distributed with a superimposed one-dimensional
+sine deviation:
+
+                      x = x_eq + A sin(k x_eq),
+
+where the amplitude of the deviation is A = 0.001 and the wavenumber k = 2. The
+cloud influence area is R = 0.5. Physical parameters for the particle are q =
+0.001177 and q/m = 1.0.
+
+Observed quantities:
+- total energy
+- kinetic energy
+- potential energy
+
+Expected result:
+Preserve energy equally well.
 """
 
 from numpy import pi as _pi
 from numpy import sin as _sin
 import numpy as _nu
 
-profile_output_filename = "wave.log"
+#profile_output_filename = "wave.log"
 
 # -----------------------------------------------------------------------------
 # pic setup
@@ -52,7 +70,7 @@ mesh = _mesh.make_rect_mesh(
         [0,-_tube_width/2],
         [2*_pi,_tube_width/2],
         periodicity=(True, True),
-        subdivisions=(31,3),
+        subdivisions=(30,10),
         max_area=0.2)
 
 #mesh = _mesh.make_regular_rect_mesh(
@@ -87,10 +105,10 @@ _npart_y = 25
 _npart_x = 320
 
 nparticles = _npart_y * _npart_x 
-_part_charge = [0.001177]
-#_part_charge = [1e-09]
-#_part_m = [5.6856296568531526e-21]
-_part_m = _part_charge
+#_part_charge = [0.001177]
+_part_charge = [1e-09]
+_part_m = [5.6856296568531526e-21]
+#_part_m = _part_charge
 
 watch_vars = ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"]
 
