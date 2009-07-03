@@ -35,11 +35,13 @@ import numpy as _nu
 
 #profile_output_filename = "wave.log"
 
+debug = ["vis_files", "ic", "poisson"]
+
 # -----------------------------------------------------------------------------
 # pic setup
 # -----------------------------------------------------------------------------
 pusher = PushMonomial()
-depositor = DepShape()
+depositor = DepGridFind()
 
 dimensions_pos = 2
 dimensions_velocity = 2
@@ -51,6 +53,14 @@ vis_interval = 10
 vis_pattern =  "plasma_wave_1D-%04d"
 vis_order =  None
 
+def hook_vis_quantities(observer):
+    return [
+                    ("e", observer.e), 
+                    ("h", observer.h), 
+                    ("j", observer.method.deposit_j(observer.state)), 
+                    ("rho", observer.method.deposit_rho(observer.state)), 
+                    ]
+
 # -----------------------------------------------------------------------------
 # geometry and field discretization
 # -----------------------------------------------------------------------------
@@ -58,7 +68,7 @@ element_order = 5
 element_order = 4
 
 shape_exponent = 2
-shape_bandwidth = 1
+shape_bandwidth = 0.4
 
 #potential_bc = hedge.data.ConstantGivenFunction()
 
@@ -71,7 +81,7 @@ mesh = _mesh.make_rect_mesh(
         [2*_pi,_tube_width/2],
         periodicity=(True, True),
         subdivisions=(30,10),
-        max_area=0.2)
+        max_area=0.05)
 
 #mesh = _mesh.make_regular_rect_mesh(
 #        [-0.1,-0.7],
@@ -100,9 +110,9 @@ if _enable_multirate:
 # -----------------------------------------------------------------------------
 
 # get 25 particles in y-direction for a 1D equivalent setup in a 2D environment
-_npart_y = 25
+_npart_y = 24
 # Number of particles in x direction:
-_npart_x = 320
+_npart_x = 200
 
 nparticles = _npart_y * _npart_x 
 #_part_charge = [0.001177]
