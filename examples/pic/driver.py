@@ -104,6 +104,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "hook_visualize": lambda runner, vis, visf, observer: None,
 
                 "timestepper_maker": lambda dt: RK4TimeStepper(),
+                "dt_getter": None,
                 "dt_scale": 1,
                 }
 
@@ -204,7 +205,12 @@ class PICRunner(object):
                             ExponentialFilterResponseFunction(*setup.phi_filter))))
 
         # timestepping setup --------------------------------------------------
-        goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue())
+        if setup.dt_getter is None:
+            goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue(), 
+                    setup.timestepper_maker)
+        else:
+            goal_dt = setup.dt_getter(self)
+
         self.nsteps = int(setup.final_time/goal_dt)+1
         self.dt = setup.final_time/self.nsteps * setup.dt_scale
 
