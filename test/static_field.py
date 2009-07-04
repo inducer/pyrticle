@@ -268,12 +268,11 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
 
     vis = SiloVisualizer(discr)
 
-    from pyrticle.cloud import PicMethod, FaceBasedElementFinder
+    from pyrticle.cloud import PicMethod
     from pyrticle.deposition.shape import ShapeFunctionDepositor
     method = PicMethod(discr, units, 
             ShapeFunctionDepositor(),
             pusher(),
-            FaceBasedElementFinder(),
             3, 3, debug=set(["verbose_vis"]))
 
     e, h = setup.fields(discr)
