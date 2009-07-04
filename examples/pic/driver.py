@@ -105,6 +105,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
                 "timestepper_maker": lambda dt: RK4TimeStepper(),
                 "dt_getter": None,
+                "timestepper_order": None,
                 "dt_scale": 1,
                 }
 
@@ -205,11 +206,23 @@ class PICRunner(object):
                             ExponentialFilterResponseFunction(*setup.phi_filter))))
 
         # timestepping setup --------------------------------------------------
+        # If we are using TwoRateAdamsBashforthTimeStepper or normal
+        # AdamsbashforthTimeStepper we have to check the stepsize with the
+        # iterative method "calculate_stability_region" implemented in
+        # hedge_timestep. Therefore we have to define a seperate method in the
+        # initialization files to generate the call in order to use the
+        # iterativ timestep finding method.  For TwoRateAB method the normal AB
+        # method is the baseline for timestep size choice. Since the normal AB
+        # methode should work properly with the found stepsize the TwoRateAB
+        # method also should do that due to the fact, that it maximal uses the
+        # normal AB stepsize and with the substeps even smaller stepsizes.
         if setup.dt_getter is None:
-            goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue(), 
+            goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue(),
                     setup.timestepper_maker)
         else:
-            goal_dt = setup.dt_getter(self)
+            goal_dt = setup.dt_getter(self.discr,
+                    self.maxwell_op,
+                    self.setup.timestepper_order)
 
         self.nsteps = int(setup.final_time/goal_dt)+1
         self.dt = setup.final_time/self.nsteps * setup.dt_scale

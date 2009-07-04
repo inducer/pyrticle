@@ -83,26 +83,30 @@ mesh = _mesh.make_rect_mesh(
         subdivisions=(30,10),
         max_area=0.05)
 
-#mesh = _mesh.make_regular_rect_mesh(
-#        [-0.1,-0.7],
-#        [_tube_length+0.1,8],
-#            n=(50,3),
-#            periodicity=(True, False))
-            #max_area=0.15)       
 
 # -----------------------------------------------------------------------------
 # timestepper setup
 # -----------------------------------------------------------------------------
+timestepper_order = 5
+
+def _dt_getter(discr, op, order):
+    from hedge.timestep import AdamsBashforthTimeStepper
+    return discr.dt_factor(op.max_eigenvalue(),
+            AdamsBashforthTimeStepper, 
+            order)
+
+dt_getter = _dt_getter
+
 from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
 _enable_multirate = False
 if _enable_multirate:
     _step_ratio = 10
-    timestepper_maker = lambda dt: _TwoRateAB(dt, step_ratio=_step_ratio, order=5,
-            #largest_first=True)
-            slowest_first=True)
-    _rk4_stability = 2
-    #dt_scale = 0.36/_rk4_stability*_step_ratio # ab4
-    dt_scale = 0.18/_rk4_stability*_step_ratio # ab5
+    timestepper_maker = lambda dt: _TwoRateAB(dt,
+            step_ratio=_step_ratio,
+            order=timestepper_order,
+            slowest_first=True,
+            fastest_first=False,
+            substepping=False)
 
 
 # -----------------------------------------------------------------------------
