@@ -365,7 +365,7 @@ class PicMethod(object):
         return state
 
     def get_dimensionality_suffix(self):
-        return "%d%d" % (self.dimensions_pos, self.dimensions_velocity)
+        return "%dd%dv" % (self.dimensions_pos, self.dimensions_velocity)
 
     def get_shape_function_class(self):
         from pyrticle.tools import \
