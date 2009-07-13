@@ -50,9 +50,12 @@ class ParticleDistribution(object):
     def mean(self):
         return ([],[],[],[])
 
-    def get_rho_distrib(self):
+    def get_rho_distrib(self, pt, el):
         """Get a 1-normalized distribution function for the charge density."""
-        raise NotImplementedError
+        x,y = pt
+
+        return
+        #raise NotImplementedError
 
     def get_rho_interpolant(self, discr, total_charge, err_thresh=0.2):
         rho_norm_1 = discr.interpolate_volume_function(self.get_rho_distrib())

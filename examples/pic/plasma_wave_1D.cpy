@@ -46,8 +46,9 @@ depositor = DepGridFind()
 dimensions_pos = 2
 dimensions_velocity = 2
 
+#final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
 #final_time = 100 * units.M/units.VACUUM_LIGHT_SPEED
-final_time = 0.01
+final_time = 0.001
 
 vis_interval = 10
 vis_pattern =  "plasma_wave_1D-%04d"
@@ -65,10 +66,9 @@ def hook_vis_quantities(observer):
 # geometry and field discretization
 # -----------------------------------------------------------------------------
 element_order = 5
-element_order = 4
 
 shape_exponent = 2
-shape_bandwidth = 0.4
+shape_bandwidth = 0.5
 
 #potential_bc = hedge.data.ConstantGivenFunction()
 
@@ -98,9 +98,10 @@ def _dt_getter(discr, op, order):
 dt_getter = _dt_getter
 
 from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
-_enable_multirate = False
+_enable_multirate = True
 if _enable_multirate:
-    _step_ratio = 10
+    _step_ratio = 10 * 0.8
+    dt_scale = _step_ratio
     timestepper_maker = lambda dt: _TwoRateAB(dt,
             step_ratio=_step_ratio,
             order=timestepper_order,
@@ -114,15 +115,15 @@ if _enable_multirate:
 # -----------------------------------------------------------------------------
 
 # get 25 particles in y-direction for a 1D equivalent setup in a 2D environment
-_npart_y = 24
+_npart_y = 25
 # Number of particles in x direction:
-_npart_x = 200
+_npart_x = 320
 
 nparticles = _npart_y * _npart_x 
-#_part_charge = [0.001177]
-_part_charge = [1e-09]
-_part_m = [5.6856296568531526e-21]
-#_part_m = _part_charge
+_part_charge = [0.001177]
+#_part_charge = [1e-09]
+#_part_m = [5.6856296568531526e-21]
+_part_m = _part_charge
 
 watch_vars = ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"]
 
