@@ -25,6 +25,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 import numpy
 import numpy.linalg as la
 import pyrticle._internal as _internal
+from pytools import memoize_method
 
 from pyrticle.meshdata import MeshData
 
@@ -355,6 +356,7 @@ class PicMethod(object):
         self.find_global_counter = EventCounter(
                 "n_find_global",
                 "#Particles found by global search")
+
 
     def make_state(self):
         state = PicState(self)
@@ -856,10 +858,13 @@ def compute_initial_condition(rcon, discr, method, state,
     from hedge.models.nd_calculus import GradientOperator
     #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), bound_poisson.grad(phi_tilde))
 
+    from pyrticle.tools import make_cross_product
+    v_e_to_h_cross = make_cross_product(method, maxwell_op, "v", "e", "h")
+
     e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
             GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
-    h_prime = (1/maxwell_op.mu)*gamma/maxwell_op.c * maxwell_op.e_cross(mean_beta, e_tilde)
+    h_prime = (1/maxwell_op.mu)*gamma/maxwell_op.c * v_e_to_h_cross(mean_beta, e_tilde)
 
     if "ic" in method.debug:
         deposited_charge = discr.integral(rho_prime)

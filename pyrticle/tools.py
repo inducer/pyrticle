@@ -305,4 +305,15 @@ class MapStorageVisualizationListener(_internal.VisualizationListener):
 
 
 
+# cross products --------------------------------------------------------------
+def make_cross_product(method, maxwell_op, op1_type, op2_type, result_type):
+    maxwell_subset = maxwell_op.get_eh_subset()
+    subsets = {
+            "v": [True] * method.dimensions_velocity + [False] * (3-method.dimensions_velocity),
+            "e": maxwell_subset[:3],
+            "h": maxwell_subset[3:],
+            }
+    from hedge.tools import SubsettableCrossProduct
+    return SubsettableCrossProduct(
+            subsets[op1_type], subsets[op2_type], subsets[result_type])
 
