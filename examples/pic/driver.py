@@ -381,7 +381,7 @@ class PICRunner(object):
             visf.close()
             sub_timer.stop().submit()
 
-        from hedge.timestep import TwoRateAdamsBashforthTimeStepper 
+        from hedge.timestep.multirate_ab import TwoRateAdamsBashforthTimeStepper 
         if not isinstance(self.stepper, TwoRateAdamsBashforthTimeStepper): 
             def rhs(t, fields_and_state):
                 fields, ts_state = fields_and_state
