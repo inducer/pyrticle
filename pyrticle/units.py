@@ -27,7 +27,7 @@ import numpy.linalg as la
 
 
 
-class SI:
+class SIUnits:
     RAD = 1
     M = 1
     N = 1
@@ -45,33 +45,56 @@ class SI:
     MRAD = 1e-3 * RAD
     M_S = M/S
 
-    EPSILON0 = 8.8541878176e-12 * F / M
-    MU0 = 4*pi*1e-7 * N / A**2
-    VACUUM_LIGHT_SPEED = 1/(EPSILON0*MU0)**0.5
+    @classmethod
+    def VACUUM_LIGHT_SPEED(cls):
+        return 1/(cls.EPSILON0*cls.MU0)**0.5
 
-    EL_MASS = 9.10938215e-31 * KG
-    EL_CHARGE = 1.602176487e-19 * C
-    EL_REST_ENERGY = EL_MASS*VACUUM_LIGHT_SPEED**2
-    PROTON_MASS = 1.672621637e-27 * KG
+    @classmethod
+    def EL_REST_ENERGY(cls):
+        return cls.EL_MASS*cls.VACUUM_LIGHT_SPEED()**2
 
-    EV = EL_CHARGE * V
+    @classmethod
+    def EV(cls):
+        return cls.EL_CHARGE * V
 
-    def gamma_from_beta(self, beta):
+    @classmethod
+    def gamma_from_beta(cls, beta):
         return (1-numpy.dot(beta, beta))**(-0.5)
 
-    def gamma_from_v(self, v):
-        value = 1-numpy.dot(v, v)/self.VACUUM_LIGHT_SPEED**2
+    @classmethod
+    def gamma_from_v(cls, v):
+        value = 1-numpy.dot(v, v)/cls.VACUUM_LIGHT_SPEED()**2
         if value <= 0:
             raise RuntimeError, "particle velocity >= speed of light"
         return value**(-0.5)
 
-    def v_from_p(self, m, p):
-        c = self.VACUUM_LIGHT_SPEED
+    @classmethod
+    def v_from_p(cls, m, p):
+        c = cls.VACUUM_LIGHT_SPEED()
         v =  c*p*(numpy.dot(p, p)+c*c*m*m)**(-0.5)
         assert la.norm(v) < c
         return v
 
 
 
+class SIUnitsWithNaturalConstants(SIUnits):
+    EPSILON0 = 8.8541878176e-12 * SIUnits.F / SIUnits.M
+    MU0 = 4*pi*1e-7 * SIUnits.N / SIUnits.A**2
+
+    EL_MASS = 9.10938215e-31 * SIUnits.KG
+    EL_CHARGE = 1.602176487e-19 * SIUnits.C
+    PROTON_MASS = 1.672621637e-27 * SIUnits.KG
+
+    EV = EL_CHARGE * SIUnits.V
 
 
+
+
+
+class SIUnitsWithUnityConstants(SIUnits):
+    EPSILON0 = 1 * SIUnits.F / SIUnits.M
+    MU0 = 1 * SIUnits.N / SIUnits.A**2
+
+    EL_MASS = 1 * SIUnits.KG
+    EL_CHARGE = 1 * SIUnits.C
+    PROTON_MASS = 1 * SIUnits.KG
