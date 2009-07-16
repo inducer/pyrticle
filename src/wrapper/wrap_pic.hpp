@@ -41,10 +41,11 @@ namespace
   template <class ParticleState>
   std::string get_state_class_suffix()
   {
-    std::string result;
-    result += boost::lexical_cast<std::string>(ParticleState::xdim());
-    result += boost::lexical_cast<std::string>(ParticleState::vdim());
-    return result;
+    return std::string(
+        boost::lexical_cast<std::string>(ParticleState::xdim())
+        + "d"
+        + boost::lexical_cast<std::string>(ParticleState::vdim())
+        + "v");
   }
 
   

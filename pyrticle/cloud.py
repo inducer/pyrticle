@@ -365,7 +365,7 @@ class PicMethod(object):
         return state
 
     def get_dimensionality_suffix(self):
-        return "%d%d" % (self.dimensions_pos, self.dimensions_velocity)
+        return "%dd%dv" % (self.dimensions_pos, self.dimensions_velocity)
 
     def get_shape_function_class(self):
         from pyrticle.tools import \
@@ -808,7 +808,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
 def compute_initial_condition(rcon, discr, method, state,
         maxwell_op, potential_bc,
         force_zero=False):
-    from hedge.pde import WeakPoissonOperator
+    from hedge.models.poisson import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
 
@@ -853,7 +853,7 @@ def compute_initial_condition(rcon, discr, method, state,
                 debug=40 if "poisson" in method.debug else False, tol=1e-10)
 
     from hedge.tools import ptwise_dot
-    from hedge.pde import GradientOperator
+    from hedge.models.nd_calculus import GradientOperator
     #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), bound_poisson.grad(phi_tilde))
 
     e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
@@ -871,7 +871,7 @@ def compute_initial_condition(rcon, discr, method, state,
                 100*abs(deposited_charge-real_charge)/abs(real_charge)
                 )
 
-        from hedge.pde import DivergenceOperator
+        from hedge.models.nd_calculus import DivergenceOperator
 
         bound_div_op = DivergenceOperator(discr.dimensions).bind(discr)
 

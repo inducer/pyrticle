@@ -184,7 +184,7 @@ class PICRunner(object):
                 }
 
         if discr.dimensions == 3:
-            from hedge.pde import MaxwellOperator
+            from hedge.models.em import MaxwellOperator
             self.maxwell_op = MaxwellOperator(**maxwell_kwargs)
         elif discr.dimensions == 2:
             from hedge.models.em import TEMaxwellOperator

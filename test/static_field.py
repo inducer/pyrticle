@@ -264,16 +264,15 @@ class EBParallel(StaticFieldSetup):
 def run_setup(units, casename, setup, discr, pusher, visualize=False):
     from hedge.timestep import RK4TimeStepper
     from hedge.visualization import SiloVisualizer
-    from hedge.pde import MaxwellOperator
+    from hedge.models.em import MaxwellOperator
 
     vis = SiloVisualizer(discr)
 
-    from pyrticle.cloud import PicMethod, FaceBasedElementFinder
+    from pyrticle.cloud import PicMethod
     from pyrticle.deposition.shape import ShapeFunctionDepositor
     method = PicMethod(discr, units, 
             ShapeFunctionDepositor(),
             pusher(),
-            FaceBasedElementFinder(),
             3, 3, debug=set(["verbose_vis"]))
 
     e, h = setup.fields(discr)
@@ -297,7 +296,7 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     dt = final_time/nsteps
 
     # timestepping ------------------------------------------------------------
-    from hedge.pde import MaxwellOperator
+    from hedge.models.em import MaxwellOperator
     max_op = MaxwellOperator(
             epsilon=units.EPSILON0, 
             mu=units.MU0, 
