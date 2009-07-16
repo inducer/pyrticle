@@ -97,18 +97,29 @@ def _dt_getter(discr, op, order):
 
 dt_getter = _dt_getter
 
-from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
+
+from hedge.timestep.multirate_ab.methods import methods as _methods
+if False:
+    _methods_man = ['f_f_1a', 'f_f_1b',
+            's_f_1', 's_f_1_nr',
+            's_f_2a', 's_f_2a_nr',
+            's_f_2b', 's_f_2b_nr',
+            's_f_3a', 's_f_3a_nr',
+            's_f_3b', 's_f_3b_nr',
+            's_f_4', 's_f_4_nr']
+
+from hedge.timestep.multirate_ab import \
+        TwoRateAdamsBashforthTimeStepper as _TwoRateAB
+
 _enable_multirate = True
 if _enable_multirate:
     _step_ratio = 10 * 0.8
     dt_scale = _step_ratio
-    timestepper_maker = lambda dt: _TwoRateAB(dt,
-            step_ratio=_step_ratio,
-            order=timestepper_order,
-            slowest_first=True,
-            fastest_first=False,
-            substepping=False)
-
+    timestepper_maker = lambda dt:_TwoRateAB(
+            'f_f_1a',
+            dt,
+            _step_ratio,
+            order=timestepper_order)
 
 # -----------------------------------------------------------------------------
 # particle setup
