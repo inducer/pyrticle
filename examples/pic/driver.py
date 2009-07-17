@@ -144,9 +144,8 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
 class PICRunner(object):
     def __init__(self):
-        from pyrticle.units import SI
-        units = SI()
-        self.units = SI()
+        from pyrticle.units import SIUnitsWithNaturalConstants
+        self.units = units = SIUnitsWithNaturalConstants()
 
         ui = PICCPyUserInterface(units)
         setup = self.setup = ui.gather()
@@ -317,7 +316,7 @@ class PICRunner(object):
         logmgr.set_constant("dt", self.dt)
         logmgr.set_constant("beta", mean_beta)
         logmgr.set_constant("gamma", gamma)
-        logmgr.set_constant("v", mean_beta*self.units.VACUUM_LIGHT_SPEED)
+        logmgr.set_constant("v", mean_beta*self.units.VACUUM_LIGHT_SPEED())
         logmgr.set_constant("Q0", self.total_charge)
         logmgr.set_constant("n_part_0", setup.nparticles)
         logmgr.set_constant("pmass", setup.distribution.mean()[3][0])

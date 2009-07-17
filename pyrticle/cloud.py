@@ -408,14 +408,14 @@ class PicMethod(object):
             return state.derived_quantity_cache["velocities"]
         except KeyError:
             result = _internal.get_velocities(
-                    state.particle_state, self.units.VACUUM_LIGHT_SPEED)
+                    state.particle_state, self.units.VACUUM_LIGHT_SPEED())
             state.derived_quantity_cache["velocities"] = result
             return result
 
     def mean_beta(self, state):
         if len(state):
             return numpy.average(self.velocities(state), axis=0) \
-                    / self.units.VACUUM_LIGHT_SPEED
+                    / self.units.VACUUM_LIGHT_SPEED()
         else:
             return numpy.zeros((self.dimensions_velocity,))
 

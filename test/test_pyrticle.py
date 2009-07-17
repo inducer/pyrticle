@@ -82,8 +82,8 @@ def test_kv_with_no_charge():
     from random import seed
     seed(0)
 
-    from pyrticle.units import SI
-    units = SI()
+    from pyrticle.units import SIUnitsWithNaturalConstants
+    units = SIUnitsWithNaturalConstants()
 
     # discretization setup ----------------------------------------------------
     from hedge.mesh import make_cylinder_mesh
@@ -96,8 +96,8 @@ def test_kv_with_no_charge():
 
     discr = rcon.make_discretization(mesh, order=3)
 
-    dt = discr.dt_factor(units.VACUUM_LIGHT_SPEED) / 2
-    final_time = 1*units.M/units.VACUUM_LIGHT_SPEED
+    dt = discr.dt_factor(units.VACUUM_LIGHT_SPEED()) / 2
+    final_time = 1*units.M/units.VACUUM_LIGHT_SPEED()
     nsteps = int(final_time/dt)+1
     dt = final_time/nsteps
 
@@ -142,11 +142,11 @@ def test_kv_with_no_charge():
 
     from pyrticle.distribution import KVPredictedRadius
     logmgr.add_quantity(KVPredictedRadius(dt,
-        beam_v=beta*units.VACUUM_LIGHT_SPEED,
+        beam_v=beta*units.VACUUM_LIGHT_SPEED,()
         predictor=beam.get_rms_predictor(axis=0),
         suffix="x_rms"))
     logmgr.add_quantity(KVPredictedRadius(dt,
-        beam_v=beta*units.VACUUM_LIGHT_SPEED,
+        beam_v=beta*units.VACUUM_LIGHT_SPEED(),
         predictor=beam.get_total_predictor(axis=0),
         suffix="x_total"))
 
@@ -197,15 +197,15 @@ def test_efield_vs_gauss_law():
     from random import seed
     from pytools.stopwatch import Job
 
-    from pyrticle.units import SI
-    units = SI()
+    from pyrticle.units import SIUnitsWithNaturalConstants()
+    units = SIUnitsWithNaturalConstants()
 
     seed(0)
 
     nparticles = 10000
     beam_radius = 2.5 * units.MM
     emittance = 5 * units.MM * units.MRAD
-    final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
+    final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED()
     field_dump_interval = 1
     tube_length = 20*units.MM
 
@@ -331,9 +331,9 @@ def test_efield_vs_gauss_law():
 
 @mark_test(long=True)
 def test_with_static_fields():
-    from pyrticle.units import SI
+    from pyrticle.units import SIUnitsWithNaturalConstants
 
-    units = SI()
+    units = SIUnitsWithNaturalConstants()
 
     from hedge.element import TetrahedralElement
     from hedge.mesh import \
@@ -359,7 +359,7 @@ def test_with_static_fields():
 
     # particles setup ---------------------------------------------------------
     def get_setup(case):
-        c = units.VACUUM_LIGHT_SPEED
+        c = units.VACUUM_LIGHT_SPEED()
         from static_field import LarmorScrew, EBParallel
         if case == "screw":
             return LarmorScrew(units,

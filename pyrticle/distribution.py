@@ -354,7 +354,7 @@ class KVZIntervalBeam(KV):
                 JointParticleDistribution([
                     DeltaChargeMass(p_charge, p_mass),
                     UniformPos([z_pos-z_length/2], [z_pos+z_length/2]),
-                    DeltaVelocity([beta*units.VACUUM_LIGHT_SPEED]),
+                    DeltaVelocity([beta*units.VACUUM_LIGHT_SPEED()]),
                     ]),
                 axis_first=axis_first)
 
@@ -372,7 +372,7 @@ class KVZIntervalBeam(KV):
         r0 = 1/(4*pi*self.units.EPSILON0)*( 
                 (self.units.EL_CHARGE**2)
                 /
-                (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED**2))
+                (self.units.EL_MASS*self.units.VACUUM_LIGHT_SPEED()**2))
 
         lambda_ = abs(self.total_charge) /(self.z_length*self.units.EL_CHARGE)
 

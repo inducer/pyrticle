@@ -26,7 +26,7 @@ shape_bandwidth = 0.1
 _cloud_charge = 10e-9 * units.C
 nparticles = 1
 element_order = 8
-final_time = 100*units.M/units.VACUUM_LIGHT_SPEED
+final_time = 100*units.M/units.VACUUM_LIGHT_SPEED()
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
 shape_exponent = 2

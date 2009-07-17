@@ -28,7 +28,7 @@ else:
 _cloud_charge = -10e-9 * units.C
 nparticles = 1
 element_order = 3
-final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
+final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED()
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
 _el_energy = units.EL_REST_ENERGY*10

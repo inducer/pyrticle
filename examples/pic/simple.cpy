@@ -7,7 +7,7 @@ depositor = DepShape()
 dimensions_pos = 2
 dimensions_velocity = 2
 
-final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
+final_time = 10*units.M/units.VACUUM_LIGHT_SPEED()
 
 vis_interval = 10
 
@@ -36,12 +36,12 @@ nparticles = 2000
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 _pmass = _electrons_per_particle*units.EL_MASS
 
-_c0 = units.VACUUM_LIGHT_SPEED
+_c0 = units.VACUUM_LIGHT_SPEED()
 
 _mean_v = numpy.array([_c0*0.9,0])
 _sigma_v = numpy.array([_c0*0.9*1e-3, _c0*1e-5])
 
-_mean_beta = _mean_v/units.VACUUM_LIGHT_SPEED
+_mean_beta = _mean_v/units.VACUUM_LIGHT_SPEED()
 _gamma = units.gamma_from_v(_mean_v)
 _mean_p = _gamma*_pmass*_mean_v
 
