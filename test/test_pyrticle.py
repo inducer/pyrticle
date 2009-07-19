@@ -142,7 +142,7 @@ def test_kv_with_no_charge():
 
     from pyrticle.distribution import KVPredictedRadius
     logmgr.add_quantity(KVPredictedRadius(dt,
-        beam_v=beta*units.VACUUM_LIGHT_SPEED,()
+        beam_v=beta*units.VACUUM_LIGHT_SPEED(),
         predictor=beam.get_rms_predictor(axis=0),
         suffix="x_rms"))
     logmgr.add_quantity(KVPredictedRadius(dt,
@@ -197,7 +197,7 @@ def test_efield_vs_gauss_law():
     from random import seed
     from pytools.stopwatch import Job
 
-    from pyrticle.units import SIUnitsWithNaturalConstants()
+    from pyrticle.units import SIUnitsWithNaturalConstants
     units = SIUnitsWithNaturalConstants()
 
     seed(0)
