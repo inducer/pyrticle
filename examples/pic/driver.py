@@ -205,9 +205,9 @@ class PICRunner(object):
                             ExponentialFilterResponseFunction(*setup.phi_filter))))
 
         # timestepping setup --------------------------------------------------
-        goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue())
+        goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue()) * setup.dt_scale
         self.nsteps = int(setup.final_time/goal_dt)+1
-        self.dt = setup.final_time/self.nsteps * setup.dt_scale
+        self.dt = setup.final_time/self.nsteps
 
         self.stepper = setup.timestepper_maker(self.dt)
 
