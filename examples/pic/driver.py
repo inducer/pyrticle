@@ -50,7 +50,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
         import hedge.data
 
-        from hedge.timestep import RK4TimeStepper
+        from hedge.timestep.rk4 import RK4TimeStepper
 
         variables = {
                 "pusher": None,
@@ -400,7 +400,7 @@ class PICRunner(object):
             visf.close()
             sub_timer.stop().submit()
 
-        from hedge.timestep import TwoRateAdamsBashforthTimeStepper 
+        from hedge.timestep.multirate_ab import TwoRateAdamsBashforthTimeStepper 
         if not isinstance(self.stepper, TwoRateAdamsBashforthTimeStepper): 
             def rhs(t, fields_and_state):
                 fields, ts_state = fields_and_state
@@ -418,6 +418,8 @@ class PICRunner(object):
         else:
             def add_unwrap(rhs):
                 def unwrapping_rhs(t, fields, ts_state):
+                    print ts_state,dir(ts_state)
+                    raw_input()
                     if ts_state is not None:
                         state = ts_state.state
                     else:

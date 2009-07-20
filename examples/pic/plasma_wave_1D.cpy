@@ -35,7 +35,7 @@ import numpy as _nu
 
 #profile_output_filename = "wave.log"
 
-debug = ["vis_files", "ic", "poisson"]
+debug = ["vis_files", "no_ic", "poisson"]
 
 # -----------------------------------------------------------------------------
 # pic setup
