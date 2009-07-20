@@ -191,16 +191,16 @@ class FieldRhsCalculator(object):
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.field_solve_timer)
 
-    def __call__(self, t, fields, state):
+    def __call__(self, t, fields_f, state_f):
         # calculate EM right-hand side 
         sub_timer = self.field_solve_timer.start_sub_timer()
 
         from pyrticle.hyperbolic import CleaningMaxwellOperator
         if isinstance(self.maxwell_op, CleaningMaxwellOperator):
-            rhs_fields = self.bound_maxwell_op(t, fields, 
-                    self.method.deposit_rho(state))
+            rhs_fields = self.bound_maxwell_op(t, fields_f(), 
+                    self.method.deposit_rho(state_f()))
         else:
-            rhs_fields = self.bound_maxwell_op(t, fields)
+            rhs_fields = self.bound_maxwell_op(t, fields_f())
 
         sub_timer.stop().submit()
 
@@ -213,10 +213,10 @@ class ParticleToFieldRhsCalculator(object):
         self.method = method
         self.maxwell_op = maxwell_op
 
-    def __call__(self, t, fields, state):
+    def __call__(self, t, fields_f, state_f):
         return self.maxwell_op.assemble_eh(
                 e=-1/self.maxwell_op.epsilon
-                *self.method.deposit_j(state))
+                *self.method.deposit_j(state_f()))
 
 
 
@@ -226,8 +226,11 @@ class FieldToParticleRhsCalculator(object):
         self.method = method
         self.maxwell_op = maxwell_op
 
-    def __call__(self, t, fields, state):
+    def __call__(self, t, fields_f, state_f):
         from hedge.tools import ZeroVector
+
+        fields = fields_f()
+        state = state_f()
 
         e, h = self.maxwell_op.split_eh(fields)
 
@@ -278,7 +281,9 @@ class ParticleRhsCalculator(object):
         self.method = method
         self.maxwell_op = maxwell_op
 
-    def __call__(self, t, fields, state):
+    def __call__(self, t, fields_f, state_f):
+        state = state_f()
+
         velocities = self.method.velocities(state)
 
         from pyrticle.tools import NumberShiftableVector

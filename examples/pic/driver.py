@@ -386,26 +386,22 @@ class PICRunner(object):
         if not isinstance(self.stepper, TwoRateAdamsBashforthTimeStepper): 
             def rhs(t, fields_and_state):
                 fields, ts_state = fields_and_state
-                state = ts_state.state
+                state_f = lambda: ts_state.state
+                fields_f = lambda: fields
 
                 fields_rhs = (
-                        self.f_rhs_calculator(t, fields, state)
-                        + self.p2f_rhs_calculator(t, fields, state))
+                        self.f_rhs_calculator(t, fields_f, state_f)
+                        + self.p2f_rhs_calculator(t, fields_f, state_f))
                 state_rhs = (
-                        self.p_rhs_calculator(t, fields, state)
-                        + self.f2p_rhs_calculator(t, fields, state))
+                        self.p_rhs_calculator(t, fields_f, state_f)
+                        + self.f2p_rhs_calculator(t, fields_f, state_f))
 
                 return make_obj_array([fields_rhs, state_rhs])
             step_args = (self.dt, rhs)
         else:
             def add_unwrap(rhs):
                 def unwrapping_rhs(t, fields, ts_state):
-                    if ts_state is not None:
-                        state = ts_state.state
-                    else:
-                        state = None
-
-                    return rhs(t, fields, state)
+                    return rhs(t, fields, lambda: ts_state().state)
                 return unwrapping_rhs
 
             step_args = ((
