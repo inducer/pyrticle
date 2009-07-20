@@ -116,7 +116,7 @@ def test_kv_with_no_charge():
     electrons_per_particle = cloud_charge/nparticles/units.EL_CHARGE
 
     el_energy = 5.2e6 * units.EV
-    gamma = el_energy/units.EL_REST_ENERGY
+    gamma = el_energy/units.EL_REST_ENERGY()
     beta = (1-1/gamma**2)**0.5
 
     from pyrticle.distribution import KVZIntervalBeam
@@ -246,8 +246,8 @@ def test_efield_vs_gauss_law():
     cloud_charge = -1e-9 * units.C
     electrons_per_particle = abs(cloud_charge/nparticles/units.EL_CHARGE)
 
-    el_energy = 10*units.EL_REST_ENERGY
-    el_lorentz_gamma = el_energy/units.EL_REST_ENERGY
+    el_energy = 10*units.EL_REST_ENERGY()
+    el_lorentz_gamma = el_energy/units.EL_REST_ENERGY()
     beta = (1-1/el_lorentz_gamma**2)**0.5
     gamma = 1/sqrt(1-beta**2)
 

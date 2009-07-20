@@ -141,7 +141,7 @@ class EBParallel(StaticFieldSetup):
 
         self.shift = numpy.zeros((3,))
 
-        c = self.c = self.units.VACUUM_LIGHT_SPEED
+        c = self.c = self.units.VACUUM_LIGHT_SPEED()
         self.R = mass*c/(charge*bz) # converted to SI
         self.rho = ez/(c*bz) # converted to SI
 
