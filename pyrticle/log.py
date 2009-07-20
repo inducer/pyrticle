@@ -214,10 +214,12 @@ class FieldCurrent(LogQuantity):
 
 def add_field_quantities(mgr, observer, deposit_interval=5):
     from hedge.log import \
-            EMFieldEnergy, \
+            ElectricFieldEnergy, \
+            MagneticFieldEnergy, \
             EMFieldMomentum, \
             EMFieldDivergenceB
-    mgr.add_quantity(EMFieldEnergy(observer))
+    mgr.add_quantity(ElectricFieldEnergy(observer))
+    mgr.add_quantity(MagneticFieldEnergy(observer))
     mgr.add_quantity(EMFieldMomentum(observer, observer.method.units.VACUUM_LIGHT_SPEED()))
     mgr.add_quantity(EMFieldDivergenceB(observer.maxwell_op, observer))
     mgr.add_quantity(DivergenceEQuantities(observer), deposit_interval)

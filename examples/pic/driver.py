@@ -91,7 +91,9 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "dg_debug": set(),
                 "profile_output_filename": None,
 
-                "watch_vars": ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"],
+                "watch_vars": ["step", "t_sim", 
+                    ("W_field", "W_el+W_mag"), 
+                    "t_step", "t_eta", "n_part"],
 
                 "hook_startup": lambda runner: None,
                 "hook_after_step": lambda runner, state: None,
