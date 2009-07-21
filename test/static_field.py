@@ -311,8 +311,8 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
     f2p_rhs_calculator = FieldToParticleRhsCalculator(method, max_op)
 
     def rhs(t, ts_state):
-        return (p_rhs_calculator(t, fields, ts_state.state)
-                + f2p_rhs_calculator(t, fields, ts_state.state))
+        return (p_rhs_calculator(t, lambda: fields, lambda: ts_state.state)
+                + f2p_rhs_calculator(t, lambda: fields, lambda: ts_state.state))
 
     stepper = RK4TimeStepper()
     from time import time
