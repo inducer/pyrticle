@@ -25,6 +25,7 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 import numpy
 import numpy.linalg as la
 import pyrticle._internal as _internal
+from pytools import memoize_method
 
 from pyrticle.meshdata import MeshData
 
@@ -190,16 +191,16 @@ class FieldRhsCalculator(object):
     def add_instrumentation(self, mgr):
         mgr.add_quantity(self.field_solve_timer)
 
-    def __call__(self, t, fields, state):
+    def __call__(self, t, fields_f, state_f):
         # calculate EM right-hand side 
         sub_timer = self.field_solve_timer.start_sub_timer()
 
         from pyrticle.hyperbolic import CleaningMaxwellOperator
         if isinstance(self.maxwell_op, CleaningMaxwellOperator):
-            rhs_fields = self.bound_maxwell_op(t, fields, 
-                    self.method.deposit_rho(state))
+            rhs_fields = self.bound_maxwell_op(t, fields_f(), 
+                    self.method.deposit_rho(state_f()))
         else:
-            rhs_fields = self.bound_maxwell_op(t, fields)
+            rhs_fields = self.bound_maxwell_op(t, fields_f())
 
         sub_timer.stop().submit()
 
@@ -212,10 +213,10 @@ class ParticleToFieldRhsCalculator(object):
         self.method = method
         self.maxwell_op = maxwell_op
 
-    def __call__(self, t, fields, state):
+    def __call__(self, t, fields_f, state_f):
         return self.maxwell_op.assemble_eh(
                 e=-1/self.maxwell_op.epsilon
-                *self.method.deposit_j(state))
+                *self.method.deposit_j(state_f()))
 
 
 
@@ -225,8 +226,11 @@ class FieldToParticleRhsCalculator(object):
         self.method = method
         self.maxwell_op = maxwell_op
 
-    def __call__(self, t, fields, state):
+    def __call__(self, t, fields_f, state_f):
         from hedge.tools import ZeroVector
+
+        fields = fields_f()
+        state = state_f()
 
         e, h = self.maxwell_op.split_eh(fields)
 
@@ -277,7 +281,9 @@ class ParticleRhsCalculator(object):
         self.method = method
         self.maxwell_op = maxwell_op
 
-    def __call__(self, t, fields, state):
+    def __call__(self, t, fields_f, state_f):
+        state = state_f()
+
         velocities = self.method.velocities(state)
 
         from pyrticle.tools import NumberShiftableVector
@@ -356,6 +362,7 @@ class PicMethod(object):
                 "n_find_global",
                 "#Particles found by global search")
 
+
     def make_state(self):
         state = PicState(self)
 
@@ -406,14 +413,14 @@ class PicMethod(object):
             return state.derived_quantity_cache["velocities"]
         except KeyError:
             result = _internal.get_velocities(
-                    state.particle_state, self.units.VACUUM_LIGHT_SPEED)
+                    state.particle_state, self.units.VACUUM_LIGHT_SPEED())
             state.derived_quantity_cache["velocities"] = result
             return result
 
     def mean_beta(self, state):
         if len(state):
             return numpy.average(self.velocities(state), axis=0) \
-                    / self.units.VACUUM_LIGHT_SPEED
+                    / self.units.VACUUM_LIGHT_SPEED()
         else:
             return numpy.zeros((self.dimensions_velocity,))
 
@@ -856,10 +863,13 @@ def compute_initial_condition(rcon, discr, method, state,
     from hedge.models.nd_calculus import GradientOperator
     #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), bound_poisson.grad(phi_tilde))
 
+    from pyrticle.tools import make_cross_product
+    v_e_to_h_cross = make_cross_product(method, maxwell_op, "v", "e", "h")
+
     e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
             GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
-    h_prime = (1/maxwell_op.mu)*gamma/maxwell_op.c * maxwell_op.e_cross(mean_beta, e_tilde)
+    h_prime = (1/maxwell_op.mu)*gamma/maxwell_op.c * v_e_to_h_cross(mean_beta, e_tilde)
 
     if "ic" in method.debug:
         deposited_charge = discr.integral(rho_prime)

@@ -34,7 +34,7 @@ shape_bandwidth = 0.1
 _cloud_charge = 10e-9 * units.C
 nparticles = 10
 element_order = 4
-final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
+final_time = 10*units.M/units.VACUUM_LIGHT_SPEED()
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
 shape_exponent = 2
@@ -48,12 +48,12 @@ mesh = _mesh.make_rect_mesh(
         subdivisions=(10,5),
         max_area=0.02)
 
-_c0 = units.VACUUM_LIGHT_SPEED
+_c0 = units.VACUUM_LIGHT_SPEED()
 
 _mean_v = numpy.array([_c0*0.9,0])
 _sigma_v = numpy.array([_c0*0.9*1e-3, _c0])
 
-_mean_beta = _mean_v/units.VACUUM_LIGHT_SPEED
+_mean_beta = _mean_v/_c0
 _gamma = units.gamma_from_v(_mean_v)
 _pmass = _electrons_per_particle*units.EL_MASS
 _mean_p = _gamma*_pmass*_mean_v

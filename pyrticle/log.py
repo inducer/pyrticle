@@ -130,7 +130,7 @@ class KineticEnergy(LogQuantity):
         from pyrticle._internal import kinetic_energies
         total_kin_energy = numpy.sum(kinetic_energies(
                 self.observer.state.particle_state, 
-                self.observer.method.units.VACUUM_LIGHT_SPEED))
+                self.observer.method.units.VACUUM_LIGHT_SPEED()))
         return total_kin_energy
 
 
@@ -214,11 +214,13 @@ class FieldCurrent(LogQuantity):
 
 def add_field_quantities(mgr, observer, deposit_interval=5):
     from hedge.log import \
-            EMFieldEnergy, \
+            ElectricFieldEnergy, \
+            MagneticFieldEnergy, \
             EMFieldMomentum, \
             EMFieldDivergenceB
-    mgr.add_quantity(EMFieldEnergy(observer))
-    mgr.add_quantity(EMFieldMomentum(observer, observer.method.units.VACUUM_LIGHT_SPEED))
+    mgr.add_quantity(ElectricFieldEnergy(observer))
+    mgr.add_quantity(MagneticFieldEnergy(observer))
+    mgr.add_quantity(EMFieldMomentum(observer, observer.method.units.VACUUM_LIGHT_SPEED()))
     mgr.add_quantity(EMFieldDivergenceB(observer.maxwell_op, observer))
     mgr.add_quantity(DivergenceEQuantities(observer), deposit_interval)
     mgr.add_quantity(DepositedCharge(observer), deposit_interval)
@@ -270,7 +272,7 @@ class RMSBeamEnergySpread(LogQuantity):
     def __call__(self):
         from pyrticle._internal import rms_energy_spread
         return rms_energy_spread(self.observer.state.particle_state, 
-                self.observer.method.units.VACUUM_LIGHT_SPEED)
+                self.observer.method.units.VACUUM_LIGHT_SPEED())
 
 
 

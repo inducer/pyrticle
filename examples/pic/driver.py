@@ -91,7 +91,9 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                 "dg_debug": set(),
                 "profile_output_filename": None,
 
-                "watch_vars": ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"],
+                "watch_vars": ["step", "t_sim", 
+                    ("W_field", "W_el+W_mag"), 
+                    "t_step", "t_eta", "n_part"],
 
                 "hook_startup": lambda runner: None,
                 "hook_after_step": lambda runner, state: None,
@@ -146,9 +148,8 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
 class PICRunner(object):
     def __init__(self):
-        from pyrticle.units import SI
-        units = SI()
-        self.units = SI()
+        from pyrticle.units import SIUnitsWithNaturalConstants
+        self.units = units = SIUnitsWithNaturalConstants()
 
         ui = PICCPyUserInterface(units)
         setup = self.setup = ui.gather()
@@ -218,14 +219,14 @@ class PICRunner(object):
         # normal AB stepsize and with the substeps even smaller stepsizes.
         if setup.dt_getter is None:
             goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue(),
-                    setup.timestepper_maker)
+                    setup.timestepper_maker) * setup.dt_scale
         else:
             goal_dt = setup.dt_getter(self.discr,
                     self.maxwell_op,
                     self.setup.timestepper_order)
 
         self.nsteps = int(setup.final_time/goal_dt)+1
-        self.dt = setup.final_time/self.nsteps * setup.dt_scale
+        self.dt = setup.final_time/self.nsteps
 
         self.stepper = setup.timestepper_maker(self.dt)
 
@@ -336,7 +337,7 @@ class PICRunner(object):
         logmgr.set_constant("dt", self.dt)
         logmgr.set_constant("beta", mean_beta)
         logmgr.set_constant("gamma", gamma)
-        logmgr.set_constant("v", mean_beta*self.units.VACUUM_LIGHT_SPEED)
+        logmgr.set_constant("v", mean_beta*self.units.VACUUM_LIGHT_SPEED())
         logmgr.set_constant("Q0", self.total_charge)
         logmgr.set_constant("n_part_0", setup.nparticles)
         logmgr.set_constant("pmass", setup.distribution.mean()[3][0])
@@ -404,28 +405,22 @@ class PICRunner(object):
         if not isinstance(self.stepper, TwoRateAdamsBashforthTimeStepper): 
             def rhs(t, fields_and_state):
                 fields, ts_state = fields_and_state
-                state = ts_state.state
+                state_f = lambda: ts_state.state
+                fields_f = lambda: fields
 
                 fields_rhs = (
-                        self.f_rhs_calculator(t, fields, state)
-                        + self.p2f_rhs_calculator(t, fields, state))
+                        self.f_rhs_calculator(t, fields_f, state_f)
+                        + self.p2f_rhs_calculator(t, fields_f, state_f))
                 state_rhs = (
-                        self.p_rhs_calculator(t, fields, state)
-                        + self.f2p_rhs_calculator(t, fields, state))
+                        self.p_rhs_calculator(t, fields_f, state_f)
+                        + self.f2p_rhs_calculator(t, fields_f, state_f))
 
                 return make_obj_array([fields_rhs, state_rhs])
             step_args = (self.dt, rhs)
         else:
             def add_unwrap(rhs):
                 def unwrapping_rhs(t, fields, ts_state):
-                    print ts_state,dir(ts_state)
-                    raw_input()
-                    if ts_state is not None:
-                        state = ts_state.state
-                    else:
-                        state = None
-
-                    return rhs(t, fields, state)
+                    return rhs(t, fields, lambda: ts_state().state)
                 return unwrapping_rhs
 
             step_args = ((

@@ -16,7 +16,7 @@ vis_interval = 10
 
 element_order = 5
 
-user_c0 = units.VACUUM_LIGHT_SPEED
+user_c0 = units.VACUUM_LIGHT_SPEED()
 
 sigma_x = 0.035 * num.ones((2,))
 sigma_v = num.array([user_c0*0.9*1e-2, user_c0*0.9*1e-2])

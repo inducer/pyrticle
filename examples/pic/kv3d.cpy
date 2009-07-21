@@ -2,16 +2,16 @@ import random as _random
 _random.seed(0)
 
 #debug.add("interactive")
-debug.add("reconstructor")
+#debug.add("reconstructor")
 debug.add("vis_files")
 
 pusher = PushMonomial()
-#reconstructor = RecShape()
-reconstructor = RecGrid(
-        FineCoreBrickGenerator(core_axis=2),
-        #el_tolerance=0.1,
-        method="simplex_reduce")
-#reconstructor = RecGridFind(
+depositor = DepShape()
+#reconstructor = DepGrid(
+        #FineCoreBrickGenerator(core_axis=2),
+        #)
+        #el_tolerance=0.1)
+#reconstructor = DepGridFind(
         #FineCoreBrickGenerator(core_axis=2, 
             #overresolve=0.2, mesh_margin=1e-4),
         #)
@@ -26,11 +26,11 @@ tube_length = 100*units.MM
 _cloud_charge = -10e-9 * units.C
 nparticles = 20000
 element_order = 3
-final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
+final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED()
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
-_el_energy = units.EL_REST_ENERGY*10
-_gamma = _el_energy/units.EL_REST_ENERGY
+_el_energy = units.EL_REST_ENERGY()*10
+_gamma = _el_energy/units.EL_REST_ENERGY()
 _mean_beta = (1-1/_gamma**2)**0.5
 
 def hook_when_done(runner):
@@ -40,11 +40,11 @@ def hook_when_done(runner):
 def hook_startup(runner):
     from pyrticle.distribution import KVPredictedRadius
     runner.logmgr.add_quantity(KVPredictedRadius(runner.dt, 
-        beam_v=distribution.beta*units.VACUUM_LIGHT_SPEED,
+        beam_v=distribution.beta*units.VACUUM_LIGHT_SPEED(),
         predictor=distribution.get_rms_predictor(axis=0),
         suffix="x_rms"))
     runner.logmgr.add_quantity(KVPredictedRadius(runner.dt, 
-        beam_v=distribution.beta*units.VACUUM_LIGHT_SPEED,
+        beam_v=distribution.beta*units.VACUUM_LIGHT_SPEED(),
         predictor=distribution.get_total_predictor(axis=0),
         suffix="x_total"))
 

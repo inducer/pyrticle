@@ -26,20 +26,22 @@ shape_bandwidth = 0.1
 _cloud_charge = 10e-9 * units.C
 nparticles = 1
 element_order = 8
-final_time = 100*units.M/units.VACUUM_LIGHT_SPEED
+final_time = 100*units.M/units.VACUUM_LIGHT_SPEED()
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
 shape_exponent = 2
 
-from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
+from hedge.timestep.multirate_ab import \
+        TwoRateAdamsBashforthTimeStepper as _TwoRateAB
 _enable_multirate = True
 if _enable_multirate:
-    _step_ratio = 10
-    timestepper_maker = lambda dt: _TwoRateAB(dt, step_ratio=_step_ratio, order=5,
-            largest_first=True)
+    _substep_count = 10
+    timestepper_maker = lambda dt: _TwoRateAB(
+            "fastest_first_1a",
+            dt, substep_count=_substep_count, order=5)
     _rk4_stability = 2
-    #dt_scale = 0.36/_rk4_stability*_step_ratio # ab4
-    dt_scale = 0.18/_rk4_stability*_step_ratio # ab5
+    #dt_scale = 0.36/_rk4_stability*_substep_count # ab4
+    dt_scale = 0.18/_rk4_stability*_substep_count # ab5
 
 _tube_width = 1
 import hedge.mesh as _mesh
@@ -50,12 +52,12 @@ mesh = _mesh.make_rect_mesh(
         subdivisions=(10,5),
         max_area=0.02)
 
-_c0 = units.VACUUM_LIGHT_SPEED
+_c0 = units.VACUUM_LIGHT_SPEED()
 
 _mean_v = numpy.array([_c0*0.9,0])
 _sigma_v = numpy.array([_c0*0.9*1e-3, _c0*1e-5])
 
-_mean_beta = _mean_v/units.VACUUM_LIGHT_SPEED
+_mean_beta = _mean_v/_c0
 _gamma = units.gamma_from_v(_mean_v)
 _pmass = _electrons_per_particle*units.EL_MASS
 _mean_p = _gamma*_pmass*_mean_v
