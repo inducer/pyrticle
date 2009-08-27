@@ -218,12 +218,13 @@ class PICRunner(object):
         # method also should do that due to the fact, that it maximal uses the
         # normal AB stepsize and with the substeps even smaller stepsizes.
         if setup.dt_getter is None:
+            from hedge.timestep import RK4TimeStepper
             goal_dt = discr.dt_factor(self.maxwell_op.max_eigenvalue(),
-                    setup.timestepper_maker) * setup.dt_scale
+                    RK4TimeStepper) * setup.dt_scale
         else:
             goal_dt = setup.dt_getter(self.discr,
                     self.maxwell_op,
-                    self.setup.timestepper_order)
+                    self.setup.timestepper_order) * setup.dt_scale
 
         self.nsteps = int(setup.final_time/goal_dt)+1
         self.dt = setup.final_time/self.nsteps

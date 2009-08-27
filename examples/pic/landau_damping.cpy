@@ -80,18 +80,39 @@ mesh = _mesh.make_rect_mesh(
 # -----------------------------------------------------------------------------
 # timestepper setup
 # -----------------------------------------------------------------------------
-from hedge.timestep import TwoRateAdamsBashforthTimeStepper as _TwoRateAB
-_enable_multirate = True
+timestepper_order = 3
+
+from hedge.timestep.multirate_ab.methods import methods as _methods
+if False:
+    _methods_man = ['f_f_1a', 'f_f_1b',
+            's_f_1', 's_f_1_nr',
+            's_f_2a', 's_f_2a_nr',
+            's_f_2b', 's_f_2b_nr',
+            's_f_3a', 's_f_3a_nr',
+            's_f_3b', 's_f_3b_nr',
+            's_f_4', 's_f_4_nr']
+
+from hedge.timestep.multirate_ab import \
+        TwoRateAdamsBashforthTimeStepper as _TwoRateAB
+
+_enable_multirate = False
 if _enable_multirate:
+    def _dt_getter(discr, op, order):
+       from hedge.timestep import AdamsBashforthTimeStepper
+       # Take the stable step size of single-rate AB
+       return discr.dt_factor(op.max_eigenvalue(),
+               AdamsBashforthTimeStepper, 
+               order)
+
+    dt_getter = _dt_getter
+
     _step_ratio = 10
-    timestepper_maker = lambda dt: _TwoRateAB(dt, step_ratio=_step_ratio, order=5,
-            #largest_first=True)
-            slowest_first=True)
-    _rk4_stability = 2
-    #dt_scale = 0.36/_rk4_stability*_step_ratio # ab4
-    dt_scale = 0.18/_rk4_stability*_step_ratio # ab5
-
-
+    dt_scale = 0.8
+    timestepper_maker = lambda dt:_TwoRateAB(
+            'f_f_1a',
+            dt,
+            _step_ratio,
+            order=timestepper_order)
 # -----------------------------------------------------------------------------
 # particle setup
 # -----------------------------------------------------------------------------

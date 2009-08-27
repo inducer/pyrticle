@@ -35,7 +35,8 @@ import numpy as _nu
 
 #profile_output_filename = "wave.log"
 
-debug = ["vis_files", "no_ic", "poisson"]
+#debug = ["vis_files", "no_ic", "poisson"]
+debug = ["vis_files", "ic", "poisson"]
 
 # -----------------------------------------------------------------------------
 # pic setup
@@ -87,16 +88,7 @@ mesh = _mesh.make_rect_mesh(
 # -----------------------------------------------------------------------------
 # timestepper setup
 # -----------------------------------------------------------------------------
-timestepper_order = 5
-
-def _dt_getter(discr, op, order):
-    from hedge.timestep import AdamsBashforthTimeStepper
-    return discr.dt_factor(op.max_eigenvalue(),
-            AdamsBashforthTimeStepper, 
-            order)
-
-dt_getter = _dt_getter
-
+timestepper_order = 3
 
 from hedge.timestep.multirate_ab.methods import methods as _methods
 if False:
@@ -111,10 +103,19 @@ if False:
 from hedge.timestep.multirate_ab import \
         TwoRateAdamsBashforthTimeStepper as _TwoRateAB
 
-_enable_multirate = True
+_enable_multirate = False
 if _enable_multirate:
-    _step_ratio = 10 * 0.8
-    dt_scale = _step_ratio
+    def _dt_getter(discr, op, order):
+       from hedge.timestep import AdamsBashforthTimeStepper
+       # Take the stable step size of single-rate AB
+       return discr.dt_factor(op.max_eigenvalue(),
+               AdamsBashforthTimeStepper, 
+               order)
+
+    dt_getter = _dt_getter
+
+    _step_ratio = 10
+    dt_scale = 0.8
     timestepper_maker = lambda dt:_TwoRateAB(
             'f_f_1a',
             dt,
@@ -135,9 +136,6 @@ _part_charge = [0.001177]
 #_part_charge = [1e-09]
 #_part_m = [5.6856296568531526e-21]
 _part_m = _part_charge
-
-watch_vars = ["step", "t_sim", "W_field", "t_step", "t_eta", "n_part"]
-
 
 # -----------------------------------------------------------------------------
 # particle distribution setup
