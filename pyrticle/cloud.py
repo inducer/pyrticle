@@ -853,7 +853,7 @@ def compute_initial_condition(rcon, discr, method, state,
     if force_zero:
         phi_tilde = discr.volume_zeros()
     else:
-        from hedge.tools import parallel_cg
+        from hedge.iterative import parallel_cg
         phi_tilde = -parallel_cg(rcon, -bound_poisson, 
                 bound_poisson.prepare_rhs(
                     GivenVolumeInterpolant(discr, rho_tilde/maxwell_op.epsilon)), 
