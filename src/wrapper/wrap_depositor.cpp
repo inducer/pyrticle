@@ -23,6 +23,7 @@
 #include "dep_advective.hpp"
 #include "dep_grid.hpp"
 #include "dep_grid_find.hpp"
+#include "dep_dirac.hpp"
 
 
 
@@ -200,7 +201,7 @@ namespace
       }
     }
 
-    EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(
+    EXPOSE_FOR_ALL_TARGET_DEPOSITORS(
         expose_deposition_functions, 
         used_shape_function,
         ());
@@ -229,6 +230,22 @@ namespace
         ;
 
       wrp.attr("DepositorState") = gdbs_wrap;
+    }
+
+    {
+      typedef dirac_depositor<ParticleState, used_shape_function> cl;
+      class_<cl> wrp(
+        ("DiracDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
+        init<const mesh_data &>());
+
+      scope cls_scope = wrp;
+      {
+        typedef typename cl::depositor_state cl;
+        class_<cl> wrp("DepositorState")
+          ;
+      }
+
+      expose_deposition_functions<cl>();
     }
   }
 }

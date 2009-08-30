@@ -147,32 +147,6 @@ namespace
 
 void expose_pusher()
 {
-  {
-    typedef monomial_basis_function cl;
-    class_<cl>("MonomialBasisFunction", init<unsigned, unsigned>())
-      .def(init<unsigned, unsigned, unsigned>())
-      .def(init<const std::vector<unsigned> & >())
-      .def("__call__", 
-          (const double (cl::*)(const py_vector &) const)
-          &cl::operator())
-      ;
-  }
-
-  expose_std_vector<monomial_basis_function>(
-      "MonomialBasisFunction");
-
-  {
-    typedef local_monomial_discretization cl;
-    class_<cl>("LocalMonomialDiscretization")
-      .DEF_RW_MEMBER(basis)
-      .DEF_BYVAL_RW_MEMBER(lu_vandermonde_t)
-      .DEF_BYVAL_RW_MEMBER(lu_piv_vandermonde_t)
-      ;
-  }
-
-  expose_std_vector<local_monomial_discretization>(
-      "LocalMonomialDiscretization");
-
   EXPOSE_FOR_ALL_STATE_TYPES(expose_pushers_for_pstate, ());
 }
 

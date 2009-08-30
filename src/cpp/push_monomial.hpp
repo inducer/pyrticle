@@ -42,46 +42,6 @@
 
 namespace pyrticle
 {
-  struct monomial_basis_function
-  {
-    /* exponents in each coordinate direction */
-    std::vector<unsigned> m_exponents;
-
-    monomial_basis_function(const std::vector<unsigned> &exponents)
-      : m_exponents(exponents)
-    { }
-
-    monomial_basis_function(unsigned i, unsigned j)
-    { m_exponents = boost::assign::list_of(i)(j); }
-
-    monomial_basis_function(unsigned i, unsigned j, unsigned k)
-    { m_exponents = boost::assign::list_of(i)(j)(k); }
-
-    template <class VecType>
-    const double operator()(const VecType &v) const
-    {
-      double result = 1;
-      unsigned i = 0;
-      BOOST_FOREACH(unsigned exp, m_exponents)
-        result *= pow(v[i++], exp);
-
-      return result;
-    }
-  };
-
-
-
-
-  struct local_monomial_discretization
-  {
-    std::vector<monomial_basis_function> m_basis;
-    py_fortran_matrix m_lu_vandermonde_t;
-    py_int_vector m_lu_piv_vandermonde_t;
-  };
-
-
-
-
   class interpolator
   {
     public:
