@@ -42,6 +42,7 @@ namespace pyrticle
     py_vector result(ps.particle_count);
 
     const double c_squared = vacuum_c*vacuum_c;
+    const double c_to_the_4 = c_squared * c_squared;
 
     for (particle_number pn = 0; pn < ps.particle_count; pn++)
     {
@@ -49,9 +50,8 @@ namespace pyrticle
       const unsigned vpend = vdim*(pn+1);
 
       const double m = ps.masses[pn];
-      double p = norm_2(subrange(ps.momenta, vpstart, vpend));
-      double v = vacuum_c*p/sqrt(m*m*c_squared + p*p);
-      result[pn] = (p/v-m)*c_squared;
+      double p_squared = square_sum(subrange(ps.momenta, vpstart, vpend));
+      result[pn] = sqrt(p_squared*c_squared + m*m*c_to_the_4) - m*c_squared;
     }
     return result;
   }
