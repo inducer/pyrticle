@@ -20,6 +20,7 @@ depositor = DepShape()
 
 debug.add("shape_bw")
 #debug.add("no_ic")
+debug.add("vis_files")
 
 dimensions_pos = 2
 dimensions_velocity = 2
@@ -29,7 +30,7 @@ beam_diag_axis = 1
 tube_length = 2
 
 shape_bandwidth = "optimize"
-shape_bandwidth = 0.1
+shape_bandwidth = 0.25
 
 _cloud_charge = 10e-9 * units.C
 nparticles = 10

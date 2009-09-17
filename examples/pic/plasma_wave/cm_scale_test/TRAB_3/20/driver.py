@@ -153,7 +153,6 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
 class PICRunner(object):
     def __init__(self):
-        raw_input("Check:")
         from pyrticle.units import SIUnitsWithNaturalConstants
         self.units = units = SIUnitsWithNaturalConstants()
 
@@ -234,7 +233,7 @@ class PICRunner(object):
             goal_dt = setup.dt_getter(self.discr,
                     self.maxwell_op,
                     self.setup.timestepper_order) * setup.dt_scale
-        
+
         self.nsteps = int(setup.final_time/goal_dt)+1
         self.dt = setup.final_time/self.nsteps
 

@@ -44,6 +44,7 @@ class PicState(object):
             pusher_state=None,
             pnss=None,
             vis_listener=None,
+            rho_static=None,
             ):
         state_class = getattr(_internal, "ParticleState%s" % 
             method.get_dimensionality_suffix())
@@ -73,6 +74,8 @@ class PicState(object):
             pstate.momenta = momenta
             pstate.charges = charges
             pstate.masses = masses
+
+        self.rho_static = rho_static
 
         self.derived_quantity_cache = {}
 
@@ -363,8 +366,8 @@ class PicMethod(object):
                 "#Particles found by global search")
 
 
-    def make_state(self):
-        state = PicState(self)
+    def make_state(self, rho_static=0):
+        state = PicState(self, rho_static=rho_static)
 
         state.particle_number_shift_signaller.subscribe_with_state(self.depositor)
         state.particle_number_shift_signaller.subscribe_with_state(self.pusher)
@@ -503,6 +506,7 @@ class PicMethod(object):
         """
         def all_getter():
             rho, j = self.depositor.deposit_densities(state, self.velocities())
+            rho = rho + state.rho_static
             j = numpy.asarray(j.T, order="C")
             return rho, j
 
@@ -531,7 +535,8 @@ class PicMethod(object):
         def rho_getter():
             return self.depositor.deposit_rho(state)
 
-        return state.get_derived_quantity_from_cache("rho", rho_getter)
+        return state.get_derived_quantity_from_cache("rho", rho_getter) \
+                + state.rho_static
 
 
 
@@ -559,6 +564,7 @@ class PicMethod(object):
                 pusher_state=self.pusher.advance_state(state),
                 pnss=state.particle_number_shift_signaller,
                 vis_listener=state.vis_listener,
+                rho_static=state.rho_static,
                 )
 
         from pyrticle._internal import FindEventCounters
@@ -592,13 +598,12 @@ class PicMethod(object):
     def get_mesh_vis_vars(self):
         return self.vis_listener.mesh_vis_map.items()
 
-    def add_to_vis(self, visualizer, vis_file, state, time=None, step=None, beamaxis=None,
-            vis_listener=None):
+    def add_to_vis(self, visualizer, vis_file, state, time=None, step=None, beamaxis=None):
         from hedge.visualization import VtkVisualizer, SiloVisualizer
         if isinstance(visualizer, VtkVisualizer):
             return self._add_to_vtk(visualizer, vis_file, state, time, step)
         elif isinstance(visualizer, SiloVisualizer):
-            return self._add_to_silo(visualizer, vis_file, state, time, step, beamaxis, vis_listener)
+            return self._add_to_silo(visualizer, vis_file, state, time, step, beamaxis)
         else:
             raise ValueError, "unknown visualizer type `%s'" % type(visualizer)
 
@@ -625,18 +630,15 @@ class PicMethod(object):
             db.put_pointvar("velocity", "particles", 
                     numpy.asarray(self.velocities(state).T, order="C"))
 
-            if vis_listener is not None:
-                for name, value in self.vis_listener.particle_vis_map.iteritems():
+            if state.vis_listener is not None:
+                for name, value in state.vis_listener.particle_vis_map.iteritems():
                     from pyrticle.tools import NumberShiftableVector
                     value = NumberShiftableVector.unwrap(value)
-                    dim, remainder = divmod(len(value), pcount)
-                    assert remainder == 0, (
-                            "particle vis value '%s' had invalid number of entries: "
-                            "%d (#particles=%d)" % (name, len(value), pcount))
-                    if dim == 1:
+                    if len(value.shape) == 1:
                         db.put_pointvar1(name, "particles", value)
                     else:
-                        db.put_pointvar(name, "particles", [value[i::dim] for i in range(dim)])
+                        db.put_pointvar(name, "particles", 
+                                numpy.asarray(value.T, order="C"))
             
             # phase-space -----------------------------------------------------
             axes_names = ["x", "y", "z"]
@@ -814,7 +816,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
 # initial condition -----------------------------------------------------------
 def compute_initial_condition(rcon, discr, method, state,
         maxwell_op, potential_bc,
-        force_zero=False):
+        force_zero=False, tol=1e-10):
     from hedge.models.poisson import WeakPoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
@@ -857,7 +859,7 @@ def compute_initial_condition(rcon, discr, method, state,
         phi_tilde = -parallel_cg(rcon, -bound_poisson, 
                 bound_poisson.prepare_rhs(
                     GivenVolumeInterpolant(discr, rho_tilde/maxwell_op.epsilon)), 
-                debug=40 if "poisson" in method.debug else False, tol=1e-10)
+                debug=40 if "poisson" in method.debug else False, tol=tol)
 
     from hedge.tools import ptwise_dot
     from hedge.models.nd_calculus import GradientOperator

@@ -34,11 +34,18 @@ from numpy import sin as _sin
 from numpy import sqrt as _sqrt
 import numpy as _nu
 
-debug = ["vis_files", "ic", "poisson"]
+#debug = ["vis_files", "ic", "poisson"]  #,"verbose_vis"]
+debug = ["ic", "poisson"]  #,"verbose_vis"]
 
 # -----------------------------------------------------------------------------
 # pic setup
 # -----------------------------------------------------------------------------
+_mesh_scale = 1
+#_dt = 1.60348185077e-13 # dt for cm scale
+_dt = 1.53487727204e-11 # dt for meter scale
+#_dt = 1.53487727204e-12 # dt for 10cm scale
+#_dt = 1.56762598174e-14 # dt for millimeter scale
+
 pusher = PushMonomial()
 depositor = DepGridFind()
 
@@ -46,13 +53,12 @@ dimensions_pos = 2
 dimensions_velocity = 2
 
 #final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED
-#final_time = 100 * units.M/units.VACUUM_LIGHT_SPEED
-final_time = 1000 * 1.60348185077e-13
+final_time = 1000 * _dt
 
 vis_interval = 10
 vis_pattern =  "plasma_wave_1D-%04d"
 vis_order =  None
-log_file = "plasma_wave_1D.dat"
+log_file = "plasma_wave_1D_RK4.dat"
 
 def hook_vis_quantities(observer):
     try:
@@ -73,15 +79,16 @@ def hook_vis_quantities(observer):
 # -----------------------------------------------------------------------------
 # geometry and field discretization
 # -----------------------------------------------------------------------------
-_mesh_scale = 0.01
 element_order = 5
 
 _max_area = 0.02 * _mesh_scale**2
 
 shape_exponent = 2
-shape_bandwidth = 2*_sqrt(_max_area)
+print _max_area
+shape_bandwidth = 4*_sqrt(_max_area)
+print "shape bw", shape_bandwidth
 
-ic_tol = 1e-5
+ic_tol = 1e-7
 
 #potential_bc = hedge.data.ConstantGivenFunction()
 
@@ -105,10 +112,11 @@ from hedge.timestep.multirate_ab.methods import methods as _methods
 from hedge.timestep.multirate_ab import \
         TwoRateAdamsBashforthTimeStepper as _TwoRateAB
 
-_enable_multirate = False
+#_enable_multirate = False
+#print _enable_multirate
 
 if _enable_multirate:
-    timestepper_order = 3
+    #timestepper_order = 4
     
     def _dt_getter(discr, op, order):
        from hedge.timestep import AdamsBashforthTimeStepper
@@ -119,12 +127,14 @@ if _enable_multirate:
 
     dt_getter = _dt_getter
     
-    _step_ratio = 10
-
-    dt_scale = 0.8 * _step_ratio
-
+    #_step_ratio = 10
+    #_c_trab = 0.6
+    dt_scale = _c_trab * _step_ratio
+    #_trab_scheme = 'slowest_first_1'
+    #print _enable_multirate, timestepper_order, _step_ratio, _c_trab, _trab_scheme
+    #raw_input()
     timestepper_maker = lambda dt:_TwoRateAB(
-            'slowest_first_1',
+            _trab_scheme,
             dt,
             _step_ratio,
             order=timestepper_order)
@@ -141,24 +151,23 @@ _npart_x = 200
 nparticles = _npart_y * _npart_x
 
 # Get the particle charge in order to obtain a period T of _steps_per_wave * _dt
-_steps_per_wave = 1000
+_steps_per_wave = 100
 _c_charge_mass  = units.EL_CHARGE/units.EL_MASS
 _number_density = nparticles / (_tube_width * _tube_length)
-_dt = 1.60348185077e-13
 _part_charge = (2*_pi/(_steps_per_wave * _dt))**2 * units.EPSILON0 \
         / (_number_density * _c_charge_mass)
 
-#_part_charge = 0.000001
-#_part_charge = 1.457e-6
 _part_m = _part_charge * units.EL_MASS/units.EL_CHARGE
 
 _omega = _sqrt(_number_density * _part_charge**2/(_part_m * units.EPSILON0 ))
 
 _frequency = _omega/(2*_pi)
-        
+       
+print "number density", _number_density
 print "omega", _omega
 print "f", _frequency
 print "T", 1/_frequency
+print "q_part", _part_charge
 
 def rho_static_getter(discr):
     return -_nu.array([_number_density*_part_charge])

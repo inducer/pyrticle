@@ -153,7 +153,6 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
 class PICRunner(object):
     def __init__(self):
-        raw_input("Check:")
         from pyrticle.units import SIUnitsWithNaturalConstants
         self.units = units = SIUnitsWithNaturalConstants()
 
@@ -162,7 +161,7 @@ class PICRunner(object):
                     
         ui = PICCPyUserInterface(units)
         setup = self.setup = ui.gather()
-
+        
         from pytools.log import LogManager
         import os.path
         self.logmgr = LogManager(os.path.join(
