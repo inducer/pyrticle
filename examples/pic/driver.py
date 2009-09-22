@@ -153,7 +153,6 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
 class PICRunner(object):
     def __init__(self):
-        raw_input("Check:")
         from pyrticle.units import SIUnitsWithNaturalConstants
         self.units = units = SIUnitsWithNaturalConstants()
 
