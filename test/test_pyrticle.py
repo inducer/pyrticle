@@ -137,7 +137,7 @@ def test_kv_with_no_charge():
     from pytools.log import LogManager
     from pyrticle.log import add_beam_quantities, StateObserver
     observer = StateObserver(method, None)
-    logmgr = LogManager()
+    logmgr = LogManager(mode="w")
     add_beam_quantities(logmgr, observer, axis=0, beam_axis=2)
 
     from pyrticle.distribution import KVPredictedRadius
