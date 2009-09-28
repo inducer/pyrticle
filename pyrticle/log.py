@@ -43,30 +43,44 @@ class StateObserver:
     def e(self):
         e, h = self.maxwell_op.split_eh(self.fields)
         return e
-        
+
     @property
     def h(self):
         e, h = self.maxwell_op.split_eh(self.fields)
         return h
-        
+
+    @property
+    def have_phi(self):
+        from pyrticle.hyperbolic import CleaningMaxwellOperator
+        return isinstance(self.maxwell_op, CleaningMaxwellOperator)
+
+    @property
+    def phi(self):
+        if not self.have_phi:
+            raise AttributeError("Observer.phi is only available when "
+                    "using hyperbolic cleaning")
+
+        e, h, phi = self.maxwell_op.split_ehphi(self.fields)
+        return phi
+
     @property
     def discr(self):
         return self.method.discretization
-        
+
 
 
 
 # generic StatsGatherer logging -----------------------------------------------
 class StatsGathererLogQuantity(MultiLogQuantity):
     def __init__(self, gatherer, basename, unit, description):
-        MultiLogQuantity.__init__(self, 
+        MultiLogQuantity.__init__(self,
                 names=[
                     "%s_mean" % basename,
                     "%s_stddev" % basename,
                     "%s_min" % basename,
                     "%s_max" % basename,
                     ],
-                    units=4 * [unit], 
+                    units=4 * [unit],
                     descriptions=[
                         "Mean of %s" % description,
                         "Standard deviation of %s" % description,
@@ -79,7 +93,7 @@ class StatsGathererLogQuantity(MultiLogQuantity):
     def __call__(self):
         data = self.gatherer()
         if data.count():
-            return [data.mean(), 
+            return [data.mean(),
                     data.standard_deviation(),
                     data.minimum(),
                     data.maximum()
@@ -108,8 +122,8 @@ class ParticleMomentum(MultiLogQuantity):
         if names is None:
             names = ["p%s_part" % axis_name(i) for i in range(vdim)]
 
-        MultiLogQuantity.__init__(self, names, 
-            units=["N*s"] * vdim, 
+        MultiLogQuantity.__init__(self, names,
+            units=["N*s"] * vdim,
             descriptions=["Particle Momentum"] * vdim)
 
         self.observer = observer
@@ -129,7 +143,7 @@ class KineticEnergy(LogQuantity):
     def __call__(self):
         from pyrticle._internal import kinetic_energies
         total_kin_energy = numpy.sum(kinetic_energies(
-                self.observer.state.particle_state, 
+                self.observer.state.particle_state,
                 self.observer.method.units.VACUUM_LIGHT_SPEED()))
         return total_kin_energy
 
@@ -160,8 +174,8 @@ def add_particle_quantities(mgr, observer):
 # EM quantities ---------------------------------------------------------------
 class DivergenceEQuantities(MultiLogQuantity):
     def __init__(self, observer, names=["divD", "err_divD_l1"]):
-        MultiLogQuantity.__init__(self, names, 
-                units=["C", "C"], 
+        MultiLogQuantity.__init__(self, names,
+                units=["C", "C"],
                 descriptions=["Central divergence of D", "L1 Divergence Error"])
 
         self.observer = observer
@@ -175,7 +189,7 @@ class DivergenceEQuantities(MultiLogQuantity):
         max_op = self.observer.maxwell_op
         d = max_op.epsilon * self.observer.e
         div_d = self.bound_div_op(d)
-        
+
         return [
                 self.discr.integral(div_d),
                 self.discr.integral(numpy.absolute(div_d-rho))
@@ -198,7 +212,7 @@ class DepositedCharge(LogQuantity):
 
 class FieldCurrent(LogQuantity):
     def __init__(self, observer, direction, tube_length, name="I_field"):
-        LogQuantity.__init__(self, name, "A", 
+        LogQuantity.__init__(self, name, "A",
                 "Integrate current density along %s" % str(list(direction)))
         self.observer = observer
         self.direction = direction
@@ -234,7 +248,7 @@ class RMSBeamRadius(LogQuantity):
         if name is None:
             name = "r%s_rms" % axis_name(axis)
 
-        LogQuantity.__init__(self, name, "m", 
+        LogQuantity.__init__(self, name, "m",
                 "RMS Beam Radius along %s" % axis_name(axis))
         self.observer = observer
         self.axis = axis
@@ -251,7 +265,7 @@ class RMSBeamEmittance(LogQuantity):
         if name is None:
             name = "eps%s_rms" % axis_name(axis)
 
-        LogQuantity.__init__(self, name, "m*rad", 
+        LogQuantity.__init__(self, name, "m*rad",
                 "RMS Beam Emittance along %s" % axis_name(axis))
         self.observer = observer
         self.axis = axis
@@ -260,7 +274,7 @@ class RMSBeamEmittance(LogQuantity):
     def __call__(self):
         from pyrticle._internal import rms_beam_emittance
         return rms_beam_emittance(self.observer.state.particle_state, self.axis, self.beam_axis)
-    
+
 
 
 
@@ -271,7 +285,7 @@ class RMSBeamEnergySpread(LogQuantity):
 
     def __call__(self):
         from pyrticle._internal import rms_energy_spread
-        return rms_energy_spread(self.observer.state.particle_state, 
+        return rms_energy_spread(self.observer.state.particle_state,
                 self.observer.method.units.VACUUM_LIGHT_SPEED())
 
 

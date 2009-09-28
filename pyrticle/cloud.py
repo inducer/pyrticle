@@ -214,7 +214,7 @@ class ParticleToFieldRhsCalculator(object):
         self.maxwell_op = maxwell_op
 
     def __call__(self, t, fields_f, state_f):
-        return self.maxwell_op.assemble_eh(
+        return self.maxwell_op.assemble_fields(
                 e=-1/self.maxwell_op.epsilon
                 *self.method.deposit_j(state_f()))
 
@@ -861,14 +861,14 @@ def compute_initial_condition(rcon, discr, method, state,
 
     from hedge.tools import ptwise_dot
     from hedge.models.nd_calculus import GradientOperator
-    #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), bound_poisson.grad(phi_tilde))
+    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
+            bound_poisson.grad(phi_tilde))
+    #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
+            #GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
+    e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
 
     from pyrticle.tools import make_cross_product
     v_e_to_h_cross = make_cross_product(method, maxwell_op, "v", "e", "h")
-
-    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
-            GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
-    e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
     h_prime = (1/maxwell_op.mu)*gamma/maxwell_op.c * v_e_to_h_cross(mean_beta, e_tilde)
 
     if "ic" in method.debug:
@@ -925,5 +925,5 @@ def compute_initial_condition(rcon, discr, method, state,
             method.add_to_vis(vis, visf, state)
             visf.close()
 
-    return maxwell_op.assemble_eh(e=e_prime, h=h_prime)
+    return maxwell_op.assemble_fields(e=e_prime, h=h_prime, discr=discr)
 
