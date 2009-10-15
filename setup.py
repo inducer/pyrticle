@@ -105,7 +105,6 @@ def main():
           url="http://mathema.tician.de/software/pyrticle",
 
           packages=["pyrticle", "pyrticle.deposition"],
-          zip_safe=False,
           ext_package="pyrticle",
           ext_modules=[
             HedgeExtension("_internal", 
