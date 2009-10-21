@@ -77,7 +77,7 @@ def test_kv_predictors():
 
 
 
-@mark_test(long=True)
+@mark_test.long
 def test_kv_with_no_charge():
     from random import seed
     seed(0)
@@ -137,7 +137,7 @@ def test_kv_with_no_charge():
     from pytools.log import LogManager
     from pyrticle.log import add_beam_quantities, StateObserver
     observer = StateObserver(method, None)
-    logmgr = LogManager()
+    logmgr = LogManager(mode="w")
     add_beam_quantities(logmgr, observer, axis=0, beam_axis=2)
 
     from pyrticle.distribution import KVPredictedRadius
@@ -186,7 +186,7 @@ def test_kv_with_no_charge():
 
 
 
-@mark_test(long=True)
+@mark_test.long
 def test_efield_vs_gauss_law():
     from hedge.mesh import \
             make_box_mesh, \
@@ -329,7 +329,7 @@ def test_efield_vs_gauss_law():
 
 
 
-@mark_test(long=True)
+@mark_test.long
 def test_with_static_fields():
     from pyrticle.units import SIUnitsWithNaturalConstants
 

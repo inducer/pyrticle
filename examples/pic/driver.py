@@ -452,15 +452,15 @@ class PICRunner(object):
 
                 self.method.upkeep(y[1].state)
 
+                if step % setup.vis_interval == 0:
+                    visualize(self.observer)
+
                 y = self.stepper(y, t, *step_args)
 
                 fields, ts_state = y
                 self.observer.set_fields_and_state(fields, ts_state.state)
 
                 setup.hook_after_step(self, self.observer)
-
-                if step % setup.vis_interval == 0:
-                    visualize(self.observer)
 
                 t += self.dt
         finally:

@@ -40,3 +40,4 @@ out
 visitlog.py
 *.pyd
 *.so
+setuptools.pth

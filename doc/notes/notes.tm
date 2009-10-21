@@ -1,4 +1,4 @@
-<TeXmacs|1.0.6.14>
+<TeXmacs|1.0.7.2>
 
 <style|<tuple|article|axiom|maxima>>
 
@@ -7,26 +7,22 @@
 
   <section|Shape function Integrals>
 
-  <with|prog-language|maxima|prog-session|default|<\session>
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>7)
+  <\session|maxima|default>
+    <\unfolded-io|<with|color|red|(<with|math-font-family|rm|%i>7)
     <with|color|black|>>>
       omega(n) := 2*%pi^(n/2)/gamma(n/2)
-    </input>
-
-    <\output>
+    <|unfolded-io>
       <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o1>)
       <with|color|black|>>\<omega\><left|(>n<right|)>:=<frac|2*\<pi\><rsup|<frac|n|2>>|\<Gamma\><left|(><frac|n|2><right|)>>>
-    </output>
+    </unfolded-io>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>2)
+    <\unfolded-io|<with|color|red|(<with|math-font-family|rm|%i>2)
     <with|color|black|>>>
       omega(10)
-    </input>
-
-    <\output>
+    <|unfolded-io>
       <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o11>)
       <with|color|black|>><frac|\<pi\><rsup|5>|12>>
-    </output>
+    </unfolded-io>
 
     <\input|<with|color|red|(<with|math-font-family|rm|%i>12)
     <with|color|black|>>>
@@ -43,32 +39,28 @@
       positive
     </input>
 
-    <\input|<with|color|red|><with|mode|math|math-display|true|<with|mode|text|Is
+    <\unfolded-io|<with|color|red|><with|mode|math|math-display|true|<with|mode|text|Is
     >\<alpha\>+1<with|mode|text| positive, negative, or
     zero?>><with|color|black|>>
       positive
-    </input>
-
-    <\output>
+    <|unfolded-io>
       <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o12>)
       <with|color|black|>><frac|l<rsup|n+\<alpha\>>*\<beta\><left|(><frac|n|2>,\<alpha\>+1<right|)>*<with|math-font-family|rm|spherearea>|2>>
-    </output>
+    </unfolded-io>
 
-    <\input|<with|color|red|(<with|math-font-family|rm|%i>13)
+    <\unfolded-io|<with|color|red|(<with|math-font-family|rm|%i>13)
     <with|color|black|>>>
       ev(intval, n=2, alpha=2)
-    </input>
-
-    <\output>
+    <|unfolded-io>
       <with|mode|math|math-display|true|<with|mode|text|font-family|tt|color|red|(<with|math-font-family|rm|%o14>)
       <with|color|black|>><frac|l<rsup|4>*<with|math-font-family|rm|spherearea>|6>>
-    </output>
+    </unfolded-io>
 
     <\input|<with|color|red|(<with|math-font-family|rm|%i>15)
     <with|color|black|>>>
       \;
     </input>
-  </session>>
+  </session>
 
   <section|Initial Conditions by Lorentz Transform>
 
@@ -332,6 +324,15 @@
   <\eqnarray*>
     <tformat|<table|<row|<cell|\<varepsilon\><rsub|y><rsup|2>>|<cell|=>|<cell|<mean|(y-<mean|y>)<rsup|2>><mean|(y<rprime|'>-<mean|y<rprime|'>>)<rsup|2>>-<mean|(y-<mean|y>)(y<rprime|'>-<mean|y<rprime|'>>)><rsup|2>>>|<row|<cell|>|<cell|=>|<cell|<mean|y<rsup|2>-2y<mean|y>+<mean|y><rsup|2>><mean|(y<rprime|'>-<mean|y<rprime|'>>)<rsup|2>>-<mean|(y-<mean|y>)(y<rprime|'>-<mean|y<rprime|'>>)><rsup|2>>>|<row|<cell|>|<cell|=>|<cell|[<mean|y<rsup|2>>-<mean|y><rsup|2>][<mean|y<rprime|'><rsup|2>>-<mean|y<rprime|'>><rsup|2>]-<mean|y*y<rprime|'>-<mean|y>y<rprime|'>-y<mean|y<rprime|'>>+<mean|y><mean|y<rprime|'>>><rsup|2>>>|<row|<cell|>|<cell|=>|<cell|[<mean|y<rsup|2>><mean|y<rprime|'><rsup|2>>-<mean|y><rsup|2><mean|y<rprime|'><rsup|2>>-<mean|y<rsup|2>><mean|y<rprime|'>><rsup|2>+<mean|y><rsup|2><mean|y<rprime|'>><rsup|2>]-[<mean|y*y<rprime|'>>-<mean|y><mean|y<rprime|'>>]<rsup|2>>>|<row|<cell|>|<cell|=>|<cell|[<mean|y<rsup|2>><mean|y<rprime|'><rsup|2>>-<mean|y><rsup|2><mean|y<rprime|'><rsup|2>>-<mean|y<rsup|2>><mean|y<rprime|'>><rsup|2>+<mean|y><rsup|2><mean|y<rprime|'>><rsup|2>]-[<mean|y*y<rprime|'>><rsup|2>-2<mean|y*y<rprime|'>><mean|y><mean|y<rprime|'>>+<mean|y><rsup|2><mean|y<rprime|'>><rsup|2>]>>|<row|<cell|>|<cell|=>|<cell|[<mean|y<rsup|2>><mean|y<rprime|'><rsup|2>>-<mean|y><rsup|2><mean|y<rprime|'><rsup|2>>-<mean|y<rsup|2>><mean|y<rprime|'>><rsup|2>]-[<mean|y*y<rprime|'>><rsup|2>-2<mean|y*y<rprime|'>><mean|y><mean|y<rprime|'>>]>>>>
   </eqnarray*>
+
+  <section|<math|v> from <math|p>/Vlasov>
+
+  We let <math|u\<assign\>\<gamma\>v> be the ``relativistic velocity'' and
+  find
+
+  <\eqnarray*>
+    <tformat|<table|<row|<cell|p>|<cell|=>|<cell|m\<gamma\>v>>|<row|<cell|v>|<cell|=>|<cell|<frac|c*p|<sqrt|p<rsup|2>+c<rsup|2>m<rsup|2>>>=<frac|c*u|<sqrt|u<rsup|2>+c<rsup|2>>>>>>>
+  </eqnarray*>
 </body>
 
 <\initial>
@@ -350,6 +351,7 @@
     <associate|auto-5|<tuple|3|?>>
     <associate|auto-6|<tuple|4|?>>
     <associate|auto-7|<tuple|5|?>>
+    <associate|auto-8|<tuple|6|?>>
     <associate|fig:dilation|<tuple|2|?>>
     <associate|fig:dilation-lab-flat|<tuple|1|?>>
   </collection>
@@ -372,6 +374,19 @@
       <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|2<space|2spc>Initial
       Conditions by Lorentz Transform> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
       <no-break><pageref|auto-2><vspace|0.5fn>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|3<space|2spc>Hyperbolic
+      Cleaning> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-5><vspace|0.5fn>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|4<space|2spc>Hyperbolic
+      cleaning of <with|mode|<quote|math>|div E>>
+      <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-6><vspace|0.5fn>
+
+      <vspace*|1fn><with|font-series|<quote|bold>|math-font-series|<quote|bold>|5<space|2spc>RMS
+      Emittance> <datoms|<macro|x|<repeat|<arg|x>|<with|font-series|medium|<with|font-size|1|<space|0.2fn>.<space|0.2fn>>>>>|<htab|5mm>>
+      <no-break><pageref|auto-7><vspace|0.5fn>
     </associate>
   </collection>
 </auxiliary>
