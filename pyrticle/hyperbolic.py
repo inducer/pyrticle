@@ -24,11 +24,12 @@ along with this program.  If not, see U{http://www.gnu.org/licenses/}.
 
 import numpy
 from pytools import memoize_method
+from hedge.models import HyperbolicOperator
 
 
 
 
-class CleaningMaxwellOperator(object):
+class CleaningMaxwellOperator(HyperbolicOperator):
     pass
 
 
@@ -204,8 +205,8 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         phi = w[eh_components]
         return e, h, phi
 
-    def max_eigenvalue(self):
-        return self.chi*self.maxwell_op.max_eigenvalue()
+    def max_eigenvalue(self, t, fields=None, discr=None):
+        return self.chi*self.maxwell_op.max_eigenvalue(t, fields, discr)
 
 
 

@@ -187,21 +187,24 @@ namespace pyrticle
 
       std::vector<dyn_fortran_matrix> m_local_diff_matrices;
 
-      boost::shared_ptr<hedge::face_group> m_int_face_group;
-      boost::shared_ptr<hedge::face_group> m_bdry_face_group;
+      typedef hedge::face_pair<hedge::straight_face> face_pair_type;
+      typedef hedge::face_group<face_pair_type> face_group_type;
+
+      boost::shared_ptr<face_group_type > m_int_face_group;
+      boost::shared_ptr<face_group_type > m_bdry_face_group;
 
       struct face_pair_locator
       {
-        hedge::face_group     const *m_face_group;
-        hedge::face_pair      const *m_face_pair;
+        face_group_type const *m_face_group;
+        face_pair_type const *m_face_pair;
 
         face_pair_locator()
           : m_face_group(0), m_face_pair(0)
         { }
 
         face_pair_locator(
-            hedge::face_group     const &face_group,
-            hedge::face_pair      const &face_pair
+            face_group_type     const &face_group,
+            face_pair_type      const &face_pair
             )
           : m_face_group(&face_group), m_face_pair(&face_pair)
         { }
@@ -225,8 +228,8 @@ namespace pyrticle
           const py_matrix &inverse_mass_matrix,
           const py_matrix &filter_matrix,
           const py_matrix &face_mass_matrix,
-          boost::shared_ptr<hedge::face_group> int_face_group,
-          boost::shared_ptr<hedge::face_group> bdry_face_group,
+          boost::shared_ptr<face_group_type> int_face_group,
+          boost::shared_ptr<face_group_type> bdry_face_group,
           double activation_threshold,
           double kill_threshold,
           double upwind_alpha
@@ -255,22 +258,24 @@ namespace pyrticle
         m_bdry_face_group = bdry_face_group;
 
         // build m_el_face_to_face_pair_locator
-        BOOST_FOREACH(const hedge::face_pair &fp, int_face_group->face_pairs)
+        BOOST_FOREACH(const hedge::face_pair<hedge::straight_face> &fp, 
+            int_face_group->face_pairs)
         {
-          const hedge::fluxes::face &f = fp.loc;
+          const hedge::straight_face &f = fp.int_side;
           m_el_face_to_face_pair_locator
             [std::make_pair(f.element_id, f.face_id)] = 
             face_pair_locator(*int_face_group, fp);
 
-          const hedge::fluxes::face &opp_f = fp.opp;
+          const hedge::straight_face &ext_f = fp.ext_side;
           m_el_face_to_face_pair_locator
-            [std::make_pair(opp_f.element_id, opp_f.face_id)] = 
+            [std::make_pair(ext_f.element_id, ext_f.face_id)] = 
             face_pair_locator(*int_face_group, fp);
         }
 
-        BOOST_FOREACH(const hedge::face_pair &fp, bdry_face_group->face_pairs)
+        BOOST_FOREACH(const face_pair_type &fp, 
+            bdry_face_group->face_pairs)
         {
-          const hedge::fluxes::face &f = fp.loc;
+          const hedge::straight_face &f = fp.int_side;
           m_el_face_to_face_pair_locator
             [std::make_pair(f.element_id, f.face_id)] = 
             face_pair_locator(*bdry_face_group, fp);
@@ -801,40 +806,40 @@ namespace pyrticle
             {
               const mesh_data::element_number en = el->m_element_info->m_id;
 
-              /* Find correct fluxes::face instance
+              /* Find correct face instance
                *
                * A face_pair represents both sides of a face. It points
-               * to one or two hedge::fluxes::face instances in its face_group that
+               * to one or two hedge::face instances in its face_group that
                * carry information about each side of the face.
                *
-               * The "opp" side of the face_pair may be unpopulated because
+               * The "ext" side of the face_pair may be unpopulated because
                * of a boundary.
                *
                * First, we need to identify which side of the face (en,fn)
-               * identifies, guarding against an unpopulated "opp" side.
+               * identifies, guarding against an unpopulated "ext" side.
                */
               bool is_boundary;
-              const hedge::face_pair::side *flux_face;
-              const hedge::face_pair::side *opposite_flux_face;
+              const face_pair_type::int_side_type *flux_face;
+              const face_pair_type::int_side_type *external_flux_face;
               hedge::index_lists_t::const_iterator idx_list;
-              hedge::index_lists_t::const_iterator opp_idx_list;
+              hedge::index_lists_t::const_iterator ext_idx_list;
 
               {
                 const face_pair_locator &fp_locator = map_get(
                     m_el_face_to_face_pair_locator,
                     std::make_pair(en, fn));
 
-                const hedge::face_group &fg(*fp_locator.m_face_group);
-                const hedge::face_pair &fp(*fp_locator.m_face_pair);
+                const face_group_type &fg(*fp_locator.m_face_group);
+                const face_pair_type &fp(*fp_locator.m_face_pair);
 
-                const hedge::face_pair::side &flux_face_a = fp.loc;
+                const face_pair_type::int_side_type &flux_face_a = fp.int_side;
 
                 const bool is_face_b = en != flux_face_a.element_id;
 
                 is_boundary = 
-                  fp.opp.element_id == hedge::INVALID_ELEMENT;
+                  fp.ext_side.element_id == hedge::INVALID_ELEMENT;
 
-                const hedge::face_pair::side *flux_face_b = &fp.opp;
+                const face_pair_type::ext_side_type *flux_face_b = &fp.ext_side;
 
                 if (is_boundary && is_face_b)
                   throw std::runtime_error("looking for non-existant cross-boundary element");
@@ -843,10 +848,10 @@ namespace pyrticle
                   throw std::runtime_error("el/face lookup failed");
 
                 flux_face = is_face_b ? flux_face_b : &flux_face_a;
-                opposite_flux_face = is_face_b ? &flux_face_a : flux_face_b;
+                external_flux_face = is_face_b ? &flux_face_a : flux_face_b;
 
                 idx_list = fg.index_list(flux_face->face_index_list_number);
-                opp_idx_list = fg.index_list(opposite_flux_face->face_index_list_number);
+                ext_idx_list = fg.index_list(external_flux_face->face_index_list_number);
               }
 
               // Find information about this face
@@ -883,17 +888,17 @@ namespace pyrticle
                 // std::cout << max_density << ' ' << shape_peak << std::endl;
                 if (max_density > m_activation_threshold*fabs(shape_peak))
                 {
-                  // yes, activate the opposite element
+                  // yes, activate the external element
 
-                  const hedge::element_number_t opp_en = opposite_flux_face->element_id;
+                  const hedge::element_number_t ext_en = external_flux_face->element_id;
 
-                  const mesh_data::element_info &opp_einfo(
-                      m_mesh_data.m_element_info[opp_en]);
+                  const mesh_data::element_info &ext_einfo(
+                      m_mesh_data.m_element_info[ext_en]);
 
-                  active_element opp_element;
-                  opp_element.m_element_info = &opp_einfo;
+                  active_element ext_element;
+                  ext_element.m_element_info = &ext_einfo;
 
-                  unsigned start = opp_element.m_start_index = allocate_element(ds);
+                  unsigned start = ext_element.m_start_index = allocate_element(ds);
                   subrange(ds.m_rho, start, start+m_dofs_per_element) = 
                     boost::numeric::ublas::zero_vector<double>(m_dofs_per_element);
 
@@ -907,59 +912,59 @@ namespace pyrticle
                     fluxes.swap(new_fluxes);
                   }
 
-                  opp_element.m_min_life = 10;
+                  ext_element.m_min_life = 10;
 
                   // update connections
-                  hedge::face_number_t opp_fn = 0;
-                  BOOST_FOREACH(const mesh_data::face_info &opp_face, opp_einfo.m_faces)
+                  hedge::face_number_t ext_fn = 0;
+                  BOOST_FOREACH(const mesh_data::face_info &ext_face, ext_einfo.m_faces)
                   {
-                    const hedge::element_number_t opp_neigh_en = opp_face.m_neighbor;
-                    active_element *opp_neigh_el = p.find_element(opp_neigh_en);
-                    if (opp_neigh_el)
+                    const hedge::element_number_t ext_neigh_en = ext_face.m_neighbor;
+                    active_element *ext_neigh_el = p.find_element(ext_neigh_en);
+                    if (ext_neigh_el)
                     {
-                      /* We found an active neighbor of our "opposite" element.
+                      /* We found an active neighbor of our "external" element.
                        *
                        * Notation:
                        *        *
                        *       / \
-                       *      /opp_neigh
+                       *      /ext_neigh
                        *     *-----*
-                       *    / \opp/
+                       *    / \ext/
                        *   / el\ /
                        *  *-----*
                        *
                        * el: The element currently under consideration in the 
                        *   "big" loop.
-                       * opp: The "opposite" element that we just decided to
+                       * ext: The "external" element that we just decided to
                        *   activate.
-                       * opp_neigh: Neighbor of opp, also part of this 
+                       * ext_neigh: Neighbor of ext, also part of this 
                        *   advected_particle
                        */
 
-                       // First, tell opp that opp_neigh exists.
-                      opp_element.m_connections[opp_fn] = opp_neigh_en;
+                       // First, tell ext that ext_neigh exists.
+                      ext_element.m_connections[ext_fn] = ext_neigh_en;
 
-                      // Next, tell opp_neigh that opp exists.
-                      const mesh_data::element_info &opp_neigh_einfo(
-                          m_mesh_data.m_element_info[opp_neigh_en]);
+                      // Next, tell ext_neigh that ext exists.
+                      const mesh_data::element_info &ext_neigh_einfo(
+                          m_mesh_data.m_element_info[ext_neigh_en]);
 
-                      mesh_data::face_number opp_index_in_opp_neigh = 0;
-                      for (;opp_index_in_opp_neigh < opp_neigh_einfo.m_faces.size()
-                          ;++opp_index_in_opp_neigh)
-                        if (opp_neigh_einfo.m_faces[opp_index_in_opp_neigh].m_neighbor
-                            == opp_en)
+                      mesh_data::face_number ext_index_in_ext_neigh = 0;
+                      for (;ext_index_in_ext_neigh < ext_neigh_einfo.m_faces.size()
+                          ;++ext_index_in_ext_neigh)
+                        if (ext_neigh_einfo.m_faces[ext_index_in_ext_neigh].m_neighbor
+                            == ext_en)
                           break;
 
-                      if (opp_index_in_opp_neigh == opp_neigh_einfo.m_faces.size())
-                        throw std::runtime_error("opp not found in opp_neigh");
+                      if (ext_index_in_ext_neigh == ext_neigh_einfo.m_faces.size())
+                        throw std::runtime_error("ext not found in ext_neigh");
 
-                      opp_neigh_el->m_connections[opp_index_in_opp_neigh] = opp_en;
+                      ext_neigh_el->m_connections[ext_index_in_ext_neigh] = ext_en;
                     }
 
-                    ++opp_fn;
+                    ++ext_fn;
                   }
 
-                  p.m_elements.push_back(opp_element);
+                  p.m_elements.push_back(ext_element);
 
                   // modification of m_elements might have invalidated el,
                   // refresh it
@@ -973,14 +978,14 @@ namespace pyrticle
               // treat fluxes between active elements -----------------------
               if (active)
               {
-                const active_element *opp_el = p.find_element(el->m_connections[fn]);
-                const mesh_data::node_number opp_base_idx = opp_el->m_start_index;
+                const active_element *ext_el = p.find_element(el->m_connections[fn]);
+                const mesh_data::node_number ext_base_idx = ext_el->m_start_index;
 
-                if (opp_el == 0)
+                if (ext_el == 0)
                 {
                   dump_particle(p);
                   throw std::runtime_error(
-                      boost::str(boost::format("opposite element %d of (el:%d,face:%d) for active connection not found")
+                      boost::str(boost::format("external element %d of (el:%d,face:%d) for active connection not found")
                       % el->m_connections[fn] % en % fn).c_str());
                 }
 
@@ -991,7 +996,7 @@ namespace pyrticle
                   const int ili = this_base_idx+idx_list[i];
 
                   hedge::index_lists_t::const_iterator ilj_iterator = idx_list;
-                  hedge::index_lists_t::const_iterator oilj_iterator = opp_idx_list;
+                  hedge::index_lists_t::const_iterator oilj_iterator = ext_idx_list;
 
                   double res_ili_addition = 0;
 
@@ -1000,7 +1005,7 @@ namespace pyrticle
                     const double fmm_entry = m_face_mass_matrix(i, j);
 
                     const int ilj = this_base_idx+*ilj_iterator++;
-                    const int oilj = opp_base_idx+*oilj_iterator++;
+                    const int oilj = ext_base_idx+*oilj_iterator++;
 
                     res_ili_addition += 
                       ds.m_rho[ilj]*int_coeff*fmm_entry

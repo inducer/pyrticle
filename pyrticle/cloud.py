@@ -161,7 +161,19 @@ class TimesteppablePicState(object):
         self.method = method
         self.state = state
 
+    def __mul__(self, factor):
+        if factor != 1:
+            raise NotImplementedError("cannot multiply PIC state by anything but unity.")
+
+        return self
+
+    __rmul__ = __mul__
+
     def __add__(self, update):
+        from hedge.tools import is_zero
+        if is_zero(update):
+            return self
+
         from pyrticle.tools import NumberShiftableVector
 
         from pytools import typedump
@@ -172,6 +184,8 @@ class TimesteppablePicState(object):
         new_state = self.method.advance_state(self.state, dx, dp, drecon)
 
         return TimesteppablePicState(self.method, new_state)
+
+    __radd__ = __add__
 
 
 

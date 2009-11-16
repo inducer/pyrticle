@@ -29,7 +29,7 @@ beam_axis = 0
 beam_diag_axis = 1
 tube_length = 2
 
-chi = 4
+# chi = 4
 
 shape_bandwidth = "optimize"
 shape_bandwidth = 0.1
@@ -43,8 +43,8 @@ _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 shape_exponent = 2
 
 _tube_width = 1
-import hedge.mesh as _mesh
-mesh = _mesh.make_rect_mesh(
+import hedge.mesh.generator as _meshgen
+mesh = _meshgen.make_rect_mesh(
         a=(-0.5, -_tube_width/2),
         b=(-0.5+tube_length, _tube_width/2),
         periodicity=(True, False),
@@ -95,5 +95,5 @@ def hook_vis_quantities(observer):
                     ("h", observer.h), 
                     ("j", observer.method.deposit_j(observer.state)), 
                     ("rho", observer.method.deposit_rho(observer.state)), 
-                    ("phi", observer.phi), 
+                    #("phi", observer.phi), 
                     ]

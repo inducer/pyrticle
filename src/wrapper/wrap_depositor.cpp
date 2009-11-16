@@ -157,8 +157,8 @@ namespace
         const py_matrix &,
         const py_matrix &,
         const py_matrix &,
-        boost::shared_ptr<hedge::face_group>,
-        boost::shared_ptr<hedge::face_group>,
+        boost::shared_ptr<typename adv_dep::face_group_type>,
+        boost::shared_ptr<typename adv_dep::face_group_type>,
         double, double, double
         >(args(
             "mesh_data", "faces_per_element", "dofs_per_element",
