@@ -35,13 +35,6 @@ def get_config_schema():
         LibraryDir("LAPACK", []),
         Libraries("LAPACK", ["lapack"]),
 
-        Switch("HAVE_MPI", False, "Whether to build with support for MPI"),
-        Option("MPICC", "mpicc",
-            "Path to MPI C compiler"),
-        Option("MPICXX", 
-            help="Path to MPI C++ compiler (defaults to same as MPICC)"),
-        BoostLibraries("mpi"),
-
         StringListOption("CXXFLAGS", [], 
             help="Any extra C++ compiler options to include"),
         ])
@@ -66,16 +59,6 @@ def main():
     EXTRA_INCLUDE_DIRS = []
     EXTRA_LIBRARY_DIRS = []
     EXTRA_LIBRARIES = []
-
-    if conf["HAVE_MPI"]:
-        EXTRA_DEFINES["USE_MPI"] = 1
-        EXTRA_DEFINES["OMPI_SKIP_MPICXX"] = 1
-        LIBRARIES.extend(conf["BOOST_MPI_LIBNAME"])
-
-        from distutils import sysconfig
-        cvars = sysconfig.get_config_vars()
-        cvars["CC"] = conf["MPICC"]
-        cvars["CXX"] = conf["MPICXX"]
 
     INCLUDE_DIRS = ["src/cpp"] \
             + conf["BOOST_BINDINGS_INC_DIR"] \

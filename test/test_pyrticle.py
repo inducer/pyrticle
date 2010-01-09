@@ -335,7 +335,7 @@ def test_with_static_fields():
 
     units = SIUnitsWithNaturalConstants()
 
-    from hedge.element import TetrahedralElement
+    from hedge.discretization.local import TetrahedronDiscretization
     from hedge.mesh import \
             make_box_mesh, \
             make_cylinder_mesh

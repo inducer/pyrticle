@@ -84,7 +84,7 @@ class GridFindDepositor(Depositor, GridVisualizer):
                         else:
                             grid_node_num_to_nodes.setdefault(
                                     brk.index(cell_number), []).append(node_num)
-                        
+
         from pytools import flatten
         unassigned_nodes = (set(xrange(len(discr))) 
                 - set(flatten(grid_node_num_to_nodes.itervalues())))
