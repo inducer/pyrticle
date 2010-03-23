@@ -308,4 +308,9 @@ void expose_tools()
   }
 
   python::register_tuple<boost::tuple<py_vector, py_vector> >();
+
+  {
+    typedef boost::numeric::ublas::zero_vector<double> cl;
+    python::class_<cl>("ZeroVector");
+  }
 }

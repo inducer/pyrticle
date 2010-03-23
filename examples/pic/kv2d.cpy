@@ -15,7 +15,7 @@ shape_bandwidth = "optimize"
 
 pusher = PushMonomial()
 if False:
-    reconstructor = RecGrid(
+    depositor = RecGrid(
             #FineCoreBrickGenerator(core_axis=0, core_fraction=0.08),
             el_tolerance=0.1,
             method="simplex_reduce",
@@ -23,7 +23,7 @@ if False:
             #filter_order=6,
             )
 else:
-    reconstructor = RecShape()
+    depositor = DepShape()
 
 _cloud_charge = -10e-9 * units.C
 nparticles = 1
@@ -31,8 +31,8 @@ element_order = 3
 final_time = 0.1*units.M/units.VACUUM_LIGHT_SPEED()
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
-_el_energy = units.EL_REST_ENERGY*10
-_gamma = _el_energy/units.EL_REST_ENERGY
+_el_energy = units.EL_REST_ENERGY()*10
+_gamma = _el_energy/units.EL_REST_ENERGY()
 _mean_beta = (1-1/_gamma**2)**0.5
 
 _tube_width = 33*units.MM
@@ -63,17 +63,17 @@ def hook_vis_quantities(runner):
     return [
             ("e", runner.fields.e), 
             ("h", runner.fields.h), 
-            ("j", runner.cloud.reconstruct_j()), 
-            ("rho", runner.cloud.reconstruct_rho()), 
+            ("j", runner.cloud.deposit_j()), 
+            ("rho", runner.cloud.deposit_rho()), 
             ]
 
-if isinstance(reconstructor, RecGrid):
+if isinstance(depositor, DepGrid):
     def hook_visualize(runner, vis, visf):
-        rec = runner.cloud.reconstructor
-        rec.visualize_grid_quantities(visf, [
-                ("rho_grid", rec.reconstruct_grid_rho()),
-                ("j_grid", rec.reconstruct_grid_j(runner.cloud.velocities())),
-                ("ones_resid", rec.remap_residual(rec.ones_on_grid())),
-                ("rho_resid", rec.remap_residual(rec.reconstruct_grid_rho())),
-                ("usecount", rec.grid_usecount()),
+        dep = runner.cloud.depositor
+        dep.visualize_grid_quantities(visf, [
+                ("rho_grid", dep.deposit_grid_rho()),
+                ("j_grid", dep.deposit_grid_j(runner.cloud.velocities())),
+                ("ones_resid", dep.remap_residual(dep.ones_on_grid())),
+                ("rho_resid", dep.remap_residual(dep.deposit_grid_rho())),
+                ("usecount", dep.grid_usecount()),
                 ])

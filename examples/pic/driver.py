@@ -50,7 +50,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
 
         import hedge.data
 
-        from hedge.timestep import RK4TimeStepper
+        from hedge.timestep.runge_kutta import LSRK4TimeStepper
 
         variables = {
                 "pusher": None,
@@ -105,7 +105,7 @@ class PICCPyUserInterface(pytools.CPyUserInterface):
                     ],
                 "hook_visualize": lambda runner, vis, visf, observer: None,
 
-                "timestepper_maker": lambda dt: RK4TimeStepper(),
+                "timestepper_maker": lambda dt: LSRK4TimeStepper(),
                 "dt_scale": 1,
                 }
 
@@ -290,7 +290,7 @@ class PICRunner(object):
 
         add_run_info(logmgr)
         add_general_quantities(logmgr)
-        add_simulation_quantities(logmgr, self.dt)
+        add_simulation_quantities(logmgr)
         add_particle_quantities(logmgr, self.observer)
         add_field_quantities(logmgr, self.observer)
 
@@ -418,9 +418,13 @@ class PICRunner(object):
         del self.state
 
         try:
-            for step in xrange(self.nsteps):
-                self.logmgr.tick()
+            from hedge.timestep import times_and_steps
+            step_it = times_and_steps(
+                    max_steps=self.nsteps,
+                    logmgr=self.logmgr,
+                    max_dt_getter=lambda t: self.dt)
 
+            for step, t, dt in step_it:
                 self.method.upkeep(y[1].state)
 
                 if step % setup.vis_interval == 0:
@@ -432,8 +436,6 @@ class PICRunner(object):
                 self.observer.set_fields_and_state(fields, ts_state.state)
 
                 setup.hook_after_step(self, self.observer)
-
-                t += self.dt
         finally:
             vis.close()
             self.discr.close()

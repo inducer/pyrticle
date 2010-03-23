@@ -241,7 +241,7 @@ class FieldToParticleRhsCalculator(object):
         self.maxwell_op = maxwell_op
 
     def __call__(self, t, fields_f, state_f):
-        from hedge.tools import ZeroVector
+        from pyrticle._internal import ZeroVector
 
         fields = fields_f()
         state = state_f()
@@ -829,7 +829,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
 def compute_initial_condition(rcon, discr, method, state,
         maxwell_op, potential_bc,
         force_zero=False):
-    from hedge.models.poisson import WeakPoissonOperator
+    from hedge.models.poisson import PoissonOperator
     from hedge.mesh import TAG_ALL, TAG_NONE
     from hedge.data import ConstantGivenFunction, GivenVolumeInterpolant
 
@@ -852,10 +852,9 @@ def compute_initial_condition(rcon, discr, method, state,
             return (other_scale*numpy.identity(discr.dimensions) 
                     + (beta_scale-other_scale)*numpy.outer(beta_unit, beta_unit))
 
-    poisson_op = WeakPoissonOperator(
+    poisson_op = PoissonOperator(
             discr.dimensions,
-            diffusion_tensor=ConstantGivenFunction(
-                make_scaling_matrix(1/gamma**2, 1)),
+            diffusion_tensor=make_scaling_matrix(1/gamma**2, 1),
             dirichlet_tag=TAG_ALL,
             neumann_tag=TAG_NONE,
             dirichlet_bc=potential_bc)
@@ -870,15 +869,15 @@ def compute_initial_condition(rcon, discr, method, state,
         from hedge.iterative import parallel_cg
         phi_tilde = -parallel_cg(rcon, -bound_poisson, 
                 bound_poisson.prepare_rhs(
-                    GivenVolumeInterpolant(discr, rho_tilde/maxwell_op.epsilon)), 
+                    rho_tilde/maxwell_op.epsilon),
                 debug=40 if "poisson" in method.debug else False, tol=1e-10)
 
     from hedge.tools import ptwise_dot
     from hedge.models.nd_calculus import GradientOperator
-    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
-            bound_poisson.grad(phi_tilde))
     #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
-            #GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
+            #bound_poisson.grad(phi_tilde))
+    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
+            GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
 
     from pyrticle.tools import make_cross_product
@@ -903,20 +902,20 @@ def compute_initial_condition(rcon, discr, method, state,
         d_prime = maxwell_op.epsilon*e_prime
 
         from hedge.optemplate import InverseMassOperator
-        divD_prime_ldg = bound_poisson.div(d_prime)
-        divD_prime_ldg2 = bound_poisson.div(d_prime, maxwell_op.epsilon*gamma*phi_tilde)
-        divD_prime_ldg3 = maxwell_op.epsilon*\
-                (InverseMassOperator().apply(discr, bound_poisson.op(gamma*phi_tilde)))
+        #divD_prime_ldg = bound_poisson.div(d_prime)
+        #divD_prime_ldg2 = bound_poisson.div(d_prime, maxwell_op.epsilon*gamma*phi_tilde)
+        #divD_prime_ldg3 = maxwell_op.epsilon*\
+                #(InverseMassOperator().apply(discr, bound_poisson.op(gamma*phi_tilde)))
         divD_prime_central = bound_div_op(d_prime)
 
         print "l2 div D_prime error central: %g" % \
                 rel_l2_error(divD_prime_central, rho_prime)
-        print "l2 div D_prime error ldg: %g" % \
-                rel_l2_error(divD_prime_ldg, rho_prime)
-        print "l2 div D_prime error ldg with phi: %g" % \
-                rel_l2_error(divD_prime_ldg2, rho_prime)
-        print "l2 div D_prime error ldg with phi 3: %g" % \
-                rel_l2_error(divD_prime_ldg3, rho_prime)
+        #print "l2 div D_prime error ldg: %g" % \
+                #rel_l2_error(divD_prime_ldg, rho_prime)
+        #print "l2 div D_prime error ldg with phi: %g" % \
+                #rel_l2_error(divD_prime_ldg2, rho_prime)
+        #print "l2 div D_prime error ldg with phi 3: %g" % \
+                #rel_l2_error(divD_prime_ldg3, rho_prime)
 
         if "vis_files" in method.debug:
             from hedge.visualization import SiloVisualizer
@@ -928,9 +927,9 @@ def compute_initial_condition(rcon, discr, method, state,
                 ("e_moving", e_tilde), 
 
                 ("rho_lab", rho_prime), 
-                ("divD_lab_ldg", divD_prime_ldg),
-                ("divD_lab_ldg2", divD_prime_ldg2),
-                ("divD_lab_ldg3", divD_prime_ldg3),
+                #("divD_lab_ldg", divD_prime_ldg),
+                #("divD_lab_ldg2", divD_prime_ldg2),
+                #("divD_lab_ldg3", divD_prime_ldg3),
                 ("divD_lab_central", divD_prime_central),
                 ("e_lab", e_prime), 
                 ("h_lab", h_prime), 

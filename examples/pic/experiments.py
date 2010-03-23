@@ -115,19 +115,19 @@ def basic_2d_gauss_setup():
 
 # experiments -----------------------------------------------------------------
 def compare_methods():
-    """Submit jobs to compare reconstruction/pushing methods."""
+    """Submit jobs to compare deposition/pushing methods."""
 
     O = ConstructorPlaceholder
 
     timestamp = get_timestamp()
 
     for rec in [
-        #O("RecGrid", jiggle_radius=0),
-        #O("RecGrid"),
-        #O("RecGridFind"),
-        O("RecAdv"), 
-        #O("RecNormShape"), 
-        #O("RecShape"), 
+        #O("DepGrid", jiggle_radius=0),
+        #O("DepGrid"),
+        #O("DepGridFind"),
+        O("DepAdv"), 
+        #O("DepNormShape"), 
+        #O("DepShape"), 
         ]:
         for eorder in [3]:
             for sexp in [3]:
@@ -147,7 +147,7 @@ def compare_methods():
                             )
                     job.write_setup([
                         "pusher = %s" % pusher,
-                        "reconstructor = %s" % rec,
+                        "depositor = %s" % rec,
                         "element_order = %d" % eorder,
                         "shape_exponent = %d" % sexp,
                         ]
@@ -156,7 +156,7 @@ def compare_methods():
                     job.submit()
 
 def study_rec_grid(output_path=None):
-    """Submit jobs to study the behavior of grid reconstruction."""
+    """Submit jobs to study the behavior of grid deposition."""
 
     O = ConstructorPlaceholder
 
@@ -186,14 +186,14 @@ def study_rec_grid(output_path=None):
                         brick_gen = O("SingleBrickGenerator",
                                 overresolve=overres,
                                 mesh_margin=mesh_margin)
-                        rec = O("RecGrid", brick_gen,
+                        rec = O("DepGrid", brick_gen,
                                 el_tolerance=el_tolerance,
                                 enforce_continuity=enf_cont,
                                 method=method)
 
                         setup = [
                             "pusher = %s" % pusher,
-                            "reconstructor = %s" % rec,
+                            "depositor = %s" % rec,
                             "element_order = %d" % eorder,
                             "nparticles = %d" % nparticles,
                             ]+basic_2d_gauss_setup()
@@ -219,7 +219,7 @@ def compare_element_finders():
 
     timestamp = get_timestamp()
 
-    reconstructor = O("RecShape")
+    depositor = O("DepShape")
     pusher = O("PushMonomial")
     for xpos in [0, 0.5, 1]:
         for finder in [O("FindFaceBased"), O("FindHeuristic")]:
@@ -231,7 +231,7 @@ def compare_element_finders():
                     )
             job.write_setup([
                 "pusher = %s" % pusher,
-                "reconstructor = %s" % reconstructor,
+                "depositor = %s" % depositor,
                 "finder = %s" % finder,
                 "mean_x = num.array([%g*tube_length,0])" % xpos,
                 "nparticles = 1000",
@@ -253,10 +253,10 @@ def study_cleaning():
             return str(f)
 
     for rec in [
-      #O("RecAdv"), 
-      #O("RecNormShape"), 
-      O("RecShape"),
-      O("RecGrid", jiggle_radius=0),
+      #O("DepAdv"), 
+      #O("DepNormShape"), 
+      O("DepShape"),
+      O("DepGrid", jiggle_radius=0),
       ]:
         for chi in [None, 5]:
             if chi is None:
@@ -280,7 +280,7 @@ def study_cleaning():
                                 )
                         job.write_setup([
                             "pusher = %s" % pusher,
-                            "reconstructor = %s" % rec,
+                            "depositor = %s" % rec,
                             "chi = %s" % chi,
                             "phi_filter = %s" % str(filter),
                             "element_order = 4",
@@ -309,7 +309,7 @@ def study_advec_filter():
                     )
             job.write_setup([
                 "pusher = %s" % O("PushAverage"),
-                "reconstructor = %s" % O("RecAdv", 
+                "depositor = %s" % O("DepAdv", 
                     filter_order=filter_order, 
                     filter_amp=filter_amp),
                 ])
@@ -323,10 +323,10 @@ def study_blob_exponent():
     timestamp = get_timestamp()
 
     for exponent in [1,2,3,4,5,6]:
-        #for rec in [O("RecAdv"), O("RecNormShape"), O("RecNormShape")]:
-        #for rec in [O("RecShape"), ]:
+        #for rec in [O("DepAdv"), O("DepNormShape"), O("DepNormShape")]:
+        #for rec in [O("DepShape"), ]:
         for eorder in [2,3,4,5]:
-            for rec in [O("RecShape"), ]:
+            for rec in [O("DepShape"), ]:
                 for push in [O("PushMonomial"), O("PushAverage")]:
                     job = BatchJob(
                             "expstudy-$DATE/exp%d-eo%d-%s-%s" % (exponent, eorder, cn(rec), cn(push)),
@@ -335,7 +335,7 @@ def study_blob_exponent():
                             )
                     job.write_setup([
                         "pusher = %s" % push,
-                        "reconstructor = %s" % rec,
+                        "depositor = %s" % rec,
                         "shape_exponent = %s" % exponent,
                         "element_order = %s" % eorder,
                         ])
@@ -361,8 +361,8 @@ def run_kv3d():
     timestamp = get_timestamp()
 
     for rec in [
-            O("RecShape"), 
-            O("RecGrid", O("FineCoreBrickGenerator", core_axis=2),
+            O("DepShape"), 
+            O("DepGrid", O("FineCoreBrickGenerator", core_axis=2),
                 el_tolerance=0.1,
                 method="simplex_reduce")
             ]:
@@ -374,7 +374,7 @@ def run_kv3d():
                 )
         job.write_setup([ 
             "execfile('kv3d.cpy')",
-            "reconstructor = %s" % rec,
+            "depositor = %s" % rec,
             ])
         job.submit()
 
