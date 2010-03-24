@@ -28,7 +28,7 @@ import numpy.linalg as la
 
 
 # 2D --------------------------------------------------------------------------
-def make_glued_rect_mesh(a=(0,0), b=(1,1), max_area=None, 
+def make_glued_rect_mesh(a=(0,0), b=(1,1), max_area=None,
         boundary_tagger=(lambda fvi, el, fn, points: []),
         periodicity=None, subdivisions=None,
         refine_func=None):
@@ -57,10 +57,10 @@ def make_glued_rect_mesh(a=(0,0), b=(1,1), max_area=None,
             return area > max_area
 
     marker2tag = {
-            1: "minus_x", 
-            2: "minus_y", 
-            3: "plus_x", 
-            4: "plus_y", 
+            1: "minus_x",
+            2: "minus_y",
+            3: "plus_x",
+            4: "plus_y",
             }
 
     w = b[0]-a[0]
@@ -74,7 +74,7 @@ def make_glued_rect_mesh(a=(0,0), b=(1,1), max_area=None,
     # 0----1----2
 
     points = [
-            a, 
+            a,
             (a[0]+w,a[1]),
             (a[0]+2*w,a[1]),
             (a[0],a[1]+h),
@@ -86,23 +86,23 @@ def make_glued_rect_mesh(a=(0,0), b=(1,1), max_area=None,
 
     if subdivisions is not None:
         points, facets, facet_markers = triangle.subdivide_facets(
-                [subdivisions[0], subdivisions[0], 
+                [subdivisions[0], subdivisions[0],
                     subdivisions[1],
-                    subdivisions[0], subdivisions[0], 
+                    subdivisions[0], subdivisions[0],
                     subdivisions[1],
                     subdivisions[1]],
                 points, facets, facet_markers)
-            
+
     from hedge.mesh import finish_2d_rect_mesh
-    return finish_2d_rect_mesh(points, facets, facet_markers, marker2tag, 
+    return finish_2d_rect_mesh(points, facets, facet_markers, marker2tag,
             refine_func, periodicity, boundary_tagger)
 
 
 
 
-def make_fine_center_rect_mesh(a=(0,0), b=(1,1), 
+def make_fine_center_rect_mesh(a=(0,0), b=(1,1),
         boundary_tagger=(lambda fvi, el, fn, points: []),
-        periodicity=None, 
+        periodicity=None,
         inner_width=0.1,
         max_area=None, inner_max_area=0.02,
         subdivisions=None, inner_subdivisions=None,
@@ -141,10 +141,10 @@ def make_fine_center_rect_mesh(a=(0,0), b=(1,1),
                 return area > max_area
 
     marker2tag = {
-            1: "minus_x", 
-            2: "minus_y", 
-            3: "plus_x", 
-            4: "plus_y", 
+            1: "minus_x",
+            2: "minus_y",
+            3: "plus_x",
+            4: "plus_y",
             }
 
     w = b[0]-a[0]
@@ -171,7 +171,7 @@ def make_fine_center_rect_mesh(a=(0,0), b=(1,1),
     y = numpy.array([0,1])
 
     points = [
-            a, 
+            a,
             a+w*x,
             a+fine_start_h*y,
             a+fine_start_h*y+w*x,
@@ -212,7 +212,7 @@ def make_fine_center_rect_mesh(a=(0,0), b=(1,1),
 
 
 # 3D --------------------------------------------------------------------------
-def make_extrusion_with_fine_core(rz, inner_r, 
+def make_extrusion_with_fine_core(rz, inner_r,
         max_volume_inner=1e-4, max_volume_outer=5e-2,
         radial_subdiv=20):
 
@@ -229,7 +229,7 @@ def make_extrusion_with_fine_core(rz, inner_r,
             generate_surface_of_revolution(
                     [
                         (0, min_z),
-                        (inner_r, min_z), 
+                        (inner_r, min_z),
                         (inner_r, max_z),
                         (0, max_z),
                         ],
@@ -245,12 +245,12 @@ def make_extrusion_with_fine_core(rz, inner_r,
 
     outer_points, outer_facets, outer_holes, outer_markers = \
             generate_surface_of_revolution(
-                    [(inner_r,min_z)] + rz + [(inner_r, max_z)], 
+                    [(inner_r,min_z)] + rz + [(inner_r, max_z)],
                     ring_markers=[MINUS_Z_MARKER] + [0]*(len(rz)-1) + [PLUS_Z_MARKER],
                     point_idx_offset=len(inner_points),
                     radial_subdiv=radial_subdiv,
-                    ring_point_indices= 
-                    [ inner_point_indices[:radial_subdiv] ] 
+                    ring_point_indices=
+                    [ inner_point_indices[:radial_subdiv] ]
                     + [None]*len(rz)
                     + [inner_point_indices[radial_subdiv:]]
                     )
@@ -266,9 +266,9 @@ def make_extrusion_with_fine_core(rz, inner_r,
 
     # set regional max. volume
     mesh_info.regions.resize(2)
-    mesh_info.regions[0] = [0, 0, (max_z+min_z)/2, 0, 
+    mesh_info.regions[0] = [0, 0, (max_z+min_z)/2, 0,
             max_volume_inner]
-    mesh_info.regions[1] = [inner_r+(rz[0][0]-inner_r)/2, 0, (max_z+min_z)/2, 0, 
+    mesh_info.regions[1] = [inner_r+(rz[0][0]-inner_r)/2, 0, (max_z+min_z)/2, 0,
             max_volume_outer]
 
     # add periodicity
@@ -285,7 +285,7 @@ def make_extrusion_with_fine_core(rz, inner_r,
     #mesh.write_vtk("gun.vtk")
 
     fvi2fm = mesh.face_vertex_indices_to_face_marker
-        
+
     def zper_boundary_tagger(fvi, el, fn, points):
         face_marker = fvi2fm[frozenset(fvi)]
         if face_marker == MINUS_Z_MARKER:
@@ -295,15 +295,21 @@ def make_extrusion_with_fine_core(rz, inner_r,
         else:
             return ["shell"]
 
-    from hedge.mesh import make_conformal_mesh
-    return make_conformal_mesh(mesh.points, mesh.elements,
+    vertices = numpy.asarray(mesh.points, dtype=float, order="C")
+
+    from hedge.mesh import make_conformal_mesh_ext
+    from hedge.mesh.element import Tetrahedron
+    return make_conformal_mesh_ext(
+            vertices,
+            [Tetrahedron(i, el_idx, vertices)
+                for i, el_idx in enumerate(mesh.elements)],
             zper_boundary_tagger,
             periodicity=[None, None, ("minus_z", "plus_z")])
 
 
 
 
-def make_cylinder_with_fine_core(r, inner_r, min_z, max_z, 
+def make_cylinder_with_fine_core(r, inner_r, min_z, max_z,
         max_volume_inner=1e-4, max_volume_outer=5e-2,
         radial_subdiv=20):
 
