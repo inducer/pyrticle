@@ -109,7 +109,8 @@ class AdvectiveDepositor(Depositor):
         state = self.backend.DepositorState()
 
         from pyrticle.tools import NumberShiftMultiplexer
-        state.rho_dof_shift_listener = NumberShiftMultiplexer()
+        state.rho_dof_shift_listener = NumberShiftMultiplexer(
+                name="advective_rho_dofs")
 
         eg, = self.method.discretization.element_groups
         ldis = eg.local_discretization
@@ -182,7 +183,7 @@ class AdvectiveDepositor(Depositor):
 
     def rhs(self, state):
         from pyrticle.tools import NumberShiftableVector
-        self.advective_rhs_timer.start()
+        sub_timer = self.advective_rhs_timer.start_sub_timer()
         result =  NumberShiftableVector(
                 self.backend.get_advective_particle_rhs(
                     state.depositor_state,
@@ -190,7 +191,7 @@ class AdvectiveDepositor(Depositor):
                     self.method.velocities(state)),
                 signaller=state.depositor_state.rho_dof_shift_listener
                 )
-        self.advective_rhs_timer.stop()
+        sub_timer.stop()
         self.element_activation_counter.transfer(
                 state.depositor_state.element_activation_counter)
         self.element_kill_counter.transfer(
@@ -204,4 +205,4 @@ class AdvectiveDepositor(Depositor):
                 state.depositor_state,
                 state.particle_state,
                 NumberShiftableVector.unwrap(rhs),
-                NumberShiftMultiplexer())
+                state.depositor_state.rho_dof_shift_listener)

@@ -120,12 +120,12 @@ class GridDepositor(Depositor, GridVisualizer):
         Depositor.set_shape_function(self, state, sf)
         self.backend.shape_function = sf
 
-    def add_instrumentation(self, mgr):
-        Depositor.add_instrumentation(self, mgr)
+    def add_instrumentation(self, mgr, observer):
+        Depositor.add_instrumentation(self, mgr, observer)
 
         mgr.set_constant("rec_grid_el_tolerance", self.el_tolerance)
         mgr.set_constant("rec_grid_enforce_continuity", self.enforce_continuity)
-        mgr.set_constant("rec_grid_method", self.method)
+        mgr.set_constant("rec_grid_method", self.submethod)
         mgr.set_constant("rec_grid_jiggle_radius", self.jiggle_radius)
 
         self.brick_generator.log_data(mgr)
@@ -149,10 +149,10 @@ class GridDepositor(Depositor, GridVisualizer):
         for fg in discr.face_groups:
             for fp in fg.face_pairs:
                 for el_idx, opp_el_idx in zip(
-                        fg.index_lists[fp.loc.face_index_list_number],
-                        fg.index_lists[fp.opp.face_index_list_number]):
-                    idx1 = fp.loc.el_base_index + el_idx
-                    idx2 = fp.opp.el_base_index + opp_el_idx
+                        fg.index_lists[fp.int_side.face_index_list_number],
+                        fg.index_lists[fp.ext_side.face_index_list_number]):
+                    idx1 = fp.int_side.el_base_index + el_idx
+                    idx2 = fp.ext_side.el_base_index + opp_el_idx
 
                     ag1 = avg_group_finder.get(idx1)
                     ag2 = avg_group_finder.get(idx2)
