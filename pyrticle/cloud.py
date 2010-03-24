@@ -769,9 +769,9 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
                 pass
             else:
                 rec.visualize_grid_quantities(visf, [
-                        ("rho_grid", rec.deposit_grid_rho()),
-                        ("j_grid", rec.deposit_grid_j(method.velocities(state))),
-                        ("rho_resid", rec.remap_residual(rec.deposit_grid_rho())),
+                        ("rho_grid", rec.deposit_grid_rho(state)),
+                        ("j_grid", rec.deposit_grid_j(state, method.velocities(state))),
+                        ("rho_resid", rec.remap_residual(rec.deposit_grid_rho(state))),
                         ])
 
             visf.close()
