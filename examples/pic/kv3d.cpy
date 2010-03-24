@@ -6,12 +6,12 @@ _random.seed(0)
 debug.add("vis_files")
 
 pusher = PushMonomial()
-depositor = DepShape()
-#reconstructor = DepGrid(
-        #FineCoreBrickGenerator(core_axis=2),
-        #)
+#depositor = DepShape()
+depositor = DepGrid(
+        FineCoreBrickGenerator(core_axis=2),
+        )
         #el_tolerance=0.1)
-#reconstructor = DepGridFind(
+#depositor = DepGridFind(
         #FineCoreBrickGenerator(core_axis=2, 
             #overresolve=0.2, mesh_margin=1e-4),
         #)
@@ -53,7 +53,7 @@ mesh = pyrticle.geometry.make_cylinder_with_fine_core(
         min_z=0, max_z=tube_length,
         max_volume_inner=10*units.MM**3,
         max_volume_outer=100*units.MM**3,
-        radial_subdiv=4)
+        radial_subdiv=10)
 
 distribution = pyrticle.distribution.KVZIntervalBeam(
         units, total_charge=_cloud_charge, 

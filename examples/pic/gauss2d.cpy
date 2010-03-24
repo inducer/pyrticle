@@ -1,9 +1,9 @@
 import random as _random
 _random.seed(0)
 
-#pusher = PushMonomial()
-pusher = PushAverage()
-if False:
+pusher = PushMonomial()
+#pusher = PushAverage()
+if True:
     depositor = DepGrid(
             el_tolerance=0.1,
             submethod="simplex_reduce",
@@ -14,7 +14,7 @@ if False:
             enforce_continuity=True
             )
 #depositor = DepAdv()
-depositor = DepShape()
+#depositor = DepShape()
 #depositor = DepNormShape()
 #depositor = DepGridFind()
 
@@ -35,7 +35,7 @@ shape_bandwidth = "optimize"
 shape_bandwidth = 0.1
 
 _cloud_charge = 10e-9 * units.C
-nparticles = 1
+#nparticles = 1
 element_order = 4
 final_time = 10*units.M/units.VACUUM_LIGHT_SPEED()
 _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
@@ -73,7 +73,7 @@ distribution = pyrticle.distribution.JointParticleDistribution([
     ])
 
 vis_interval = 1
-vis_order = 8
+#vis_order = 8
 
 if isinstance(depositor, DepGrid):
     def hook_visualize(runner, vis, visf, observer):

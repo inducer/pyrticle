@@ -78,24 +78,24 @@ def basic_2d_gauss_setup():
     tube_length = 2
 
     _cloud_charge = -10e-9 * units.C
-    final_time = 10*units.M/units.VACUUM_LIGHT_SPEED
+    final_time = 10*units.M/units.VACUUM_LIGHT_SPEED()
     _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
     _tube_width = 1
-    import hedge.mesh as _mesh
-    mesh = _mesh.make_rect_mesh(
+    import hedge.mesh.generator as _meshgen
+    mesh = _meshgen.make_rect_mesh(
             a=(-0.5, -_tube_width/2),
             b=(-0.5+tube_length, _tube_width/2),
             periodicity=(True, False),
             subdivisions=(10,5),
             max_area=0.02)
 
-    _c0 = units.VACUUM_LIGHT_SPEED
+    _c0 = units.VACUUM_LIGHT_SPEED()
 
     _mean_v = numpy.array([_c0*0.9,0])
     _sigma_v = numpy.array([_c0*0.9*1e-3, _c0*1e-5])
 
-    _mean_beta = _mean_v/units.VACUUM_LIGHT_SPEED
+    _mean_beta = _mean_v/units.VACUUM_LIGHT_SPEED()
     _gamma = units.gamma_from_v(_mean_v)
     _pmass = _electrons_per_particle*units.EL_MASS
     _mean_p = _gamma*_pmass*_mean_v
@@ -121,39 +121,43 @@ def compare_methods():
 
     timestamp = get_timestamp()
 
-    for rec in [
-        #O("DepGrid", jiggle_radius=0),
-        #O("DepGrid"),
-        #O("DepGridFind"),
-        O("DepAdv"), 
-        #O("DepNormShape"), 
-        #O("DepShape"), 
-        ]:
-        for eorder in [3]:
-            for sexp in [3]:
-                if "Grid" in rec.classname:
-                    pushers = [O("PushMonomial")]
-                else:
-                    pushers = [
-                            O("PushMonomial"), 
-                            #O("PushAverage")
+    for chi in [None, 5]:
+        for rec in [
+            #O("DepGrid", jiggle_radius=0),
+            O("DepGrid"),
+            O("DepGrid", enforce_continuity=True),
+            O("DepGridFind"),
+            O("DepAdv"), 
+            O("DepNormShape"), 
+            O("DepShape"), 
+            ]:
+            for eorder in [3]:
+                for sexp in [2]:
+                    if "Grid" in rec.classname:
+                        pushers = [O("PushMonomial")]
+                    else:
+                        pushers = [
+                                O("PushMonomial"), 
+                                O("PushAverage")
+                                ]
+                    for pusher in pushers:
+                        job = BatchJob(
+                                "compmeth-$DATE/eo%d-se%d-%s-%s-chi%s" % (
+                                    eorder, sexp, cn_with_args(rec), cn(pusher),
+                                    chi),
+                                "driver.py",
+                                timestamp=timestamp,
+                                )
+                        job.write_setup([
+                            "pusher = %s" % pusher,
+                            "depositor = %s" % rec,
+                            "element_order = %d" % eorder,
+                            "shape_exponent = %d" % sexp,
+                            "chi = %s" % chi,
                             ]
-                for pusher in pushers:
-                    job = BatchJob(
-                            "compmeth-$DATE/eo%d-se%d-%s-%s" % (
-                                eorder, sexp, cn_with_args(rec), cn(pusher)),
-                            "driver.py",
-                            timestamp=timestamp,
+                            +basic_2d_gauss_setup()
                             )
-                    job.write_setup([
-                        "pusher = %s" % pusher,
-                        "depositor = %s" % rec,
-                        "element_order = %d" % eorder,
-                        "shape_exponent = %d" % sexp,
-                        ]
-                        +basic_2d_gauss_setup()
-                        )
-                    job.submit()
+                        job.submit()
 
 def study_rec_grid(output_path=None):
     """Submit jobs to study the behavior of grid deposition."""
