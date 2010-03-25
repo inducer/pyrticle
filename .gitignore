@@ -41,3 +41,4 @@ visitlog.py
 *.pyd
 *.so
 setuptools.pth
+TAGS
