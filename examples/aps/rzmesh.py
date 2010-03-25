@@ -1,5 +1,6 @@
 def make_mesh_info(rz, radial_subdiv):
-    from meshpy.tet import MeshInfo, EXT_OPEN, generate_surface_of_revolution
+    from meshpy.tet import MeshInfo
+    from meshpy.geometry import EXT_OPEN, generate_surface_of_revolution
 
     points, facets, facet_holestarts, facet_markers = \
             generate_surface_of_revolution(rz, closure=EXT_OPEN,
@@ -23,7 +24,7 @@ def bounding_box(tuples):
 
 
 
-    
+
 def make_inverse_mesh_info(rz, radial_subdiv):
     # chop off points with zero radius
     while rz[0][0] == 0:
@@ -46,9 +47,10 @@ def make_inverse_mesh_info(rz, radial_subdiv):
                 (max_r+2, max_z),
                 ])
 
-    from meshpy.tet import MeshInfo, EXT_CLOSED_IN_RZ, \
+    from meshpy.tet import MeshInfo
+    from meshpy.geometry import EXT_CLOSED_IN_RZ, \
             generate_surface_of_revolution
-            
+
     points, facets, facet_holestarts, facet_markers = \
             generate_surface_of_revolution(rz, closure=EXT_CLOSED_IN_RZ,
                     radial_subdiv=radial_subdiv)
@@ -77,20 +79,21 @@ def make_mesh_info_with_inner_tube(rz, tube_r, radial_subdiv,
     rz.insert(0, (tube_r, first_z))
     rz.append((tube_r, last_z))
 
-    from meshpy.tet import MeshInfo, EXT_OPEN, generate_surface_of_revolution
+    from meshpy.tet import MeshInfo
+    from meshpy.geometry import EXT_OPEN, generate_surface_of_revolution
 
     outer_points, outer_facets, outer_facet_holestarts, outer_facet_markers = \
-            generate_surface_of_revolution(rz, 
+            generate_surface_of_revolution(rz,
                     closure=EXT_OPEN, radial_subdiv=radial_subdiv)
 
     outer_point_indices = tuple(range(len(outer_points)))
 
     inner_points, inner_facets, inner_facet_holestarts, inner_facet_markers = \
             generate_surface_of_revolution(
-                    [(0,first_z), 
-                        (tube_r, first_z), 
+                    [(0,first_z),
+                        (tube_r, first_z),
                         (tube_r, last_z),
-                        (0, last_z)], 
+                        (0, last_z)],
                     point_idx_offset=len(outer_points),
                     radial_subdiv=radial_subdiv,
                     ring_point_indices=[
@@ -112,7 +115,7 @@ def make_mesh_info_with_inner_tube(rz, tube_r, radial_subdiv,
 
     # set regional max. volume
     mesh_info.regions.resize(1)
-    mesh_info.regions[0] = [0, 0,(first_z+last_z)/2, 0, 
+    mesh_info.regions[0] = [0, 0,(first_z+last_z)/2, 0,
             max_inner_volume]
 
     return mesh_info
