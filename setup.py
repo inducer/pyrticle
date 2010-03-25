@@ -87,6 +87,8 @@ def main():
           license = "GPLv3",
           url="http://mathema.tician.de/software/pyrticle",
 
+          scripts=["bin/pyrticle"],
+
           packages=["pyrticle", "pyrticle.deposition"],
           ext_package="pyrticle",
           ext_modules=[
