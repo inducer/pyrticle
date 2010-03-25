@@ -106,7 +106,7 @@ class StatePassingNumberShiftMultiplexer(NumberShiftMultiplexer):
 class NumberShiftableVector(_internal.NumberShiftListener):
     """A vector that may be notified of shifts in the DOFs it contains.
 
-    This solves the following problem: Particles in 
+    This solves the following problem: Particles in
     L{pyrticle.cloud.ParticleCloud} may die at any time, including
     during a Runge-Kutta timestep. The state vector inside Runge-Kutta,
     needs to be notified that degrees of freedom may have shifted and/or
@@ -137,13 +137,13 @@ class NumberShiftableVector(_internal.NumberShiftListener):
             #print self.signaller, other.signaller
             #print other in other.signaller.subscribers
             #print "---------------------------------------------"
-        
+
         return NumberShiftableVector(
                 self.vector + self.unwrap(other),
                 self.signaller)
 
     __radd__ = __add__
-        
+
     def __iadd__(self, other):
         self.vector += self.unwrap(other)
         return self
@@ -164,7 +164,7 @@ class NumberShiftableVector(_internal.NumberShiftListener):
             new_shape = list(self.vector.shape)
             new_shape[0] = new_size
             new_vector = numpy.empty(
-                    new_shape, 
+                    new_shape,
                     dtype=self.vector.dtype)
             new_vector[:old_size] = self.vector
             self.vector = new_vector
@@ -218,7 +218,7 @@ class ODEDefinedFunction:
             y_list = [self.y[0]]
             for n in range(steps):
                 y_list.append(self.backward_stepper(
-                    copy_if_necessary(y_list[-1]), 
+                    copy_if_necessary(y_list[-1]),
                     t_list[-1], -self.dt, self.rhs))
                 t_list.append(t_list[-1]-self.dt)
 
@@ -230,7 +230,7 @@ class ODEDefinedFunction:
             y_list = [self.y[-1]]
             for n in range(steps):
                 y_list.append(self.forward_stepper(
-                    copy_if_necessary(y_list[-1]), 
+                    copy_if_necessary(y_list[-1]),
                     t_list[-1], self.dt, self.rhs))
                 t_list.append(t_list[-1]+self.dt)
 
@@ -246,7 +246,7 @@ class ODEDefinedFunction:
         assert self.t[below_idx] <= t <= self.t[above_idx]
 
         # FIXME linear interpolation, bad
-        slope = ((self.y[above_idx]-self.y[below_idx]) 
+        slope = ((self.y[above_idx]-self.y[below_idx])
                 /
                 (self.t[above_idx]-self.t[below_idx]))
 
@@ -278,7 +278,7 @@ class CInfinityShapeFunction(_internal.CInfinityShapeFunction):
         def f(r):
             return r**(dimensions-1)*exp(-1/(1-r**2)**2)
 
-        _internal.CInfinityShapeFunction.__init__(self, 
+        _internal.CInfinityShapeFunction.__init__(self,
                 radius, dimensions, lgq(f))
 
 
@@ -296,7 +296,7 @@ class MapStorageVisualizationListener(_internal.VisualizationListener):
 
     def store_particle_vis_vector(self, name, vec):
         from pyrticle.tools import NumberShiftableVector
-        self.particle_vis_map[name] = NumberShiftableVector(vec, 
+        self.particle_vis_map[name] = NumberShiftableVector(vec,
                 signaller=self.particle_number_shift_signaller)
 
     def clear(self):

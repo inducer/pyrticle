@@ -44,8 +44,8 @@ class ActiveAdvectiveElements(LogQuantity):
 class AdvectiveDepositor(Depositor):
     name = "Advective"
 
-    def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3, 
-            filter_amp=None, filter_order=None, 
+    def __init__(self, activation_threshold=1e-5, kill_threshold=1e-3,
+            filter_amp=None, filter_order=None,
             upwind_alpha=1,
             ):
         Depositor.__init__(self)
@@ -70,7 +70,7 @@ class AdvectiveDepositor(Depositor):
         Depositor.initialize(self, method)
 
         discr = method.discretization
-        
+
         eg, = discr.element_groups
         fg, = discr.face_groups
         ldis = eg.local_discretization
@@ -87,7 +87,7 @@ class AdvectiveDepositor(Depositor):
         else:
             filter_mat = numpy.zeros((0,0))
 
-        backend_class = getattr(_internal, "AdvectiveDepositor" 
+        backend_class = getattr(_internal, "AdvectiveDepositor"
                 + method.get_dimensionality_suffix())
         self.backend = backend_class(method.mesh_data,
                 len(ldis.face_indices()),
@@ -121,7 +121,7 @@ class AdvectiveDepositor(Depositor):
     def add_instrumentation(self, mgr, observer):
         Depositor.add_instrumentation(self, mgr, observer)
 
-        # instrumentation 
+        # instrumentation
         from pytools.log import IntervalTimer, EventCounter
         self.element_activation_counter = EventCounter(
                 "n_el_activations",
@@ -152,8 +152,8 @@ class AdvectiveDepositor(Depositor):
         state.depositor_state.clear()
         for pn in xrange(len(state)):
             self.backend.add_advective_particle(
-                    state.depositor_state, 
-                    state.particle_state, 
+                    state.depositor_state,
+                    state.particle_state,
                     sf, pn)
 
     def note_move(self, state, orig, dest, size):
@@ -162,10 +162,10 @@ class AdvectiveDepositor(Depositor):
     def note_change_size(self, state, new_size):
         self.backend.note_change_size(state.depositor_state, new_size)
 
-        if (self.shape_function is not None 
+        if (self.shape_function is not None
                 and new_size > state.depositor_state.count_advective_particles()):
             for pn in range(
-                    state.depositor_state.count_advective_particles(), 
+                    state.depositor_state.count_advective_particles(),
                     new_size):
                 self.backend.add_advective_particle(
                         state.depositor_state,
@@ -200,7 +200,7 @@ class AdvectiveDepositor(Depositor):
         return result
 
     def advance_state(self, state, rhs):
-        from pyrticle.tools import NumberShiftMultiplexer, NumberShiftableVector
+        from pyrticle.tools import NumberShiftableVector
         return self.backend.apply_advective_particle_rhs(
                 state.depositor_state,
                 state.particle_state,
