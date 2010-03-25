@@ -1,15 +1,15 @@
 // Pyrticle - Particle in Cell in Python
 // Python wrapper for PIC algorithm
 // Copyright (C) 2007 Andreas Kloeckner
-// 
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or // (at your option) any later version.  // 
+// the Free Software Foundation, either version 3 of the License, or // (at your option) any later version.  //
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -64,12 +64,12 @@ namespace
 
 
   template <class ParticleState, class Brick, class GridDepBaseStateWrapper>
-  void expose_grid_depositor(const std::string &brick_type, 
+  void expose_grid_depositor(const std::string &brick_type,
       GridDepBaseStateWrapper &gdbs_wrap)
   {
     typedef grid_depositor<ParticleState, used_shape_function, Brick> cl;
     class_<cl> wrp(
-        (brick_type+"GridDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
+        (brick_type+"GridDepositor"+get_state_class_suffix<ParticleState>()).c_str(),
         init<const mesh_data &>());
 
     wrp
@@ -110,7 +110,7 @@ namespace
     {
       typedef shape_function_depositor<ParticleState, used_shape_function> cl;
       class_<cl> wrp(
-        ("InterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
+        ("InterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str(),
         init<const mesh_data &>());
 
       wrp
@@ -129,7 +129,7 @@ namespace
       typedef normalized_shape_function_depositor<
         ParticleState, used_shape_function> cl;
       class_<cl> wrp(
-        ("NormalizingInterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
+        ("NormalizingInterpolatingDepositor"+get_state_class_suffix<ParticleState>()).c_str(),
         init<const mesh_data &, const py_matrix &>());
 
       wrp
@@ -151,8 +151,8 @@ namespace
     {
       typedef adv_dep cl;
       class_<cl> wrp(
-        ("AdvectiveDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
-        init<const mesh_data &, unsigned, unsigned, 
+        ("AdvectiveDepositor"+get_state_class_suffix<ParticleState>()).c_str(),
+        init<const mesh_data &, unsigned, unsigned,
         const py_matrix &,
         const py_matrix &,
         const py_matrix &,
@@ -176,7 +176,7 @@ namespace
         .def("apply_advective_particle_rhs",
             &cl::apply_advective_particle_rhs,
             return_value_policy<manage_new_object>())
-        
+
         .DEF_SIMPLE_METHOD(perform_depositor_upkeep)
         .DEF_SIMPLE_METHOD(kill_advected_particle)
         .DEF_SIMPLE_METHOD(note_move)
@@ -201,7 +201,7 @@ namespace
     }
 
     EXPOSE_FOR_ALL_TARGET_RECONSTRUCTORS(
-        expose_deposition_functions, 
+        expose_deposition_functions,
         used_shape_function,
         ());
 
@@ -212,7 +212,7 @@ namespace
       typedef grid_find_depositor<ParticleState, used_shape_function, brick> cl;
 
       class_<cl> wrp(
-        ("GridFindDepositor"+get_state_class_suffix<ParticleState>()).c_str(), 
+        ("GridFindDepositor"+get_state_class_suffix<ParticleState>()).c_str(),
         init<const mesh_data &>());
 
       wrp

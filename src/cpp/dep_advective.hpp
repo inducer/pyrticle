@@ -1,17 +1,17 @@
 // Pyrticle - Particle in Cell in Python
 // Deposition based on advected shapes
 // Copyright (C) 2007 Andreas Kloeckner
-// 
+//
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
-// 
+//
 // This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
@@ -64,7 +64,7 @@ namespace pyrticle
       struct active_element
       {
         const mesh_data::element_info *m_element_info;
-        boost::array<mesh_data::element_number, 
+        boost::array<mesh_data::element_number,
           advective_depositor::max_faces> m_connections;
         unsigned m_start_index;
         unsigned m_min_life;
@@ -133,7 +133,7 @@ namespace pyrticle
 
         template <class NewRhoExpr>
         depositor_state(
-            const depositor_state &src, 
+            const depositor_state &src,
             const NewRhoExpr &new_rho,
             boost::shared_ptr<number_shift_listener> rho_dof_sl)
           : m_active_elements(src.m_active_elements),
@@ -222,7 +222,7 @@ namespace pyrticle
       // initialization -----------------------------------------------------
       advective_depositor(
           const mesh_data &md,
-          unsigned faces_per_element, 
+          unsigned faces_per_element,
           unsigned dofs_per_element,
           const py_matrix &mass_matrix,
           const py_matrix &inverse_mass_matrix,
@@ -234,7 +234,7 @@ namespace pyrticle
           double kill_threshold,
           double upwind_alpha
           )
-        : m_mesh_data(md), m_faces_per_element(0), m_dofs_per_element(0), 
+        : m_mesh_data(md), m_faces_per_element(0), m_dofs_per_element(0),
         m_activation_threshold(0), m_kill_threshold(0),
         m_upwind_alpha(1)
       {
@@ -242,7 +242,7 @@ namespace pyrticle
         m_dofs_per_element = dofs_per_element;
 
         m_mass_matrix = mass_matrix;
-        m_integral_weights = prod(m_mass_matrix, 
+        m_integral_weights = prod(m_mass_matrix,
             boost::numeric::ublas::scalar_vector<double>
             (m_mass_matrix.size1(), 1));
         m_inverse_mass_matrix = inverse_mass_matrix;
@@ -250,7 +250,7 @@ namespace pyrticle
         m_filter_matrix = filter_matrix;
 
         m_face_mass_matrix = face_mass_matrix;
-        m_face_integral_weights = prod(m_face_mass_matrix, 
+        m_face_integral_weights = prod(m_face_mass_matrix,
             boost::numeric::ublas::scalar_vector<double>
             (m_face_mass_matrix.size1(), 1));
 
@@ -258,26 +258,26 @@ namespace pyrticle
         m_bdry_face_group = bdry_face_group;
 
         // build m_el_face_to_face_pair_locator
-        BOOST_FOREACH(const hedge::face_pair<hedge::straight_face> &fp, 
+        BOOST_FOREACH(const hedge::face_pair<hedge::straight_face> &fp,
             int_face_group->face_pairs)
         {
           const hedge::straight_face &f = fp.int_side;
           m_el_face_to_face_pair_locator
-            [std::make_pair(f.element_id, f.face_id)] = 
+            [std::make_pair(f.element_id, f.face_id)] =
             face_pair_locator(*int_face_group, fp);
 
           const hedge::straight_face &ext_f = fp.ext_side;
           m_el_face_to_face_pair_locator
-            [std::make_pair(ext_f.element_id, ext_f.face_id)] = 
+            [std::make_pair(ext_f.element_id, ext_f.face_id)] =
             face_pair_locator(*int_face_group, fp);
         }
 
-        BOOST_FOREACH(const face_pair_type &fp, 
+        BOOST_FOREACH(const face_pair_type &fp,
             bdry_face_group->face_pairs)
         {
           const hedge::straight_face &f = fp.int_side;
           m_el_face_to_face_pair_locator
-            [std::make_pair(f.element_id, f.face_id)] = 
+            [std::make_pair(f.element_id, f.face_id)] =
             face_pair_locator(*bdry_face_group, fp);
         }
 
@@ -310,8 +310,8 @@ namespace pyrticle
       // main driver ----------------------------------------------------------
       template<class Target>
       void deposit_densities_on_target(
-          const depositor_state &ds, 
-          const ParticleState &ps, 
+          const depositor_state &ds,
+          const ParticleState &ps,
           Target &tgt, boost::python::slice const &pslice) const
       {
         FOR_ALL_SLICE_INDICES(pslice, ps.particle_count)
@@ -319,7 +319,7 @@ namespace pyrticle
           FOR_ALL_SLICE_INDICES_INNER(particle_number, pn);
 
           tgt.begin_particle(pn);
-          BOOST_FOREACH(const active_element &el, 
+          BOOST_FOREACH(const active_element &el,
               ds.m_advected_particles[pn].m_elements)
             tgt.add_shape_on_element(
                 el.m_element_info->m_id,
@@ -335,23 +335,23 @@ namespace pyrticle
       py_vector get_debug_quantity_on_mesh(
           depositor_state &ds,
           const particle_state &ps,
-          const std::string &qty, 
+          const std::string &qty,
           py_vector const &velocities)
       {
         if (qty == "rhs")
-          return map_particle_space_to_mesh_space(ds, 
+          return map_particle_space_to_mesh_space(ds,
             get_advective_particle_rhs(ds, ps, velocities));
         if (qty == "active_elements")
           return get_active_elements(ds, ps);
         else if (qty == "fluxes")
-          return map_particle_space_to_mesh_space(ds, 
+          return map_particle_space_to_mesh_space(ds,
               calculate_fluxes(ds, ps, velocities));
         else if (qty == "minv_fluxes")
-          return map_particle_space_to_mesh_space(ds, 
-              apply_elementwise_inverse_mass_matrix(ds, 
+          return map_particle_space_to_mesh_space(ds,
+              apply_elementwise_inverse_mass_matrix(ds,
               calculate_fluxes(ds, ps, velocities)));
         else if (qty == "local_div")
-          return map_particle_space_to_mesh_space(ds, 
+          return map_particle_space_to_mesh_space(ds,
               calculate_local_div(ds, ps, velocities));
         else
           throw std::runtime_error("invalid debug quantity");
@@ -364,7 +364,7 @@ namespace pyrticle
           depositor_state &ds,
           ParticleState &ps)
       {
-        // retire empty particle subelements 
+        // retire empty particle subelements
         if (m_kill_threshold == 0)
           throw std::runtime_error("zero kill threshold");
 
@@ -425,7 +425,7 @@ namespace pyrticle
 
       void kill_advected_particle(depositor_state &ds, particle_number pn)
       {
-        BOOST_FOREACH(active_element &el, 
+        BOOST_FOREACH(active_element &el,
             ds.m_advected_particles[pn].m_elements)
           deallocate_element(ds, el.m_start_index);
       }
@@ -433,7 +433,7 @@ namespace pyrticle
 
 
 
-      void note_move(depositor_state &ds, 
+      void note_move(depositor_state &ds,
           particle_number from, particle_number to, unsigned size)
       {
         for (unsigned i = 0; i < size; ++i)
@@ -513,7 +513,7 @@ namespace pyrticle
         if (ds.m_active_elements == avl_space)
         {
           ds.resize_rho(std::max(
-                dyn_vector::size_type(m_dofs_per_element*1024), 
+                dyn_vector::size_type(m_dofs_per_element*1024),
                 2*ds.m_rho.size()));
           if (ds.m_rho_dof_shift_listener.get())
             ds.m_rho_dof_shift_listener->note_change_size(ds.m_rho.size());
@@ -561,7 +561,7 @@ namespace pyrticle
               subrange(pspace, el.m_start_index, el.m_start_index+m_dofs_per_element);
           }
         }
-        
+
         return result;
       }
 
@@ -585,7 +585,7 @@ namespace pyrticle
               boost::numeric::ublas::scalar_vector<double>(m_dofs_per_element, 1);
           }
         }
-        
+
         return result;
       }
 
@@ -603,8 +603,8 @@ namespace pyrticle
 
         public:
           advected_particle_element_target(
-              advective_depositor &dep, 
-              depositor_state &ds, 
+              advective_depositor &dep,
+              depositor_state &ds,
               advected_particle &p)
             : m_depositor(dep), m_dep_state(ds), m_particle(p)
           { }
@@ -619,7 +619,7 @@ namespace pyrticle
 
             active_element new_element;
             new_element.m_element_info = &einfo;
-            unsigned start = new_element.m_start_index = 
+            unsigned start = new_element.m_start_index =
               m_depositor.allocate_element(m_dep_state);
             new_element.m_min_life = 0;
 
@@ -671,8 +671,8 @@ namespace pyrticle
         BOOST_FOREACH(active_element &el, new_particle.m_elements)
           unscaled_masses.push_back(element_integral(
                 el.m_element_info->m_jacobian,
-                subrange(ds.m_rho, 
-                  el.m_start_index, 
+                subrange(ds.m_rho,
+                  el.m_start_index,
                   el.m_start_index+m_dofs_per_element)));
 
         const double charge = ps.charges[pn];
@@ -690,9 +690,9 @@ namespace pyrticle
           scale = charge / total_unscaled_mass;
 
         BOOST_FOREACH(active_element &el, new_particle.m_elements)
-          subrange(ds.m_rho, 
-              el.m_start_index, 
-              el.m_start_index+m_dofs_per_element) 
+          subrange(ds.m_rho,
+              el.m_start_index,
+              el.m_start_index+m_dofs_per_element)
           *= scale;
 
         ds.m_advected_particles.push_back(new_particle);
@@ -708,7 +708,7 @@ namespace pyrticle
           py_vector const &velocities) const
       {
         const unsigned dofs = ds.m_rho.size();
-        const unsigned active_contiguous_elements = 
+        const unsigned active_contiguous_elements =
           ds.m_active_elements + ds.m_freelist.size();
 
         py_vector local_div(dofs);
@@ -731,12 +731,12 @@ namespace pyrticle
               active_contiguous_elements,
               matrix.size2(),
               /*alpha*/ 1,
-              /*a*/ traits::matrix_storage(matrix), 
+              /*a*/ traits::matrix_storage(matrix),
               /*lda*/ matrix.size2(),
-              /*b*/ traits::vector_storage(ds.m_rho), 
+              /*b*/ traits::vector_storage(ds.m_rho),
               /*ldb*/ m_dofs_per_element,
               /*beta*/ 1,
-              /*c*/ traits::vector_storage(rst_derivs) + loc_axis*dofs, 
+              /*c*/ traits::vector_storage(rst_derivs) + loc_axis*dofs,
               /*ldc*/ m_dofs_per_element
               );
         }
@@ -746,7 +746,7 @@ namespace pyrticle
           particle_number pn = 0;
           BOOST_FOREACH(const advected_particle &p, ds.m_advected_particles)
           {
-            bounded_vector v = subrange(velocities, 
+            bounded_vector v = subrange(velocities,
                 ps.vdim()*pn, ps.vdim()*(pn+1));
 
             BOOST_FOREACH(const active_element &el, p.m_elements)
@@ -790,12 +790,12 @@ namespace pyrticle
         particle_number pn = 0;
         BOOST_FOREACH(advected_particle &p, ds.m_advected_particles)
         {
-          const double shape_peak = 
+          const double shape_peak =
             p.m_shape_function(
                 boost::numeric::ublas::zero_vector<double>(get_dimensions_mesh()))
             * ps.charges[pn];
 
-          const bounded_vector v = subrange(velocities, 
+          const bounded_vector v = subrange(velocities,
               ps.vdim()*pn, ps.vdim()*(pn+1));
 
           for (unsigned i_el = 0; i_el < p.m_elements.size(); ++i_el)
@@ -836,7 +836,7 @@ namespace pyrticle
 
                 const bool is_face_b = en != flux_face_a.element_id;
 
-                is_boundary = 
+                is_boundary =
                   fp.ext_side.element_id == hedge::INVALID_ELEMENT;
 
                 const face_pair_type::ext_side_type *flux_face_b = &fp.ext_side;
@@ -862,12 +862,12 @@ namespace pyrticle
               if (is_boundary && active)
                 throw std::runtime_error("detected boundary non-connection as active");
 
-              const double int_coeff = 
+              const double int_coeff =
                 flux_face->face_jacobian*(-n_dot_v)*(
                     m_upwind_alpha*(1 - (inflow ? 0 : 1))
                     +
                     (1-m_upwind_alpha)*0.5);
-              const double ext_coeff = 
+              const double ext_coeff =
                 flux_face->face_jacobian*(-n_dot_v)*(
                     m_upwind_alpha*-(inflow ? 1 : 0)
                     +
@@ -882,7 +882,7 @@ namespace pyrticle
 
                 double max_density = 0;
                 for (unsigned i = 0; i < face_length; i++)
-                  max_density = std::max(max_density, 
+                  max_density = std::max(max_density,
                       fabs(ds.m_rho[this_base_idx+idx_list[i]]));
 
                 // std::cout << max_density << ' ' << shape_peak << std::endl;
@@ -899,7 +899,7 @@ namespace pyrticle
                   ext_element.m_element_info = &ext_einfo;
 
                   unsigned start = ext_element.m_start_index = allocate_element(ds);
-                  subrange(ds.m_rho, start, start+m_dofs_per_element) = 
+                  subrange(ds.m_rho, start, start+m_dofs_per_element) =
                     boost::numeric::ublas::zero_vector<double>(m_dofs_per_element);
 
                   if (ds.m_rho.size() != fluxes.size())
@@ -933,11 +933,11 @@ namespace pyrticle
                        *   / el\ /
                        *  *-----*
                        *
-                       * el: The element currently under consideration in the 
+                       * el: The element currently under consideration in the
                        *   "big" loop.
                        * ext: The "external" element that we just decided to
                        *   activate.
-                       * ext_neigh: Neighbor of ext, also part of this 
+                       * ext_neigh: Neighbor of ext, also part of this
                        *   advected_particle
                        */
 
@@ -974,7 +974,7 @@ namespace pyrticle
                   active = true;
                 }
               }
-              
+
               // treat fluxes between active elements -----------------------
               if (active)
               {
@@ -1007,7 +1007,7 @@ namespace pyrticle
                     const int ilj = this_base_idx+*ilj_iterator++;
                     const int oilj = ext_base_idx+*oilj_iterator++;
 
-                    res_ili_addition += 
+                    res_ili_addition +=
                       ds.m_rho[ilj]*int_coeff*fmm_entry
                       +ds.m_rho[oilj]*ext_coeff*fmm_entry;
                   }
@@ -1056,7 +1056,7 @@ namespace pyrticle
         py_vector result(ds.m_rho.size());
         result.clear();
 
-        const unsigned active_contiguous_elements = 
+        const unsigned active_contiguous_elements =
           ds.m_active_elements + ds.m_freelist.size();
 
         using namespace boost::numeric::bindings;
@@ -1070,9 +1070,9 @@ namespace pyrticle
             active_contiguous_elements,
             matrix.size2(),
             /*alpha*/ 1,
-            /*a*/ traits::matrix_storage(matrix), 
+            /*a*/ traits::matrix_storage(matrix),
             /*lda*/ matrix.size2(),
-            /*b*/ traits::vector_storage(operand), 
+            /*b*/ traits::vector_storage(operand),
             /*ldb*/ m_dofs_per_element,
             /*beta*/ 1,
             /*c*/ traits::vector_storage(result),
@@ -1083,9 +1083,9 @@ namespace pyrticle
         BOOST_FOREACH(const advected_particle &p, ds.m_advected_particles)
           BOOST_FOREACH(const active_element &el, p.m_elements)
           {
-            subrange(result, 
-                el.m_start_index, 
-                el.m_start_index+m_dofs_per_element) *= 
+            subrange(result,
+                el.m_start_index,
+                el.m_start_index+m_dofs_per_element) *=
             1/el.m_element_info->m_jacobian;
           }
 
@@ -1104,10 +1104,10 @@ namespace pyrticle
         // everything else later.
         py_vector fluxes = calculate_fluxes(ds, ps, velocities);
 
-        return calculate_local_div(ds, ps, velocities) 
+        return calculate_local_div(ds, ps, velocities)
         - apply_elementwise_inverse_mass_matrix(ds, fluxes);
       }
-      
+
 
 
 
@@ -1122,7 +1122,7 @@ namespace pyrticle
           using namespace boost::numeric::bindings;
           using blas::detail::gemm;
 
-          const unsigned active_contiguous_elements = 
+          const unsigned active_contiguous_elements =
             ds.m_active_elements + ds.m_freelist.size();
 
           const dyn_fortran_matrix &matrix = m_filter_matrix;
@@ -1137,9 +1137,9 @@ namespace pyrticle
               active_contiguous_elements,
               matrix.size2(),
               /*alpha*/ 1,
-              /*a*/ traits::matrix_storage(matrix), 
+              /*a*/ traits::matrix_storage(matrix),
               /*lda*/ matrix.size2(),
-              /*b*/ traits::vector_storage(rhs), 
+              /*b*/ traits::vector_storage(rhs),
               /*ldb*/ m_dofs_per_element,
               /*beta*/ 1,
               /*c*/ traits::vector_storage(new_rho),
@@ -1166,7 +1166,7 @@ namespace pyrticle
       template <class VectorExpression>
       double element_l1(double jacobian, const VectorExpression &ve)
       {
-        return jacobian * inner_prod(m_integral_weights, 
+        return jacobian * inner_prod(m_integral_weights,
             pyublas::unary_op<pyublas::unary_ops::fabs>::apply(ve));
       }
   };

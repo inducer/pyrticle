@@ -45,7 +45,7 @@ class PicState(object):
             pnss=None,
             vis_listener=None,
             ):
-        state_class = getattr(_internal, "ParticleState%s" % 
+        state_class = getattr(_internal, "ParticleState%s" %
             method.get_dimensionality_suffix())
 
         pstate = self.particle_state = state_class()
@@ -206,12 +206,12 @@ class FieldRhsCalculator(object):
         mgr.add_quantity(self.field_solve_timer)
 
     def __call__(self, t, fields_f, state_f):
-        # calculate EM right-hand side 
+        # calculate EM right-hand side
         sub_timer = self.field_solve_timer.start_sub_timer()
 
         from pyrticle.hyperbolic import CleaningMaxwellOperator
         if isinstance(self.maxwell_op, CleaningMaxwellOperator):
-            rhs_fields = self.bound_maxwell_op(t, fields_f(), 
+            rhs_fields = self.bound_maxwell_op(t, fields_f(),
                     self.method.deposit_rho(state_f()))
         else:
             rhs_fields = self.bound_maxwell_op(t, fields_f())
@@ -282,7 +282,7 @@ class FieldToParticleRhsCalculator(object):
         from hedge.tools import make_obj_array
         result = make_obj_array([
             0,
-            NumberShiftableVector(forces, 
+            NumberShiftableVector(forces,
                 signaller=state.particle_number_shift_signaller),
             0])
         return result
@@ -303,7 +303,7 @@ class ParticleRhsCalculator(object):
         from pyrticle.tools import NumberShiftableVector
         from hedge.tools import make_obj_array
         result = make_obj_array([
-            NumberShiftableVector(velocities, 
+            NumberShiftableVector(velocities,
                 signaller=state.particle_number_shift_signaller),
             0,
             self.method.depositor.rhs(state)
@@ -317,9 +317,9 @@ class PicMethod(object):
     """
     @arg debug: A set of strings telling what to debug. So far, the
       following debug flags are in use:
-    
+
       - depositor: Debug the depositor.
-      - verbose_vis: Generate E and B fields and force 
+      - verbose_vis: Generate E and B fields and force
         visualizations at particle locations.
       - ic: Check the initial condition when it's generated.
       - no_ic: Start with zero fields.
@@ -357,7 +357,7 @@ class PicMethod(object):
         self.depositor.initialize(self)
         self.pusher.initialize(self)
 
-        # instrumentation 
+        # instrumentation
         from pytools.log import IntervalTimer, EventCounter
 
         self.find_el_timer = IntervalTimer(
@@ -440,10 +440,10 @@ class PicMethod(object):
 
     def add_particles(self, state, iterable, maxcount=None):
         """Add the  particles from C{iterable} to the cloud.
-        
-        C{iterable} is expected to yield tuples 
+
+        C{iterable} is expected to yield tuples
         C{(position, velocity, charge, mass)}.
-        
+
         If C{maxcount} is specified, maximally C{maxcount}
         particles are obtained from the iterable.
         """
@@ -465,9 +465,9 @@ class PicMethod(object):
 
             pos = numpy.asarray(pos)
             vel = numpy.asarray(vel)
-            mom = mass*self.units.gamma_from_v(vel)*vel 
+            mom = mass*self.units.gamma_from_v(vel)*vel
 
-            cont_el = self.mesh_data.find_containing_element(pos) 
+            cont_el = self.mesh_data.find_containing_element(pos)
             if cont_el == MeshData.INVALID_ELEMENT:
                 print "not in valid element"
 
@@ -495,9 +495,9 @@ class PicMethod(object):
         This is a new invariant as of 1/17/08, and violations of this end up
         segfaulting, which we should avoid.
         """
-        assert (state.particle_state.containing_elements[:len(state)] 
+        assert (state.particle_state.containing_elements[:len(state)]
                 != MeshData.INVALID_ELEMENT).all()
-                
+
     def upkeep(self, state):
         """Perform any operations must fall in between timesteps,
         such as resampling or deleting particles.
@@ -512,7 +512,7 @@ class PicMethod(object):
     # deposition ----------------------------------------------------------
     def deposit_densities(self, state):
         """Return a tuple (charge_density, current_densities), where
-        current_densities is an d-by-n array, where d is the number 
+        current_densities is an d-by-n array, where d is the number
         of velocity dimensions, and n is the discretization nodes.
         """
         def all_getter():
@@ -526,8 +526,8 @@ class PicMethod(object):
                 all_getter)
 
     def deposit_j(self, state):
-        """Return a the current densities as an d-by-n array, where d 
-        is the number of velocity dimensions, and n is the number of 
+        """Return a the current densities as an d-by-n array, where d
+        is the number of velocity dimensions, and n is the number of
         discretization nodes.
         """
 
@@ -581,13 +581,13 @@ class PicMethod(object):
         class BHitListener(_internal.BoundaryHitListener):
             def note_boundary_hit(subself, pn):
                 _internal.kill_particle(
-                        new_state.particle_state, 
+                        new_state.particle_state,
                         pn, new_state.particle_number_shift_signaller)
 
         from pyrticle._internal import update_containing_elements
         sub_timer = self.find_el_timer.start_sub_timer()
         update_containing_elements(
-                self.mesh_data, new_state.particle_state, 
+                self.mesh_data, new_state.particle_state,
                 BHitListener(), find_counters)
         sub_timer.stop().submit()
 
@@ -630,13 +630,13 @@ class PicMethod(object):
 
         if pcount:
             # real-space ------------------------------------------------------
-            db.put_pointmesh("particles", 
+            db.put_pointmesh("particles",
                     numpy.asarray(state.positions.T, order="C"), optlist)
             db.put_pointvar1("charge", "particles", state.charges)
             db.put_pointvar1("mass", "particles", state.masses)
-            db.put_pointvar("momentum", "particles", 
+            db.put_pointvar("momentum", "particles",
                     numpy.asarray(state.momenta.T, order="C"))
-            db.put_pointvar("velocity", "particles", 
+            db.put_pointvar("velocity", "particles",
                     numpy.asarray(self.velocities(state).T, order="C"))
 
             if vis_listener is not None:
@@ -651,23 +651,23 @@ class PicMethod(object):
                         db.put_pointvar1(name, "particles", value)
                     else:
                         db.put_pointvar(name, "particles", [value[i::dim] for i in range(dim)])
-            
+
             # phase-space -----------------------------------------------------
             axes_names = ["x", "y", "z"]
 
             if beamaxis is not None:
                 for axis in range(min(self.dimensions_pos, self.dimensions_velocity)):
                     if axis == beamaxis:
-                        continue 
+                        continue
 
                     axname = axes_names[axis]
 
-                    db.put_defvars("phasespace_%s" % axname, 
+                    db.put_defvars("phasespace_%s" % axname,
                             [
-                            ("part_%s" % axname, "coord(particles)[%d]" % axis), 
-                            ("part_%s_prime" % axname, 
-                                "momentum[%d]/momentum[%d]" % (axis, beamaxis)), 
-                            ("part_%s_momentum" % axname, 
+                            ("part_%s" % axname, "coord(particles)[%d]" % axis),
+                            ("part_%s_prime" % axname,
+                                "momentum[%d]/momentum[%d]" % (axis, beamaxis)),
+                            ("part_%s_momentum" % axname,
                                 "momentum[%d]" % (axis)),
                             ])
 
@@ -695,7 +695,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
     rec = method.depositor
 
     adv_radius = method.mesh_data.advisable_particle_radius()
-    radii = [adv_radius*2**i 
+    radii = [adv_radius*2**i
             for i in numpy.linspace(-4, 2, 50)]
 
     def set_radius(r):
@@ -755,10 +755,10 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
         if visualize:
             visf = vis.make_file("bwopt-%04d" % step)
             method.add_to_vis(vis, visf, state, time=radius, step=step)
-            vis.add_data(visf, [ 
-                ("rho", rec_rho), 
+            vis.add_data(visf, [
+                ("rho", rec_rho),
                 ("j", method.deposit_j(state)),
-                ("rho_analytic", analytic_rho), 
+                ("rho_analytic", analytic_rho),
                 ],
                 expressions=[("rho_diff", "rho-rho_analytic")],
                 time=radius, step=step)
@@ -800,8 +800,8 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
             return False
         else:
             return list[i] < list[i-1] and list[i] < list[i+1]
-        
-    local_minima = [idx for idx in range(len(tried_radii)) 
+
+    local_minima = [idx for idx in range(len(tried_radii))
             if is_local_minimum(l1_errors, idx)]
 
     chosen_idx = max(local_minima)
@@ -846,10 +846,10 @@ def compute_initial_condition(rcon, discr, method, state,
 
     def make_scaling_matrix(beta_scale, other_scale):
         if la.norm(mean_beta) < 1e-10:
-            return other_scale*numpy.eye(discr.dimensions) 
+            return other_scale*numpy.eye(discr.dimensions)
         else:
             beta_unit = mean_beta/la.norm(mean_beta)
-            return (other_scale*numpy.identity(discr.dimensions) 
+            return (other_scale*numpy.identity(discr.dimensions)
                     + (beta_scale-other_scale)*numpy.outer(beta_unit, beta_unit))
 
     poisson_op = PoissonOperator(
@@ -859,7 +859,7 @@ def compute_initial_condition(rcon, discr, method, state,
             neumann_tag=TAG_NONE,
             dirichlet_bc=potential_bc)
 
-    rho_prime = method.deposit_rho(state) 
+    rho_prime = method.deposit_rho(state)
     rho_tilde = rho_prime/gamma
 
     bound_poisson = poisson_op.bind(discr)
@@ -867,16 +867,16 @@ def compute_initial_condition(rcon, discr, method, state,
         phi_tilde = discr.volume_zeros()
     else:
         from hedge.iterative import parallel_cg
-        phi_tilde = -parallel_cg(rcon, -bound_poisson, 
+        phi_tilde = -parallel_cg(rcon, -bound_poisson,
                 bound_poisson.prepare_rhs(
                     rho_tilde/maxwell_op.epsilon),
                 debug=40 if "poisson" in method.debug else False, tol=1e-10)
 
     from hedge.tools import ptwise_dot
     from hedge.models.nd_calculus import GradientOperator
-    #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
+    #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1),
             #bound_poisson.grad(phi_tilde))
-    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1), 
+    e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1),
             GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
 
@@ -921,18 +921,18 @@ def compute_initial_condition(rcon, discr, method, state,
             from hedge.visualization import SiloVisualizer
             vis = SiloVisualizer(discr)
             visf = vis.make_file("ic")
-            vis.add_data(visf, [ 
+            vis.add_data(visf, [
                 ("phi_moving", phi_tilde),
-                ("rho_moving", rho_tilde), 
-                ("e_moving", e_tilde), 
+                ("rho_moving", rho_tilde),
+                ("e_moving", e_tilde),
 
-                ("rho_lab", rho_prime), 
+                ("rho_lab", rho_prime),
                 #("divD_lab_ldg", divD_prime_ldg),
                 #("divD_lab_ldg2", divD_prime_ldg2),
                 #("divD_lab_ldg3", divD_prime_ldg3),
                 ("divD_lab_central", divD_prime_central),
-                ("e_lab", e_prime), 
-                ("h_lab", h_prime), 
+                ("e_lab", e_prime),
+                ("h_lab", h_prime),
                 ],
                 )
             method.add_to_vis(vis, visf, state)
