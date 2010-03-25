@@ -50,10 +50,11 @@ warning_forwarder = WarningForwarder()
 
 # number-shifting vectors -----------------------------------------------------
 class NumberShiftMultiplexer(_internal.NumberShiftListener):
-    def __init__(self):
+    def __init__(self, name=None):
         _internal.NumberShiftListener.__init__(self)
         from weakref import WeakKeyDictionary
         self.subscribers = WeakKeyDictionary()
+        self.name = name
 
     def subscribe(self, subscriber):
         self.subscribers[subscriber] = None
@@ -200,9 +201,9 @@ class ODEDefinedFunction:
         self.y = [y0]
         self.dt = dt
 
-        from hedge.timestep import RK4TimeStepper
-        self.forward_stepper = RK4TimeStepper()
-        self.backward_stepper = RK4TimeStepper()
+        from hedge.timestep.runge_kutta import LSRK4TimeStepper
+        self.forward_stepper = LSRK4TimeStepper()
+        self.backward_stepper = LSRK4TimeStepper()
 
     def __call__(self, t):
         def copy_if_necessary(x):
