@@ -167,10 +167,9 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
 
         # assemble operator ---------------------------------------------------
         flux_op = get_flux_operator(self.flux())
-        return -hyp_local_operator + InverseMassOperator() * (
-                    flux_op * w
-                    + flux_op * BoundaryPair(w, pec_bc, pec_tag)
-                    )
+        return -hyp_local_operator + InverseMassOperator()(
+                    flux_op(w)
+                    + flux_op(BoundaryPair(w, pec_bc, pec_tag)))
 
     def bind(self, discr):
         op = discr.compile(self.op_template())
