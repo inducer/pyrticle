@@ -298,11 +298,15 @@ namespace pyrticle
         const unsigned dim_m = m_mesh_data.m_dimensions;
 
         if (abf == 0)
+        {
           deposit_single_particle_with_cache(
               ds, ps, tgt, pn, center, particle_box);
+        }
         else
+        {
           deposit_single_particle_without_cache(
               tgt, center, particle_box, ps.charges[pn]);
+        }
         pset.push_back(abf);
 
         for (unsigned axis = 0; axis < dim_m; ++axis)

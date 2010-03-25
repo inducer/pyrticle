@@ -85,7 +85,6 @@ namespace pyrticle
 
       // member data --------------------------------------------------------
       std::vector<element_on_grid> m_elements_on_grid;
-      ShapeFunction m_shape_function;
       mutable unsigned m_max_el_grid_values;
 
       /** Each brick may have a number of "extra" points to resolve
