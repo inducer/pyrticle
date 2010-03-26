@@ -176,12 +176,12 @@ class TimesteppablePicState(object):
 
         from pyrticle.tools import NumberShiftableVector
 
-        from pytools import typedump
-        dx, dp, drecon = update
+        #from pytools import typedump
+        dx, dp, ddep = update
         dx = NumberShiftableVector.unwrap(dx)
         dp = NumberShiftableVector.unwrap(dp)
 
-        new_state = self.method.advance_state(self.state, dx, dp, drecon)
+        new_state = self.method.advance_state(self.state, dx, dp, ddep)
 
         return TimesteppablePicState(self.method, new_state)
 
@@ -551,7 +551,7 @@ class PicMethod(object):
 
 
     # time advance ------------------------------------------------------------
-    def advance_state(self, state, dx, dp, drecon):
+    def advance_state(self, state, dx, dp, ddep):
         pstate = state.particle_state
         cnt = pstate.particle_count
 
@@ -569,7 +569,7 @@ class PicMethod(object):
                 charges=pstate.charges,
                 masses=pstate.masses,
                 depositor_state=self.depositor.advance_state(
-                    state, drecon),
+                    state, ddep),
                 pusher_state=self.pusher.advance_state(state),
                 pnss=state.particle_number_shift_signaller,
                 vis_listener=state.vis_listener,
@@ -618,8 +618,6 @@ class PicMethod(object):
 
     def _add_to_silo(self, visualizer, db, state, time, step, beamaxis, vis_listener=None):
         from pylo import DBOPT_DTIME, DBOPT_CYCLE
-        from warnings import warn
-
         optlist = {}
         if time is not None:
             optlist[DBOPT_DTIME] = time
