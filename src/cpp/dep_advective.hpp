@@ -145,6 +145,9 @@ namespace pyrticle
           m_element_kill_counter(src.m_element_kill_counter)
         { }
 
+        virtual ~depositor_state()
+        { }
+
         unsigned count_advective_particles() const
         {
           return m_advected_particles.size();
