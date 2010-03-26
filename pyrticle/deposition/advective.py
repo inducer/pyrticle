@@ -200,6 +200,11 @@ class AdvectiveDepositor(Depositor):
         return result
 
     def advance_state(self, state, rhs):
+        # depositor states tend to linger on for a bit--ours here are
+        # big, so they need to go.
+        from gc import collect
+        collect()
+
         from pyrticle.tools import NumberShiftableVector
         return self.backend.apply_advective_particle_rhs(
                 state.depositor_state,
