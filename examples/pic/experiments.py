@@ -24,7 +24,7 @@ def cn_with_args(placeholder):
 
     def mogrify_kwarg(k, v):
         result = k[0]
-        
+
         i = 1
         while i < len(k):
             if k[i] == "_":
@@ -37,7 +37,7 @@ def cn_with_args(placeholder):
 
     if placeholder.kwargs:
         result += "-" + ("-".join(
-            mogrify_kwarg(k, v) 
+            mogrify_kwarg(k, v)
             for k, v in placeholder.kwargs.iteritems()))
 
     return result
@@ -121,43 +121,51 @@ def compare_methods():
 
     timestamp = get_timestamp()
 
-    for chi in [None, 5]:
-        for rec in [
+    jobs = []
+    for chi in [None, 2]:
+        for dep in [
             #O("DepGrid", jiggle_radius=0),
             O("DepGrid"),
             O("DepGrid", enforce_continuity=True),
             O("DepGridFind"),
-            O("DepAdv"), 
-            O("DepNormShape"), 
-            O("DepShape"), 
+            O("DepAdv"),
+            O("DepNormShape"),
+            O("DepShape"),
             ]:
             for eorder in [3]:
                 for sexp in [2]:
-                    if "Grid" in rec.classname:
+                    if "Grid" in dep.classname:
                         pushers = [O("PushMonomial")]
                     else:
                         pushers = [
-                                O("PushMonomial"), 
+                                O("PushMonomial"),
                                 O("PushAverage")
                                 ]
                     for pusher in pushers:
+
                         job = BatchJob(
                                 "compmeth-$DATE/eo%d-se%d-%s-%s-chi%s" % (
-                                    eorder, sexp, cn_with_args(rec), cn(pusher),
+                                    eorder, sexp, cn_with_args(dep), cn(pusher),
                                     chi),
-                                "driver.py",
+                                "-m pyrticle.driver",
                                 timestamp=timestamp,
                                 )
                         job.write_setup([
                             "pusher = %s" % pusher,
-                            "depositor = %s" % rec,
+                            "depositor = %s" % dep,
                             "element_order = %d" % eorder,
                             "shape_exponent = %d" % sexp,
                             "chi = %s" % chi,
                             ]
                             +basic_2d_gauss_setup()
                             )
-                        job.submit()
+                        jobs.append(job)
+
+    from random import shuffle
+    shuffle(jobs)
+
+    for job in jobs:
+        job.submit()
 
 def study_rec_grid(output_path=None):
     """Submit jobs to study the behavior of grid deposition."""
@@ -184,7 +192,7 @@ def study_rec_grid(output_path=None):
                         job = BatchJob(
                                 "recgrid-$DATE/%s-tol%g-cont%s-or%g-mm%g" % (
                                     method, el_tolerance, enf_cont, overres, mesh_margin),
-                                "driver.py",
+                                "-m pyrticle.driver",
                                 timestamp=timestamp,
                                 )
                         brick_gen = O("SingleBrickGenerator",
@@ -257,12 +265,12 @@ def study_cleaning():
             return str(f)
 
     for rec in [
-      #O("DepAdv"), 
-      #O("DepNormShape"), 
+      #O("DepAdv"),
+      #O("DepNormShape"),
       O("DepShape"),
       O("DepGrid", jiggle_radius=0),
       ]:
-        for chi in [None, 5]:
+        for chi in [None, 2]:
             if chi is None:
                 filters = [None]
             else:
@@ -279,7 +287,7 @@ def study_cleaning():
                 for pusher in [O("PushMonomial")]:
                         job = BatchJob(
                                 "cleanstudy-$DATE/%s-chi%s-filt%s" % (cn(rec), chi, filt_desc(filter)),
-                                "driver.py",
+                                "-m pyrticle.driver",
                                 timestamp=timestamp,
                                 )
                         job.write_setup([
@@ -297,7 +305,7 @@ def study_advec_filter():
     O = ConstructorPlaceholder
 
     def get_filter_orders(amp):
-        if filter_amp is None: 
+        if filter_amp is None:
             return [None]
         else:
             return [3, 6, 7, 9]
@@ -313,8 +321,8 @@ def study_advec_filter():
                     )
             job.write_setup([
                 "pusher = %s" % O("PushAverage"),
-                "depositor = %s" % O("DepAdv", 
-                    filter_order=filter_order, 
+                "depositor = %s" % O("DepAdv",
+                    filter_order=filter_order,
                     filter_amp=filter_amp),
                 ])
             job.submit()
@@ -352,7 +360,7 @@ def run_apsgun():
 
     job = BatchJob(
             "apsgun/$DATE",
-            "driver.py",
+            "-m pyrticle.driver",
             aux_files=["apsgun.cpy"],
             timestamp=timestamp,
             )
@@ -364,23 +372,25 @@ def run_kv3d():
 
     timestamp = get_timestamp()
 
-    for rec in [
-            O("DepShape"), 
-            O("DepGrid", O("FineCoreBrickGenerator", core_axis=2),
-                el_tolerance=0.1,
-                method="simplex_reduce")
-            ]:
-        job = BatchJob(
-                "kv3d-$DATE/%s" % cn(rec),
-                "driver.py",
-                aux_files=["kv3d.cpy"],
-                timestamp=timestamp,
-                )
-        job.write_setup([ 
-            "execfile('kv3d.cpy')",
-            "depositor = %s" % rec,
-            ])
-        job.submit()
+    for chi in [None, 2]:
+        for rec in [
+                O("DepShape"),
+                O("DepGrid", O("FineCoreBrickGenerator", core_axis=2),
+                    #el_tolerance=0.1,
+                    method="simplex_reduce")
+                ]:
+            job = BatchJob(
+                    "kv3d-$DATE/%s-chi%s" % (cn(rec), chi),
+                    "-m pyrticle.driver",
+                    aux_files=["kv3d.cpy"],
+                    timestamp=timestamp,
+                    )
+            job.write_setup([
+                "execfile('kv3d.cpy')",
+                "depositor = %s" % rec,
+                "chi = %s" % chi,
+                ])
+            job.submit()
 
 import sys
 exec sys.argv[1]
