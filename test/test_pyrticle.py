@@ -65,7 +65,6 @@ def test_kv_predictors():
     kv_env_exact = ChargelessKVRadiusPredictor(2.5e-3, 5e-6)
     kv_env_num = KVRadiusPredictor(2.5e-3, 5e-6)
 
-    from hedge.tools import plot_1d
     steps = 50
     for i in range(steps):
         s = kv_env_num.dt/7*i
