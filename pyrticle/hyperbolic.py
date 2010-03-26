@@ -126,10 +126,7 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
         pec_phi = BoundarizeOperator(pec_tag)(phi)
         pec_n = make_normal(pec_tag, self.maxwell_op.dimensions)
 
-        from hedge.tools import log_shape
-
-        from hedge.tools import ptwise_dot
-        bc = "invent"
+        bc = "prev"
         print "HYP CLEAN BC", bc
         if bc == "char":
             # see hedge/doc/maxima/eclean.mac for derivation
@@ -142,7 +139,7 @@ class ECleaningMaxwellOperator(CleaningMaxwellOperator):
 
                     1/2*(pec_phi+numpy.dot(pec_n, pec_e))
                     )
-        if bc == "invent":
+        elif bc == "invent":
             # see hedge/doc/maxima/eclean.mac for derivation
             pec_bc = join_fields(
                     -pec_e
