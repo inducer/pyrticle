@@ -872,8 +872,6 @@ def compute_initial_condition(rcon, discr, method, state,
 
     from hedge.tools import ptwise_dot
     from hedge.models.nd_calculus import GradientOperator
-    #e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1),
-            #bound_poisson.grad(phi_tilde))
     e_tilde = ptwise_dot(2, 1, make_scaling_matrix(1/gamma, 1),
             GradientOperator(discr.dimensions).bind(discr)(phi_tilde))
     e_prime = ptwise_dot(2, 1, make_scaling_matrix(1, gamma), e_tilde)
@@ -899,11 +897,11 @@ def compute_initial_condition(rcon, discr, method, state,
         d_tilde = maxwell_op.epsilon*e_tilde
         d_prime = maxwell_op.epsilon*e_prime
 
-        from hedge.optemplate import InverseMassOperator
         #divD_prime_ldg = bound_poisson.div(d_prime)
         #divD_prime_ldg2 = bound_poisson.div(d_prime, maxwell_op.epsilon*gamma*phi_tilde)
-        #divD_prime_ldg3 = maxwell_op.epsilon*\
-                #(InverseMassOperator().apply(discr, bound_poisson.op(gamma*phi_tilde)))
+        from hedge.optemplate import InverseMassOperator
+        divD_prime_ldg3 = maxwell_op.epsilon*\
+                (InverseMassOperator().apply(discr, bound_poisson.op(gamma*phi_tilde)))
         divD_prime_central = bound_div_op(d_prime)
 
         print "l2 div D_prime error central: %g" % \
@@ -912,8 +910,8 @@ def compute_initial_condition(rcon, discr, method, state,
                 #rel_l2_error(divD_prime_ldg, rho_prime)
         #print "l2 div D_prime error ldg with phi: %g" % \
                 #rel_l2_error(divD_prime_ldg2, rho_prime)
-        #print "l2 div D_prime error ldg with phi 3: %g" % \
-                #rel_l2_error(divD_prime_ldg3, rho_prime)
+        print "l2 div D_prime error ldg with phi 3: %g" % \
+                rel_l2_error(divD_prime_ldg3, rho_prime)
 
         if "vis_files" in method.debug:
             from hedge.visualization import SiloVisualizer
