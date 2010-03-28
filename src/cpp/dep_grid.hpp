@@ -290,11 +290,19 @@ namespace pyrticle
           // pick values off the grid
           const py_vector::const_iterator weights = eog.m_weight_factors.begin();
 
+          bool had_nonzero = false;
           for (unsigned i = 0; i < eog.m_grid_nodes.size(); ++i)
-            grid_values[i] = weights[i]
+          {
+            double w = weights[i]
               * from_it[offset + eog.m_grid_nodes[i]*increment];
+            grid_values[i] = w;
+
+            if (w)
+              had_nonzero = true;
+          }
 
           // and apply the interpolation matrix
+          if (had_nonzero)
           {
             const dyn_fortran_matrix &matrix = eog.m_interpolation_matrix;
             using namespace boost::numeric::bindings;
