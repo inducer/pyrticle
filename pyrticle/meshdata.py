@@ -72,7 +72,7 @@ class MeshData(_internal.MeshData):
             el_range = discr.find_el_range(el.id)
             ei.start, ei.end = el_range.start, el_range.stop
 
-            ei.vertices.extend([vi for vi in el.vertex_indices])
+            ei.vertices.extend([int(vi) for vi in el.vertex_indices])
 
             all_face_vertex_indices = el.face_vertices(el.vertex_indices)
 
