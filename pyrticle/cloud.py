@@ -755,7 +755,7 @@ def optimize_shape_bandwidth(method, state, analytic_rho, exponent):
             method.add_to_vis(vis, visf, state, time=radius, step=step)
             vis.add_data(visf, [
                 ("rho", rec_rho),
-                ("j", method.deposit_j(state)),
+                #("j", method.deposit_j(state)),
                 ("rho_analytic", analytic_rho),
                 ],
                 expressions=[("rho_diff", "rho-rho_analytic")],
