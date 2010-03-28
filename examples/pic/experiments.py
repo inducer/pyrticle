@@ -377,7 +377,7 @@ def run_kv3d():
                 O("DepShape"),
                 O("DepGrid", O("FineCoreBrickGenerator", core_axis=2),
                     #el_tolerance=0.1,
-                    method="simplex_reduce")
+                    submethod="simplex_reduce")
                 ]:
             job = BatchJob(
                     "kv3d-$DATE/%s-chi%s" % (cn(rec), chi),
