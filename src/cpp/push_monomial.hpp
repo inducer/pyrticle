@@ -110,6 +110,21 @@ namespace pyrticle
             );
       }
 
+      template <class VecType>
+      void debug(
+          const particle_number pn,
+          const mesh_data::mesh_data::element_number en,
+          const VecType &data) const
+      {
+        const unsigned basis_size = m_ldis.m_basis.size();
+        dyn_vector intp_coeffs(subrange(m_interpolation_coefficients,
+              pn*basis_size, (pn+1)*basis_size));
+        dyn_vector ldata(subrange(data, 
+              en*basis_size, (en+1)*basis_size));
+        std::cout << "INTP" << intp_coeffs << std::endl;
+        std::cout << "DATA" << ldata << std::endl;
+      }
+
       const double operator()(
           const particle_number pn,
           const mesh_data::mesh_data::element_number en,
@@ -249,13 +264,41 @@ namespace pyrticle
 
           const double charge = ps.charges[pn];
 
-          bounded_vector el_force(3);
-          el_force[0] = charge*e[0];
-          el_force[1] = charge*e[1];
-          el_force[2] = charge*e[2];
+          bounded_vector el_force(charge*e);
 
           const bounded_vector v = subrange(velocities, v_pstart, v_pend);
           bounded_vector mag_force = cross(v, charge*b);
+
+#if 0
+          // code for debugging NaNs
+          if (isnan_any(el_force) || isnan_any(mag_force))
+          {
+            const unsigned x_pstart = ps.xdim()*pn;
+            const unsigned x_pend = ps.xdim()*(pn+1);
+
+            const bounded_vector x = subrange(ps.positions, x_pstart, x_pend);
+
+            if (isnan_any(el_force))
+            {
+              std::cout << "EL FORCE HAD NAN" << std::endl;
+              interp.debug(pn, in_el, ex);
+              interp.debug(pn, in_el, ey);
+              interp.debug(pn, in_el, ez);
+            }
+
+            if (isnan_any(mag_force))
+            {
+              std::cout << "MAG FORCE HAD NAN" << std::endl;
+              interp.debug(pn, in_el, bx);
+              interp.debug(pn, in_el, by);
+              interp.debug(pn, in_el, bz);
+            }
+
+            std::cout
+              << el_force << " pn " << pn << " at " << x << " in el " << in_el 
+              << std::endl;
+          }
+#endif
 
           // truncate forces to dimensions_velocity entries
           subrange(result, v_pstart, v_pend) = subrange(

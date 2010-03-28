@@ -324,6 +324,18 @@ namespace pyrticle
 
 
 
+  template <class VectorType>
+  bool isnan_any(VectorType const &vec)
+  {
+    BOOST_FOREACH(typename VectorType::value_type value, vec)
+      if (isnan(value))
+        return true;
+    return false;
+  }
+
+
+
+
   template <class T>
   class stats_gatherer
   {
