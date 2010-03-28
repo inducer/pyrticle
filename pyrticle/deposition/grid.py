@@ -175,7 +175,8 @@ class GridDepositor(Depositor, GridVisualizer):
                         avg_group_finder[idx] = ag
 
         for ag in avg_groups:
-            self.backend.average_groups.extend(ag)
+            self.backend.average_groups.extend(
+                    [int(ag_i) for ag_i in ag])
             self.backend.average_group_starts.append(
                     len(self.backend.average_groups))
 
@@ -226,11 +227,16 @@ class GridDepositor(Depositor, GridVisualizer):
         inv_s = numpy.zeros((len(s),), dtype=float)
         inv_s[nonzero_flags] = 1/s[nonzero_flags]
 
+        if not nonzero_flags.all():
+            from warnings import warn
+            warn("grid dep: taking pseudoinverse of poorly conditioned matrix--"
+                    "this should have been caught earlier")
+
         # compute the pseudoinverse of the structured Vandermonde matrix
         inv_s_diag = numpy.zeros(
                 (node_count, point_count), 
                 dtype=float)
-        inv_s_diag[:len(s),:len(s)] = numpy.diag(1/s)
+        inv_s_diag[:len(s),:len(s)] = numpy.diag(inv_s)
 
         svdm_pinv = numpy.dot(numpy.dot(vt.T, inv_s_diag), u.T)
 
@@ -253,6 +259,11 @@ class GridDepositor(Depositor, GridVisualizer):
 
         if self.filter is not None:
             imat = numpy.dot(self.filter.get_filter_matrix(eg), imat)
+
+        assert not numpy.isnan(imat).any(), \
+                "encountered NaN in element %d's interpolation matrix" % el.id
+        assert not numpy.isinf(imat).any(), \
+                "encountered infinity in element %d's interpolation matrix" % el.id
 
         eog.interpolation_matrix = numpy.asarray(imat, order="F")
 
@@ -585,7 +596,10 @@ class GridDepositor(Depositor, GridVisualizer):
                         assert s[-1] == numpy.min(s)
                         assert s[0] == numpy.max(s)
                         
-                        if len(basis) > len(points) or s[0]/s[-1] > 10:
+                        # Imagine that--s can have negative entries.
+                        # (AK: I encountered one negative zero.)
+
+                        if len(basis) > len(points) or numpy.abs(s[0]/s[-1]) > 10:
                             retry = True
 
                             # badly conditioned, kill a basis entry
@@ -620,8 +634,8 @@ class GridDepositor(Depositor, GridVisualizer):
                                 % el.id)
 
                 if ldis.node_count() > len(basis):
-                    print "element %d: #nodes=%d, leftover modes=%d" % (
-                            el.id, ldis.node_count(), len(basis),)
+                    print "element %d: #nodes=%d, killed modes=%d" % (
+                            el.id, ldis.node_count(), ldis.node_count()-len(basis),)
 
                 basis_len_vec[discr.find_el_range(el.id)] = len(basis)
                 el_condition_vec[discr.find_el_range(el.id)] = s[0]/s[-1]
@@ -794,8 +808,9 @@ class GridDepositor(Depositor, GridVisualizer):
                     state, velocities, pslice))
 
     def _deposit_j(self, state, velocities, pslice):
-        return self.remap_grid_to_mesh(self.deposit_grid_j(
-            state, velocities, pslice))
+        grid_j = self.deposit_grid_j(state, velocities, pslice)
+
+        return self.remap_grid_to_mesh(grid_j)
 
     def _deposit_rho(self, state, pslice):
         return self.remap_grid_to_mesh(
