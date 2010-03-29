@@ -81,6 +81,11 @@ def basic_2d_gauss_setup():
     final_time = 10*units.M/units.VACUUM_LIGHT_SPEED()
     _electrons_per_particle = abs(_cloud_charge/nparticles/units.EL_CHARGE)
 
+    try:
+        _max_area
+    except NameError:
+        _max_area = 0.02
+
     _tube_width = 1
     import hedge.mesh.generator as _meshgen
     mesh = _meshgen.make_rect_mesh(
@@ -88,7 +93,7 @@ def basic_2d_gauss_setup():
             b=(-0.5+tube_length, _tube_width/2),
             periodicity=(True, False),
             subdivisions=(10,5),
-            max_area=0.02)
+            max_area=_max_area)
 
     _c0 = units.VACUUM_LIGHT_SPEED()
 
@@ -121,51 +126,52 @@ def compare_methods():
 
     timestamp = get_timestamp()
 
-    jobs = []
-    for chi in [None, 2]:
-        for dep in [
-            #O("DepGrid", jiggle_radius=0),
-            O("DepGrid"),
-            O("DepGrid", enforce_continuity=True),
-            O("DepGridFind"),
-            O("DepAdv"),
-            O("DepNormShape"),
-            O("DepShape"),
-            ]:
-            for eorder in [3]:
-                for sexp in [2]:
-                    if "Grid" in dep.classname:
-                        pushers = [O("PushMonomial")]
-                    else:
-                        pushers = [
-                                O("PushMonomial"),
-                                O("PushAverage")
+    for max_area in [0.04, 0.02, 0.01]:
+        for chi in [None, 2]:
+            for dep in [
+                #O("DepGrid", jiggle_radius=0),
+                O("DepGrid"),
+                O("DepGrid", enforce_continuity=True),
+                O("DepGridFind"),
+                O("DepAdv"),
+                O("DepNormShape"),
+                O("DepShape"),
+                ]:
+                for eorder in [3, 4, 5]:
+                    for sexp in [2]:
+                        if "Grid" in dep.classname:
+                            pushers = [O("PushMonomial")]
+                        else:
+                            pushers = [
+                                    O("PushMonomial"),
+                                    O("PushAverage")
+                                    ]
+                        for pusher in pushers:
+
+                            job = BatchJob(
+                                    "compmeth-$DATE/ma%f-eo%d-se%d-%s-%s-chi%s" % (
+                                        max_area, eorder, sexp, cn_with_args(dep), cn(pusher),
+                                        chi),
+                                    "-m pyrticle.driver",
+                                    timestamp=timestamp,
+                                    )
+                            job.write_setup([
+                                "pusher = %s" % pusher,
+                                "depositor = %s" % dep,
+                                "element_order = %d" % eorder,
+                                "shape_exponent = %d" % sexp,
+                                "chi = %s" % chi,
+                                "_max_area = %f" % max_area,
                                 ]
-                    for pusher in pushers:
-
-                        job = BatchJob(
-                                "compmeth-$DATE/eo%d-se%d-%s-%s-chi%s" % (
-                                    eorder, sexp, cn_with_args(dep), cn(pusher),
-                                    chi),
-                                "-m pyrticle.driver",
-                                timestamp=timestamp,
+                                +basic_2d_gauss_setup()
                                 )
-                        job.write_setup([
-                            "pusher = %s" % pusher,
-                            "depositor = %s" % dep,
-                            "element_order = %d" % eorder,
-                            "shape_exponent = %d" % sexp,
-                            "chi = %s" % chi,
-                            ]
-                            +basic_2d_gauss_setup()
-                            )
-                        jobs.append(job)
 
-    from random import shuffle
-    shuffle(jobs)
+                            if "Adv" in dep.classname:
+                                mem_megs = 3000
+                            else:
+                                mem_megs = 400
 
-    for job in jobs:
-        job.submit()
+                            job.submit(memory_megs=mem_megs)
 
 def study_rec_grid(output_path=None):
     """Submit jobs to study the behavior of grid deposition."""
