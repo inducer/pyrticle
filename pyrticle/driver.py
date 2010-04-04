@@ -323,6 +323,7 @@ class PICRunner(object):
         logmgr.set_constant("n_part_0", setup.nparticles)
         logmgr.set_constant("pmass", setup.distribution.mean()[3][0])
         logmgr.set_constant("chi", setup.chi)
+        logmgr.set_constant("phi_decay", setup.phi_decay)
         logmgr.set_constant("shape_radius_setup", setup.shape_bandwidth)
         logmgr.set_constant("shape_radius", self.method.depositor.shape_function.radius)
         logmgr.set_constant("shape_exponent", self.method.depositor.shape_function.exponent)
