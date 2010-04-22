@@ -376,14 +376,13 @@ class KVZIntervalBeam(KV):
 
         lambda_ = abs(self.total_charge) /(self.z_length*self.units.EL_CHARGE)
 
-        # factor of 2 here is uncertain
         # from S.Y.Lee, Accelerator Physics, p. 68
         # 2nd ed. 
         # (2.140), space charge term (2.136)
 
         gamma = (1-self.beta**2)**(-0.5)
 
-        xi = 4*((lambda_ * r0) / (self.beta**2 * gamma**3))
+        xi = 2*((lambda_ * r0) / (self.beta**2 * gamma**3))
 
         return xi
 
@@ -398,12 +397,12 @@ class KVZIntervalBeam(KV):
     def get_rms_predictor(self, axis):
         return KVRadiusPredictor(
                 self.rms_radii[axis], self.rms_emittances[axis],
-                xi=self.get_rms_space_charge_parameter())
+                ksc=self.get_rms_space_charge_parameter())
 
     def get_total_predictor(self, axis):
         return KVRadiusPredictor(
                 self.radii[axis], self.emittances[axis],
-                xi=self.get_total_space_charge_parameter())
+                ksc=self.get_total_space_charge_parameter())
 
 
 
@@ -422,26 +421,26 @@ class ChargelessKVRadiusPredictor:
 
 
 class KVRadiusPredictor(pyrticle.tools.ODEDefinedFunction):
-    """Implement equation (1.74) in Alex Chao's book.
+    """Implement equation (2.174) in S.Y.Lee's book.
 
     See equation (1.65) for the definition of M{xi}.
     M{Q} is the number of electrons in the beam
     """
-    def __init__(self, a0, eps, eB_2E=0, xi=0, dt=1e-4):
+    def __init__(self, a0, eps, kx=0, ksc=0, dt=1e-4):
         pyrticle.tools.ODEDefinedFunction.__init__(self, 0, numpy.array([a0, 0]), 
                 dt=dt*(a0**4/eps**2)**2)
         self.eps = eps
-        self.xi = xi
-        self.eB_2E = eB_2E
+        self.ksc = ksc
+        self.kx = kx
 
     def rhs(self, t, y):
         a = y[0]
         aprime = y[1]
         return numpy.array([
             aprime, 
-            - self.eB_2E**2 * a
+            - self.kx * a
             + self.eps**2/a**3
-            + self.xi/(2*a)
+            + (2*self.ksc)/(2*a)
             ])
 
     def __call__(self, t):
