@@ -262,7 +262,7 @@ class EBParallel(StaticFieldSetup):
 
 
 def run_setup(units, casename, setup, discr, pusher, visualize=False):
-    from hedge.timestep import RK4TimeStepper
+    from hedge.timestep.runge_kutta import LSRK4TimeStepper
     from hedge.visualization import SiloVisualizer
     from hedge.models.em import MaxwellOperator
 
@@ -314,8 +314,7 @@ def run_setup(units, casename, setup, discr, pusher, visualize=False):
         return (p_rhs_calculator(t, lambda: fields, lambda: ts_state.state)
                 + f2p_rhs_calculator(t, lambda: fields, lambda: ts_state.state))
 
-    stepper = RK4TimeStepper()
-    from time import time
+    stepper = LSRK4TimeStepper()
     t = 0
 
     bbox = discr.mesh.bounding_box()

@@ -159,8 +159,8 @@ def test_kv_with_no_charge():
             0, # drecon
             ])
 
-    from hedge.timestep import RK4TimeStepper
-    stepper = RK4TimeStepper()
+    from hedge.timestep.runge_kutta import LSRK4TimeStepper
+    stepper = LSRK4TimeStepper()
     t = 0
 
     from pyrticle.cloud import TimesteppablePicState
@@ -187,7 +187,7 @@ def test_kv_with_no_charge():
 
 @mark_test.long
 def test_efield_vs_gauss_law():
-    from hedge.mesh import \
+    from hedge.mesh.generator import \
             make_box_mesh, \
             make_cylinder_mesh
     from math import sqrt, pi
@@ -335,7 +335,7 @@ def test_with_static_fields():
     units = SIUnitsWithNaturalConstants()
 
     from hedge.discretization.local import TetrahedronDiscretization
-    from hedge.mesh import \
+    from hedge.mesh.generator import \
             make_box_mesh, \
             make_cylinder_mesh
     from hedge.discretization import Discretization
@@ -423,5 +423,9 @@ def test_shape_functions():
 
 
 if __name__ == "__main__":
-    from py.test.cmdline import main
-    main([__file__])
+    import sys
+    if len(sys.argv) > 1:
+        exec sys.argv[1]
+    else:
+        from py.test.cmdline import main
+        main([__file__])
