@@ -18,12 +18,10 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
-
-
 def get_config_schema():
-    from aksetup_helper import ConfigSchema, Option, \
+    from aksetup_helper import ConfigSchema, \
             IncludeDir, LibraryDir, Libraries, BoostLibraries, \
-            Switch, StringListOption, make_boost_base_options
+            StringListOption, make_boost_base_options
 
     return ConfigSchema(make_boost_base_options() + [
         BoostLibraries("python"),
@@ -35,15 +33,12 @@ def get_config_schema():
         LibraryDir("LAPACK", []),
         Libraries("LAPACK", ["lapack"]),
 
-        StringListOption("CXXFLAGS", [], 
+        StringListOption("CXXFLAGS", [],
             help="Any extra C++ compiler options to include"),
         ])
 
 
-
-
 def main():
-    import glob
     from aksetup_helper import hack_distutils, get_config, setup, \
             HedgeExtension
 
@@ -53,7 +48,7 @@ def main():
     LIBRARY_DIRS = conf["BOOST_LIB_DIR"]
     LIBRARIES = conf["BOOST_PYTHON_LIBNAME"]
 
-    EXTRA_DEFINES = { 
+    EXTRA_DEFINES = {
             "PYUBLAS_HAVE_BOOST_BINDINGS": 1,
             }
     EXTRA_INCLUDE_DIRS = []
@@ -79,39 +74,38 @@ def main():
     handle_component("LAPACK")
     handle_component("BLAS")
 
-    setup(name="pyrticle",
-          version="0.90",
-          description="A high-order PIC code using Hedge",
-          author=u"Andreas Kloeckner",
-          author_email="inform@tiker.net",
-          license = "GPLv3",
-          url="http://mathema.tician.de/software/pyrticle",
+    setup(
+            name="pyrticle",
+            version="0.90",
+            description="A high-order PIC code using Hedge",
+            author=u"Andreas Kloeckner",
+            author_email="inform@tiker.net",
+            license="GPLv3",
+            url="http://mathema.tician.de/software/pyrticle",
 
-          scripts=["bin/pyrticle"],
+            scripts=["bin/pyrticle"],
 
-          packages=["pyrticle", "pyrticle.deposition"],
-          ext_package="pyrticle",
-          ext_modules=[
-            HedgeExtension("_internal", 
-                [
-                    "src/cpp/tools.cpp",
-                    "src/wrapper/wrap_tools.cpp",
-                    "src/wrapper/wrap_grid.cpp",
-                    "src/wrapper/wrap_meshdata.cpp",
-                    "src/wrapper/wrap_pic.cpp",
-                    "src/wrapper/wrap_pusher.cpp",
-                    "src/wrapper/wrap_depositor.cpp",
-                    "src/wrapper/wrap_main.cpp", 
-                ],
-                include_dirs=INCLUDE_DIRS + EXTRA_INCLUDE_DIRS,
-                library_dirs=LIBRARY_DIRS + EXTRA_LIBRARY_DIRS,
-                libraries=LIBRARIES + EXTRA_LIBRARIES,
-                extra_compile_args=conf["CXXFLAGS"],
-                define_macros=list(EXTRA_DEFINES.iteritems()),
-                )]
-         )
-
-
+            packages=["pyrticle", "pyrticle.deposition"],
+            ext_package="pyrticle",
+            ext_modules=[
+                HedgeExtension("_internal",
+                    [
+                        "src/cpp/tools.cpp",
+                        "src/wrapper/wrap_tools.cpp",
+                        "src/wrapper/wrap_grid.cpp",
+                        "src/wrapper/wrap_meshdata.cpp",
+                        "src/wrapper/wrap_pic.cpp",
+                        "src/wrapper/wrap_pusher.cpp",
+                        "src/wrapper/wrap_depositor.cpp",
+                        "src/wrapper/wrap_main.cpp",
+                        ],
+                    include_dirs=INCLUDE_DIRS + EXTRA_INCLUDE_DIRS,
+                    library_dirs=LIBRARY_DIRS + EXTRA_LIBRARY_DIRS,
+                    libraries=LIBRARIES + EXTRA_LIBRARIES,
+                    extra_compile_args=conf["CXXFLAGS"],
+                    define_macros=list(EXTRA_DEFINES.iteritems()),
+                    )]
+                )
 
 
 if __name__ == '__main__':
